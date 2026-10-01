@@ -39,12 +39,12 @@
     {
       "text": "每个 abap 块后有做什么与风险层",
       "passed": true,
-      "evidence": "abap=10 做什么=10 风险=11"
+      "evidence": "abap=10 做什么=10 风险=11 (ch3)"
     },
     {
       "text": "代码块标注 ```abap",
       "passed": true,
-      "evidence": "abap块 10"
+      "evidence": "abap块 10 (ch3 内 10)"
     },
     {
       "text": "含 ### 3.X 分组标题(≥2)",

@@ -1,19 +1,45 @@
 {
   "skill_name": "analyzing-programs",
+  "_comment": [
+    "Triggers are NOT stored here. grade_v2.py derives every content assertion's",
+    "applicability from the fixture source at grading time, because a hand-kept",
+    "copy of the trigger set is guaranteed to drift from the code it describes.",
+    "check_fixtures.py recomputes the same derivation for review."
+  ],
   "evals": [
     {
       "id": 1,
       "name": "alv-editable-total-poc",
       "prompt": "帮我看懂这个 ABAP 程序，分析一下它解决什么问题、整体架构怎么设计的 @ztest7.abap",
-      "expected_output": "一份 6 章结构齐全的中文分析报告：含责任链表、flowchart、sequenceDiagram，每个子程序三层（做什么/为什么/风险），问题清单按 P0-P3 分级且用子程序名标注，无行号引用，Mermaid 标签无裸尖括号。",
       "files": ["ztest7.abap"]
     },
     {
       "id": 2,
       "name": "procedural-vendor-report",
       "prompt": "走读一下这个 ABAP 报表程序，讲清楚它的执行流程和设计 @zmmr_vend_list.abap",
-      "expected_output": "一份 6 章结构齐全的中文分析报告：按 PERFORM 调用顺序分组（get_data→build_fieldcat→display_alv），含责任链表、flowchart、sequenceDiagram，每个 FORM 三层分析，问题清单按 P0-P3 分级且用子程序名标注，无行号引用。",
       "files": ["zmmr_vend_list.abap"]
+    },
+    {
+      "id": 3,
+      "name": "global-class-alv-weight",
+      "prompt": "@zcl_stock_check.clas.abap 这是我们的一个全局类，帮我做个 onboarding 分析，讲清楚它怎么取数、怎么用 CL_GUI_ALV_GRID 显示、有哪些明显问题",
+      "files": ["zcl_stock_check.clas.abap"]
+    },
+    {
+      "id": 4,
+      "name": "function-group-rfc-price",
+      "prompt": "走读这个函数组 @zfg_material_price.fg.abap（含 TOP 与 U01 include），讲清楚两个 FM 的职责、数据怎么流转，以及写数据库这块有没有问题",
+      "files": [
+        "zfg_material_price.fg.abap",
+        "lzfg_material_pacetop.abap",
+        "lzfg_material_pacu01.abap"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "report-bapi-rfc-upload",
+      "prompt": "分析这个报表 @zreport_bapi_upload.abap，重点看 BAPI 调用和 RFC 复制这两段的正确性，以及价格计算有没有算错",
+      "files": ["zreport_bapi_upload.abap"]
     }
   ]
 }

@@ -1,0 +1,8 @@
+{"eval": 5, "config": "without_skill", "reports": [
+  {"path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-7\\eval-5-report-bapi-rfc-upload\\without_skill\\run-1\\outputs\\report.md", "verdicts": {"D1": "yes", "D2": "yes", "D3": "yes", "D4": "yes", "D5": "yes"},
+   "evidence": {"D1": "4.4 E/A 类消息被完全吞掉，循环不判 type", "D2": "4.3 缺少 COMMIT WORK，更新会回滚不落库", "D3": "3.1 单价×毛重=元×公斤，无字段承载", "D4": "2.3 FOR ALL ENTRIES 源表为空退化为全表扫描", "D5": "2.4 READ TABLE 不查 sy-subrc；5.2 声明 EXCEPTIONS 不判 sy-subrc"},
+   "notes": "命中全面，5 个缺陷全部指出并给出后果，另发现字段数不匹配等额外根因"},
+  {"path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-7\\eval-5-report-bapi-rfc-upload\\without_skill\\run-2\\outputs\\report.md", "verdicts": {"D1": "yes", "D2": "yes", "D3": "yes", "D4": "partial", "D5": "yes"},
+   "evidence": {"D1": "P1-5 调用后不判 typeid='E'/'A'，无条件打印 uploaded", "D2": "P0-1 全程没有 BAPI_TRANSACTION_COMMIT，数据跑完即回滚", "D3": "C-1 量纲不成立，NETPR×BRGEW 口径裸奔", "D4": "改进项8 提到 FOR ALL ENTRIES 前须判 IS INITIAL，但问题表未诊断空表", "D5": "P1-3 READ TABLE 不检查 sy-subrc；P0-4 RFC 完全不看 sy-subrc"},
+   "notes": "四缺陷清晰命中；FOR ALL ENTRIES 空表只在改进清单里提，未说明退化全表扫描的后果"}
+]}

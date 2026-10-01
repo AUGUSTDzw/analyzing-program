@@ -1,0 +1,370 @@
+{
+  "metadata": {
+    "skill_name": "analyzing-programs",
+    "skill_path": "C:\\Users\\DzwU\\.agents\\skills\\analyzing-programs",
+    "executor_model": "general-subagent",
+    "iteration": "iteration-5",
+    "evals_run": [
+      1,
+      2
+    ],
+    "runs_per_configuration": 1,
+    "grader": "grade3.py",
+    "skill_sha256": "b8f84e805a2a2aec6ecff58f35ac7e6c55874308b4559a73efdb068fc5f00a1b",
+    "generated_at": "2026-10-01T10:27:04Z"
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "eval_name": "alv-editable-total-poc",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 12,
+        "failed": 0,
+        "total": 12,
+        "time_seconds": 0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "报告含全部六章",
+          "passed": true,
+          "evidence": "找到 ['一、', '二、', '三、', '四、', '五、', '六、']"
+        },
+        {
+          "text": "二章含责任链表且表头含调用者列",
+          "passed": true,
+          "evidence": ""
+        },
+        {
+          "text": "含 Mermaid flowchart TD",
+          "passed": true,
+          "evidence": ""
+        },
+        {
+          "text": "含 Mermaid sequenceDiagram",
+          "passed": true,
+          "evidence": ""
+        },
+        {
+          "text": "无源码行号引用",
+          "passed": true,
+          "evidence": "无"
+        },
+        {
+          "text": "Mermaid 标签无裸尖括号",
+          "passed": true,
+          "evidence": "安全"
+        },
+        {
+          "text": "含 P0 与 P3 优先级标记",
+          "passed": true,
+          "evidence": ""
+        },
+        {
+          "text": "每个 abap 块后有做什么与风险层",
+          "passed": true,
+          "evidence": "abap=14 做什么=14 风险=17 (ch3)"
+        },
+        {
+          "text": "代码块标注 ```abap",
+          "passed": true,
+          "evidence": "abap块 14 (ch3 内 14)"
+        },
+        {
+          "text": "含 ### 3.X 分组标题(≥2)",
+          "passed": true,
+          "evidence": "4 个"
+        },
+        {
+          "text": "子程序分组按执行顺序(≥2 section)",
+          "passed": true,
+          "evidence": ""
+        },
+        {
+          "text": "ntgew/brgew 语义错配被识别为风险(非背书)",
+          "passed": true,
+          "evidence": "已识别为风险"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "eval_name": "alv-editable-total-poc",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 6,
+        "failed": 6,
+        "total": 12,
+        "time_seconds": 0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "报告含全部六章",
+          "passed": false,
+          "evidence": "找到 []"
+        },
+        {
+          "text": "二章含责任链表且表头含调用者列",
+          "passed": false,
+          "evidence": ""
+        },
+        {
+          "text": "含 Mermaid flowchart TD",
+          "passed": false,
+          "evidence": ""
+        },
+        {
+          "text": "含 Mermaid sequenceDiagram",
+          "passed": false,
+          "evidence": ""
+        },
+        {
+          "text": "无源码行号引用",
+          "passed": false,
+          "evidence": "疑似: ['.abap:18', '.abap:85', '.abap:1']"
+        },
+        {
+          "text": "Mermaid 标签无裸尖括号",
+          "passed": true,
+          "evidence": "安全"
+        },
+        {
+          "text": "含 P0 与 P3 优先级标记",
+          "passed": true,
+          "evidence": ""
+        },
+        {
+          "text": "每个 abap 块后有做什么与风险层",
+          "passed": false,
+          "evidence": "abap=20 做什么=0 风险=7 (whole-doc fallback)"
+        },
+        {
+          "text": "代码块标注 ```abap",
+          "passed": true,
+          "evidence": "abap块 20 (ch3 内 20)"
+        },
+        {
+          "text": "含 ### 3.X 分组标题(≥2)",
+          "passed": true,
+          "evidence": "4 个"
+        },
+        {
+          "text": "子程序分组按执行顺序(≥2 section)",
+          "passed": true,
+          "evidence": ""
+        },
+        {
+          "text": "ntgew/brgew 语义错配被识别为风险(非背书)",
+          "passed": true,
+          "evidence": "已识别为风险"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "eval_name": "procedural-vendor-report",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 11,
+        "failed": 0,
+        "total": 11,
+        "time_seconds": 0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "报告含全部六章",
+          "passed": true,
+          "evidence": "找到 ['一、', '二、', '三、', '四、', '五、', '六、']"
+        },
+        {
+          "text": "二章含责任链表且表头含调用者列",
+          "passed": true,
+          "evidence": ""
+        },
+        {
+          "text": "含 Mermaid flowchart TD",
+          "passed": true,
+          "evidence": ""
+        },
+        {
+          "text": "含 Mermaid sequenceDiagram",
+          "passed": true,
+          "evidence": ""
+        },
+        {
+          "text": "无源码行号引用",
+          "passed": true,
+          "evidence": "无"
+        },
+        {
+          "text": "Mermaid 标签无裸尖括号",
+          "passed": true,
+          "evidence": "安全"
+        },
+        {
+          "text": "含 P0 与 P3 优先级标记",
+          "passed": true,
+          "evidence": ""
+        },
+        {
+          "text": "每个 abap 块后有做什么与风险层",
+          "passed": true,
+          "evidence": "abap=10 做什么=10 风险=11 (ch3)"
+        },
+        {
+          "text": "代码块标注 ```abap",
+          "passed": true,
+          "evidence": "abap块 10 (ch3 内 10)"
+        },
+        {
+          "text": "含 ### 3.X 分组标题(≥2)",
+          "passed": true,
+          "evidence": "5 个"
+        },
+        {
+          "text": "子程序分组按执行顺序(≥2 section)",
+          "passed": true,
+          "evidence": ""
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "eval_name": "procedural-vendor-report",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.364,
+        "passed": 4,
+        "failed": 7,
+        "total": 11,
+        "time_seconds": 0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "报告含全部六章",
+          "passed": false,
+          "evidence": "找到 ['一、']"
+        },
+        {
+          "text": "二章含责任链表且表头含调用者列",
+          "passed": false,
+          "evidence": ""
+        },
+        {
+          "text": "含 Mermaid flowchart TD",
+          "passed": false,
+          "evidence": ""
+        },
+        {
+          "text": "含 Mermaid sequenceDiagram",
+          "passed": false,
+          "evidence": ""
+        },
+        {
+          "text": "无源码行号引用",
+          "passed": false,
+          "evidence": "疑似: ['（第 33、45 行）', '（第 21、23 行）', '（第 33-34 行）']"
+        },
+        {
+          "text": "Mermaid 标签无裸尖括号",
+          "passed": true,
+          "evidence": "安全"
+        },
+        {
+          "text": "含 P0 与 P3 优先级标记",
+          "passed": false,
+          "evidence": ""
+        },
+        {
+          "text": "每个 abap 块后有做什么与风险层",
+          "passed": false,
+          "evidence": "abap=10 做什么=0 风险=1 (whole-doc fallback)"
+        },
+        {
+          "text": "代码块标注 ```abap",
+          "passed": true,
+          "evidence": "abap块 10 (ch3 内 10)"
+        },
+        {
+          "text": "含 ### 3.X 分组标题(≥2)",
+          "passed": true,
+          "evidence": "3 个"
+        },
+        {
+          "text": "子程序分组按执行顺序(≥2 section)",
+          "passed": true,
+          "evidence": ""
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 0,
+        "stddev": 0
+      },
+      "tokens": {
+        "mean": 0,
+        "stddev": 0
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.432,
+        "stddev": 0.068,
+        "min": 0.364,
+        "max": 0.5
+      },
+      "time_seconds": {
+        "mean": 0,
+        "stddev": 0
+      },
+      "tokens": {
+        "mean": 0,
+        "stddev": 0
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.568",
+      "time_seconds": "+0.0",
+      "tokens": "+0"
+    }
+  },
+  "notes": [
+    "with_skill mean 100.0% vs without_skill 43.2% — +56.8pp.",
+    "per-eval with_skill: [100, 100]%  |  without_skill: [50, 36]%.",
+    "skill gains (with_skill PASS in every eval, baseline FAIL in >=1): A1 (报告含全部六章), A2 (二章含责任链表且表头含调用者列), A3 (含 Mermaid flowchart TD), A4 (含 Mermaid sequenceDiagram), A5 (无源码行号引用), A7 (含 P0 与 P3 优先级标记), A8 (每个 abap 块后有做什么与风险层).",
+    "with_skill cleared every shared structural assertion.",
+    "non-discriminating, PASS in both configs for every eval: A6, A9, A10, A11."
+  ]
+}

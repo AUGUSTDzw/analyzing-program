@@ -1,0 +1,135 @@
+{
+  "metadata": {
+    "grader": "grade_v2.py",
+    "runs_per_configuration": 1,
+    "evals": [
+      {
+        "id": 1,
+        "name": "alv-editable-total-poc",
+        "files": [
+          "ztest7.abap"
+        ],
+        "subprograms": [
+          "set_pf_status",
+          "get_data_changed"
+        ],
+        "triggers": {
+          "read_table": true,
+          "fae": false,
+          "hardcode": false,
+          "semantic": true,
+          "persist": false,
+          "literal_msg": false
+        }
+      },
+      {
+        "id": 2,
+        "name": "procedural-vendor-report",
+        "files": [
+          "zmmr_vend_list.abap"
+        ],
+        "subprograms": [
+          "get_data",
+          "build_fieldcat",
+          "display_alv"
+        ],
+        "triggers": {
+          "read_table": false,
+          "fae": false,
+          "hardcode": false,
+          "semantic": false,
+          "persist": false,
+          "literal_msg": true
+        }
+      },
+      {
+        "id": 3,
+        "name": "global-class-alv-weight",
+        "files": [
+          "zcl_stock_check.clas.abap"
+        ],
+        "subprograms": [
+          "constructor",
+          "collect_stock",
+          "enrich_text",
+          "calc_unit_weight",
+          "check_capacity",
+          "build_fieldcat",
+          "display_alv",
+          "on_double_click",
+          "set_cell_styles"
+        ],
+        "triggers": {
+          "read_table": true,
+          "fae": true,
+          "hardcode": true,
+          "semantic": true,
+          "persist": false,
+          "literal_msg": true
+        }
+      },
+      {
+        "id": 4,
+        "name": "function-group-rfc-price",
+        "files": [
+          "zfg_material_price.fg.abap",
+          "lzfg_material_pacetop.abap",
+          "lzfg_material_pacu01.abap"
+        ],
+        "subprograms": [
+          "normalise_uom",
+          "is_valid_price",
+          "z_read_price_rows",
+          "z_update_net_price"
+        ],
+        "triggers": {
+          "read_table": false,
+          "fae": true,
+          "hardcode": true,
+          "semantic": true,
+          "persist": true,
+          "literal_msg": false
+        }
+      },
+      {
+        "id": 5,
+        "name": "report-bapi-rfc-upload",
+        "files": [
+          "zreport_bapi_upload.abap"
+        ],
+        "subprograms": [
+          "read_changes",
+          "post_via_bapi",
+          "replicate_remote",
+          "show_log"
+        ],
+        "triggers": {
+          "read_table": true,
+          "fae": true,
+          "hardcode": false,
+          "semantic": true,
+          "persist": true,
+          "literal_msg": false
+        }
+      }
+    ],
+    "paired_cells": 0,
+    "paired_excluded": [
+      "A12"
+    ]
+  },
+  "runs": [],
+  "per_cell": {},
+  "assertion_stats": {},
+  "paired": {
+    "with_only_pass": 0,
+    "without_only_pass": 0,
+    "concordant_pass": 0,
+    "mcnemar_exact_two_sided_p": 1.0
+  },
+  "summary": {
+    "with_skill_mean": 0,
+    "without_skill_mean": 0,
+    "delta_pp": 0
+  }
+}

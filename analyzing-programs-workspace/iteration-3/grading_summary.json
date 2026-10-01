@@ -44,12 +44,12 @@
       {
         "text": "每个 abap 块后有做什么与风险层",
         "passed": true,
-        "evidence": "abap=10 做什么=10 风险=11"
+        "evidence": "abap=10 做什么=10 风险=11 (ch3)"
       },
       {
         "text": "代码块标注 ```abap",
         "passed": true,
-        "evidence": "abap块 10"
+        "evidence": "abap块 10 (ch3 内 10)"
       },
       {
         "text": "含 ### 3.X 分组标题(≥2)",
@@ -113,12 +113,12 @@
       {
         "text": "每个 abap 块后有做什么与风险层",
         "passed": false,
-        "evidence": "abap=7 做什么=0 风险=5"
+        "evidence": "abap=0 做什么=0 风险=0 (ch3)"
       },
       {
         "text": "代码块标注 ```abap",
         "passed": true,
-        "evidence": "abap块 7"
+        "evidence": "abap块 7 (ch3 内 0)"
       },
       {
         "text": "含 ### 3.X 分组标题(≥2)",
@@ -182,12 +182,12 @@
       {
         "text": "每个 abap 块后有做什么与风险层",
         "passed": true,
-        "evidence": "abap=6 做什么=7 风险=9"
+        "evidence": "abap=6 做什么=6 风险=8 (ch3)"
       },
       {
         "text": "代码块标注 ```abap",
         "passed": true,
-        "evidence": "abap块 6"
+        "evidence": "abap块 6 (ch3 内 6)"
       },
       {
         "text": "含 ### 3.X 分组标题(≥2)",
@@ -246,12 +246,12 @@
       {
         "text": "每个 abap 块后有做什么与风险层",
         "passed": false,
-        "evidence": "abap=3 做什么=0 风险=7"
+        "evidence": "abap=0 做什么=0 风险=0 (ch3)"
       },
       {
         "text": "代码块标注 ```abap",
         "passed": true,
-        "evidence": "abap块 3"
+        "evidence": "abap块 3 (ch3 内 0)"
       },
       {
         "text": "含 ### 3.X 分组标题(≥2)",

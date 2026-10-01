@@ -1,0 +1,38 @@
+{
+  "eval": 1,
+  "config": "without_skill",
+  "reports": [
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-7\\eval-1-alv-editable-total-poc\\without_skill\\run-1\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "no",
+        "D3": "partial",
+        "D4": "yes"
+      },
+      "evidence": {
+        "D1": "数据 SELECT 进 _mara，t_outtab=gt_mara 传空表→屏幕上 0 行",
+        "D2": "称 NTGEW_15 是「正确的类型选择」，背书净重累加毛重",
+        "D3": "指出缺 IS BOUND 会抛 CX_SY_REF_IS_INITIAL，但未提 INDEX 1 假设",
+        "D4": "空 IF 捕获异常什么都不做，比不捕获更糟、掩盖问题"
+      },
+      "notes": "D1/D4 命中；D3 只中一半；D2 反而明确背书，未识净重/毛重口径错配。"
+    },
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-7\\eval-1-alv-editable-total-poc\\without_skill\\run-2\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "no",
+        "D3": "no",
+        "D4": "yes"
+      },
+      "evidence": {
+        "D1": "_mara 未声明，数据进 _mara 而 t_outtab 传 gt_mara→空表",
+        "D2": "断言 NTGEW_15 是正确类型、「BRGEW 即 NTGEW」，明确背书",
+        "D3": "只分析 ASSIGN COMPONENT 空检查，未提 gr_data 未判 IS BOUND／INDEX 1",
+        "D4": "finished=1 与其它异常被静默丢弃，用户没有任何提示"
+      },
+      "notes": "D1/D4 命中；D2 背书、D3 漏判。精力集中在 get_subtotals 改副本与 row_id。"
+    }
+  ]
+}

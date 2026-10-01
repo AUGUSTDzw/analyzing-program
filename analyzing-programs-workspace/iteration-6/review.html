@@ -1,0 +1,1988 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eval Review · iteration-6</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Lora:wght@400;500&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+<style>
+:root{--bg:#faf9f5;--surface:#fff;--border:#e8e6dc;--text:#141413;--text-muted:#8e8b81;
+ --accent:#d97757;--green:#788c5d;--green-bg:#eef2e8;--red:#c44;--red-bg:#fceaea;--radius:6px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Lora',Georgia,serif;background:var(--bg);color:var(--text)}
+.header{background:#141413;color:var(--bg);padding:1rem 2rem;position:sticky;top:0;z-index:20;
+ display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}
+.header h1{font-family:'Poppins',sans-serif;font-size:1.2rem;font-weight:600}
+.header .sub{font-size:.76rem;opacity:.65;margin-top:.2rem}
+.main{padding:1.5rem 2rem 4rem;max-width:1700px;margin:0 auto}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem}
+@media(max-width:1100px){.grid{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.card-h{padding:.7rem 1rem;font-family:'Poppins',sans-serif;font-size:.74rem;font-weight:500;
+ text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);
+ border-bottom:1px solid var(--border);background:var(--bg);
+ display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap}
+.badge{display:inline-block;padding:.18rem .6rem;border-radius:9999px;font-family:'Poppins',sans-serif;
+ font-size:.66rem;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.badge.w{background:rgba(33,150,243,.12);color:#1976d2}
+.badge.b{background:rgba(255,193,7,.15);color:#f57f17}
+.score{font-family:'Poppins',sans-serif;font-size:.72rem;padding:.18rem .55rem;border-radius:5px}
+.score.p{background:var(--green-bg);color:var(--green)}
+.score.f{background:var(--red-bg);color:var(--red)}
+.card-b{padding:1.1rem 1.25rem;font-size:.9rem;line-height:1.75;max-height:78vh;overflow-y:auto}
+.card-b::-webkit-scrollbar{width:9px}
+.card-b::-webkit-scrollbar-thumb{background:var(--border);border-radius:9px}
+.card-b h1{font-size:1.3rem;margin:1.2rem 0 .6rem}
+.card-b h2{font-size:1.1rem;margin:1.3rem 0 .5rem;padding-bottom:.25rem;border-bottom:1px solid var(--border)}
+.card-b h3{font-size:.98rem;margin:1rem 0 .35rem}
+.card-b h4{font-size:.9rem;margin:.8rem 0 .3rem;color:var(--accent)}
+.card-b p{margin:.55rem 0}
+.card-b ul,.card-b ol{margin:.5rem 0 .5rem 1.4rem}
+.card-b li{margin:.25rem 0}
+.card-b code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.82em;
+ background:#f2f0e8;padding:.08rem .32rem;border-radius:3px}
+.card-b pre{background:#141413;color:#f0efe9;padding:.85rem 1rem;border-radius:var(--radius);
+ overflow-x:auto;margin:.7rem 0;font-size:.8rem;line-height:1.6}
+.card-b pre code{background:none;color:inherit;padding:0}
+.card-b table{border-collapse:collapse;width:100%;margin:.7rem 0;font-size:.82rem;
+ font-family:'Poppins',sans-serif}
+.card-b th,.card-b td{border:1px solid var(--border);padding:.35rem .55rem;text-align:left}
+.card-b th{background:var(--bg);font-weight:600;font-size:.74rem}
+.card-b blockquote{border-left:3px solid var(--accent);padding-left:.9rem;margin:.7rem 0;color:#4a4740}
+.fails{margin:0 0 1.25rem;padding:1rem 1.25rem;background:#fff;border:1px solid var(--border);
+ border-left:3px solid var(--red);border-radius:var(--radius)}
+.fails h3{font-family:'Poppins',sans-serif;font-size:.8rem;text-transform:uppercase;
+ letter-spacing:.05em;color:var(--red);margin-bottom:.6rem}
+.fails table{border-collapse:collapse;width:100%;font-size:.82rem;font-family:'Poppins',sans-serif}
+.fails td{padding:.3rem .55rem;border-bottom:1px solid var(--border);vertical-align:top}
+.fails td.a{font-family:ui-monospace,monospace;color:var(--red);white-space:nowrap;width:3.5rem}
+.nav{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.25rem}
+.nav a{font-family:'Poppins',sans-serif;font-size:.76rem;padding:.35rem .8rem;border-radius:999px;
+ border:1px solid var(--border);color:var(--text-muted);text-decoration:none;background:#fff}
+.nav a:hover{border-color:var(--accent);color:var(--accent)}
+.nav a.on{background:#141413;color:var(--bg);border-color:#141413}
+</style>
+</head>
+<body>
+<div class="header">
+  <div><h1>Eval Review · iteration-6</h1>
+    <p class="sub">左：with_skill &nbsp;|&nbsp; 右：baseline —— 同一份源码、同一 prompt</p></div>
+  <div class="sub">grade3.py · 11 项共享断言</div>
+</div>
+<div class="main">
+  <div class="nav">
+    <a href="benchmark.html">← benchmark dashboard</a>
+    <a href="#" class="on">报告并排审阅</a>
+  </div>
+  <div class='fails'><h3>未通过断言 (14)</h3><table><thead><tr><th>eval</th><th>配置</th><th>断言</th><th>说明</th><th>证据</th></tr></thead><tbody><tr><td class='a'>eval-1</td><td class='a'>without_skill</td><td class='a'>二章</td><td>含责任链表且表头含调用者列</td><td><code>—</code></td></tr><tr><td class='a'>eval-1</td><td class='a'>without_skill</td><td class='a'>含 </td><td>Mermaid flowchart TD</td><td><code>—</code></td></tr><tr><td class='a'>eval-1</td><td class='a'>without_skill</td><td class='a'>含 </td><td>Mermaid sequenceDiagram</td><td><code>—</code></td></tr><tr><td class='a'>eval-1</td><td class='a'>without_skill</td><td class='a'>无源</td><td>码行号引用</td><td><code>疑似: [&#x27;（第 51–72 行）&#x27;, &#x27;（第 74–115 行）&#x27;, &#x27;（第 79 行）&#x27;]</code></td></tr><tr><td class='a'>eval-1</td><td class='a'>without_skill</td><td class='a'>含 </td><td>P0 与 P3 优先级标记</td><td><code>—</code></td></tr><tr><td class='a'>eval-1</td><td class='a'>without_skill</td><td class='a'>每个</td><td> abap 块后有做什么与风险层</td><td><code>abap=1 做什么=0 风险=0 (ch3)</code></td></tr><tr><td class='a'>eval-2</td><td class='a'>without_skill</td><td class='a'>报告</td><td>含全部六章</td><td><code>找到 []</code></td></tr><tr><td class='a'>eval-2</td><td class='a'>without_skill</td><td class='a'>二章</td><td>含责任链表且表头含调用者列</td><td><code>—</code></td></tr><tr><td class='a'>eval-2</td><td class='a'>without_skill</td><td class='a'>含 </td><td>Mermaid flowchart TD</td><td><code>—</code></td></tr><tr><td class='a'>eval-2</td><td class='a'>without_skill</td><td class='a'>含 </td><td>Mermaid sequenceDiagram</td><td><code>—</code></td></tr><tr><td class='a'>eval-2</td><td class='a'>without_skill</td><td class='a'>无源</td><td>码行号引用</td><td><code>疑似: [&#x27;.abap:13&#x27;]</code></td></tr><tr><td class='a'>eval-2</td><td class='a'>without_skill</td><td class='a'>每个</td><td> abap 块后有做什么与风险层</td><td><code>abap=13 做什么=0 风险=4 (whole-doc fallback)</code></td></tr><tr><td class='a'>eval-2</td><td class='a'>without_skill</td><td class='a'>含 </td><td>### 3.X 分组标题(≥2)</td><td><code>0 个</code></td></tr><tr><td class='a'>eval-2</td><td class='a'>without_skill</td><td class='a'>子程</td><td>序分组按执行顺序(≥2 section)</td><td><code>—</code></td></tr></tbody></table></div>
+  <h2 style="font-family:Poppins,sans-serif;font-size:.95rem;margin:2rem 0 .5rem">eval-1 · alv-editable-total-poc &nbsp;<span style="color:var(--text-muted);font-weight:400">帮我看懂这个 ABAP 程序，分析一下它解决什么问题、整体架构怎么设计的 @ztest7.abap</span></h2><div class="grid"><div class="card"><div class="card-h">eval-1 · with_skill<span class="badge w">with_skill</span><span class="score p">12/12 · 100%</span></div><div class="card-b"><div class="md"># ZTEST7 分析报告 —— 可编辑 ALV 的毛重维护原型
+
+&gt; 分析对象：`ztest7.abap`（`REPORT ztest7`，基于 `REUSE_ALV_*` 的全屏可编辑 ALV）
+&gt; 读者定位：第一次接手这份代码、需要理解它"想干什么"以及"哪里会炸"的工程师
+
+---
+
+## 一、程序定位与业务背景
+
+### 1.1 它想解决什么问题
+
+毛重（`MARA-BRGEW`）不是一个随便可以改的字段。它挂在物料主数据上，决定包装规格、运费核算、仓储容量与运输超限判定。而在标准 SAP 里想改一个物料的毛重，只有两条路：
+
+- **MM02 逐个物料进后台维护**——一个物料一次事务，几十个物料就是几十次往返；
+- **用批导 / LSMW / 直接 DB 改 `MARA`**——效率高，但没有任何校验，错了就是生产事故（包装算错、运费算错）。
+
+`ztest7` 想提供的第三条路：**把 `MARA` 的关键字段拉成一个可编辑的 Grid，用户直接改，回车即生效**。这是运维/实施人员非常常见的"小工具"诉求——把"进 MM02 改 N 次"压缩成"在一个列表里改 N 行"。
+
+从代码痕迹看，这是一份 **PoC（概念验证）/ 培训演示**，不是投产工具：
+
+- 报表名 `ztest7`、无选择屏、无任何 `WHERE` 条件；
+- `SELECT ... UP TO 10 ROWS`——只取 10 行；
+- 只有一个可编辑字段，且只做内存回写，**从不落库**；
+- 有两处明显的空壳（`CASE sy-ucomm` 里注释掉的 `WHEN`、`IF sy-subrc &lt;&gt; 0. ENDIF.` 空体）。
+
+这很重要：它决定了我们该用什么标准去评价它。作为 PoC，"能不能跑起来展示毛重可编辑 + 合计"是验收标准；作为工具，缺陷清单会翻三倍。下面第三节对两种标准都会给出结论。
+
+### 1.2 整体设计范式（一句话定性）
+
+**经典函数模块式报表 + 全屏 ALV，状态全部挂全局，"取数 → 建字段目录 → 显示 → 事件回调改数据"四段式**——即 `REUSE_ALV_*` 时代的标准模板（SAP 至今仍在 `SAPD` 示例里沿用），属于"能跑但耦合到全局"的**过程式老式架构**，没有任何对象化封装。
+
+---
+
+## 二、程序执行流程总览
+
+```mermaid
+flowchart TD
+    DECL["全局声明区：内表 gt_mara、字段目录 gt_fieldcat、事件表 gt_events、Grid 引用 go_grid、汇总引用 gr_data"]
+    SOS["START-OF-SELECTION：报表入口，取数并把全屏 ALV 拉起来"]
+    S1["查 MARA：只投影 MATNR 与 BRGEW，最多 10 行，结果落在 _mara"]
+    S2["REUSE_ALV_FIELDCATALOG_MERGE：按自定义结构 ZTEST_S 生成 gt_fieldcat"]
+    S3["READ 字段目录：给 BRGEW 打上可编辑与合计标记"]
+    S4["APPEND 事件：DATA_CHANGED 绑定到 FORM GET_DATA_CHANGED"]
+    S5["REUSE_ALV_GRID_DISPLAY：把 gt_mara 当数据源显示"]
+    DEAD["提前返回：字段目录合并失败时什么也不做，屏幕一片空白"]
+    PFS["SET_PF_STATUS：取回 Grid 引用，注册修改与回车编辑事件"]
+    USER["用户在 Grid 中修改 BRGEW 并回车"]
+    DC["GET_DATA_CHANGED：回写 BRGEW、重算合计、软刷新界面"]
+    ERR["中断路径：ASSIGN 汇总结构时类型冲突而中断"]
+    DECL --&gt; SOS
+    SOS --&gt; S1
+    S1 --&gt; S2
+    S2 --&gt;|合并成功| S3
+    S2 --&gt;|合并失败| DEAD
+    S3 --&gt; S4
+    S4 --&gt; S5
+    S5 --&gt; PFS
+    PFS --&gt; USER
+    USER --&gt; DC
+    DC --&gt;|运行出错| ERR
+```
+
+### 责任链表
+
+| 子程序 | 调用者 | 职责 |
+|---|---|---|
+| 全局声明区 | 系统（程序加载时） | 摊平全部状态：数据内表、字段目录、事件表、Grid 引用、稳定布局结构、汇总结果引用、泛型字段符号 |
+| 事件块 `START-OF-SELECTION` | 系统隐式（报表执行推进到此事件时） | 程序入口：取数 → 生成字段目录 → 打开可编辑与合计 → 挂 `DATA_CHANGED` 事件 → 调 `REUSE_ALV_GRID_DISPLAY` 进全屏 |
+| `REUSE_ALV_FIELDCATALOG_MERGE`（FM） | 事件块 `START-OF-SELECTION` | 读取 DDIC 结构 `ZTEST_S` 的描述符，生成 `slis_t_fieldcat_alv` |
+| `REUSE_ALV_GRID_DISPLAY`（FM） | 事件块 `START-OF-SELECTION` | 接收内表作为唯一数据源，驱动 Grid 全屏显示，随后程序进入 PAI 循环 |
+| FORM `SET_PF_STATUS` | ALV 通过 `i_callback_pf_status_set` 在初始化 PBO 时回调 | 用 `GET_GLOBALS_FROM_SLVC_FULLSCR` 取回 Grid 引用，注册 `mc_evt_modified` / `mc_evt_enter` 两个编辑事件 |
+| 用户编辑动作 | Grid 控件（用户在单元格输入并回车） | 触发已注册的编辑事件，Grid 汇总后回调 `DATA_CHANGED` |
+| FORM `GET_DATA_CHANGED` | Grid 通过 `it_events` 回调 | 遍历修改单元格把新值写回内表；调 `get_subtotals` 取合计并用 `REDUCE` 重算写回；调 `refresh_table_display` 软刷新 |
+
+下面按这条流程，逐个子程序展开。
+
+---
+
+## 三、分组分析
+
+### 3.1 全局声明区
+
+本节只有一个代码块，是整个程序的状态底座——一共 6 个全局数据对象加 1 个全局字段符号，一次读完。
+
+```abap
+REPORT ztest7.
+TYPE-POOLS:slis.
+
+DATA: gt_mara     TYPE TABLE OF ztest_s,
+      gt_fieldcat TYPE slis_t_fieldcat_alv,
+      gt_events   TYPE slis_t_event,
+      go_grid     TYPE REF TO cl_gui_alv_grid,
+      gs_stable   TYPE lvc_s_stbl,
+      gr_data     TYPE REF TO data.
+
+FIELD-SYMBOLS: &lt;gtr_sum_tab&gt; TYPE table.
+```
+
+**做什么** — 用一个声明块摊平程序的全部运行状态：`gt_mara` 是承载给用户看的数据内表（行结构为自定义 DDIC 结构 `ZTEST_S`），`gt_fieldcat` 存 ALV 字段目录，`gt_events` 存 ALV 事件到 FORM 的映射，`go_grid` 存全屏 Grid 控件引用，`gs_stable` 存刷新时保持滚动位置用的布局结构，`gr_data` 存 ALV 回传的合计结果；`&lt;gtr_sum_tab&gt;` 是一个泛型内表字段符号，专门用来在不知道行结构的情况下接收合计结果。
+
+**为什么** — 这是 `REUSE_ALV_*` 时代的标准约束：这些 FM 全部是**无状态、全局回调式**的，`REUSE_ALV_GRID_DISPLAY` 之后控制权交回 PAI，回调 FORM 里没有任何参数能传递上下文，所以状态只能靠全局变量串起来。`TYPE-POOLS:slis.` 是配套动作——`slis` 是旧 ALV 的类型池，不显式引入，`slis_t_fieldcat_alv` 之类的类型在编译器眼里不成立。`REF TO data` 而不是写死某个汇总结构类型，说明作者当时也不确定 `get_subtotals` 到底回什么，用泛型引用"先接住再说"。这个选择在"不确定"面前是合理的，但它把不确定性一路带进了后续的 ASSIGN，见 3.4。
+
+**风险与改进**
+
+- **状态泄漏到全局是最大结构性风险**：`gr_data`、`go_grid` 只在特定路径被赋值，`SET_PF_STATUS` 与 `GET_DATA_CHANGED` 各自 `IF go_grid IS BOUND` 判空，整个程序存在"某条路径下 grid 未绑定但事件照发"的理论缝隙。改进方向是把这几个对象降为 FORM 局部或封进一个 `LOCAL FRIENDS` 的上下文类。
+- **`&lt;gtr_sum_tab&gt; TYPE table` 是"类型擦除"而非"类型未知"**：字段符号一旦声明为 `TYPE table`，运行时 ASSIGN 会强制要求目标确实是内表，否则直接抛运行错误。泛型在这里不是"更灵活"，而是"放弃了编译期检查，只把错误推迟到运行时"——这正是 3.4 第 ② 步爆雷的根因。
+- **命名与数据元素语义**：`gt_mara` 叫 MARA 但行结构是自定义的 `ZTEST_S`，只靠命名让人以为它就是 `MARA`。建议至少在 `ZTEST_S` 上加注释标明它投影了哪些字段、是否带 UOM。
+- **`TYPE-POOLS:slis.`** 说明这是旧 ALV 体系。新代码应直接用 `CL_GUI_ALV_GRID` + `LVC_T_FIELCAT`（或 `CL_SALV_TABLE` + `SALV_EDIT`），可省掉字段目录 FM 和这堆类型池依赖。
+
+至此状态底座铺好，但里面有一个"数据内表 `gt_mara` 到底由谁填"的关键空缺——顺着流程往下走就会撞上。
+
+---
+
+### 3.2 事件块 `START-OF-SELECTION`
+
+这是报表入口，全部逻辑套在一个 `IF sy-subrc EQ 0` 的巨型嵌套里。按逻辑拆成 5 步：取数 → 生成字段目录 → 打开可编辑与合计 → 挂事件 → 显示。
+
+#### ① 取数：只投影 MATNR 与 BRGEW，结果落进 `_mara`
+
+```abap
+  SELECT matnr,
+         brgew
+    FROM mara
+    INTO TABLE _mara UP TO 10 ROWS.
+  IF sy-subrc EQ 0.
+```
+
+**做什么** — 对 `MARA` 做一次带投影的 `SELECT`，只取物料号与毛重两列，装进内表 `_mara`，并用 `UP TO 10 ROWS` 限制最多 10 行；紧接着用 `IF sy-subrc EQ 0.` 开出一个大括号，把后续步骤全部嵌进去。
+
+**为什么** — 投影取列是对的：`MARA` 有 200+ 字段，一次取两列在内表内存和网络上都是数量级的节省；`MATNR` 上有主索引，`UP TO 10 ROWS` 在没有 `WHERE` 的情况下靠数据库端的行数限制兜住，不会全表拖回。`sy-subrc` 判断也算稳妥，`SELECT ... INTO` 失败（表锁、内存不足）时不会带着空数据继续往下走。
+
+**风险与改进**
+
+- 🔴 **`INTO TABLE _mara` 与后面要显示的 `gt_mara` 不是同一张表。** `_mara` 是本次查询的唯一结果，而 `REUSE_ALV_GRID_DISPLAY` 的 `t_outtab` 传的是 `gt_mara`——`gt_mara` 从头到尾没有任何一条语句往里写数据。净效果是：**表格永远空、查询白做**。`_mara` 之所以能通过语法检查，是靠 ABAP 的隐式声明规则（以 `_` 开头的名字在 `SELECT ... INTO` 中会被自动声明为内表），这种遗留写法类型完全由 `SELECT` 列表推导，跟 `ZTEST_S` 毫无关系。改法：`DATA(gt_mara) TYPE TABLE OF ztest_s.` + `INTO TABLE @gt_mara`（前提是 `ZTEST_S` 的字段与 `MARA` 同名同义），或先查进局部表再 `MOVE-CORRESPONDING` 进 `gt_mara`。
+- 🟠 **无 `WHERE` + 无 `ORDER BY` + `UP TO 10 ROWS` = 随机且不可复现的样本。** 数据库返回哪 10 行取决于访问路径与缓冲状态，同一份代码两次运行看到不同物料，任何"这里有 bug"的复现都无从谈起。作为 PoC 可以接受，作为工具必须给选择屏（至少物料号区间）+ 稳定排序。
+- 🟠 **毛重字段带了单位，却没取单位字段。** `MARA` 的毛重 `BRGEW` 与净重 `NTGEW` 都是**带单位的数量字段**，各自配 `BRGEW_UOM` / `NTGEW_UOM`。只取 `BRGEW` 不取 UOM，等于拿到一个没有量纲的数字，后面第 3.4 ② 步还要拿它求和——这是从第一步就埋下的业务缺陷。
+- 🟡 **巨型 `IF` 嵌套**：`sy-subrc` 为 0 时进入，为 0 才继续，逻辑上是"取数失败就什么都不做"。但"什么都不做"等于**白屏**，用户看到的只是空白屏幕，没有任何提示。失败路径必须有消息出口。
+
+#### ② 生成 ALV 字段目录
+
+```abap
+    CALL FUNCTION 'REUSE_ALV_FIELDCATALOG_MERGE'
+      EXPORTING
+        i_program_name         = sy-repid
+        i_structure_name       = 'ZTEST_S'
+      CHANGING
+        ct_fieldcat            = gt_fieldcat
+      EXCEPTIONS
+        inconsistent_interface = 1
+        program_error          = 2
+        OTHERS                 = 3.
+```
+
+**做什么** — 调用旧 ALV 的字段目录生成 FM：把程序名 `sy-repid` 与 DDIC 结构名 `ZTEST_S` 交给它，由它去 DDIC 读取字段描述、技术属性（内建类型、长度、小数位、金额/数量字段标识）并翻译成 `slis_t_fieldcat_alv` 格式，结果写回 `gt_fieldcat`。
+
+**为什么** — 字段目录手写非常啰嗦（每个字段都要填 `ref_field`、`do_sum`、`key`、文本…），而 FM 可以从 DDIC 自动推导，字段新增时不用改代码。这里的选择其实是对的：`ZTEST_S` 作为"字段目录"和"数据内表行结构"的共同契约，一次定义、处处一致，`gt_mara` 的行结构和 `gt_fieldcat` 的来源是同一个结构——**这是全程序唯一一处类型上自洽的设计**。用 `i_structure_name` 而非 `i_structure_name` + 手工追加，也是标准姿势。
+
+**风险与改进**
+
+- 🟠 **三个异常声明了，却只用一个 `sy-subrc = 0` 一刀切，失败即静默退出。** `program_error` 一般意味着结构 `ZTEST_S` 不存在或 `sy-repid` 语义不对（这个 FM 依赖系统为程序做的描述符关联）；`inconsistent_interface` 意味着接口不一致。两种失败原因完全不同，对排查的人也完全不同，合并成一个判断等于把线索丢了。改进：`CASE sy-subrc. WHEN 1. MESSAGE e001(...) ...` 分支给不同提示，至少用 `MESSAGE` 告知"字段目录生成失败"。
+- 🟡 **`i_program_name = sy-repid` 隐含部署约束**：该 FM 依赖 SE37/程序上下文可解析的 `sy-repid`，在某些上下文中（如被 `INCLUDE` 拼装、手工改名后未激活）会失败。PoC 场景可接受，工具场景建议改为手写 `lt_fieldcat` 或改用 `LVC_T_FIELCAT` + `CL_ALV_TABLE=&gt;...` 路径。
+- 🟡 `ZTEST_S` 是否存在、投影了哪些字段，代码里完全看不出。若该结构只投影了 `MATNR`/`BRGEW` 两列，则 3.2 ① 的数据量与它勉强匹配；若它还带 `NTGEW`、`MEINS` 等列，说明作者的取数投影是**漏了**，而不是刻意精简。这属于必须向原作者确认的开放问题。
+
+字段目录生成成功后，程序开始在这份目录上做"可编辑"和"合计"两个关键开关——而这两处开关的实际效果，直接决定了后面能不能用。
+
+#### ③ 打开 BRGEW 的可编辑与合计标记
+
+```abap
+    IF sy-subrc = 0.
+      READ TABLE gt_fieldcat ASSIGNING FIELD-SYMBOL(&lt;gs_fcat&gt;) WITH KEY fieldname = 'BRGEW'.
+      IF sy-subrc EQ 0.
+        &lt;gs_fcat&gt;-edit = 'X'.
+        &lt;gs_fcat&gt;-do_sum = 'X'.
+      ENDIF.
+```
+
+**做什么** — 在 `gt_fieldcat` 里按字段名 `BRGEW` 找到那一行，用内联 `FIELD-SYMBOL(&lt;gs_fcat&gt;)` 直接拿到它的引用（不复制，便于修改），把 `edit` 置为 `X` 允许该列单元格编辑，把 `do_sum` 置为 `X` 让 ALV 对该列做求和并在合计行显示。
+
+**为什么** — 方向是对的，而且是本程序在业务抽象上做得最好的一处：**没有把整张表设成 `edit = 'X'`，而是精准地只开放 `BRGEW` 一列**。"只开放要改的那一列、其余只读"是可编辑 ALV 的基本纪律，说明作者对场景有认知。`do_sum = 'X'` 交给 ALV 内置的汇总引擎去算并显示合计行，也比自己在程序里画一行汇总数据更稳妥——ALV 的汇总是跟着用户的排序和过滤走的，自动满足"看到的和算出来的一致"。
+
+**风险与改进**
+
+- 🟠 **合计列选错了字段口径，且未处理单位。** `do_sum` 让 ALV 对 `BRGEW` 求和，但毛重带单位，不同物料的毛重单位可能是 kg、g、t、件……`MARA-BRGEW` 的单位在 `BRGEW_UOM`，不同物料可以不同。**把不同单位的毛重直接相加，得到的数字没有业务含义**。这是真正的业务正确性问题，不是风格问题。要么把 `BRGEW_UOM` 也取进内表并要求用户只在同一单位下看合计，要么干脆不给毛重做合计（见 3.4 ② 的进一步讨论）。
+- 🟡 **`WITH KEY fieldname = 'BRGEW'` 依赖了隐含的标准键条件。** `slis_t_fieldcat_alv` 的标准表键是首字段 `table`（结构名）。写 `WITH KEY fieldname = ...` 时，若未显式给出标准键字段，ABAP 会把结构字段条件"叠加"到标准键上，实际条件近似 `table = 'SLIS_T_FIELDCAT_ALV' AND fieldname = 'BRGEW'`。因为所有条目都来自同一个结构，`table` 恒等，**这次是"碰巧对了"**。正确写法是 `WITH KEY table = gt_fieldcat fieldname = 'BRGEW'`，把意图写明，不依赖巧合。
+- 🟡 **`IF sy-subrc EQ 0` 里若找不到 `BRGEW` 就静默继续**，`edit` 没设成功，程序照样跑，用户看到一个完全只读的表格却不知道为什么。失败也应有提示。
+
+#### ④ 把 `DATA_CHANGED` 事件绑定到回调 FORM
+
+```abap
+      APPEND VALUE #( name = 'DATA_CHANGED' form = 'GET_DATA_CHANGED' ) TO gt_events.
+```
+
+**做什么** — 用 `VALUE #(...)` 行构造器在内存中造出一个 `slis_event` 结构（`name = 'DATA_CHANGED'`，`form = 'GET_DATA_CHANGED'`），追加到事件表 `gt_events`；这个表随后交给 Grid，用于把 Grid 的 `DATA_CHANGED` 事件路由到报表里的 FORM `GET_DATA_CHANGED`。
+
+**为什么** — 这是 ALV 事件机制的正解：**用 `it_events` + `form` 绑定，而不是把 `it_callback_data_changed` 指向一个 CB**，好处是回调在 ABAP 层面直接是 `FORM ... USING io_alv_changed_data_protocol_ref`，能享受完整的过程式上下文（全局内表、事务代码），而且是 SAP 官方示例一贯的写法。用 `VALUE #(...)` 而不是 `APPEND ls_event.` 先赋值再追加，省掉一个临时变量，符合现代 ABAP 风格；程序里其他地方用内联 `FIELD-SYMBOL`、用 `REDUCE` / `APPEND VALUE`（见 3.4），风格是统一的现代 ABAP 写法——只是新语法没有救回业务正确性。
+
+**风险与改进**
+
+- 🟡 **只绑了 `DATA_CHANGED`，没绑 `DATA_CHANGED_FINISH`。** `DATA_CHANGED` 是每单元格修改即触发，`DATA_CHANGED_FINISH` 是用户离开编辑（回车/切换单元格）时触发一次。做"修改即时回写内表 + 更新合计"用 `DATA_CHANGED` 是对的；但如果后续要做**批量校验**（多个单元格一起改、一起校验、失败整体回滚），`DATA_CHANGED` 的逐格触发会做很多无效功。更根本的：如果这个毛重维护工具要做事务性校验，"用户改一格就落一次库"是不可接受的。
+- 🟡 **`DATA_CHANGED` 与"总行是否重算"存在天然矛盾。** `DATA_CHANGED` 在一次回车里合并本次所有改动，只触发一次回调——这没问题；但结合 3.4 ③ 的软刷新，会发现合计并不会随这次修改更新。事件绑对了，链路是断的。
+
+#### ⑤ 用 `REUSE_ALV_GRID_DISPLAY` 进入全屏
+
+```abap
+      CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+        EXPORTING
+          i_callback_program       = sy-repid
+          it_fieldcat              = gt_fieldcat
+          it_events                = gt_events
+          i_callback_pf_status_set = 'SET_PF_STATUS'
+        TABLES
+          t_outtab                 = gt_mara.
+    ENDIF.
+  ENDIF.
+```
+
+**做什么** — 调用全屏 ALV 显示 FM：传入字段目录 `gt_fieldcat`、事件表 `gt_events`，用 `i_callback_program = sy-repid` 告诉 FM 回调去哪个程序里找、用 `i_callback_pf_status_set = 'SET_PF_STATUS'` 指定 PF-STATUS 设置回调的 FORM 名，并把 `t_outtab = gt_mara` 作为数据源。之后控制权交给 GUI，程序进入 PAI 事件循环。
+
+**为什么** — 这一步的设计意图是标准且正确的：**ALV 的数据源 `t_outtab` 传的就是真正的业务内表本身**（而不是副本），这个选择有一个明确好处——用户排序时 ALV 直接就地重排这张内表，`DATA_CHANGED` 回调里"按行号索引回去改"才有可能对得上（同源数据、同一份顺序）。前提是：**你必须始终把 `t_outtab` 和"回写目标"当成同一张表**。这一步正是这么设计的，但从 3.2 ① 传进来的是另一张表 `_mara`，契约从这里就被破坏了。
+
+**风险与改进**
+
+- 🔴 **`t_outtab = gt_mara` 而查询结果在 `_mara`**：见 3.2 ①。这是全程序最致命的一处——**类型上完全合法（`gt_mara` 就是内表）、运行时完全合法（传一张空表进去 ALV 照常显示），所以没有任何报错，但屏幕上永远是空的**。这类"编译通过、运行通过、功能为零"的缺陷最难靠测试发现，因为**没有一个报错可以指着你**。
+- 🟠 **`i_callback_pf_status_set` 指定的 FORM 不会真的设置 PF-STATUS**。见 3.3——`SET_PF_STATUS` 里那个 `CASE sy-ucomm ... WHEN OTHERS` 是空壳，从未调用 FM `SET_PF_STATUS`。结果是 ALV 用默认状态栏，用户要退出得按标准的 F3/Ctrl+Q，没有任何自定义按钮（比如"保存"、"校验"、"导出"）。
+- 🟡 **没有 `i_save`**，用户调整的列宽、排序、过滤器布局每次运行都丢失；没有 `i_grid_title`，没有 `i_callback_top_button` / `i_callback_top_button_exceptions`；没有 `it_exclude` / `i_callback_user_command`（配套上一条的按钮），所以**这个可编辑工具连"保存"这个最基本动作都没有入口**。作为 PoC 演示"可编辑 + 合计"是够的，作为工具是不完整的。
+- 🟡 **无 `it_sort` 也无 `it_no_filter`**：ALV 默认允许用户排序和过滤，这对"编辑"是危险的——排序就地重排 `gt_mara`，过滤会从 `gt_mara` 里**删掉**不匹配的行。可编辑 + 可排序 + 有合计的组合，正是 3.4 ① 行号定位失灵的根源。
+
+到这里，报表的"开场"就结束了。控制权交给 Grid 之后的第一件事，是回调 PF-STATUS 设置——程序也正是趁这个机会才第一次拿到 Grid 的引用。
+
+---
+
+### 3.3 FORM `SET_PF_STATUS`
+
+这是一个紧凑的子程序，保持单块不拆——它的全部职责就是"把 Grid 引用抓到手，并打开编辑事件"。
+
+```abap
+FORM set_pf_status USING itr_extab TYPE slis_t_extab.
+
+* Get the ALV Object reference
+  CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+    IMPORTING
+      e_grid = go_grid.
+  IF go_grid IS BOUND.
+    CALL METHOD go_grid-&gt;register_edit_event
+      EXPORTING
+        i_event_id = cl_gui_alv_grid=&gt;mc_evt_modified.
+
+    CALL METHOD go_grid-&gt;register_edit_event
+      EXPORTING
+        i_event_id = cl_gui_alv_grid=&gt;mc_evt_enter.
+  ENDIF.
+
+  " PF Status Code
+  CASE sy-ucomm.
+*	WHEN
+    WHEN OTHERS.
+  ENDCASE.
+ENDFORM.
+```
+
+**做什么** — 从 ALV 的全局上下文里取出全屏 Grid 控件引用存入全局 `go_grid`，判空后向它注册两个编辑事件：`mc_evt_modified`（单元格值变化）与 `mc_evt_enter`（用户回车确认）。FORM 末尾有一个空的 `CASE sy-ucomm` 空壳，被注释掉的 `WHEN` 说明作者原本打算在这里按功能码分支、挂自定义按钮。
+
+**为什么** — `GET_GLOBALS_FROM_SLVC_FULLSCR` 这一招是社区公认的绕法：`REUSE_ALV_GRID_DISPLAY` 是 FM，不返回 Grid 引用；而 `CL_GUI_ALV_GRID` 的 `REGISTER_EDIT_EVENT` 必须在**全屏 ALV 已经 active 之后**调用（在显示前调会失败）。`PF_STATUS_SET` 回调正好是"Grid 已经起来、但用户还没按键"的那个时间窗，所以整个 ALV 编辑示例生态都长在这个写法上。从这个角度看它是**约定而非 hack**，值得肯定作者知道这个门道。
+
+**风险与改进**
+
+- 🟠 **编辑事件注册在"每次 PBO 都跑"的 FORM 里。** `PF_STATUS_SET` 在每次 PAI 处理前都会重入，这里等于**每次用户回车都重新注册一次编辑事件**。虽然 `REGISTER_EDIT_EVENT` 是幂等覆盖的、不致命，但：① 有无谓开销；② 如果 Grid 对象被换过（用户切换到别的 ALV 界面、变式/清单→Grid 切换），`go_grid` 可能指向的不是当前显示的那个 Grid，后续 `GET_DATA_CHANGED` 里的 `refresh_table_display` 就打在了错误的控件上。更稳妥的做法是：把注册放到显示完成后的固定时机（或在 `SET_PF_STATUS` 里加一个"已注册"标志位），并确保 Grid 引用每次都重新取。
+- 🟠 **`GO_GRID IS BOUND` 判空之后是"静默不注册"**：`GET_GLOBALS_FROM_SLVC_FULLSCR` 在非全屏 ALV 上下文里会抛 `PARAMETER_ERROR`，此处未加 `EXCEPTIONS` 兜底；一旦异常或取不到引用，程序不报错地继续，用户会得到一个"点不动"的表格。
+- 🟠 **空 `CASE sy-ucomm ... WHEN OTHERS` 与被注释的 `WHEN`**：这是**未完成的明确信号**，也是本程序最该被 Code Review 拦下的一处。一个只有 `WHEN OTHERS` 且什么都不做的 `CASE`，等价于死代码，而且会误导后来者以为"命令处理在别处"。应删除，或补上真正的 `WHEN` 分支并调用 FM `SET_PF_STATUS` 传入真正计算出的状态（`itr_extab` 正是为此准备的参数）。
+- 🟡 **`itr_extab` 声明了但从未使用**：扩展 PF-STATUS 的入口参数被完全忽略，ATC 的可执行检查会直接报"参数未使用"。命名上 `itr_extab` 的 `i_tr_` 前缀暗示"input table reference"（引用参数），但它是普通 `USING` 传入的内表，前缀误导。
+- 🟡 **命名与风格不统一**：FORM 名用全大写（`set_pf_status` 应小写），FORM 参数用新式 `io_data_changed`（见 3.4），而 FM 调用用旧式 `i_*` / `e_*`，三套命名混在一份文件里。
+
+Grid 引用拿到了、编辑事件也注册了，于是用户在单元格里敲下一个毛重、按回车——控制权被交给了本程序最后一个、也是最复杂的一段逻辑。
+
+---
+
+### 3.4 FORM `GET_DATA_CHANGED`
+
+这是全程序的重心，也是缺陷密度最高的地方，拆成 3 步：① 定位修改行并回写 → ② 读回合计并用 `REDUCE` 重算 → ③ 刷新界面。
+
+#### ① 遍历修改单元格，按行号定位并回写
+
+```abap
+FORM get_data_changed USING io_data_changed TYPE REF TO cl_alv_changed_data_protocol.
+
+  IF go_grid IS BOUND.
+
+    LOOP AT io_data_changed-&gt;mt_mod_cells ASSIGNING FIELD-SYMBOL(&lt;gs_changed&gt;) WHERE fieldname = 'BRGEW'.
+      READ TABLE gt_mara ASSIGNING FIELD-SYMBOL(&lt;gs_tab&gt;) INDEX &lt;gs_changed&gt;-row_id.
+      IF sy-subrc EQ 0.
+        &lt;gs_tab&gt;-brgew = &lt;gs_changed&gt;-value.
+      ENDIF.
+    ENDLOOP.
+```
+
+**做什么** — 拿到 ALV 传进来的变更协议对象 `io_data_changed`，遍历它的 `mt_mod_cells`（本次回车中被改动的单元格集合），筛出字段名为 `BRGEW` 的那些，用协议里记录的**行号** `row_id` 作索引去 `gt_mara` 里 `READ TABLE ... ASSIGNING` 出该行的引用（不复制，直接持有），再把协议里的新值 `value` 赋给该行的 `BRGEW` 字段。读不到行（`sy-subrc` 不为 0）就跳过，不报错。
+
+**为什么** — "只处理被改动的那几格，而不是全表重刷"是正确的性能与正确性直觉：ALV 编辑场景下每次回车都全量回写既浪费也容易误伤用户在编辑中的行。`LOOP AT ... WHERE fieldname = 'BRGEW'` 限定在目标列，`READ TABLE ... ASSIGNING` 拿到引用后**直接改原表**（而不是 `MODIFY` 复制一份）也都是对的写法，语义清晰、效率高。这段代码的**意图**没问题，问题全在"用什么把行号换算成行"。
+
+**风险与改进**
+
+- 🔴 **按 `row_id` 做 `INDEX` 定位，在"合计 + 可排序 + 可过滤"下必然失真。** 三重风险叠加：① **合计行**——`do_sum = 'X'` 时 ALV 会把合计行插入内表，行号与内表实际行号发生偏移；② **排序**——用户点表头排序时 ALV 就地重排 `gt_mara`，若排序发生在某次修改之前或刷新重算，行号就对不上；③ **过滤**——过滤会从 `gt_mara` 里删除不匹配的行，索引整体前移，被过滤掉的行**在内存里直接消失**。`READ TABLE` 静默失败 + `IF sy-subrc EQ 0` 静默跳过，结果是**用户的修改无声丢失或写到别的行上**。正确做法是用协议对象自带的引用：`&lt;gs_changed&gt;-data_ref` 直接指向被改的那一行，`ASSIGN &lt;gs_changed&gt;-data_ref-&gt;* TO &lt;ls_row&gt;` 后赋值——**它与行号无关，也不受排序过滤影响**。这是 ABAP ALV 官方文档明确推荐的方式，也是本程序最该改的一处。
+- 🟠 **`value` 是 ALV 传来的字符值，直接赋给数量字段没有任何转换校验。** 协议里的 `value` 是显示值（字符型），赋给 `MARA` 的数量型字段靠 ABAP 隐式转换完成。这里没有 `CONV`、没有合法性判断、没有错误回显：如果用户输入空串、带千分位逗号或中文输入法的非数字串，结果要么被静默转成 `0`（用户以为改了 1000，实际存了 0），要么在某些设置下抛转换异常。改进：用 `CL_ALV_CHANGED_DATA_PROTOCOL` 的 `SET_PROTOCOL_ENTRY` / `ADD_PROTOCOL_ENTRY` 把校验失败回显给用户。
+- 🟠 **缺少业务校验：毛重不得小于净重。** 这是本程序最该有、却完全没有的一条。物料主数据的净重 `NTGEW` 与毛重 `BRGEW` 之间存在 `NTGEW ≤ BRGEW` 的不变式，允许用户把毛重改成小于净重，会直接产出**数据不一致的物料主数据**，影响包装、运费、库存核算。哪怕是 PoC，"可编辑毛重"这个动作本身就必须配上这条校验，否则演示给业务用户时就会演示出脏数据。
+- 🟡 **没有任何落库动作**：回写只改内存内表，`gt_mara` 里改完就随程序结束消失。作为 PoC 这是诚实的（至少没有偷偷写 `MARA`），但必须让使用者知道它只是个演示——目前没有任何提示。
+- 🟡 无 `MESSAGE`、无 `LEAVE`/`SET SCREEN` 分支：`io_data_changed` 为空、Grid 已销毁（导出后继续处理）等情况都没有处理。
+
+写回内存完成，接下来程序想"顺手把合计也更新一下"——而这一步，是全程序埋得最深的一颗雷。
+
+#### ② 取回 ALV 合计，并用 `REDUCE` 重算后写回
+
+```abap
+    go_grid-&gt;get_subtotals(
+      IMPORTING
+        ep_collect00 = gr_data   " Overall Total
+    ).
+
+    ASSIGN gr_data-&gt;* TO &lt;gtr_sum_tab&gt;.
+    READ TABLE &lt;gtr_sum_tab&gt; ASSIGNING FIELD-SYMBOL(&lt;l_sum&gt;) INDEX 1.
+    IF sy-subrc EQ 0.
+      ASSIGN COMPONENT 'BRGEW' OF STRUCTURE &lt;l_sum&gt; TO FIELD-SYMBOL(&lt;lg_val&gt;).
+      IF &lt;lg_val&gt; IS ASSIGNED.
+        &lt;lg_val&gt; = REDUCE #( INIT lv_i TYPE ntgew_15 FOR &lt;ls_t&gt; IN gt_mara NEXT lv_i = lv_i + &lt;ls_t&gt;-brgew ).
+      ENDIF.
+    ENDIF.
+```
+
+**做什么** — 向 Grid 要整体合计（`ep_collect00`），存进全局引用 `gr_data`；把这个引用解引用后 ASSIGN 给泛型内表字段符号 `&lt;gtr_sum_tab&gt;`，再 `READ TABLE ... INDEX 1` 取第一行到 `&lt;l_sum&gt;`；若读到了，用 `ASSIGN COMPONENT 'BRGEW' OF STRUCTURE` 动态定位到该结构里的 `BRGEW` 分量 `&lt;lg_val&gt;`，若这个分量确实存在，就把 `REDUCE` 求和的结果（对 `gt_mara` 每一行的 `BRGEW` 累加）赋给它——**也就是试图用自己算的和覆盖 ALV 给的合计**。
+
+**为什么** — 分两层看。**表层动机可以理解**：ALV 的 `DATA_CHANGED` 回调不会自动重算合计，作者大概是发现"改完单元格合计没变"，于是手工补算。**但这个补救方向从根上就是错的**——ALV 的合计本来就该由它自己按当前排序/过滤状态重算，手工再算一遍等于建立第二套真相来源。更关键的是**这段代码根本没有生效的机会**：即使中间不报错，往 `gr_data` 这个**已经脱离 Grid 的副本**里写值，也不会把新合计推回 Grid，Grid 显示的仍是它自己算的那个旧值。作者"手算一遍"的直觉方向可能没错，但**写入的位置错了**——正确的位置是 `gt_mara` 里那条合计行本身。`REDUCE` 的用法本身值得肯定：现代 ABAP 里这是表达求和的正确工具，比一堆 `ADD 1 TO lv_sum` 干净得多。
+
+**风险与改进**
+
+- 🔴 **ASSIGN 类型冲突：首次编辑即运行时错误。** `ep_collect00` 是 `CL_GUI_ALV_GRID` 里对应 FM `es_collect00` 的**单条汇总结构**（把整张表的合计装在一条与出表行同类型的结构里），而 `&lt;gtr_sum_tab&gt;` 声明为 `TYPE table`。ASSIGN 到 `TYPE table` 的字段符号时，若目标实际不是内表，会抛**不可捕获的运行时错误**（dump），而不是设置 `sy-subrc`。所以这一行会直接让程序在用户第一次改单元格时崩掉。而且这两行逻辑本身**互相矛盾**：如果 `ep_collect00` 是表，那么 `READ TABLE ... INDEX 1` 之后 `ASSIGN COMPONENT ... OF STRUCTURE` 成立；如果它是结构（作者显然这么认为），那 `ASSIGN ... TO &lt;gtr_sum_tab&gt;` 必炸。**无论哪种解释，这段代码都不可能同时成立**——说明作者对这个 API 的返回形态没有确认过，而 `REF TO data`（3.1）的宽松声明让编译器无法拦截。
+- 🔴 **语义校核：`NTGEW_15` 是净重数据元素，这里却用来累加毛重。** `REDUCE #( INIT lv_i TYPE ntgew_15 ...)` 的累加器类型写成 `ntgew_15`——这个数据元素的名字本身就点明了它是**净重（Net weight）**：在物料主数据里，`NTGEW_15` 是净重字段的典型数据元素（`MARC-NTGEW` 一类，毛重对应的是 `BRGEW_15`），而本程序累加的 `gt_mara`-`brgew` 是**毛重（Gross weight）**。长度和精度都是 15 位 3 小数、赋值与加法都能通过编译和运行，所以编译器一句都不会说——**但净重与毛重是两个不同的业务量，用净重的类型去表达毛重的合计，是典型的"长度对上、语义对不上"**。这类缺陷必须在 Code Review 里靠人眼抓出来，因为它是完全静默的：算出来的数长得一模一样，只是含义错了。正确写法：累加器用毛重的数据元素（或直接用内表行类型 `ztest_s` 的对应分量类型，让类型自己说话）。
+- 🔴 **业务量纲缺失：不同单位的毛重直接相加。** `REDUCE` 对 `gt_mara` 所有行无差别求和，而毛重带单位（`BRGEW_UOM`）。PoC 恰好只取了 10 行，量纲问题不容易被察觉；一旦真正用来汇总几百个物料，"10 公斤的螺丝 + 3 吨的钢板 = 1003 公斤"就是彻底错误的结论。要么按单位分组、要么统一换算到基准单位（`UMCONV` / 单位换算 FM）、要么按设计意图**取消毛重的合计**（见下方"最该做的一步"）。
+- 🟠 **写回汇总值的对象选错了，因此这段"补救"是无用功。** `gr_data` 是在 `get_subtotals` 之后拿到的一份**值拷贝**，Grid 并不再引用它。往里写新合计，Grid 不会知道；随后的 `REFRESH_TABLE_DISPLAY` 若触发 Grid 自行重算，会用 Grid 自己的（旧的或重新算的）值覆盖显示。改进两条路：① **删掉整段手算**，让 Grid 用 `GET_SUBTOTALS` 之外的机制自己更新（最简单：编辑后不用软刷新，见 ③）；② 保留自定义逻辑，但必须**直接修改 `gt_mara` 里那条合计行**。
+- 🟠 **`IF &lt;lg_val&gt; IS ASSIGNED` 是唯一一处真正的防御性编程。** `ASSIGN COMPONENT` 失败时字段符号保持未赋值，这里判空避免了后续操作——**这是全程序写得最谨慎的一句**，可惜它防的是一个自己造出来的伪问题（分量找不到只是因为上游已经错了）。另外要注意：`ASSIGN COMPONENT` 拿到的是该分量的**原类型**（很可能是字符型或无格式化的数量型），把 `REDUCE` 的数值赋进去走的是"数值 → 字符"的隐式转换，可能产生带千分位/按用户小数格式化的字符串，合计单元格会出现左对齐的"1,234.500"这类显示问题。
+- 🟡 `GET_SUBTOTALS` 未传 `it_sort` / `it_group`，依赖 Grid 当前的排序分组状态；此时若用户刚改过排序，取回的合计口径与用户预期可能不一致。
+- 🟡 **最该做的一步：如果这个工具真的没有单位口径和净重校验的业务价值，就把 `do_sum` 和整段合计逻辑一起删掉。** 一个没有量纲、不接受校验的数字，显示在界面上比不显示更危险——它会让使用者相信一个假的结论。合计不是"顺手加的功能"，它是一个需要业务口径才能存在的东西。
+
+合计这摊事终于处理完（或者按上面的分析，并没有被真正处理），最后一步是把界面刷新一下——而这一步的刷新参数，又与前面的编辑策略互相矛盾。
+
+#### ③ 稳定刷新界面
+
+```abap
+    gs_stable-col = 'X'.
+    gs_stable-row = 'X'.
+
+    go_grid-&gt;refresh_table_display(
+      EXPORTING
+        is_stable      = gs_stable      " With Stable Rows/Columns
+        i_soft_refresh = 'X'            " Without Sort, Filter, etc.
+      EXCEPTIONS
+        finished       = 1              " Display was Ended (by Export)
+        OTHERS         = 2
+    ).
+    IF sy-subrc &lt;&gt; 0.
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.                    "get_data_changed
+```
+
+**做什么** — 把 `gs_stable` 的 `col` 与 `row` 都置 `X`，表示刷新时要保持列和行的可见位置（不让用户视口跳回顶部），然后调用 Grid 的 `refresh_table_display` 传 `is_stable = gs_stable` 与 `i_soft_refresh = 'X'`；异常分支 `IF sy-subrc &lt;&gt; 0. ENDIF.` 什么都不做。FORM 结尾的 `IF go_grid IS BOUND` 与 `ENDFORM` 收束全流程。
+
+**为什么** — `is_stable` 保持行列位置，是可编辑 Grid 的必要体验：否则每改一格，整个表格跳回顶部、光标丢失、用户要重新滚动找位置。`i_soft_refresh = 'X'` 表示"只更新数据、不重排序/过滤/重算合计"，这是**保守但与编辑场景匹配**的选择——因为正在编辑的行不能被重新排序冲掉。所以这一步的两个参数组合本身是有道理的，问题出在它和 3.4 ② 的组合上。
+
+**风险与改进**
+
+- 🟠 **`i_soft_refresh = 'X'` 直接抵消了 3.4 ② 全部手算的意义。** 软刷新的定义就是**不重排序、不重过滤、不重算合计**。这意味着：用户在 ② 段里千辛万苦手算并写入的那个合计值，在这次刷新时既不会被 Grid 采用，也不会被 Grid 重算——**合计永远是 ALV 首次显示时算的那个旧值**。整个 ② 段逻辑在最常见路径下是纯粹的无用功。想让合计跟着变，就必须放弃软刷新做全量刷新（代价是视口与编辑位置会跳），或者干脆**不用 `do_sum`，把合计改成在标题栏/状态栏自己显示**——后者对"编辑态"是最干净的方案，因为它不与 Grid 的排序/过滤抢主导权。
+- 🟠 **空 `IF sy-subrc &lt;&gt; 0. ENDIF.`**：声明了 `finished` 和 `OTHERS` 两个异常却不处理，条件体是空的。这是本程序第二处"未完成"的硬证据。`OTHERS = 2` 会把 `error_cntl_error`、`no_active_tab`（导出/打印结束后 Grid 已销毁）等真实错误一并吞掉，结果是：用户按了导出，程序静默地继续往下走，后续操作全部打在已失效的控件上。改进：至少 `finished` 时 `LEAVE LIST-PROCESSING` 或静默退出；其他异常记录日志并给用户 `MESSAGE`。
+- 🟠 **`gs_stable` 是全局变量但语义是"本次刷新的临时参数"**：它从初始化就一直是 `col = row = 'X'`，却被复用于每次刷新。作为过程式写法勉强可接受，但全局状态意味着**不同回调路径可能互相踩**（例如将来在别处也要"不保持位置"地刷新，就必须先清空）。应改为 FORM 内的局部变量。
+- 🟡 缺少"保存"落库环节（与 3.4 ① 同源问题）：用户改完只能看着自己改的数，关掉程序就没了。工具化时必须有明确的保存按钮 + 事务/校验闭环。
+
+三个事件块拆完，`DATA_CHANGED` 这条数据线走完了全程。下面把整条数据在各个子程序之间的流转画清楚，再汇总问题。
+
+---
+
+## 四、执行流程全景图（数据视角）
+
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant SOS as 事件块 入口
+    participant DB as MARA 数据库表
+    participant FCM as 字段目录合并 FM
+    participant G as 全屏 ALV Grid
+    participant PFS as 表单 SET_PF_STATUS
+    participant DC as 表单 GET_DATA_CHANGED
+    participant PR as 变更协议对象
+    U--&gt;&gt;SOS: 启动报表
+    SOS-&gt;&gt;DB: SELECT matnr brgew 至多 10 行
+    DB--&gt;&gt;SOS: 返回结果集写入内表 _mara
+    Note over SOS,_mara: 结果落在 _mara，而显示用的是 gt_mara
+    SOS-&gt;&gt;FCM: 传程序名与结构 ZTEST_S
+    FCM--&gt;&gt;SOS: 返回字段目录 gt_fieldcat
+    SOS-&gt;&gt;SOS: 给 BRGEW 打可编辑与合计标记
+    SOS-&gt;&gt;G: 传入 gt_fieldcat 与事件表，t_outtab 传 gt_mara
+    Note over G,gt_mara: gt_mara 为空，界面空白
+    G--&gt;&gt;PFS: 初始化时回调 PF 状态设置
+    PFS-&gt;&gt;G: 取回控件引用 go_grid
+    PFS-&gt;&gt;G: 注册修改事件与回车事件
+    U-&gt;&gt;G: 在 BRGEW 单元格输入新值并回车
+    G-&gt;&gt;PR: 组装本次修改单元格集合
+    G-&gt;&gt;DC: 回调 DATA_CHANGED 并传入协议对象
+    DC-&gt;&gt;PR: 读修改单元格，拿到行号与显示值
+    DC-&gt;&gt;gt_mara: 按行号索引回写 BRGEW
+    Note over DC,gt_mara: 合计行、排序、过滤会使行号错位
+    DC-&gt;&gt;G: get_subtotals 取整体合计
+    G--&gt;&gt;DC: 返回合计结构存入 gr_data
+    Note over DC: ASSIGN 到 TYPE table 字段符号，类型冲突
+    DC-&gt;&gt;DC: REDUCE 用净重类型累加毛重，手算合计
+    Note over gr_data: 写入的是脱离 Grid 的副本，不生效
+    DC-&gt;&gt;G: refresh_table_display 软刷新且保持行列
+    G--&gt;&gt;U: 界面保持原位，但合计仍是旧值
+```
+
+---
+
+## 五、问题清单与改进建议（按优先级）
+
+### 🔴 P0 — 业务正确性 / 程序不可用
+
+| # | 问题 | 所在子程序 | 改进方向 |
+|---|---|---|---|
+| 1 | 查询结果写入 `_mara`，ALV 显示的 `gt_mara` 从未被填充 → 界面永远空白，`_mara` 是死代码 | 事件块 `START-OF-SELECTION` | `DATA(gt_mara) TYPE TABLE OF ztest_s` + `INTO TABLE @gt_mara`；或查进局部表后 `MOVE-CORRESPONDING` |
+| 2 | `ASSIGN gr_data-&gt;* TO &lt;gtr_sum_tab&gt;` 把单条汇总结构 ASSIGN 给 `TYPE table` 字段符号 → 用户首次编辑即运行时错误 | 表单 `GET_DATA_CHANGED` | 直接 `ASSIGN gr_data-&gt;* TO &lt;ls_sum&gt;`（结构），去掉 `READ TABLE ... INDEX 1`；或把字段符号声明为确定的结构类型，让编译期拦截 |
+| 3 | 按 `row_id` 索引回写，在 `do_sum` 合计行、用户排序、过滤删行三重作用下行号错位 → 改错行或修改丢失 | 表单 `GET_DATA_CHANGED` | 改用 `&lt;gs_changed&gt;-data_ref-&gt;*` 直接定位被改行；或限制 `it_no_sort` / `it_no_filter`，且可编辑列禁用合计 |
+| 4 | `REDUCE` 累加器用净重数据元素 `NTGEW_15`，累加的却是毛重 `BRGEW` → 净重/毛重语义错配，长度精度一致所以编译运行全通过 | 表单 `GET_DATA_CHANGED` | 累加器改用毛重对应类型（或内表行类型），让类型表达业务含义 |
+| 5 | 毛重带 UOM，不同物料单位不同，直接求和无业务含义；`do_sum` 同样在合计不同量纲 | 事件块 `START-OF-SELECTION` / 表单 `GET_DATA_CHANGED` | 取入 `BRGEW_UOM` 并分组或统一换算；无法定义口径时**取消毛重合计** |
+| 6 | 可编辑毛重却没有 `NTGEW ≤ BRGEW` 校验 → 允许产出不一致的物料主数据 | 表单 `GET_DATA_CHANGED` | 回写前校验，不通过则回滚并用 `ADD_PROTOCOL_ENTRY` 回显 |
+
+### 🟠 P1 — 健壮性
+
+| # | 问题 | 所在子程序 | 改进方向 |
+|---|---|---|---|
+| 7 | `REUSE_ALV_FIELDCATALOG_MERGE` 的 3 个异常合并成一个 `sy-subrc = 0`，失败即静默白屏 | 事件块 `START-OF-SELECTION` | 分支处理并 `MESSAGE` 提示不同原因 |
+| 8 | ALV 传来的字符值直接赋给数量字段，无转换校验、无错误回显 | 表单 `GET_DATA_CHANGED` | 显式转换 + 合法性判断 + 协议对象回显 |
+| 9 | 手算合计写进 `gr_data` 副本，Grid 不会采用；软刷新又禁止重算 → 合计恒为旧值 | 表单 `GET_DATA_CHANGED` | 删除手算段让 Grid 自己重算；或直接改 `gt_mara` 中的合计行 |
+| 10 | `refresh_table_display` 异常分支为空体，`OTHERS` 吞掉真实错误 | 表单 `GET_DATA_CHANGED` | 删除空 `IF`；`finished` 时正常结束，其余异常记录并提示 |
+| 11 | 无 `WHERE` + 无 `ORDER BY` + `UP TO 10 ROWS` → 随机不可复现的样本 | 事件块 `START-OF-SELECTION` | 加选择屏与稳定排序 |
+| 12 | 编辑事件在每次 PBO 重入的 FORM 中重复注册，Grid 引用可能失效 | 表单 `SET_PF_STATUS` | 单一注册时机 + 每次重新确认引用有效性 |
+| 13 | `GET_GLOBALS_FROM_SLVC_FULLSCR` 未处理异常，取不到引用时静默继续 | 表单 `SET_PF_STATUS` | 补 `EXCEPTIONS` 与失败提示 |
+
+### 🟡 P2 — 性能与规范
+
+- `WITH KEY fieldname = 'BRGEW'` 依赖隐含标准键条件，靠"所有条目同结构"才碰巧正确 → 显式写 `WITH KEY table = gt_fieldcat fieldname = 'BRGEW'`（事件块 `START-OF-SELECTION`）
+- FORM 名全大写、FORM 参数用新式 `io_`、FM 调用用旧式 `i_` / `e_`，三套命名混用（全局声明区 / 表单 `SET_PF_STATUS`）
+- `itr_extab` 声明未使用、`i_tr_` 前缀误导，ATC 可执行检查会报错（表单 `SET_PF_STATUS`）
+- `&lt;gtr_sum_tab&gt; TYPE table`、`gr_data`、`gs_stable` 都是全局，应下沉为 FORM 局部（全局声明区）
+- 空壳 `CASE sy-ucomm ... WHEN OTHERS` 与被注释的 `WHEN`，是未完成的信号，应删除或补齐（表单 `SET_PF_STATUS`）
+- 缺 `it_sort` / `it_no_filter` / `it_no_outdel` 等保护性设置，可编辑表默认允许排序过滤（事件块 `START-OF-SELECTION`）
+- 依赖 `TYPE-POOLS: slis` 与 `REUSE_ALV_FIELDCATALOG_MERGE`，属旧 ALV 体系（全局声明区 / 事件块 `START-OF-SELECTION`）
+- `_mara` 依赖下划线隐式声明的遗留写法，类型完全由 `SELECT` 列表推导（事件块 `START-OF-SELECTION`）
+- 无授权检查：PoC 无落库尚可，一旦要真正写 `MARA` 必须补 `AUTHORITY-CHECK`（全局声明区）
+- 数量型字段赋值为字符表示可能产生格式化字符串，合计显示格式不可控（表单 `GET_DATA_CHANGED`）
+
+### 🟢 P3 — 可扩展性
+
+- 缺 `i_save`（布局不保存）、`i_grid_title`、`i_callback_top_button` / `i_callback_user_command`，连"保存"入口都没有（事件块 `START-OF-SELECTION`）
+- 缺统一消息出口：所有失败路径都是静默退出，用户无从判断"是没数据还是出错了"（全程序）
+- 数据模型只有 `MATNR` + `BRGEW`，没有物料描述与毛重单位，用户看不懂自己在改什么（全局声明区）
+- 未区分 `DATA_CHANGED` 与 `DATA_CHANGED_FINISH`，将来做批量事务性校验时需要重构（事件块 `START-OF-SELECTION`）
+- 缺少最小演示数据集与自测说明，接手者无法自助复现（`UP TO 10 ROWS` 随机样本，见 `START-OF-SELECTION`）
+
+**修复方向示意**（聚焦结构性问题，完整工具化还需补齐上面 P1/P2）：
+
+```abap
+" 1) 数据必须落进真正要显示的内表
+DATA(gt_mara) TYPE TABLE OF ztest_s.
+SELECT matnr, brgew FROM mara
+  INTO TABLE @gt_mara
+  WHERE matnr IN @s_matnr
+  ORDER BY matnr.
+
+" 2) 写回用 data_ref 定位被改行，不依赖行号
+LOOP AT io_data_changed-&gt;mt_mod_cells
+      ASSIGNING FIELD-SYMBOL(&lt;ls_mod&gt;)
+  WHERE fieldname = 'BRGEW'.
+  ASSIGN &lt;ls_mod&gt;-data_ref-&gt;* TO FIELD-SYMBOL(&lt;ls_row&gt;).
+  IF &lt;ls_row&gt; IS ASSIGNED.
+    &lt;ls_row&gt;-brgew = &lt;ls_mod&gt;-value.
+  ENDIF.
+ENDLOOP.
+
+" 3) 合计结构本身就是出表行结构：直接整体接收，不再包一层内表
+DATA(gr_data) TYPE REF TO data.
+go_grid-&gt;get_subtotals( IMPORTING ep_collect00 = gr_data ).
+" ep_collect00 对应 FM 的 es_collect00，是一条结构：
+" 既不需要 TYPE table 的字段符号，也不需要再 READ TABLE 取第一行
+```
+
+**做什么** — 给出三处结构层面的修法：数据落进真正显示的内表；写回改用协议对象自带的 `data_ref` 引用定位，摆脱行号依赖；合计结构按"结构"接收，不再用泛型内表字段符号绕。
+**为什么** — 这三处改动量都很小，却分别消除了 P0 的第 1、2、3 项——它们是"编译器拦不住、运行时也不报错"的静默缺陷，靠读代码和 Code Review 才能发现；第 3 处尤其重要：把模糊的 `TYPE table` 换成确定语义，未来的类型错配会在编译期暴露。
+**风险与改进** — 这段只是骨架：第 2 处仍需补字符到数量的转换校验与 `NTGEW ≤ BRGEW` 业务校验（P0 第 6 项），第 1 处的 `INTO TABLE @gt_mara` 要求 `ZTEST_S` 的 `MATNR`/`BRGEW` 与 `MARA` 字段同名同义，否则要 `MOVE-CORRESPONDING` 中转；第 3 处拿到合计结构后**并不应该再手算覆盖**（P1 第 9 项），正确做法是让 Grid 重算或取消 `do_sum`。示范本身若缺校验就照抄，仍会产出脏数据。
+
+---
+
+## 六、整体评价与启发
+
+### 优点
+
+- **语法层面确实是现代 ABAP**：`REDUCE #( INIT ... FOR ... NEXT ... )`、`APPEND VALUE #( ... )`、`ASSIGNING FIELD-SYMBOL(&lt;x&gt;)` 内联声明用得准确且统一，没有一处语法炫技或过时写法。作者显然读过近年的 SAP 官方示例。
+- **"只开放 `BRGEW` 一列可编辑，其余只读"** 是可编辑 ALV 的正确纪律，说明对业务场景有认知而不是"整表全放开"。
+- **让 ALV 内置汇总引擎（`do_sum`）而不是自己画汇总行**，方向正确；知道要用 `GET_GLOBALS_FROM_SLVC_FULLSCR` 在 PF-STATUS 里抓 Grid 引用，也是这个生态里公认的正确门道。
+- **`IF &lt;lg_val&gt; IS ASSIGNED`** 是全程序唯一一处防御性判空，写得克制而准确。
+
+### 短板
+
+- **数据流在入口就断了**：查出来的数据没有进入要显示的表，于是后面整条回写/合计链路都是空转。这是唯一一个"从代码结构就能看出、却完全不会被任何报错提示"的缺陷。
+- **类型层面把结构当表**：`REF TO data` + `TYPE table` 的组合把编译期检查换成了运行时崩溃，是新式语法掩盖旧式错误的典型样本。
+- **完全没有业务语义**：净重/毛重、单位、净重上限、变更留痕、授权——一个涉及物料主数据的可编辑工具，这五件事一件都没有。
+- **错误处理三处全部空转**：字段目录合并失败静默、异常分支空 `IF`、空壳 `CASE`，三处"未完成"信号叠在一起。
+
+### 可学到的设计经验
+
+- **ALV 可编辑报表有一条铁律：`t_outtab` 传进去的那张表，必须就是回写时操作的那张表。** 一旦"查询到 A 表、显示 B 表"，后面所有基于行号、基于 `READ TABLE` 的回写逻辑全部作废，而且**没有任何报错会提醒你**。接手任何可编辑 ALV，第一件事就是顺着数据流把"哪张表被 SELECT 填、哪张表被传进 `t_outtab`"对一遍。
+- **类型擦除不是灵活，是把编译期检查换成运行时崩溃。** `REF TO data` 接不确定结构、`TYPE table` 字段符号接不确定内表，这一对组合让本该在 ADT 里报错的 `ASSIGN` 冲突变成了运行期 dump。宁可写错类型让编译器骂，也不要写"看起来什么都能接"的泛型。
+- **累加任何带单位的数量字段之前，先确认数据元素名在说哪件事。** `NTGEW_15` 是净重、`BRGEW_15` 是毛重，两者长度精度完全一致，编译器永远不会提示你搞反了；这类语义错配只能靠人读数据元素名。再往前一步：单位不同的数量根本不能直接相加，正确口径（统一换算 / 分组 / 不给合计）必须在写第一行 `REDUCE` 之前就定下来。
+- **空 `IF ... ENDIF.`、空壳 `CASE ... WHEN OTHERS`、被注释掉的 `WHEN`，都是"这段逻辑没写完"的物理证据。** Code Review 对这三样应当零容忍——它们的存在会让后来者误以为失败路径已经被处理。
+- **失败路径必须有消息出口。** 本程序至少三处"出错就什么都不做"，共同后果是用户面对白屏时无法区分"没数据""结构没建""代码报错了"。哪怕是 PoC，`MESSAGE` 也是最低成本的自我解释。
+- **合计功能是需要业务授权的，不是顺手就能加的。** ALV 内置汇总跟着排序过滤走，自己手算一份等于建立第二套真相；一旦两者对不上，用户看到的是矛盾的数字，而矛盾的数字比没有数字更危险。</div></div></div><div class="card"><div class="card-h">eval-1 · without_skill<span class="badge b">without_skill</span><span class="score f">6/12 · 50%</span></div><div class="card-b"><div class="md"># ABAP 程序分析报告：`ZTEST7`
+
+&gt; 分析对象：`D:\Workspace\Skills\analyzing-programs\evals\ztest7.abap`（115 行）
+&gt; 程序类型：报表程序 + TYPE-POOLS（`slis`），经典 `REUSE_ALV_*` 全屏可编辑 ALV
+&gt; 结论速览：这是一份 **可编辑 ALV + 实时合计（POC / DEMO 级）** 的骨架代码，思路正确，但存在 1 个致命数据缺陷（查库结果写进了未声明变量，ALV 实际为空表）、1 个潜在运行期短时转储（未绑定引用 ASSIGN）、以及若干类型/健壮性问题。
+
+---
+
+## 一、它解决什么业务问题
+
+| 维度 | 说明 |
+|---|---|
+| 表面功能 | 从 `MARA`（物料主数据）取前 10 行，显示 `MATNR`（物料号）、`BRGEW`（毛重），允许用户在 ALV 表格中直接修改毛重 |
+| 核心诉求 | **可编辑表格 + 编辑后合计行（Total）实时重算并正确刷新**，同时不丢行号、不丢排序/滚动位置 |
+| 业务含义 | 典型的"POC 验证片段"：验证 `cl_gui_alv_grid` 的 `DATA_CHANGED` 事件、`EDIT` 标记、`DO_SUM` 合计行、`GET_SUBTOTALS` 写回总计、`REFRESH_TABLE_DISPLAY` 稳定刷新的完整链路 |
+| 数据落点 | **无落库、无保存按钮**。所有修改只存在于内表 `GT_MARA` 的内存快照中，退出即丢失 |
+| 结论 | 属于"技术验证型程序"，不是完整业务程序。命名（`ZTEST7` / `ZTEST_S`）与代码中残留的空 `IF`、注释掉的 `WHEN`、`" PF Status Code` 注释风格也都印证这一点 |
+
+一句话：**它演示了"如何在 ALV Grid 中让某一列可编辑，并在每次编辑后把总计行刷新成正确值，同时保持光标不跳动"。**
+
+---
+
+## 二、整体架构
+
+### 2.1 架构分层
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 层 3  事件处理层（TYPE-POOLS: SLIS 中的 FORM）                 │
+│   • SET_PF_STATUS        ← ALV 显示时回调：取 grid 引用 + 注册编辑事件 │
+│   • GET_DATA_CHANGED     ← 单元格修改回调：写回数据 → 重算合计 → 刷新 │
+├─────────────────────────────────────────────────────────────┤
+│ 层 2  控制/事件注册层（START-OF-SELECTION）                  │
+│   • 查库 → 生成字段目录 → 打 EDIT/DO_SUM 标记 → 挂事件 → 显示 ALV │
+├─────────────────────────────────────────────────────────────┤
+│ 层 1  数据访问层（MARA 直查，UP TO 10 ROWS）                  │
+├─────────────────────────────────────────────────────────────┤
+│ 层 0  全局状态层（程序级 DATA / FIELD-SYMBOLS）               │
+│   GT_MARA  GT_FIELDCAT  GT_EVENTS  GO_GRID  GS_STABLE  GR_DATA │
+└─────────────────────────────────────────────────────────────┘
+                         ↓ 封装层
+        REUSE_ALV_GRID_DISPLAY / CL_GUI_ALV_GRID（SAP 标准）
+```
+
+### 2.2 全局对象清单
+
+| 对象 | 类型 | 作用 | 备注 |
+|---|---|---|---|
+| `GT_MARA` | `TABLE OF ZTEST_S` | ALV 数据源（也是编辑结果的落点） | **实际未被填充，见 5.1** |
+| `GT_FIELDCAT` | `SLIS_T_FIELDCAT_ALV` | 动态字段目录 | 由 FM 生成后手工改 2 个标记 |
+| `GT_EVENTS` | `SLIS_T_EVENT` | 事件表 | 仅含 `DATA_CHANGED` |
+| `GO_GRID` | `REF TO CL_GUI_ALV_GRID` | Grid 对象引用 | `SET_PF_STATUS` 中取得，`GET_DATA_CHANGED` 中使用 |
+| `GS_STABLE` | `LVC_S_STBL` | 刷新时保持行列位置 | `col/row = 'X'` |
+| `GR_DATA` | `REF TO DATA` | 承接 `GET_SUBTOTALS` 的合计结构 | 泛型引用，**未做 `IS BOUND` 判断** |
+| `&lt;GTR_SUM_TAB&gt;` | `FIELD-SYMBOL TYPE TABLE` | 承接上一步的动态表 | 仅 FORM 内部使用，却声明在全局 |
+
+### 2.3 架构风格评价
+
+- **优点**：事件驱动职责划分清晰（显示前 / 显示中 / 编辑后三段分离）；把 ALV 包装 FM 的官方推荐用法用对了（`i_callback_pf_status_set` + `it_events` + `get_data_changed`）。
+- **缺点**：全局可变状态过多且未收敛到单一上下文；反射式（`REF TO DATA` + 两次 `ASSIGN`）把编译期检查换成了运行期风险；`TYPE-POOLS:slis` 在 7.40+ 已属过时约束（它只为"让 FORM 可见"而存在，现可直接用局部 FORM 或改 OO）。
+
+---
+
+## 三、执行流程
+
+### 3.1 主流程（`START-OF-SELECTION`，第 13–48 行）
+
+```
+1. SELECT matnr, brgew FROM mara INTO TABLE _mara UP TO 10 ROWS   (:15-18)
+        ↓  ⚠ 目标变量是隐式声明的 _mara，不是 GT_MARA
+2. IF sy-subrc = 0  → 至少取到 1 行                            (:19)
+3. REUSE_ALV_FIELDCATALOG_MERGE  i_structure_name = 'ZTEST_S'  (:20-29)
+        ↓  异常 inconsistent_interface / program_error / OTHERS
+4. READ TABLE gt_fieldcat ASSIGNING &lt;gs_fcat&gt; WITH KEY fieldname = 'BRGEW' (:31)
+5.   &lt;gs_fcat&gt;-edit   = 'X'                                    (:33)
+6.   &lt;gs_fcat&gt;-do_sum = 'X'                                    (:34)
+        ↓  ⚠ 未检查 sy-subrc：BRGEW 不存在时静默跳过，ALV 变成只读
+7. APPEND VALUE #( name='DATA_CHANGED' form='GET_DATA_CHANGED' ) TO gt_events (:37)
+8. REUSE_ALV_GRID_DISPLAY                                      (:39-46)
+        i_callback_program        = sy-repid
+        it_fieldcat               = gt_fieldcat
+        it_events                 = gt_events
+        i_callback_pf_status_set  = 'SET_PF_STATUS'
+        TABLES t_outtab           = gt_mara
+        ↓  FM 内部：先调用 SET_PF_STATUS，再显示网格
+        ↓  FM 内部：跳转到事件循环，等待用户操作
+9. 用户编辑单元格 → CL_GUI_ALV_GRID 触发 DATA_CHANGED → GET_DATA_CHANGED
+```
+
+### 3.2 子程序 A：`SET_PF_STATUS`（第 51–72 行）— ALV 显示阶段
+
+```abap
+FORM set_pf_status USING itr_extab TYPE slis_t_extab.
+
+  CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+    IMPORTING e_grid = go_grid.                 " 取得 Grid 对象引用
+
+  IF go_grid IS BOUND.
+    CALL METHOD go_grid-&gt;register_edit_event      " 注册"单元格被修改"事件
+      EXPORTING i_event_id = cl_gui_alv_grid=&gt;mc_evt_modified.
+    CALL METHOD go_grid-&gt;register_edit_event      " 注册"回车确认"事件
+      EXPORTING i_event_id = cl_gui_alv_grid=&gt;mc_evt_enter.
+  ENDIF.
+
+  CASE sy-ucomm.
+    WHEN OTHERS.                                  " 空壳：预留工具栏/自定义功能点
+  ENDCASE.
+ENDFORM.
+```
+
+关键点：
+- `GET_GLOBALS_FROM_SLVC_FULLSCR` **仅适用于全屏 ALV**（`REUSE_ALV_GRID_DISPLAY` 默认全屏）。若改成弹出式，此 FM 取不到引用 → 编辑功能静默失效。
+- 两次 `REGISTER_EDIT_EVENT` 是编辑功能的**开关**：不注册，ALV 允许进入单元格但修改不会回调 `DATA_CHANGED`（表现是"能选中、存不进"）。
+- `CASE sy-ucomm. WHEN OTHERS. ENDCASE` 为纯占位死代码；`itr_extab` 参数未使用。
+
+### 3.3 子程序 B：`GET_DATA_CHANGED`（第 74–115 行）— 编辑回调，核心逻辑
+
+```
+① 守卫：GO_GRID IS BOUND                                        (:76)
+② 遍历 mt_mod_cells，只处理 fieldname = 'BRGEW' 的修改           (:78)
+     → READ TABLE gt_mara ASSIGNING &lt;gs_tab&gt; INDEX row_id        (:79)
+       把 &lt;gs_changed&gt;-value 写回 &lt;gs_tab&gt;-brgew                (:81)
+   ★ 这一步是必需的：后面的 REDUCE 是从 GT_MARA 求和的，
+     如果不回写，合计会用旧值
+③ go_grid-&gt;get_subtotals( ep_collect00 = gr_data )               (:85-88)
+   取回 Grid 自己算出的"总计行"结构对象
+④ ASSIGN gr_data-&gt;* TO &lt;gtr_sum_tab&gt;   ← 解引用赋值到行结构       (:90)
+   READ TABLE &lt;gtr_sum_tab&gt; INDEX 1 INTO &lt;l_sum&gt;                 (:91)
+   ASSIGN COMPONENT 'BRGEW' OF STRUCTURE &lt;l_sum&gt; TO &lt;lg_val&gt;    (:93)
+⑤ REDUCE # 求和覆盖合计行单元格                                  (:95)
+     REDUCE #( INIT lv_i TYPE ntgew_15
+               FOR &lt;ls_t&gt; IN gt_mara
+               NEXT lv_i = lv_i + &lt;ls_t&gt;-brgew )
+⑥ GS_STABLE-col/row = 'X'                                       (:99-100)
+⑦ go_grid-&gt;refresh_table_display( is_stable = gs_stable
+                                   i_soft_refresh = 'X' )       (:102-109)
+⑧ IF sy-subrc &lt;&gt; 0. ENDIF.   ← 空 IF，死代码                     (:110-111)
+```
+
+设计意图：**"每次单元格修改 → 全量重算总计 → 覆盖 Grid 的总计行单元格 → 稳定刷新"**，属于最直白可靠的实现方式（而不是依赖 Grid 自行更新）。
+
+---
+
+## 四、问题清单
+
+### 4.1 🔴 严重（会导致功能不可用 / 短时转储）
+
+| # | 位置 | 问题 | 影响 |
+|---|---|---|---|
+| 1 | `:15-18` | `INTO TABLE _mara` —— **`_mARA` 全文未声明**。ABAP 对未声明标识符只在运行期于**全局数据区隐式创建**，它和 `GT_MARA` 是两个不同对象 | 查库结果进了另一个表；`:46` 传给 ALV 的 `GT_MARA` 始终为空 → **界面只有表头、一行数据都没有**，合计恒为 0。这是本程序最致命的问题 |
+| 2 | `:90` | `ASSIGN gr_data-&gt;* TO &lt;gtr_sum_tab&gt;`，未先判断 `gr_data IS BOUND` | 当 `DO_SUM` 未生效（字段目录里没有 `BRGEW`、合计行被关闭、或 Grid 未产生 collect 数据）时 `GR_DATA` 未绑定，**解引用未绑定引用 → 运行期错误 `CX_SY_REF_IS_INITIAL` 短时转储** |
+| 3 | `:95` | `INIT lv_i TYPE ntgew_15` 与目标单元格类型不一致 | `NTGEW_15`（17 位净重）与 `MARA-BRGEW`（13 位 3 位小数）宽度/小数位不同，赋值时可能**溢出截断或 `CONVT_NO_NUMBER`**；同时把"数量"语义换成"净重"语义属于语义错误 |
+
+### 4.2 🟠 中等（功能/健壮性风险）
+
+| # | 位置 | 问题 | 影响 |
+|---|---|---|---|
+| 4 | `:22-23` | 字段目录来自 DDIC 结构 `ZTEST_S`，数据却来自 `MARA` | 两处"事实来源"不一致。即便修好问题 1，`ZTEST_S-BRGEW` 与 `MARA-BRGEW` 类型不兼容时，`REUSE_ALV` 的接口一致性检查与后续 `ASSIGN COMPONENT` 都会出问题。应统一：**要么字段目录用 `'MARA'`，要么 `ZTEST_S` 的字段类型严格对齐 `MARA` 的类型** |
+| 5 | `:31-35` | `READ TABLE ... WITH KEY fieldname = 'BRGEW'` 后不检查 `sy-subrc` | 找不到 `BRGEW` 就静默不设 `EDIT/DO_SUM`，用户得到一个**只读且无合计的 ALV**，且没有任何提示，极难排查 |
+| 6 | `:19` | `IF sy-subrc EQ 0` 包住了**整个显示逻辑** | 查不到数据 → 不显示 ALV、不给消息 → 白屏。建议空结果时给 `MESSAGE` 或仍显示空 ALV |
+| 7 | `:15-18` | `UP TO 10 ROWS` 无 `WHERE`、无 `ORDER BY` | 取哪 10 行由优化器决定，**不可复现**；且可能是已删除/已冻结的物料，`BRGEW` 可能为 0 或负数，让"合计"演示效果失真 |
+| 8 | `:102-111` | `EXCEPTIONS` 捕获后 `IF sy-subrc &lt;&gt; 0. ENDIF.` 是空块 | 异常被吞掉；`OTHERS = 2` 与 `finished = 1` 未区分处理。建议至少 `finished` 不做刷新、`OTHERS` 记日志 |
+
+### 4.3 🟡 轻微（代码质量 / 可维护性）
+
+| # | 位置 | 问题 |
+|---|---|---|
+| 9 | `:11` | `&lt;gtr_sum_tab&gt;` 只在 FORM 内使用，却声明为全局；应移到 FORM 内部（同样 `:99` 的 `gs_stable` 也只被一处使用） |
+| 10 | `:37` | 用 `APPEND VALUE #( ... )` 单条追加，可直接 `gt_events = VALUE #( ( name = 'DATA_CHANGED' form = 'GET_DATA_CHANGED' ) )` |
+| 11 | `:67-71` | `" PF Status Code` 用双引号当注释（ABAP 惯例是 `*`）、`WHEN OTHERS` 空壳、被注释掉的 `WHEN` 残留 → 典型的复制粘贴/生成痕迹 |
+| 12 | `:2` | `TYPE-POOLS:slis` 在现代 ABAP 已不需要（只为让 FORM 可被 FM 找到而设）；可改局部 FORM 或直接用 OO 封装类 |
+| 13 | 全局 | 无选择屏幕（无法限定物料/工厂）、无 `SAVE` 逻辑、无 `USER_COMMAND`、无 `TOOLBAR_SET` → 作为 POC 尚可，作为报表功能不完整 |
+
+### 4.4 ✅ 值得肯定的地方
+
+- 事件注册（`REGISTER_EDIT_EVENT` × 2）与 `EDIT` 标记配套齐全，链路正确。
+- `GS_STABLE` + `I_SOFT_REFRESH` 的组合是"编辑后刷新不跳行"的标准最佳实践。
+- 用 `ASSIGNING` 代替 `READ TABLE ... INTO`（第 79 行）避免了内表整行复制，思路对。
+- 手动回写 `mt_mod_cells` 到内表，使内存数据与界面一致，为后续 `REDUCE` 打下了正确前提。
+
+---
+
+## 五、改进建议
+
+### 5.1 修复致命问题（必做）
+
+```abap
+* 1) 让查库结果真正进入 ALV 数据表：直接 INTO TABLE gt_mara
+SELECT matnr, brgew
+  FROM mara
+  INTO TABLE gt_mara
+  UP TO 10 ROWS.
+
+IF gt_mara IS INITIAL.
+  MESSAGE '未查到物料数据' TYPE 'S'.
+  RETURN.
+ENDIF.
+```
+
+```abap
+* 2) 解引用前守卫引用
+  go_grid-&gt;get_subtotals( IMPORTING ep_collect00 = gr_data ).
+
+  IF gr_data IS BOUND.
+    ASSIGN gr_data-&gt;* TO &lt;gtr_sum_tab&gt;.
+    READ TABLE &lt;gtr_sum_tab&gt; ASSIGNING FIELD-SYMBOL(&lt;l_sum&gt;) INDEX 1.
+    IF sy-subrc = 0 AND &lt;l_sum&gt; IS ASSIGNED.
+      ASSIGN COMPONENT 'BRGEW' OF STRUCTURE &lt;l_sum&gt; TO FIELD-SYMBOL(&lt;lg_val&gt;).
+      IF &lt;lg_val&gt; IS ASSIGNED.
+        DATA(lv_sum) = REDUCE ty_sum WITH INIT lv_sum = &lt;lg_val&gt;
+                       FOR &lt;ls_t&gt; IN gt_mara
+                       NEXT   lv_sum = lv_sum + &lt;ls_t&gt;-brgew.
+        &lt;lg_val&gt; = lv_sum.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+```
+
+```abap
+* 3) 求和变量类型与目标字段对齐（不要引入 ntgew_15）
+DATA lv_sum TYPE mara-brgew.     " 或 ztest_s-bgew：与写入目标同一类型
+lv_sum = REDUCE mara-brgew WITH INIT lv_sum = lv_sum
+             FOR &lt;ls_t&gt; IN gt_mara
+             NEXT   lv_sum = lv_sum + &lt;ls_t&gt;-brgew.
+```
+
+### 5.2 结构统一（强烈建议）
+
+消除"字段目录来自 `ZTEST_S`、数据来自 `MARA`"的双事实来源，二选一：
+
+- **方案 A（推荐）**：本地显式类型 + 手工字段目录，不依赖 SE11 结构
+  ```abap
+  TYPES: BEGIN OF ty_mat,
+           matnr TYPE mara-matnr,
+           brgew TYPE mara-brgew,
+         END OF ty_mat.
+  DATA gt_mara TYPE STANDARD TABLE OF ty_mat WITH EMPTY KEY.
+  ```
+  字段目录仍可用 `REUSE_ALV_FIELDCATALOG_MERGE`（`i_structure_name = 'MARA'` 后 `DELETE` 掉多余列），或直接 `ls_fcat-no_out = 'X'`。
+- **方案 B**：保留 `ZTEST_S`，但确保 `ZTEST_S-bgew` 的类型/长度/小数位与 `MARA-BRGEW` 完全一致。
+
+### 5.3 健壮性加固
+
+```abap
+  READ TABLE gt_fieldcat ASSIGNING FIELD-SYMBOL(&lt;gs_fcat&gt;) WITH KEY fieldname = 'BRGEW'.
+  IF sy-subrc &lt;&gt; 0.
+    MESSAGE '字段目录中缺少 BRGEW，程序终止' TYPE 'E'.
+    RETURN.
+  ENDIF.
+  &lt;gs_fcat&gt;-edit   = 'X'.
+  &lt;gs_fcat&gt;-do_sum = 'X'.
+```
+
+```abap
+  " 刷新异常别吞掉
+  DATA(ls_refresh) = go_grid-&gt;refresh_table_display(
+                        EXPORTING is_stable = gs_stable i_soft_refresh = 'X'
+                        EXCEPTIONS finished = 1 OTHERS   = 2 ).
+  IF sy-subrc = 2.
+    MESSAGE 'ALV 刷新异常' TYPE 'S' DISPLAY LIKE 'W'.
+  ENDIF.
+```
+
+查库加可复现条件，便于演示与测试：
+
+```abap
+  SELECT matnr, brgew FROM mara
+    INTO TABLE gt_mara
+    WHERE matnr LIKE 'Z%'
+    ORDER BY matnr
+    UP TO 10 ROWS.
+```
+
+### 5.4 简化：整段合计重算其实可删（进阶）
+
+`GET_SUBTOTALS` + 两次 `ASSIGN` + `REDUCE` 覆盖，本质是**手工模拟 Grid 已经会做的事**。两条更短的路：
+
+- **换事件类型**：把 `it_events` 里的 `DATA_CHANGED` 换成 Grid 的 `et_data_changed`（`CL_GUI_ALV_GRID=&gt;et_data_changed`）。该事件下 Grid 会在回调返回后自动重算并刷新合计行，`GET_DATA_CHANGED` 只需做"回写内表"，第 85–97 行整段可删。
+- **保留现事件但让 Grid 自算**：`DO_SUM = 'X'` 时 Grid 内部已有合计机制，`REFRESH_TABLE_DISPLAY` + `IS_STABLE` 会触发它重算；先做实验验证，若成立则可把 `GET_SUBTOTALS`/`REDUCE` 全部删除。
+
+&gt; 注意：这一步属于"减法优化"，需在真实环境实测确认合计行为后再删，不能凭代码推断。保留现实现是安全选择。
+
+### 5.5 可选增强（面向"真报表"）
+
+1. 加选择屏幕（`SELECT-OPTIONS matnr`），避免全表 `UP TO 10 ROWS`。
+2. 加 `USER_COMMAND` 或工具栏自定义（`i_callback_toolbar_set`），提供"保存"入口，否则用户编辑后毫无归宿——要么落库/调 RFC，要么明确提示"仅演示，不保存"。
+3. 加 `i_callback_data_changed_finish`（`finishing_edit`）在编辑结束时做一次落库/校验。
+4. 把 `SET_PF_STATUS` 的 `CASE sy-ucomm` 真正用起来：`SAVE`、`CHECK`、自定义按钮。
+5. 全面弃用 `TYPE-POOLS`，若要继续 OO 化，封装为 `CL_ZTEST7_ALV` + `ZCL_ALV_SUBMIT_TO_LSGRID`，把 `GO_GRID`、事件、合计逻辑收敛到类属性中，程序只剩取数与实例化。
+
+---
+
+## 六、重构后的骨架参考
+
+```abap
+REPORT ztest7.
+
+TYPES: BEGIN OF ty_mat,
+         matnr TYPE mara-matnr,
+         brgew TYPE mara-brgew,
+       END OF ty_mat.
+
+DATA: gt_mara     TYPE STANDARD TABLE OF ty_mat WITH EMPTY KEY,
+      gt_fieldcat TYPE slis_t_fieldcat_alv,
+      gt_events   TYPE slis_t_event,
+      go_grid     TYPE REF TO cl_gui_alv_grid,
+      gs_stable   TYPE lvc_s_stbl,
+      gr_data     TYPE REF TO data.
+
+START-OF-SELECTION.
+
+  SELECT matnr, brgew FROM mara
+    INTO TABLE gt_mara
+    WHERE matnr LIKE 'Z%'
+    ORDER BY matnr
+    UP TO 10 ROWS.
+
+  IF gt_mara IS INITIAL.
+    MESSAGE '未查到物料数据' TYPE 'S'.
+    RETURN.
+  ENDIF.
+
+  CALL FUNCTION 'REUSE_ALV_FIELDCATALOG_MERGE'
+    EXPORTING i_program_name   = sy-repid
+              i_structure_name = 'MARA'
+    CHANGING  ct_fieldcat      = gt_fieldcat
+    EXCEPTIONS inconsistent_interface = 1
+               program_error          = 2
+               OTHERS                 = 3.
+
+  IF sy-subrc &lt;&gt; 0.
+    MESSAGE '生成字段目录失败' TYPE 'E'.
+    RETURN.
+  ENDIF.
+
+  LOOP AT gt_fieldcat ASSIGNING FIELD-SYMBOL(&lt;fcat&gt;).
+    &lt;fcat&gt;-no_out  = 'X'.
+    &lt;fcat&gt;-edit    = ' '.
+    &lt;fcat&gt;-do_sum  = ' '.
+  ENDLOOP.
+
+  READ TABLE gt_fieldcat ASSIGNING FIELD-SYMBOL(&lt;fcat&gt;) WITH KEY fieldname = 'BRGEW'.
+  IF sy-subrc &lt;&gt; 0.
+    MESSAGE '字段目录缺少 BRGEW' TYPE 'E'.
+    RETURN.
+  ENDIF.
+  &lt;fcat&gt;-edit   = 'X'.
+  &lt;fcat&gt;-do_sum = 'X'.
+
+  gt_events = VALUE #( ( name = 'DATA_CHANGED' form = 'GET_DATA_CHANGED' ) ).
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING i_callback_program       = sy-repid
+              it_fieldcat              = gt_fieldcat
+              it_events                = gt_events
+              i_callback_pf_status_set = 'SET_PF_STATUS'
+    TABLES     t_outtab                 = gt_mara.
+
+FORM set_pf_status USING itr_extab TYPE slis_t_extab.
+  CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR' IMPORTING e_grid = go_grid.
+  IF go_grid IS BOUND.
+    go_grid-&gt;register_edit_event( EXPORTING i_event_id = cl_gui_alv_grid=&gt;mc_evt_modified ).
+    go_grid-&gt;register_edit_event( EXPORTING i_event_id = cl_gui_alv_grid=&gt;mc_evt_enter ).
+  ENDIF.
+  CASE sy-ucomm.
+    WHEN OTHERS.
+  ENDCASE.
+ENDFORM.
+
+FORM get_data_changed USING io_data_changed TYPE REF TO cl_alv_changed_data_protocol.
+
+  DATA lv_sum TYPE mara-brgew.
+
+  IF go_grid IS BOUND.
+
+    LOOP AT io_data_changed-&gt;mt_mod_cells ASSIGNING FIELD-SYMBOL(&lt;cell&gt;)
+         WHERE fieldname = 'BRGEW'.
+      READ TABLE gt_mara ASSIGNING FIELD-SYMBOL(&lt;row&gt;) INDEX &lt;cell&gt;-row_id.
+      IF sy-subrc = 0.
+        &lt;row&gt;-brgew = &lt;cell&gt;-value.
+      ENDIF.
+    ENDLOOP.
+
+    go_grid-&gt;get_subtotals( IMPORTING ep_collect00 = gr_data ).
+
+    IF gr_data IS BOUND.
+      ASSIGN gr_data-&gt;* TO FIELD-SYMBOL(&lt;sum_tab&gt;).
+      IF &lt;sum_tab&gt; IS ASSIGNED.
+        READ TABLE &lt;sum_tab&gt; ASSIGNING FIELD-SYMBOL(&lt;sum&gt;) INDEX 1.
+        IF sy-subrc = 0.
+          ASSIGN COMPONENT 'BRGEW' OF STRUCTURE &lt;sum&gt; TO FIELD-SYMBOL(&lt;val&gt;).
+          IF &lt;val&gt; IS ASSIGNED.
+            lv_sum = REDUCE mara-brgew WITH INIT lv_sum = lv_sum
+                       FOR &lt;t&gt; IN gt_mara
+                       NEXT   lv_sum = lv_sum + &lt;t&gt;-brgew.
+            &lt;val&gt; = lv_sum.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+    gs_stable-col = 'X'.
+    gs_stable-row = 'X'.
+
+    go_grid-&gt;refresh_table_display( EXPORTING is_stable = gs_stable
+                                             i_soft_refresh = 'X'
+                                   EXCEPTIONS finished = 1 OTHERS = 2 ).
+    IF sy-subrc = 2.
+      MESSAGE 'ALV 刷新异常' TYPE 'S' DISPLAY LIKE 'W'.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.
+```
+
+---
+
+## 七、一页总结
+
+| 项目 | 评价 |
+|---|---|
+| 业务价值 | POC 级。演示"ALV 可编辑列 + 实时合计 + 稳定刷新"，本身不承载业务 |
+| 架构合理性 | 三段式事件划分清晰，用的是 SAP 官方推荐路径；但全局状态 + 反射式写法偏脆弱 |
+| 关键链路正确性 | 事件注册 ✅、`EDIT/DO_SUM` 标记 ✅、写回内表 ✅、`STABLE+SOFT_REFRESH` ✅ |
+| 致命缺陷 | 查库写进未声明变量 `_mara`，`GT_MARA` 恒空 → **ALV 无数据**（`:15-18`） |
+| 潜在崩溃 | `GR_DATA` 未绑定即解引用 → 短时转储（`:90`） |
+| 类型隐患 | `ntgew_15` 与 `MARA-BRGEW` 不匹配，可能溢出/转换异常（`:95`） |
+| 优先动作 | ① 改 `INTO TABLE gt_mara` ② 字段目录/数据结构统一 ③ `IS BOUND` 守卫 ④ 求和变量类型对齐 ⑤ 空结果给消息 |
+| 是否可上线 | ❌ 不可。修复上述 3 个严重问题并补上"保存"入口后才具备实用价值 |</div></div></div></div><h2 style="font-family:Poppins,sans-serif;font-size:.95rem;margin:2rem 0 .5rem">eval-2 · procedural-vendor-report &nbsp;<span style="color:var(--text-muted);font-weight:400">走读一下这个 ABAP 报表程序，讲清楚它的执行流程和设计 @zmmr_vend_list.abap</span></h2><div class="grid"><div class="card"><div class="card-h">eval-2 · with_skill<span class="badge w">with_skill</span><span class="score p">11/11 · 100%</span></div><div class="card-b"><div class="md"># ZMMR_VEND_LIST 走读报告：供应商采购订单张数统计报表
+
+&gt; 分析对象：`zmmr_vend_list.abap`（REPORT 程序，58 行，过程化 PERFORM 分层，SLIS 全屏 ALV）
+&gt; 读法假设：你刚接手这个程序，需要在 10 分钟内搞清"它算什么、怎么跑、哪里会炸"。
+&gt; 阅读地图：第一章讲业务动机，第二章给执行链与责任表，第三章逐子程序拆解（报告主体），第四章用时序图看数据流转，第五章按优先级列问题，第六章给整体评价。
+
+---
+
+## 一、程序定位与业务背景
+
+### 1.1 它在回答一个什么问题
+
+用一句业务话讲清楚：**"在我指定的采购组织范围内，每个供应商名下挂了多少张采购订单？"**
+
+输出粒度是**供应商级**（一行一个供应商，三列：供应商号、供应商名称、采购订单张数）。这个粒度是理解全部后续代码的钥匙——它不是订单清单，也不是订单行清单，而是一个**供应商活跃度计数看板**。
+
+真实需求通常来自三个场景：
+
+| 场景 | 谁在用 | 想得到的结论 |
+|---|---|---|
+| 供应商分级 / 淘汰盘点 | 采购主管、品类经理 | 哪些供应商是主力（下单频繁、量级大），哪些是"僵尸供应商"（挂名、几乎不下单），谁该被约谈或替换 |
+| 采购集中度与寻源决策 | 采购分析岗、寻源团队 | 订单是否过度集中在少数几家手里，用来判断"我们有没有替代来源" |
+| 订单底稿取证 | 内审、ERP 支持 | 快速给出一个供应商名下的订单张数底稿，做抽样核对的第一层筛选 |
+
+注意：这三个场景真正关心的**都不是"张数"本身**，而是"张数背后的量级和活跃度"。这决定了第三章 3.3 ① 会指出的一个核心口径问题——程序只数了订单**头**，没有数行、量、额。
+
+### 1.2 为什么不能直接用标准事务
+
+SAP 采购模块当然有查询工具，但都对不上这个粒度：
+
+- `ME5A` / `ME5B`（采购订单列表）：是**订单级**输出，而且要逐行输入供应商号才好用，跑一次输出几十页订单，回来还要自己 Ctrl+Shift+F5 加个 SubTotal 才勉强能数。
+- `ME2N`（采购订单按供应商查）：需要逐个输入供应商号，无法"一次列出所有供应商"。
+- `ME5A` 上方那些"显示汇总"的小按钮：`ME5B` 的分类汇总、`MB51` 的收货汇总，都绑定在**收货/入库**口径上，不是订单创建口径。
+- `ME21N` / `ME23N`：单据级明细，压根不是报表。
+
+也就是说，标准工具要么粒度太细（订单/订单行），要么需要逐个输入供应商（等于没法用），要么口径不同（收货 vs 订单）。要"一次跑出供应商维度的订单张数"，标准事务做不到，**这正是这个 Z 程序存在的唯一理由**——它填的是标准报表填不上的那个格子。理解了这一点，你就能判断这个程序"该不该存在"：该，因为它替代的是"人工去 ME5A 里数"。
+
+### 1.3 整体设计范式（一句话定性）
+
+**经典"三段式报表"范式：事件块 `START-OF-SELECTION` 只做调度，逻辑切成 `取数 → 建字段目录 → 展示` 三个 FORM，取数用一条 SQL 内聚合（GROUP BY + COUNT）把数据量压到供应商行级，最后用 SALIS 的全屏 ALV 输出。**
+
+这个范式的优点是**结构对称、职责单一、可独立测试**（每个 FORM 都是无参 FORM，理论上能单独 PERFORM 验证）。它的时代印记也很明显：全篇用 `FORM`/`PERFORM`、全局内表、`TABLES` 声明、内联 `@DATA(...)` 与 `@` 主机变量转义——**同一段代码里新旧两代 ABAP 语法混用**（SQL 段是 7.40 风格，ALV 段是 6.0 风格）。这不是错误，但它是一个信号：这份程序大概率是在老版本上写了主体，后来为了修一个 SQL 问题顺手用了新语法，而整体 ALV 层从没重构过。
+
+---
+
+## 二、程序执行流程总览
+
+### 2.1 执行流程图
+
+```mermaid
+flowchart TD
+    A["用户运行事务 进入选择屏 输入 s_lifnr 与 s_ekorg"] --&gt; B["START-OF-SELECTION 事件块被触发"]
+    B --&gt; C["PERFORM get_data 执行聚合查询"]
+    C --&gt; D{"sy-subrc 是否为 0"}
+    D --&gt;|是| E["gt_out 由 VALUE FOR 逐行赋值 得到供应商行级结果集"]
+    D --&gt;|否| F["MESSAGE 信息提示 无符合条件的供应商 随后 STOP 直接结束程序"]
+    E --&gt; G["PERFORM build_fieldcat 由结构 ZMMR_VEND_S 合并生成字段目录"]
+    G --&gt; H["PERFORM display_alv 设置斑马纹与选中信息 调 REUSE_ALV_GRID_DISPLAY"]
+    H --&gt; I["全屏 ALV 展示供应商清单 带回 选择屏"]
+    F --&gt; J["不进入 ALV 用户需重新输入选择条件"]
+```
+
+整条链是**单次、线性、无分支回环**的：取数 → 建目录 → 展示，四个 FORM 里没有一个再 PERFORM 另一个。这种平坦性对 onboarding 是好事——你不需要维护一棵调用树。
+
+### 2.2 责任链表
+
+| 顺序 | 子程序 | 调用者 | 职责（一句话） |
+|---|---|---|---|
+| 0 | 全局声明区 | 系统（编译期） | 声明程序类型、SLIS 类型池、LFA1/EKKO 表对象、三个全局对象（输出内表、字段目录、布局）、两个选择屏 |
+| 1 | `START-OF-SELECTION` | 系统（用户回车触发） | 报表的唯一入口，只负责按固定顺序 PERFORM 三个 FORM，本身不含业务逻辑 |
+| 2 | `get_data` | `START-OF-SELECTION` | 聚合 LFA1 与 EKKO，按供应商分组统计订单张数写入 `gt_out`；无数据时弹信息并 `STOP` |
+| 3 | `build_fieldcat` | `START-OF-SELECTION` | 用 `REUSE_ALV_FIELDCATALOG_MERGE` 从 DDIC 结构 `ZMMR_VEND_S` 自动生成字段目录 `gt_fcat`，失败报 E 级消息 |
+| 4 | `display_alv` | `START-OF-SELECTION` | 配置布局（斑马纹、选中信息）后调 `REUSE_ALV_GRID_DISPLAY` 全屏输出 `gt_out` |
+
+声明区之所以排进责任链表，是因为它承担了三份真实契约：**输出结构契约**（`ZMMR_VEND_S` 决定了 ALV 有哪些列）、**展示契约**（SLIS 类型池决定了 ALV 能力边界）、**输入契约**（`TABLES` 决定了选择屏拿得到 F4 值帮助）。这三条契约在后面都会被引用到，所以它不能被当成"样板"跳过。
+
+### 2.3 数据在流程中的形态变化
+
+一条主线，帮你建立心智模型：**EKKO 的海量订单行 → SQL 内聚合成供应商行级 → 内表 `lt_vend` → 显式逐字段拷贝到 `gt_out` → ALV 直接以 `gt_out` 为数据源。** 数据量在 `get_data` 里被压掉两三个数量级，后面两个 FORM 处理的都是小结果集——这是整份程序性能设计的核心思路，第三章会反复回到它。
+
+下面按这条流程，逐个子程序展开。
+
+## 三、分组分析（按程序流程 / 子程序）
+
+全篇只有四个执行单元（三个 FORM + 一个事件块），但真正值得拆开讲的是 `get_data`——它占了程序将近一半的思考量。所以本节先轻后重：声明区和事件块各一节，`get_data` 拆三步，`build_fieldcat` 与 `display_alv` 各一节。
+
+### 3.1 全局声明区
+
+```abap
+REPORT zmmr_vend_list.
+TYPE-POOLS: slis.
+
+TABLES: lfa1, ekko.
+
+DATA: gt_out  TYPE TABLE OF zmmr_vend_s,
+      gt_fcat TYPE slis_t_fieldcat_alv,
+      gs_layo TYPE slis_layout_alv.
+
+SELECT-OPTIONS: s_lifnr FOR lfa1-lifnr,
+                s_ekorg FOR ekko-ekorg.
+```
+
+**做什么** —（全局声明区）声明这是一个可执行 REPORT；引入 `SLIS` 类型池以获得 ALV 相关的类型定义；声明 `LFA1`（供应商主数据）、`EKKO`（采购订单抬头）两个表对象；定义三个全局对象——`gt_out` 为 `ZMMR_VEND_S` 行类型的内表（ALV 的数据载体）、`gt_fcat` 为 ALV 字段目录内表、`gs_layo` 为 ALV 布局结构；最后声明两个选择屏对象 `s_lifnr`（供应商号）与 `s_ekorg`（采购组织）。
+
+**为什么** — 这里每一个声明都在替后面的代码"买单"，值得逐个说动机：
+
+- `TYPE-POOLS: slis` 是使用经典 ALV 的**硬性前提**。SLIS 的类型（`slis_t_fieldcat_alv` 等）住在 `SAPLSLIS` 的类型池里，不引入编译器就认不出这些类型。SAP 官方文档也推荐这条语句。
+- `TABLES: lfa1, ekko` 的唯一实际用途是**给 `SELECT-OPTIONS ... FOR` 提供 F4 值帮助**。写法上 `TABLES` 已在现代 ABAP 中不推荐（更常见的是 `DATA wa TYPE lfa1` 之类），但对于"只需要一个字段带值帮助的选择屏"这个场景，`TABLES` 仍然是最省事的写法。注意它**没有**在 `get_data` 里被用来当工作区——那里的 SQL 用的是内联 `@DATA(lt_vend)`。
+- 三个对象声明为**全局**（而不是 FORM 内的局部变量）是刻意的：FORM 之间要传数据，而 `START-OF-SELECTION` 里的 PERFORM 是"平级调用"、没有返回值通道，全局变量是最直接的共享方式。这不是好设计，但对这个规模的程序完全够用。
+- 命名遵循了 `gt_` / `gs_` 前缀约定（global table / global structure），是 SAP 社区事实标准。
+
+**风险与改进** — 有三点值得记一笔：
+
+1. **结构与取数逻辑隐式耦合**。`gt_out` 的行类型是 `ZMMR_VEND_S` 这个 DDIC 结构，而 `get_data` 里的 `SELECT` 列表是手写字段名。两者靠"字段名恰好一致"来对齐——将来若有人给 `ZMMR_VEND_S` 加一个字段而忘了改 SELECT，ALV 会多出一列全空；反过来改了 SELECT 别名而忘了改结构，编译能过、运行会空列或短 dump。**改进**：把 `SELECT` 列表与结构绑定，或至少在结构上加注释说明"此结构与 ZMMR_VEND_LIST 的 SELECT 列表必须同步维护"。
+2. **`Z` 命名对象的传输依赖**。`ZMMR_VEND_S` 是客户自建结构，如果目标系统里这个结构缺失或版本不同，`REUSE_ALV_FIELDCATALOG_MERGE` 会失败（程序里有错误处理，但只是报消息）。这类跨系统依赖在开发/测试/生产不一致时很难排查。
+3. **无类型化的选择屏**。`SELECT-OPTIONS` 直接挂在表字段上，符合惯例，不算问题——但 `s_ekorg` 对应 `EKKO-EKORG`（采购组织），值帮助来自 EKKO 的检查表，实际是 `TPAK` 采购组织，通常可用；真正的问题是**没做任何输入校验**，见 3.3 ①。
+
+### 3.2 事件块 `START-OF-SELECTION`
+
+```abap
+START-OF-SELECTION.
+  PERFORM get_data.
+  PERFORM build_fieldcat.
+  PERFORM display_alv.
+```
+
+**做什么** —（事件块 `START-OF-SELECTION`）用户回车后，SAP 生成的隐式选择屏开始处理，ABAP 运行时的 `START-OF-SELECTION` 事件块被触发。此处按固定顺序调用三个 FORM：`get_data` 取数、`build_fieldcat` 生成字段目录、`display_alv` 展示。
+
+**为什么** — 这是报表程序的标准入口事件，语义是"用户在选择屏上按了执行"。`START-OF-SELECTION` 之后紧跟 PAI 处理（在报表里通常不需要），再往前是 `INITIALIZATION`（可以做默认值、变式加载），本程序都没有用到。
+
+选它而不是 `AT SELECTION-SCREEN`，是因为这三个 FORM 属于"执行"而非"输入校验"阶段。**这是一条正确的分界**：`AT SELECTION-SCREEN` 应该放"参数是否合法"的判断，而本程序把这种判断完全省掉了（见 3.3 ① 的风险部分）——分界意识有，校验本身缺失。
+
+**风险与改进** — 这一段本身**没有明显风险**，它是全篇写得最干净的地方：顺序正确、命名规范、缩进规范、没有任何多余代码。唯一可提的改进是：若未来要加参数校验（强烈建议），正确做法是在此之前新增一个 `AT SELECTION-SCREEN` 块，而不是塞进 `get_data`——因为校验失败时不应该已经付出查询代价了。
+
+### 3.3 FORM `get_data`（本程序的核心，分三步看）
+
+这一个 FORM 干了三件不同性质的事：一条聚合 SQL、一段结果判空、以及一次结果集转换。混在同一个 FORM 里是全篇最需要改进的地方，所以拆成三步，每步的风险性质完全不同。
+
+#### ① 取数：一条聚合 SQL
+
+```abap
+  SELECT a~lifnr,
+         a~name1,
+         COUNT( DISTINCT b~ebeln ) AS po_cnt
+    FROM lfa1 AS a
+    INNER JOIN ekko AS b ON a~lifnr = b~lifnr
+    WHERE a~lifnr IN @s_lifnr
+      AND b~ekorg IN @s_ekorg
+      AND b~bstyp = 'F'
+    GROUP BY a~lifnr, a~name1
+    INTO TABLE @DATA(lt_vend).
+```
+
+**做什么** — 从 `LFA1`（供应商主数据）出发，`INNER JOIN` 到 `EKKO`（采购订单抬头表），连接条件为供应商号相等。筛选条件三条：供应商号落在选择屏 `s_lifnr` 范围内、采购组织落在 `s_ekorg` 范围内、且**单据类型 `BSTYP` 固定为 `'F'`**（采购订单，区别于框架协议 `'L'`、库存调拨 `'B'`、已过账凭证 `'C'` 等）。按供应商号 + 供应商名分组，用 `COUNT(DISTINCT b~ebeln)` 算出每个供应商名下的**去重订单张数**，取别名 `po_cnt`，结果装进内联声明的内表 `lt_vend`。
+
+**为什么** — 这条 SQL 里有四个设计选择，逐个评：
+
+- **聚合在 DB 端做，而不是拉明细回 ABAP 再数**。这是全篇**最正确的一个决策**。EKKO 在生产系统动辄百万级订单，如果写成"SELECT 明细 + LOOP 累加"，传输量和 ABAP 侧循环都是灾难。放 DB 侧聚合，ABAP 侧拿到的直接是供应商行级结果集（通常几十到几千行），传输量压掉两三个数量级。
+- **`COUNT(DISTINCT b~ebeln)` 而不是 `COUNT(*)`**。在 `LFA1 JOIN EKKO` 这个特定连接下，EKKO 每个 `EBELN` 只会匹配一个 LFA1 记录（供应商号是 LFA1 主键），理论上 `COUNT(*)` 就够了。但 `DISTINCT` 在语义上更保险——**万一将来把连接改成对多行的表（比如 EBBAN、EBAN），`COUNT(*)` 会把订单张数放大成订单行张数，而 `DISTINCT` 仍然给出正确的"文档数"**。这是"为未来的改动提前买保险"，代价是一点点 DB 排序开销，我认可这个取舍。
+- **`GROUP BY a~lifnr, a~name1` 同时带 name1**。ABAP/Open SQL 要求 SELECT 列表里非聚合的列必须出现在 GROUP BY 里，所以带 `name1` 是**语法强制**，不是冗余。虽然从关系论角度 `name1` 由 `lifnr` 函数依赖（同一供应商号只对应一个当前名称），严格说只需 `GROUP BY a~lifnr` 再取 `MAX(a~name1)`，但那样写反而更晦涩。
+- **硬编码 `b~bstyp = 'F'`**。这保证了"采购订单"口径不被库存调拨单、框架订单污染，业务上是必要的。**但它同时是本程序最大的可扩展性限制**（见风险）。
+
+**风险与改进** — 这一块有真问题，而且是 P0 级的：
+
+1. **完全依赖 ABAP 端不做校验，选择屏可以为空 → 全表扫描**。这是最严重的问题。`s_lifnr` 和 `s_ekorg` 都是 `SELECT-OPTIONS`，**默认可以不填**。用户直接回车，两个 `IN @s_xxx` 条件都退化为"不过滤"，于是这条 `INNER JOIN` 变成"LFA1 全表 × EKKO 全表"再聚合。在生产系统上，这足以造成分钟级的数据库负载尖峰，甚至触发短时 dump（`TSV_TNEW_PAGE_ALLOCATOR`）。**改进**：在 `START-OF-SELECTION` 之前加 `AT SELECTION-SCREEN` 块，至少把 `s_lifnr` 设为必填（`INITIALIZATION` 里设默认值，或在 `AT SELECTION-SCREEN` 里 `MESSAGE ... TYPE 'E'`）；`s_ekorg` 视业务场景可给默认值。**注意**：不能简单写成"`s_lifnr` 必填"就完事——一个只填 `s_lifnr`、不填 `s_ekorg` 的用户，仍会扫描该供应商的全部历史订单；真正的防护是同时限制 `s_ekorg`，或在 `EKKO` 上按日期分段（SAP 的 `EKKO` 有 `BEDAT`/`LFDAT` 字段可作范围）。
+2. **没有"已删除/已归档"标记过滤**。EKKO 有删除标记字段 `LOEKZ`（采购订单删除标识），LFA1 也有（供应商删除标识）。SAP 采购订单一般是**做归档（LOEKZ = 'X'）而不是物理删除**，归档后的单据在 EKKO 里仍然存在。因此当前统计会把**已归档的采购订单也算进"活跃订单张数"**里——这对"供应商活跃度"这个业务目的是直接的口径错误。**改进**：加 `AND b~loekz &lt;&gt; 'X'`（以及供应商侧的对应过滤），或按业务需要做成选择屏参数。注意 `LOEKZ` 可为空，所以正确写法是 `COALESCE(b~loekz, '') &lt;&gt; 'X'` 或用 `NOT ( b~loekz = 'X' )`，不能直接写 `b~loekz = ''`。
+3. **口径是"订单头张数"，不是"订单行数"也不是"采购额"**。回顾第一章的三个业务场景——供应商分级、集中度分析、内审取证——**没有一个是靠"订单张数"就能支撑决策的**。采购主管真正想知道的是"这个供应商下了多少钱、多少件"。`EBELN` 只标识订单头，若要行级或金额级指标，得关联 `EBPO`（订单项目）或用 `EKKO-EBELN` 下的 `EBAN`（交货/开票）。**这不是代码 bug，是需求边界问题**，但接手时必须搞清楚：这个数字当初是"要个大概"还是"这就是 KPI"。如果是 KPI，程序是不完整的。
+4. **`INNER JOIN` 意味着"有订单的供应商"才出现**。没下过订单的供应商不在结果里。第一章提到"识别僵尸供应商"的需求——**这个程序恰恰做不到**，因为僵尸供应商的订单数天然是 0，会被 JOIN 掉。要支持该场景，得改成 `LEFT JOIN` 且以 LFA1 为主表（并把 `COUNT` 结果为 0 的行也输出），但那又会带来全表聚合的性能问题，与第 1 点冲突。**这是这个程序最本质的设计张力：口径收得越紧越快，越松越有用。**
+5. **`INNER JOIN` 方向的性能提示缺失**。SQL 没有 `ST04` 指导优化器走哪条路。`EKKO` 上有以 `LIFNR` 为首列的索引，`LFA1` 主键是 `LIFNR`，理论上以 LFA1 驱动、索引探 EKKO 才是对的；但优化器在统计信息缺失时可能选反，**用 EKKO 驱动去扫 LFA1**。改进手段是加 SQL hint 或用 CDS/视图预定义连接顺序，或者干脆**拆成两步**（先聚合 EKKO 得到 `lifnr + po_cnt`，再用 `FOR ALL ENTRIES` 关联 LFA1 取 name1），这样连接顺序完全由开发者控制。
+6. **`COUNT(DISTINCT ...)` 与 `GROUP BY` 同时存在时的 DB 侧排序成本**。在 `GROUP BY` 里加 `DISTINCT` 会让数据库多做一次去重排序。结果集小的时候无所谓，**但当用户选了超大供应商区间（"所有供应商"）时，这就是个可观的额外开销**——又指向第 1 点：空选择屏防护是第一位的。
+
+#### ② 结果判空与提前退出
+
+```abap
+  IF sy-subrc = 0.
+```
+
+**做什么** —（FORM `get_data`）检查上一条 `SELECT` 的 `sy-subrc`，为 0 表示查询成功取到数据，进入填充分支；非 0 则走 `ELSE` 分支，给出信息消息并 `STOP` 直接结束程序。
+
+**为什么** — 意图是明确的：查不到数据时**不要弹一个空 ALV**，而是给一句人话。这是很多报表没做的细节，值得肯定。
+
+**风险与改进** — 判空方式本身有技术瑕疵，行为也有 UX 问题：
+
+1. **`sy-subrc` 在聚合查询上不能用来判断"有无数据"**。这是 ABAP 里一个经典的坑：当 `SELECT` 列表里**含有聚合函数**时，即使没有任何行满足 `WHERE`，数据库**仍会返回一行**（聚合值为 0，其余字段为空）；此时 `sy-subrc` 也是 0。本程序因为带了 `GROUP BY`，空结果时 DB 不会返回那"一行 0 值"（分组无匹配则不产生组），所以 `sy-subrc &lt;&gt; 0` 目前恰好能工作——**但这是"恰好"，不是"设计"**。一旦有人去掉 `GROUP BY`（例如改成 `SELECT ... COUNT(*)` 全表统计），空结果会变成"一行全空数据"，`sy-subrc` 仍是 0，程序就会给用户显示一条空的垃圾行。**改进**：判空应该判**内表是否为空**，即 `IF lt_vend IS INITIAL`（或 `lines( lt_vend ) = 0`），这在所有情况下都正确，且语义直白。
+2. **提前 `STOP` 的代价：用户输错了就得重来一遍**。`STOP` 直接终止程序，**选择屏的输入值不会保留**（用户要重新输入供应商号和采购组织）。对一个"筛选条件没查到数据"这种极常见的正常情况，让用户重输是明显的体验缺陷。**改进**：不要 `STOP`，而是照常往下走到 ALV，让 ALV 显示空清单 + 在标题里写"无数据"；或者用 `MESSAGE ... TYPE 'S'`（状态消息，显示在同一行的消息栏）而不是弹窗 + 退出。
+3. **消息是硬编码中文字面量**：`MESSAGE '无符合条件的供应商' TYPE 'I'`。ABAP 的规范做法是用**消息类 + 消息号**（`MESSAGE ID 'ZMSG' TYPE 'S' NUMBER '001'`），这样可以走 SE91 翻译、支持多语言、也便于统一维护。中文直写还带来**编码风险**：ABAP 源码编辑器在非 Unicode 客户端下保存中文可能乱码，一旦乱码就是**源码级损坏**（改回来很麻烦）。这条是全篇最容易被忽略、后果又最烦人的风险之一。
+4. **信息级别用 `I` + `STOP` 组合起来语义含混**。`I` 是"信息"（不中断），`STOP` 才是中断动作。消息级别与后续动作应当匹配：真要中断用户流程就该用 `E`（错误）或 `S`（状态，不中断）。现在是"用信息消息的语气，说了一个终止程序的事实"。
+
+#### ③ 结果集转换
+
+```abap
+    gt_out = VALUE #( FOR ls IN lt_vend
+                      ( lifnr = ls-lifnr name1 = ls-name1 po_cnt = ls-po_cnt ) ).
+```
+
+**做什么** — 遍历内联内表 `lt_vend` 的每一行，用 `VALUE #( FOR ... )` 行构造器语法，把三列（供应商号、供应商名、订单张数）按名映射到 `ZMMR_VEND_S` 结构的对应字段上，整体赋给全局内表 `gt_out`。
+
+**为什么** — 目的是"把匿名内表转成 `ZMMR_VEND_S` 类型的内表"。因为 `lt_vend` 是内联声明的**匿名结构**（只有三列，且列名来自 SELECT 别名），而 `gt_out` 需要 `ZMMR_VEND_S` 这个明确的 DDIC 类型——ALV 后面要靠这个类型去 merge 字段目录。
+
+**但这一步是整段代码里最值得质疑的地方**：如果 `lt_vend` 的三列本来就和 `ZMMR_VEND_S` 字段名一致，那么 `gt_out = lt_vend` 一行就够了；就算需要显式拷贝，`lt_vend` 也可以声明成 `TYPE zmmr_vend_s` 让内联省掉。现在的写法是**用最重的语法做最轻的事**：建了一个三字段的匿名内表，再逐字段手工映射。
+
+**风险与改进** — 三个问题：
+
+1. **纯样板代码，应当消除**。改进方向有两条，选哪条取决于你想要哪种安全性：
+   - 让 SELECT 直接产出目标结构（在 `get_data` 里 `DATA lt_vend TYPE TABLE OF zmmr_vend_s`，然后 `INTO TABLE @lt_vend`），`gt_out = lt_vend` 一行搞定。这样编译期就能保证类型一致，也省掉了手写映射可能出现的错列。
+   - 保留两段式但去掉手工映射：`gt_out = CORRESPONDING lt_vend`（ABAP 7.40 特性，按组件名对应）。**注意语义差别**：`CORRESPONDING` 是不认识的组件就忽略，比显式映射宽松——如果你担心"结构多了一个字段，ALV 出现空列"，显式映射反而会**在编译期报错**（`lt_vend` 里没有那个组件）。所以这里"笨写法"有一点点防御价值，但代价是可读性。
+2. **单行多字段写在同一物理行，可读性差**。`( lifnr = ls-lifnr name1 = ls-name1 po_cnt = ls-po_cnt )` 这行三个赋值挤在一起，在 SAP 标准的 pretty printer 下也无法自动拆开（新版 pretty printer 对 `VALUE #( )` 展开支持有限）。**改进**：按行拆开。代码量只多两行，可读性提升明显。
+3. **这一层没有做任何转换/清洗，是好事，但也是浪费**。既然逐字段映射的机制已经搭好了，本来是最适合放"数据加工"的地方（比如名称截位、订单张数转成带千分位的显示文本、把供应商名按公司代码语言取多语言名称）。现在白白搭了个架子没干活。要么简化掉，要么就把加工用上。
+
+取数讲完了，接下来两个 FORM 都是"ALV 装配"，逻辑轻、但坑在细节。
+
+### 3.4 FORM `build_fieldcat`（分两步：它做了什么，以及它替我们省掉了什么）
+
+#### ① 从 DDIC 结构自动合并字段目录
+
+```abap
+  CALL FUNCTION 'REUSE_ALV_FIELDCATALOG_MERGE'
+    EXPORTING
+      i_structure_name = 'ZMMR_VEND_S'
+    CHANGING
+      ct_fieldcat     = gt_fcat.
+  IF sy-subrc &lt;&gt; 0.
+    MESSAGE '字段目录生成失败' TYPE 'E'.
+  ENDIF.
+```
+
+**做什么** —（FORM `build_fieldcat`）调用 FM `REUSE_ALV_FIELDCATALOG_MERGE`，把 DDIC 结构 `ZMMR_VEND_S` 的字段定义（名称、长度、数据元素、文本标签、转换例程）自动合并成一个字段目录内表 `gt_fcat`。若 FM 返回 `sy-subrc &lt;&gt; 0`，则以 `E`（错误）级消息终止程序。
+
+**为什么** — `REUSE_ALV_FIELDCATALOG_MERGE` 是 ALV 领域最被低估的一块省事技巧：**它把"ALV 有哪些列、每列叫什么、怎么对齐、怎么显示"这个显示契约从代码里搬到了 DDIC 结构上**。**把"显示什么"变成"结构里有什么"，是声明式编程的思路**，在报表开发里非常划算，而且它还顺带白送了一批东西：DDIC 里的字段文本标签自动成为 ALV 列标题（用户看到的是中文列名而不是 `LIFNR`）、`CURRENCY` 字段自动右对齐、`NUMC` 字段带前导零显示——这些手工做都要写代码。对比见下一步。
+
+**风险与改进** — 一个设计取舍，两个隐患：
+
+1. **完全依赖结构字段顺序，用户无法在程序里调整**。生成的列顺序 = DDIC 结构里的字段顺序。这就意味着"哪列在最左边"变成了一个**数据传输/维护问题**，而不是代码问题：想调整顺序，要么改结构（影响所有引用者），要么在 `build_fieldcat` 生成之后显式重排 `gt_fcat-[]`。当前三列顺序恰好是"供应商号、名称、张数"，符合阅读习惯，所以暂时没暴露。**改进**：将来加列导致顺序不对应人需要在意的顺序时，在 `build_fieldcat` 末尾加一句显式重排。
+2. **错误处理太轻，掩盖了真正的失败原因**。这个 FM 失败的常见原因是：结构名打错、结构未激活、结构在传输中缺失或版本不一致。程序只报一句"字段目录生成失败"，**开发人员得自己去查传输请求**。**改进**：把 `i_structure_name` 与程序名一起打进消息文本；消息级别也可考虑 `TYPE 'A'`，让用户知道这是环境问题而非自己输错了。
+3. **`i_structure_name` 是硬编码字符串**。结构一旦改名或跨系统传输不一致，就是**运行时报错而非编译期报错**。这是 `REUSE_ALV_FIELDCATALOG_MERGE` 的固有代价，可以接受，但要记在接手清单上。另外 `MESSAGE ... TYPE 'E'` 在报表里会弹错误框并结束处理单元，**用户看到的是一个没有上下文的红框**——这也是为什么建议把结构名放进消息里。
+
+#### ② 对照：不用它的话，字段目录长什么样
+
+```abap
+  CLEAR gt_fcat.
+  APPEND INITIAL LINE TO gt_fcat.
+  MOVE 'LIFNR' TO gt_fcat-sfieldname.
+  MOVE '供应商号' TO gt_fcat-seltext.
+  MOVE sy-rcnt TO gt_fcat-refno.
+```
+
+**做什么** — 清空字段目录，追加一行，然后把技术字段名、中文列标题、参考序号逐个搬进结构里。**为一列（`LIFNR`）就要写四行。**
+
+**为什么** — 它是 ALV 最典型的样板代码：每加一列复制一遍，改标题还得同步维护长文本与长描述。本程序有三列字段，手写要十几行且极易出错（列顺序靠 `refno` 决定，写漏一个 `refno` 就排到末尾去了）。`REUSE_ALV_FIELDCATALOG_MERGE` 一次调用取代了它们——**这是"用元数据代替样板"的直接体现，也是这个程序 58 行却功能完整的原因之一**。
+
+**风险与改进** — 这段样板本身没有风险，它出现在报告里是为了对照。但对照也说明了一件事：**字段目录的维护成本并没有消失，只是从代码转移到了 DDIC 结构**。改列标题要去 SE11 改数据元素文本，改列顺序要去改结构字段顺序——这正是 ① 里风险第 1 条说的"顺序问题变成了传输问题"的由来。**改进方向**：如果希望列标题与顺序能脱离结构单独调整，`REUSE_ALV_FIELDCATALOG_MERGE` 之后可以用 `MODIFY gt_fcat FROM TABLE ...` 批量覆盖 `seltext`，或直接传 `it_exclude` 隐藏不想要的列。
+
+### 3.5 FORM `display_alv`（分两步：现状，以及最该补的那一段）
+
+#### ① 现状：配好布局，交给 ALV 网格控件
+
+```abap
+  gs_layo-zebra = 'X'.
+  gs_layo-get_sel_info = 'X'.
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      is_layout   = gs_layo
+      it_fieldcat = gt_fcat
+    TABLES
+      t_outtab    = gt_out.
+```
+
+**做什么** —（FORM `display_alv`）先给全局布局结构 `gs_layo` 设两个属性：`zebra = 'X'` 开启斑马纹隔行底色，`get_sel_info = 'X'` 让 ALV 在选中行时在状态栏显示选中行的合计信息。然后调 `REUSE_ALV_GRID_DISPLAY`，把 `gs_layo`（布局）、`gt_fcat`（字段目录）和 `gt_out`（数据）交给全屏 ALV 网格控件显示。
+
+**为什么** — `REUSE_ALV_GRID_DISPLAY` 是 SALIS 里最常用的全屏 ALV。它调起 SAP 标准的 `CL_ALV_TABLE` 控件，用户得到的是**完整的 ALV 功能集**：列排序、列宽拖拽、筛选、汇总、Excel 导出（工具栏的 Spreadsheet 图标）、打印。**换句话说，这个程序没有写任何"显示表格"的代码，就免费获得了一个功能完备的表格控件。** 这是"用控件而不是自己画"的典型收益——也是本程序 58 行就能交付可用界面的原因。
+
+`zebra` 和 `get_sel_info` 这两个参数是典型的"两行成本、两行收益"：斑马纹在宽表上显著提升可读性；`get_sel_info` 让用户勾选若干行时立刻看到合计。**这两个选择说明作者是有 ALV 使用经验的**，不是照抄模板——同时也说明作者把注意力放在了显示细节上，**却漏掉了下面这个更重要的显示问题**。
+
+**风险与改进** — 三个改进点，一个隐患：
+
+1. **没有标题与选择条件回显**。`i_grid_title` 没设置，ALV 标题栏是空的。用户看到一张三列的表，不知道自己刚才筛的是哪个采购组织。**改进**：`i_grid_title = '供应商采购订单张数统计'`，更进一步把 `s_lifnr` / `s_ekorg` 的取值范围拼进标题——这对一个"数据来源不可追溯"的报表来说很关键。
+2. **没有 `i_save` / 布局持久化**。用户每次调整的列宽、排序、隐藏列在运行结束后全部丢失（`gs_layo` 是每次运行重新初始化的全局变量，SAP 后台会重置全局数据）。**改进**：加 `i_save = 'A'`（允许用户保存布局变式，`ALV_VARIANT` 那套机制），或 `i_save = 'L'`（仅本地布局）。这是 ALV 最容易被忽略、用户最能感知到的体验差距。
+3. **`TABLES` 传参的语义隐患**。`TABLES t_outtab = gt_out` 是引用传参（允许 FM 修改调用方的数据），而 `is_layout` / `it_fieldcat` 是 `EXPORTING` 传值。这个混用没错（SLIS 就这么定义），但要点是：**ALV 的排序、筛选等操作会直接反映到 `gt_out` 上**。当前 `gt_out` 用完即弃，无害；但如果将来在 `display_alv` 之后还要用 `gt_out`（导出、传下一页、回写），**必须意识到它的内容与顺序可能已被 ALV 改过**。这是 `TABLES` 传参的固有语义，不是 bug，但要知道。
+4. **未设置 `no_out` / `tech_col`**：三个字段全部对用户可见。`PO_CNT` 应该显示（是核心指标），`LIFNR` 可以显示（也可设为技术列、以 `NAME1` 为主显示）。**这一项属于"锦上添花"**，按需要做。
+
+#### ② 最该补的一段：默认排序
+
+```abap
+  DATA: ls_sort TYPE slis_sortinfo_alv.
+  ls_sort-sfield = 'PO_CNT'.
+  ls_sort-sord   = 'D'.
+  ls_sort-senab  = 'X'.
+  APPEND ls_sort TO gt_sort.
+```
+
+**做什么** —（FORM `display_alv`）构造一条排序信息：排序字段 `PO_CNT`（订单张数列）、降序（`'D'`）、`senab = 'X'` 表示按数值而非文本排序，追加进排序表 `gt_sort`，再把 `gt_sort` 通过 `it_sorttab` 传给 FM。
+
+**为什么** — **没有默认排序是本程序在"业务价值"层面最刺眼的缺失**。用户拿到一个"供应商 vs 订单张数"的列表，最想看的当然是"张数最多的排最前"，但 ALV 打开时是 DB 返回的顺序（`GROUP BY` 通常按分组键有序输出，也就是供应商号顺序）。用户必须自己点一次表头才知道谁最重要。
+
+而 `senab` 是这段代码里最关键的一个字符。**不写它，ALV 会按文本比较排序，"10" 会排在 "9" 前面**——一张"订单张数"报表，最多的供应商竟然不在第一行，整张表的可信度立刻打折。这种细节是老手和新手的分界线，也是第一章说的"这个报表的全部意义在展示"这句话最直接的注脚。
+
+**风险与改进** — 补上排序后仍有两点要处理：排序字段名 `'PO_CNT'` 是**硬编码字符串**，与 `ZMMR_VEND_S` 结构脱钩，改字段名就静默失效（ALV 不会报错，只是不排序）；`gt_sort` 也应声明为全局（与 `gt_fcat`、`gs_layo` 并列）以保持风格一致。**改进**：结构字段改名时同步改这里，或把排序字段写成常量集中管理。
+
+四个执行单元拆完了。下面把视角从"程序内部"切到"数据在时间轴上的流动"，看一遍 `gt_out` 这个内表是在哪一刻、经过谁的手变成最终屏幕上的三列。
+
+---
+
+## 四、执行流程全景图（数据视角）
+
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant SEL as 选择屏
+    participant SOS as START-OF-SELECTION
+    participant GD as FORM get_data
+    participant DB as 数据库 LFA1 与 EKKO
+    participant BF as FORM build_fieldcat
+    participant DDIC as DDIC 结构 ZMMR_VEND_S
+    participant DA as FORM display_alv
+    participant ALV as ALV 网格控件
+
+    U-&gt;&gt;SEL: 输入 s_lifnr 与 s_ekorg 并回车
+    SEL-&gt;&gt;SOS: 触发 START-OF-SELECTION
+    SOS-&gt;&gt;GD: PERFORM get_data
+    GD-&gt;&gt;GD: 清空全局内表 gt_out
+    GD-&gt;&gt;DB: 聚合查询 按 lifnr 与 name1 分组 统计去重 ebeln
+    DB--&gt;&gt;GD: lt_vend 三列 供应商级结果集
+    alt sy-subrc 等于 0
+        GD-&gt;&gt;GD: VALUE FOR 逐行映射写入 gt_out
+        SOS-&gt;&gt;BF: PERFORM build_fieldcat
+        BF-&gt;&gt;DDIC: 读取结构定义与字段文本
+        DDIC--&gt;&gt;BF: 字段名 文本 转换例程
+        BF-&gt;&gt;BF: 合并生成 gt_fcat
+        SOS-&gt;&gt;DA: PERFORM display_alv
+        DA-&gt;&gt;DA: 布局设置 zebra 与 get_sel_info
+        DA-&gt;&gt;ALV: 传入 gt_fcat 与 gt_out 启动全屏 ALV
+        ALV--&gt;&gt;U: 展示供应商清单 支持排序 筛选 导出
+    else sy-subrc 不等于 0
+        GD--&gt;&gt;U: 信息消息 无符合条件的供应商
+        GD--&gt;&gt;GD: STOP 终止程序
+    end
+```
+
+三个观察点：
+
+- **数据形态的两次收缩**：第一处在 `get_data` 的 SQL 里（EKKO 百万级订单 → `lt_vend` 供应商级），第二处在 `display_alv` 里（内表 → 屏幕行）。性能设计的核心在前一处，后一处是呈现。
+- **DDIC 只被读了一次，且在数据之外**。`ZMMR_VEND_S` 在取数阶段不参与，在 `build_fieldcat` 阶段才被读入——**这正是"结构与取数字段列表必须手工对齐"这个隐患的根源**（见 3.1 风险第 1 条）：两个阶段各自独立地假设结构里有什么，没有编译期保证。
+- **`gt_out` 的写只有一处，读有两处**（`build_fieldcat` 读结构、`display_alv` 读数据）。所以 `gt_out` 完全可以是 `get_data` 的局部变量再传参——用全局纯粹是为了 PERFORM 之间共享，这为第六章"最值得学的一点"埋下伏笔：程序结构对称，代价是没有参数契约。
+
+---
+
+## 五、问题清单与改进建议（按优先级）
+
+### 🔴 P0 — 业务正确性
+
+1. **空选择屏导致全表聚合扫描**（FORM `get_data`）
+   `s_lifnr` 与 `s_ekorg` 均可留空，此时 `IN @s_xxx` 条件失效，SQL 退化为 LFA1 与 EKKO 的全表 JOIN + GROUP BY + DISTINCT 计数。生产系统上足以引发数据库负载尖峰与短时 dump（`TSV_TNEW_PAGE_ALLOCATOR`）。
+   **改进**：新增 `AT SELECTION-SCREEN` 块，把 `s_lifnr` 设为必填并校验非空；`s_ekorg` 给默认值或同样校验；必要时引入 `EKKO-BEDAT` 日期范围做时间窗限制。
+
+2. **统计口径包含已归档/已删除的采购订单**（FORM `get_data`）
+   未过滤 EKKO 的删除标记，SAP 采购订单走归档（`LOEKZ = 'X'`）而非物理删除，归档单据仍参与计数，直接导致"活跃订单张数"虚高。
+   **改进**：加 `AND b~loekz &lt;&gt; 'X'`（注意该字段可为空，须用 `NOT ( b~loekz = 'X' )` 或 `COALESCE` 写法）；供应商侧同理。
+
+3. **口径只到"订单头张数"，与业务目的不匹配**（FORM `get_data`）
+   第一章的三个场景（供应商分级、集中度分析、审计取证）都需要量级信息，而 `COUNT(DISTINCT ebeln)` 只给头数。若这个数字被当作 KPI 使用，程序是不完整的。
+   **改进**：关联 `EBPO`（订单项目）补行数与数量，或补净金额（`EBPO-NETWR`）字段；同步升级 `ZMMR_VEND_S` 与字段目录。
+
+4. **中文消息硬编码 + 源码编码损坏风险**（FORM `get_data`、FORM `build_fieldcat`）
+   `MESSAGE '无符合条件的供应商' TYPE 'I'` 与 `MESSAGE '字段目录生成失败' TYPE 'E'` 直接写中文字面量。ABAP 源码在非 Unicode 环境下保存可能乱码，属**源码级不可逆损坏**；同时无法走 SE91 翻译与多语言。
+   **改进**：建 `ZMSG` 消息类，改为 `MESSAGE ID 'ZMSG' TYPE 'S' NUMBER '001'`。
+
+### 🟠 P1 — 健壮性
+
+5. **用 `sy-subrc` 判断聚合查询有无数据**（FORM `get_data`）
+   聚合查询在无匹配时 DB 的返回行为依赖是否有 `GROUP BY`，当前"恰好"正确但非设计保证。
+   **改进**：改判 `IF lt_vend IS INITIAL`，语义直白且所有情况正确。
+
+6. **无数据时 `STOP` 丢弃用户输入**（FORM `get_data`）
+   用户输错条件就得重新输入一遍，而"没查到数据"是正常业务结果不是错误。
+   **改进**：去掉 `STOP`，继续走到 ALV 显示空清单并给状态消息；或在标题里注明无数据。
+
+7. **消息级别与后续动作语义不匹配**（FORM `get_data`）
+   `TYPE 'I'` 是信息（不中断）语义，却紧跟 `STOP`。
+   **改进**：要么 `TYPE 'S'` + 不中断，要么 `TYPE 'E'` + 明确中断。
+
+8. **失败消息缺上下文**（FORM `build_fieldcat`）
+   只报"字段目录生成失败"，用户无从判断是结构未激活、未传输还是版本不一致。
+   **改进**：消息中带上程序名与 `i_structure_name`，或改用 `TYPE 'A'` 并给出排查线索。
+
+9. **`INNER JOIN` 方向无控制**（FORM `get_data`）
+   优化器在统计信息缺失时可能选反向驱动表，导致本该索引探 EKKO 的查询变成扫描 LFA1。
+   **改进**：拆成"先聚合 EKKO、再用 `FOR ALL ENTRIES` 取名称"两步，连接顺序由代码决定。
+
+### 🟡 P2 — 性能与规范
+
+10. **结果集转换是纯样板**（FORM `get_data`）
+    `VALUE #( FOR ... )` 逐字段映射只是把匿名内表转成 `ZMMR_VEND_S`，无任何加工价值，且三个赋值挤在一行。
+    **改进**：让 SELECT 直接产出目标类型 + `gt_out = lt_vend`；或用 `CORRESPONDING`（注意其宽松匹配语义）。若保留显式映射，按行拆开提高可读性。
+
+11. **缺少默认排序**（FORM `display_alv`）
+    报表核心指标是订单张数，却按供应商号顺序展示，用户需自行点表头。
+    **改进**：`it_sorttab` 按 `PO_CNT` 降序，并置 `senab = 'X'` 让数字按数值排序（否则 "10" 会排在 "9" 前）。
+
+12. **缺少标题与选择条件回显**（FORM `display_alv`）
+    空标题栏让用户无法确认当前数据的筛选范围。
+    **改进**：设置 `i_grid_title`，把 `s_lifnr` / `s_ekorg` 的取值拼入标题。
+
+13. **无布局持久化**（FORM `display_alv`）
+    用户调整的列宽/排序/隐藏列每次运行丢失。
+    **改进**：`i_save = 'A'`。
+
+14. **`TABLES` 参数与 `EXPORTING` 混用**（FORM `display_alv`）
+    `t_outtab` 为引用传参，ALV 的排序筛选会直接改写 `gt_out`。
+    **改进**：当前无风险；仅需在接手清单上记录"`display_alv` 之后 `gt_out` 不可信"这一约束。
+
+15. **`TABLES` 声明与内联声明混用**（全局声明区、FORM `get_data`）
+    声明区用 `TABLES lfa1, ekko`（老式），取数用 `@DATA(lt_vend)`（7.40 新式），风格不统一。
+    **改进**：若已确认最低版本支持 7.40，全篇统一到新式语法；否则也不必强改，仅在接手清单记录版本依赖。
+
+### 🟢 P3 — 可扩展性
+
+16. **单据类型硬编码**（FORM `get_data`）
+    `b~bstyp = 'F'` 锁死为采购订单，框架协议（`'L'`）、库存调拨（`'B'`）无法纳入。
+    **改进**：做成选择屏参数或多选框。
+
+17. **无权限检查**（FORM `get_data`）
+    供应商名称与订单量属于可采购数据，不同采购组织的数据可见范围应受控。
+    **改进**：加 `AUTHORITY-CHECK`（采购组织范围对象），至少在 `s_ekorg` 上做校验。
+
+18. **全局变量承担数据共享**（全局声明区）
+    三个全局对象是为了在平级 PERFORM 间传值，导致没有参数契约、无法单独复用。
+    **改进**：改用 FORM 参数（`USING`/`CHANGING`）或全局类属性；这一步是向 OO 重构演进的自然入口。
+
+19. **字段目录列顺序不可调**（FORM `build_fieldcat`）
+    列顺序等于 DDIC 结构字段顺序，结构调整会影响所有引用者。
+    **改进**：在 `build_fieldcat` 末尾显式重排 `gt_fcat`，或用 `REFILL` 指定展示字段。
+
+20. **无后续处理能力**（FORM `display_alv`）
+    ALV 之后没有 `BACK`、没有导出、没有下钻到订单明细。
+    **改进**：加 `i_callback_double_click` 双击跳转 `ME23N` 显示该供应商的订单列表，是这个报表投入产出比最高的后续增强。
+
+---
+
+## 六、整体评价与启发
+
+### 6.1 优点
+
+1. **把聚合放在 DB 侧，是对这类报表最重要的一次决策**。EKKO 是采购域最大的表之一，作者选择了一条 `GROUP BY` + `COUNT` 的 SQL 一次取回供应商级结果，而不是"拉明细回 ABAP 再数"。这一条决定了程序在生产系统上能不能用——**能**。
+2. **结构对称、职责单一，读起来几乎没有认知负担**。四个执行单元、线性无回环、每个 FORM 一个职责，FORM 全部无参。onboarding 成本极低，这在这个规模的程序里不容易做到。
+3. **免费拿到完整 ALV 能力集**。`REUSE_ALV_GRID_DISPLAY` 一次调用换来排序、筛选、汇总、Excel 导出、打印；`REUSE_ALV_FIELDCATALOG_MERGE` 一次调用换来自动列标题与 DDIC 转换例程。**声明式地用控件和元数据代替手写样板**，是报表开发里最划算的两笔交易。
+4. **细节体现经验**：`COUNT(DISTINCT b~ebeln)` 而非 `COUNT(*)`（为未来改连接留出正确性）、`bstyp = 'F'` 守住采购订单口径、`zebra` 与 `get_sel_info` 两个低成本高回报的布局设置。**作者知道自己在做什么**，这不是照模板抄出来的程序。
+
+### 6.2 短板
+
+1. **缺少输入防护，这是全篇唯一的 P0 级问题**。两个 `SELECT-OPTIONS` 都可以留空，留空即全表聚合。报表类程序最基本的一条纪律——**永远别让用户能触发无界查询**——没有执行。
+2. **业务口径不完整**。只数订单头，不数行、不看金额、不滤归档。而第一章列出的三个真实场景，没有一个能靠"订单张数"支撑决策。**代码没错，但需求边界比看上去宽。**
+3. **细节层面对新语法的接纳是半途的**。SQL 用了 `@DATA(...)` 与 `@` 转义，ALV 层却是完整的 6.0 风格（`TABLES`、全局内表、`FORM`），两种时代的写法混在同一份代码里，说明重构从未发生。
+4. **几乎没做"呈现价值"**。无默认排序、无标题、无布局保存、无双击下钻。**取数侧花了心思，展示侧是裸的**——而这个报表的全部意义恰恰在于展示结果。
+
+### 6.3 可以学到的设计经验
+
+1. **"计数"类需求的第一决策是聚合位置，不是 SQL 写法**。同样是 `COUNT(DISTINCT ebeln)`，放 DB 侧还是 ABAP 侧，差距是两个数量级。凡是"对大表做汇总"的报表，先问聚合在哪儿做。
+2. **`SELECT-OPTIONS` 的可选性是隐藏的性能开关**。`SELECT-OPTIONS` 天然允许空值，而空值在 `IN @s_xxx` 里意味着"条件消失"。**每个 `SELECT-OPTIONS` 都应该配一个"留空会怎样"的问题**，答案往往是"扫描全表"。
+3. **`sy-subrc` 不是"有没有数据"，是"语句是否成功"**。判断结果集是否为空，判断内表（`IS INITIAL` / `lines( )`）；判断语句是否成功，才看 `sy-subrc`。聚合查询让这个区别变得尤其重要。
+4. **ALV 的价值有一半在默认值里**。默认排序、标题、布局保存、双击跳转这四项，加起来不超过 30 行代码，却决定用户是"看一眼"还是"用起来"。**报表的价值在最后 20% 的呈现代码里，不在 SQL 里。**
+5. **结构驱动的元数据优于手写样板，但要有对齐机制**。`REUSE_ALV_FIELDCATALOG_MERGE` 把"列定义"交给 DDIC 是正确方向，代价是取数侧与展示侧的字段列表必须手工保持一致。**任何"元数据驱动"的方案，都要问一句：谁来保证它和实际数据一致？** 本程序没有答案，这就是 P0 第 3 条的结构性来源。
+6. **"业务问题 → 标准工具能否直接回答"是判断 Z 程序该不该存在的第一问**。这个程序的存在理由很扎实：标准事务给的是订单级或收货级，没有供应商维度计数。**但存在理由成立，不等于当前实现到位**——本程序证明了前一半（P0 第 1、2、3 条），还没做完后一半（P2 第 11、12、13 条）。接手它的正确姿势，是把它当成一个"骨架正确的原型"。
+
+---
+
+*报告完。接手建议顺序：先补 `AT SELECTION-SCREEN`（P0-1，改动最小、收益最大），再确认订单张数的口径是否就是业务要的（P0-3，需要业务对话），最后补排序与标题（P2-11、12）。*
+</div></div></div><div class="card"><div class="card-h">eval-2 · without_skill<span class="badge b">without_skill</span><span class="score f">3/11 · 27%</span></div><div class="card-b"><div class="md"># ZMMR_VEND_LIST 供应商采购订单统计报表 · 走读报告
+
+分析对象：`evals/zmmr_vend_list.abap`（58 行，REPORT，经典 ALV 全屏报表）
+
+---
+
+## 0. 结论速览
+
+这是一个**结构标准但业务口径不完整**的经典报表骨架：入口用 `START-OF-SELECTION` 线性驱动三个 `PERFORM`（取数 → 生成字段目录 → 展示 ALV），数据层用一条 `LFA1 INNER JOIN EKKO + GROUP BY` 的 Open SQL 一次性完成"按供应商聚合采购订单数"，输出层用 `REUSE_ALV_FIELDCATALOG_MERGE` + `REUSE_ALV_GRID_DISPLAY` 做全屏表格。
+
+工程上值得肯定的两点：**输出行数远小于明细行数**（按供应商聚合，避免把 EKKO 全量读进内表）、**性能瓶颈集中在一条 SQL** 而不是分散在 ABAP 循环里（这是对的选择）。
+
+工程上必须修的四点：**统计口径没有时间区间**（全量历史 PO 数，业务上基本无意义）、**未过滤已逻辑删除的采购凭证**（`LOEKD`）、**没有任何权限过滤**（供应商主数据与采购量越权可见）、**消息文本硬编码中文**且无消息类。
+
+---
+
+## 1. 它回答什么业务问题
+
+从命名和代码推断的业务意图：
+
+&gt; "给我一份供应商清单，显示每个供应商的名称和他名下有多少张采购订单（文档类型 = F，采购订单），可按供应商号和采购组织过滤。"
+
+典型使用场景是**采购主数据盘点 / 供应商活跃度分析**：找出"哪些供应商从来没有采购订单"、"哪些供应商订单量特别高需要做采购额集中度分析（集中采购合规）"、"按采购组织维度切分采购盘子"。
+
+需要注意的是，程序实现的业务口径比这个意图**窄了一层**：
+
+| 业务上通常需要 | 本程序是否具备 |
+|---|---|
+| 统计期间（订单日期区间） | ❌ 没有，统计的是"全部历史" |
+| 采购金额合计 | ❌ 没有，只数了张数 |
+| 最近一次下单日期 | ❌ 没有，无法判断活跃度 |
+| 已删除凭证排除 | ❌ 没有 |
+| 凭证类型可配置 | ❌ 硬编码 `'F'` |
+| 权限过滤（FI 供应商主数据 / 采购组责任） | ❌ 没有 |
+| 合计行 / 排序 / 标题 | ❌ 没有 |
+
+---
+
+## 2. 架构与依赖地图
+
+```
+代码骨架（58 行，单文件，FORM 划分职责）
+├── 声明区
+│   ├── TYPE-POOLS: slis          → 经典 ALV 类型池（REUSE_ALV_* 必需）
+│   ├── TABLES: lfa1, ekko       → 遗留语句：隐式生成工作区 + 绑定字典对象
+│   ├── DATA: gt_out  TABLE OF zmmr_vend_s   → 输出结构（DDIC 表结构，非行结构）
+│   ├── DATA: gt_fcat slis_t_fieldcat_alv    → 字段目录
+│   ├── DATA: gs_layo slis_layout_alv        → ALV 布局
+│   └── SELECT-OPTIONS s_lifnr / s_ekorg    → 选择屏幕
+├── START-OF-SELECTION          → 唯一流程入口，线性 3 步
+├── FORM get_data               → 数据层：1 条 Open SQL
+├── FORM build_fieldcat        → 元数据层：DDIC → ALV 字段目录
+└── FORM display_alv            → 展现层：全屏 ALV Grid
+```
+
+**对象依赖**
+
+| 类型 | 依赖 | 说明 |
+|---|---|---|
+| 数据库 | `LFA1`（供应商主数据） | 取 `LIFNR` / `NAME1`，提供文本 |
+| 数据库 | `EKKO`（采购凭证头） | 取 `EBELN`（计数）、`EKORG`、`BSTYP`（过滤） |
+| DDIC | `ZMMR_VEND_S` | 输出结构，至少含 `LIFNR NAME1 PO_CNT`；字段目录的唯一来源 |
+| 类型池 | `SLIS` | 经典 ALV |
+| FM | `REUSE_ALV_FIELDCATALOG_MERGE` | 结构 → 字段目录 |
+| FM | `REUSE_ALV_GRID_DISPLAY` | 全屏 ALV Grid |
+
+**数据流（一句话）**
+
+```
+LFA1 + EKKO ──SQL 聚合──&gt; lt_vend(匿名结构) ──VALUE #──&gt; gt_out(ZMMR_VEND_S) ──T_OUTTAB──&gt; ALV
+                                                             ↑
+                                          ZMMR_VEND_S ──FM──&gt; gt_fcat ──IT_FIELDCAT─┘
+```
+
+注意 `gt_out TYPE TABLE OF zmmr_vend_s`：这是**表结构**（深结构/含字段）而不是 `TABLE OF ANY` 风格的对象类型。字段名和顺序能对上 `ZMMR_VEND_S` 时，ALV 能正常映射；但一旦结构里含有 BSEG/LOBM 之类字段就会出问题。本程序只查了 3 个标量字段，属于安全用法。
+
+---
+
+## 3. 执行流程（时间线）
+
+```
+用户进入程序
+   │
+   ├─ ABAP 运行时：加载 TYPE-POOLS SLIS
+   │                解析 TABLES: lfa1, ekko（生成工作区，供选择屏幕取字段）
+   │                SELECT-OPTIONS 隐式生成选择屏幕（未写任何屏幕代码）
+   │
+   ├─ 显示选择屏幕 → 用户录入 S_LIFNR / S_EKORG → 按 F8
+   │
+   ▼
+START-OF-SELECTION（zmmr_vend_list.abap:13）
+   │
+   ├─(1) PERFORM get_data                (:14 → :18-36)
+   │      · 一条 Open SQL：INNER JOIN + GROUP BY + COUNT(DISTINCT)
+   │      · 结果写入内联声明的 lt_vend
+   │      · IF sy-subrc = 0 → VALUE # 逐行转换 → gt_out
+   │      · ELSE（无行）→ MESSAGE '无符合条件的供应商' TYPE 'I' + STOP → 程序结束，
+   │        空列表，不进入 ALV
+   │
+   ├─(2) PERFORM build_fieldcat         (:15 → :38-47)
+   │      · 以 ZMMR_VEND_S 为结构源合并生成字段目录 → gt_fcat
+   │      · 失败 → MESSAGE '字段目录生成失败' TYPE 'E' → 错误终止
+   │
+   └─(3) PERFORM display_alv             (:16 → :49-58)
+          · 填布局：zebra（斑马纹）、get_sel_info（状态栏显示选中行数）
+          · CALL FUNCTION REUSE_ALV_GRID_DISPLAY → 控制权交给 ALV Grid Control
+          · 全屏列表呈现；用户排序/筛选/导出，PAI 在 FM 内部被接管
+          · 用户返回 → FM 结束 → 程序自然结束（无显式 LEAVE LIST）
+```
+
+流程特征：**没有分支、没有状态机、没有循环**，一条直线走到底，这是经典报表最易读也最易改的结构。代价是取数逻辑不可复用（其他程序想用"供应商 PO 统计"只能复制粘贴这段 SQL）。
+
+---
+
+## 4. 分模块走读
+
+### 4.1 声明区（:1-11）
+
+```abap
+REPORT zmmr_vend_list.
+TYPE-POOLS: slis.
+
+TABLES: lfa1, ekko.
+
+DATA: gt_out  TYPE TABLE OF zmmr_vend_s,
+      gt_fcat TYPE slis_t_fieldcat_alv,
+      gs_layo TYPE slis_layout_alv.
+
+SELECT-OPTIONS: s_lifnr FOR lfa1-lifnr,
+                s_ekorg FOR ekko-ekorg.
+```
+
+- `TYPE-POOLS: slis`：`REUSE_ALV_*` 系列 FM 的参数类型来自 `SLIS` 类型池，必须声明。7.40 之后仍然合法且普遍使用，只是它把报表绑死在了经典 ALV 上。
+- `TABLES: lfa1, ekko`：遗留语句。实际效果是生成同名工作区 + 把字典对象登记给选择屏幕用。本程序中 `LFA1`/`EKKO` 工作区在后续代码里**一次都没被用到**（SQL 全部用别名 `a`/`b`），它唯一的作用是给 `SELECT-OPTIONS` 提供 `FOR` 引用。正确写法是内联声明：
+
+  ```abap
+  DATA lfa1 TYPE lfa1.
+  DATA ekko TYPE ekko.
+  SELECT-OPTIONS s_lifnr FOR lfa1-lifnr.
+  ```
+
+  更干净的做法是不引用字典对象，直接声明选择表类型 + 显式挂 search help（`search help` 只能挂在 DDIC/程序对象的选择屏幕字段上，需要在 `SELECT-OPTIONS` 所在的选择屏幕对象上配置），这样选择屏幕与业务表解耦。
+- 命名符合 ABAP 风格指南：选择项 `S_` 前缀。`s_lifnr` 绑定 `LFA1-LIFNR`（CHAR10），`s_ekorg` 绑定 `EKKO-EKORG`，用户可获得标准的采购组织 F4——这是绑定字典字段的隐式好处之一。
+- `gt_fcat` / `gs_layo` 声明为全局，实际只在 FORM 之间传递，作用域偏大但无害。
+
+### 4.2 `FORM get_data` —— 数据层（:18-36）
+
+```abap
+FORM get_data.
+  SELECT a~lifnr,
+         a~name1,
+         COUNT( DISTINCT b~ebeln ) AS po_cnt
+    FROM lfa1 AS a
+    INNER JOIN ekko AS b ON a~lifnr = b~lifnr
+    WHERE a~lifnr IN @s_lifnr
+      AND b~ekorg IN @s_ekorg
+      AND b~bstyp = 'F'
+    GROUP BY a~lifnr, a~name1
+    INTO TABLE @DATA(lt_vend).
+  IF sy-subrc = 0.
+    gt_out = VALUE #( FOR ls IN lt_vend
+                      ( lifnr = ls-lifnr name1 = ls-name1 po_cnt = ls-po_cnt ) ).
+  ELSE.
+    MESSAGE '无符合条件的供应商' TYPE 'I'.
+    STOP.
+  ENDIF.
+ENDFORM.
+```
+
+**SQL 语义**：对 `LFA1` × `EKKO` 按 `LIFNR` 做内连接（一条 EKKO 头记录挂一个供应商，连接必然 1:N 展开），过滤条件三层：
+
+1. `a~lifnr IN @s_lifnr` —— 供应商范围（空选择 = 不过滤）
+2. `b~ekorg IN @s_ekorg` —— 采购组织范围（空选择 = 不过滤）
+3. `b~bstyp = 'F'` —— **凭证类型硬编码为采购订单**，框架订单 `'L'`、计划订单等一律排除
+
+`GROUP BY a~lifnr, a~name1` + `COUNT(DISTINCT b~ebeln)` 得到"每供应商订单张数"。`NAME1` 放进分组键带来两个后果：① 相同 `LIFNR` 若存在多语言名称行则会被拆成多行（LFA1 供应商主数据通常单一名称行，风险低但要知道）；② 数据库不能用 `LIFNR` 唯一走索引聚合并直接带出文本，只能先聚合再回表取名。**更好的形态是先聚合 EKKO，再单独取名称**（见 §6）。
+
+**判断无数据的方式**（:29）：Open SQL 的 `INTO TABLE` 会设置 `sy-subrc`（读到数据 = 0，无数据 = 4），紧接着判断在语义上成立。但这里真正想问的是"结果集为空"，用数据本身表达更稳健，也不会把 `sy-subrc` 的其他分支误判为"无数据"：
+
+```abap
+IF gt_out IS INITIAL.
+  MESSAGE '无符合条件的供应商' TYPE 'S'.
+  RETURN.
+ENDIF.
+```
+
+顺带：这里用 `STOP` 而不是 `RETURN`，二者都能退出，但 `RETURN` 从 `FORM` 返回更符合语义，也不会连带终止后续 PERFORM（虽然此时并没有后续）。
+
+**`VALUE #( FOR ... )` 的角色**（:30-31）：把匿名结构 `lt_vend`（字段 `LIFNR NAME1 PO_CNT`，`PO_CNT` 是 ABAP 计数器类型）逐行映射进 `ZMMR_VEND_S` 的对应字段。它做的是**类型转换**——如果 `ZMMR_VEND_S-PO_CNT` 是 `CHAR(10)`，ABAP 会把计数器 `3` 写成 `'0000000003'`，这大概率是作者要的（ALV 对齐好看），所以这个转换**不是纯冗余**，是有意为之。但它的写法成本偏高：若字段名与顺序恰好匹配，`gt_out = lt_vend.` 一次赋值就够；语义上更准确的写法是保留显式转换但配合注释说明"需要字符型计数以右对齐"。真正要注意的是**若 `PO_CNT` 字段长度小于计数值范围（如 `I(2)`），转换会溢出抛异常**，DDIC 上必须核对字段定义。
+
+**`COUNT(DISTINCT b~ebeln)`**：`EKKO` 的主键是 `(MANDT, EBELN)`，一张凭证头只有一行，因此在本查询里 `COUNT(*)` 与 `COUNT(DISTINCT b~ebeln)` 结果等价，`DISTINCT` 只增加排序/去重开销。保留它表达了"我想要的是凭证数而不是连接展开行数"的意图，属于防御性冗余；如果将来把 `EKPO` 或 `EKEK` 拉进连接，`DISTINCT` 就变成必需的——所以这条不改也无害，但应意识到它现在是"为将来付费"。
+
+### 4.3 `FORM build_fieldcat` —— 元数据层（:38-47）
+
+```abap
+FORM build_fieldcat.
+  CALL FUNCTION 'REUSE_ALV_FIELDCATALOG_MERGE'
+    EXPORTING
+      i_structure_name = 'ZMMR_VEND_S'
+    CHANGING
+      ct_fieldcat     = gt_fcat.
+  IF sy-subrc &lt;&gt; 0.
+    MESSAGE '字段目录生成失败' TYPE 'E'.
+  ENDIF.
+ENDFORM.
+```
+
+这是**当前架构中最值得表扬的一处设计**：字段目录从 DDIC 自动合并，而不是手写 `APPEND VALUE #( ... )` 逐字段维护。好处是：
+
+- `ZMMR_VEND_S` 增删字段 / 改标签，ALV 自动跟随，不需要动 ABAP 代码；
+- 避免了字段目录与输出内表"对不上"这类最常见的经典 ALV 事故（`CT_FIELDCAT` 与 `T_OUTTAB` 结构不一致 → 整列空白或 short dump）；
+- 排序键自动生成，DDIC 上打的技术字段标记生效。
+
+代价：**ALV 的显示形态完全受制于 DDIC**。没有标题、没有合计、不能隐藏尾随零位、不能用 `NO_OUTLEN` 让长文本溢出显示——想做这些都得改代码。因此"字段目录自动化"和"界面定制"之间存在张力，中等复杂度的报表更适合"合并 + 用户自改 layout variant"。
+
+`MESSAGE ... TYPE 'E'` 在此 FORM 内会直接终止程序（错误信息 + 退出码非零），后台运行时能被 Job Monitor 识别，这是对的；不足之处是没有把错误写日志（`MESSAGE ... INTO` + 应用日志表），排障时只能看到短文本。
+
+### 4.4 `FORM display_alv` —— 展现层（:49-58）
+
+```abap
+FORM display_alv.
+  gs_layo-zebra = 'X'.
+  gs_layo-get_sel_info = 'X'.
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      is_layout   = gs_layo
+      it_fieldcat = gt_fcat
+    TABLES
+      t_outtab    = gt_out.
+ENDFORM.
+```
+
+- `is_layout` / `it_fieldcat` 放在 `EXPORTING`，`t_outtab` 放在 `TABLES`（这就是 `REUSE_ALV_GRID_DISPLAY` 的历史签名，不统一，不要"顺手改成 EXPORTING"）。
+- `zebra = 'X'` 斑马纹、`get_sel_info = 'X'` 状态栏显示选中行数——两个都是低成本的可用性加分项，选得不错。
+- `GRID` 变体是全屏 ALV Grid，支持排序/筛选/汇总/导出/Excel 粘贴，比 `REUSE_ALV_ALV_GRID_DISPLAY`（那个是弹窗）选对了。但 `GRID` **在后台批处理下无法显示**（ALV Grid 是 SAP GUI 控件，批处理里会短 dump 或输出空），本程序没有 `sy-batch` 分支。
+- 缺少：`it_sort`（让 `PO_CNT` 默认降序，用户一进来就看到重点供应商）、`i_grid_title` / 标题行、`slis_totals_alv` 合计、以及 `i_callback_pf_status_set`（自设工具栏，例如"导出""加采购组明细"）。
+- 返回值 `SUBRC` 未检查：ALV Grid 调用失败（比如前端控件不可用）时不会静默，但也没给用户任何提示。
+
+---
+
+## 5. 问题清单（按严重度排序）
+
+### 高
+
+| # | 问题 | 影响 |
+|---|---|---|
+| 1 | **统计口径无时间区间**（无 `BEDAT` 范围） | "采购订单总数"是全量历史值，随系统运行年限单调增长，无法回答"今年采购活跃度"这类实际问题，报表价值接近于零 |
+| 2 | **未排除已逻辑删除凭证** | EKKO 的删除策略下被删除凭证的 `LOEKD = 'X'`，仍会计入计数，导致数字虚高；建议 `AND b~loekd &lt;&gt; 'X'`（需按本系统实际删除方式确认） |
+| 3 | **无任何权限过滤** | 未做供应商主数据授权（`F_LIFNR` 等）、未按采购组责任（`EKKO-EKGRP` → `T042G`）过滤，等于把全公司供应商与采购量对所有能执行本事务码的人开放，是内审/合规高风险项 |
+| 4 | **后台批处理不可用** | 无 `sy-batch` 分支，`REUSE_ALV_GRID_DISPLAY` 在后台不可用，月度/年度定期跑批场景直接失败 |
+
+### 中
+
+| # | 问题 | 影响 |
+|---|---|---|
+| 5 | `bstyp = 'F'` 硬编码 | 凭证类型不可配置，排除框架订单 `'L'`、服务采购等；建议改为 `SELECT-OPTIONS` 或常量维护表 |
+| 6 | 缺业务度量 | 无采购金额合计、最近下单日期、采购组、采购组织汇总维度，无法做集中度分析 |
+| 7 | 多币种风险（若加金额） | `EKKO-NETWR` 不带币种，跨币种 `SUM` 得出无意义的数——加金额时必须按 `WAERS` 再分组或分币种输出 |
+| 8 | `sy-subrc = 0` 判空 | 应用 `IF &lt;内表&gt; IS INITIAL`，语义更准，不依赖 `sy-subrc` 副作用 |
+| 9 | `MESSAGE` 文本硬编码中文 | 无消息类，无法 SE91 维护、无法翻译、无法集中改文案；应建消息类（如 `ZMM001`） |
+| 10 | 性能未经 ST05 验证 | 采购组织选择范围宽时（甚至为空时）需要扫描/聚合海量 `EKKO`；优化器可能在 `LFA1` 侧起步做嵌套循环。应 ST05 + DBACockpit 实测，并考虑"先聚合 EKKO、再取 LFA1 文本"的两步式写法 |
+
+### 低（可维护性 / 现代化）
+
+| # | 问题 | 说明 |
+|---|---|---|
+| 11 | `TABLES: lfa1, ekko` | 遗留语句，工作区从未被使用，仅为 `SELECT-OPTIONS` 服务；改内联声明 |
+| 12 | 取数逻辑不可复用 | 逻辑沉在 `PERFORM` 里，其他程序要"供应商 PO 统计"只能复制 SQL；应下沉为 provider 类 |
+| 13 | 无合计、无默认排序、无标题 | 打开就是无序列表，用户需手工排序才能看重点 |
+| 14 | 无执行耗时/结果行数反馈 | 大结果集时用户等待无感知 |
+| 15 | `COUNT(DISTINCT)` 为"将来付费" | 当前与 `COUNT(*)` 等价 |
+| 16 | 无 layout variant 持久化 | `REUSE_ALV_GRID_DISPLAY` 未传 variant，用户每次重排；应加 `is_save_variant` / `i_save_variant` 或做 `SPACEFUNC` |
+
+---
+
+## 6. 改进建议与参考改写
+
+### 6.1 最小必要修复（优先级最高）
+
+```abap
+REPORT zmmr_vend_list.
+
+TYPE-POOLS: slis.
+
+DATA lfa1 TYPE lfa1.
+DATA ekko TYPE ekko.
+
+DATA: gt_out  TYPE TABLE OF zmmr_vend_s,
+      gt_fcat TYPE slis_t_fieldcat_alv,
+      gs_layo TYPE slis_layout_alv,
+      gt_sort TYPE slis_t_sortinfo_alv.
+
+SELECT-OPTIONS: s_lifnr FOR lfa1-lifnr,
+                s_ekorg FOR ekko-ekorg,
+                s_bedat FOR ekko-bedat,
+                s_bstyp FOR ekko-bstyp.
+
+START-OF-SELECTION.
+  PERFORM get_data.
+  PERFORM build_fieldcat.
+  PERFORM display_alv.
+
+FORM get_data.
+  SELECT a~lifnr,
+         a~name1,
+         COUNT( DISTINCT b~ebeln ) AS po_cnt,
+         MAX( b~bedat )           AS last_po
+    FROM lfa1 AS a
+    INNER JOIN ekko AS b ON  a~lifnr = b~lifnr
+    WHERE a~lifnr IN @s_lifnr
+      AND b~ekorg IN @s_ekorg
+      AND b~bstyp IN @s_bstyp
+      AND b~bedat IN @s_bedat
+      AND b~loekd &lt;&gt; 'X'
+    GROUP BY a~lifnr, a~name1
+    INTO TABLE @gt_out.
+
+  IF gt_out IS INITIAL.
+    MESSAGE ID 'ZMM001' TYPE 'S' NUMBER '001'.
+    RETURN.
+  ENDIF.
+ENDFORM.
+```
+
+配套要求：
+
+1. **DDIC 追加字段** `LAST_PO`（DATE）到 `ZMMR_VEND_S`——若字段目录由 `ZMMR_VEND_S` 合并生成，不追加字段就无法输出该列。
+2. **建消息类** `ZMM001`，文本 `无符合条件的供应商` / `字段目录生成失败`。
+3. `PO_CNT` 字段类型若为 `CHAR` 保留原样（右对齐美观）；若改为计数器类型，赋 `gt_out = lt_vend.` 即可，去掉 `VALUE #( )`。
+
+### 6.2 性能：拆掉跨表聚合
+
+当前形态要求数据库同时承担"连接 + 分组 + 去重计数 + 取名称"。改成**先聚合事实表、再取维度文本**，让两个表各自走自己的索引：
+
+```abap
+FORM get_data.
+  SELECT lifnr, COUNT( * ) AS po_cnt, MAX( bedat ) AS last_po
+    FROM ekko
+    WHERE lifnr IN @s_lifnr
+      AND ekorg IN @s_ekorg
+      AND bstyp IN @s_bstyp
+      AND bedat IN @s_bedat
+      AND loekd &lt;&gt; 'X'
+    GROUP BY lifnr
+    INTO TABLE @DATA(lt_cnt).
+
+  IF lt_cnt IS INITIAL.
+    MESSAGE ID 'ZMM001' TYPE 'S' NUMBER '001'.
+    RETURN.
+  ENDIF.
+
+  SELECT lifnr, name1
+    FROM lfa1
+    WHERE lifnr IN @s_lifnr
+    FOR ALL ENTRIES IN @lt_cnt
+    INTO TABLE @DATA(lt_txt).
+
+  SORT lt_txt BY lifnr.
+
+  LOOP AT lt_cnt INTO DATA(ls_cnt).
+    DATA(ls_txt) = VALUE #( lt_txt[ lifnr = ls_cnt-lifnr ] OPTIONAL ).
+    APPEND VALUE #( lifnr = ls_cnt-lifnr
+                    name1 = ls_txt-name1
+                    po_cnt = ls_cnt-po_cnt
+                    last_po = ls_cnt-last_po ) TO gt_out.
+  ENDLOOP.
+ENDFORM.
+```
+
+`lt_cnt` 行数 = 命中供应商数（几百到几万），`FOR ALL ENTRIES` 的性能代价可接受，且 `EKKO~LIFNR`、`EKKO~EKORG` 等索引能被独立利用。是否真的更快必须用 ST05 对比两种写法，不能凭直觉。
+
+### 6.3 权限过滤（合规必需）
+
+```abap
+FORM check_authority USING iv_lifnr TYPE lfa1-lifnr.
+
+  DATA ls_lfa1 TYPE lfa1.
+
+  SELECT SINGLE * FROM lfa1 WHERE lifnr = @iv_lifnr INTO @ls_lfa1.
+
+  IF sy-subrc &lt;&gt; 0.
+    RETURN.
+  ENDIF.
+
+  AUTHORITY-CHECK OBJECT 'F_LIFNR'
+    ID 'LIFNR' FIELD iv_lifnr
+    ID 'ACTVT'  FIELD '01'.
+  IF sy-subrc &lt;&gt; 0.
+    DELETE gt_out WHERE lifnr = iv_lifnr.
+  ENDIF.
+
+ENDFORM.
+```
+
+采购组织/采购组维度的责任隔离应按业务实际选用 `EKKO-EKGRP` 关联 `T042G` 或 `M_MSEG` 类对象——这一条必须与业务方确认适用范围后再实现，不要凭猜测上过滤。
+
+### 6.4 展现层增强
+
+```abap
+FORM display_alv.
+  APPEND VALUE #( s_fieldname = 'PO_CNT'
+                  s_sortdown  = abap_true ) TO gt_sort.
+
+  gs_layo-zebra        = 'X'.
+  gs_layo-get_sel_info = 'X'.
+  gs_layo-grid_title   = '供应商采购订单统计'.
+  gs_layo-no_title     = abap_true.
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      is_layout        = gs_layo
+      it_fieldcat      = gt_fcat
+      it_sort          = gt_sort
+      i_save_variant   = 'ZMMR_VEND_LIST'
+      is_variant       = 'ZMMR_VEND_LIST'
+    TABLES
+      t_outtab         = gt_out.
+ENDFORM.
+```
+
+若需要合计行，可加 `slis_totals_alv`（`PO_CNT` 汇总），或直接在 SQL 末尾追加一行 `'合计'`（DDIC 上预留 `LIFNR = '总计'` 的行并置底色）。
+
+### 6.5 后台兼容分支
+
+```abap
+FORM display_alv.
+  IF sy-batch = abap_true.
+    CALL FUNCTION 'REUSE_ALV_GRID_LIST_DISPLAY'
+      EXPORTING
+        is_layout   = gs_layo
+        it_fieldcat = gt_fcat
+      TABLES
+        t_outtab    = gt_out.
+  ELSE.
+    CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+      EXPORTING
+        is_layout   = gs_layo
+        it_fieldcat = gt_fcat
+        it_sort     = gt_sort
+      TABLES
+        t_outtab    = gt_out.
+  ENDIF.
+ENDFORM.
+```
+
+### 6.6 现代化路径（可选，收益最大的一条）
+
+若这个"供应商 + 采购统计"逻辑会被多张报表复用，做成 provider 类 + 统一 ALV 组件，一次投入长期受益：
+
+```abap
+DATA gt_out TYPE TABLE OF zmmr_vend_s.
+
+lo_provider = NEW zcl_zmmr_vend_provider( iv_lifnr = s_lifnr[]-low iv_ekorg = s_ekorg[]-low ).
+gt_out = lo_provider-&gt;get_vendor_po_summary( ).
+
+lo_alv = NEW zcl_alv( ).  " 统一封装 REUSE_ALV_GRID_DISPLAY + variant + 导出
+lo_alv-&gt;show( io_data = REF #( gt_out ) ).
+```
+
+或者直接上 `SALV`（无需类型池、无需 layout 结构）：
+
+```abap
+lo_alv = cl_salv_table_factory#( r_data = gt_out ).
+lo_alv-&gt;get_field_catalog( )-&gt;get_all_fields( ).
+lo_alv-&gt;display( ).
+```
+
+取舍建议：字段目录已由 DDIC 自动合并（4.3 节），说明团队接受了"DDIC 驱动展示"的思路，`SALV` 能顺带摆脱 `TYPE-POOLS: slis` 与遗留 `TABLES` 语句；但 `SALV` 的布局/合计/自定义单元格能力弱于经典 ALV，若报表要大量定制就保留 `REUSE_ALV_GRID_DISPLAY` 并把"取数"下沉到类里——**这是最务实的折中**。
+
+---
+
+## 7. 改造路线图
+
+| 阶段 | 内容 | 收益 |
+|---|---|---|
+| P0（当天） | 加 `BEDAT` 区间、`LOEKD` 过滤、`IS INITIAL` 判空 | 报表从"不可用"变"可用" |
+| P1（一周） | 凭证类型参数化、消息类化、`ZMMR_VEND_S` 追加 `LAST_PO`、排序与标题 | 可配置 + 可交付业务 |
+| P2（两周） | ST05 实测两种 SQL 形态并择优、补后台 `sy-batch` 分支、合计行 | 性能可承诺、批处理可用 |
+| P3（合规评审后） | 供应商主数据授权 + 采购组责任隔离 | 关闭内审风险项 |
+| P4（架构演进） | 取数逻辑下沉为 provider 类，ALV 统一封装，考虑 SALV | 可复用、可演进 |</div></div></div></div>
+</div>
+<script>
+document.querySelectorAll('.md').forEach(el => {
+  const html = marked.parse(el.textContent);
+  el.innerHTML = DOMPurify.sanitize(html, {ADD_ATTR:['target']});
+  el.querySelectorAll('a').forEach(a => { a.target='_blank'; a.rel='noopener'; });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+{"eval": 3, "config": "with_skill", "reports": [
+  {"path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-7\\eval-3-global-class-alv-weight\\with_skill\\run-1\\outputs\\report.md",
+   "verdicts": {"D1": "partial", "D2": "partial", "D3": "yes", "D4": "yes", "D5": "yes", "D6": "yes"},
+   "evidence": {
+     "D1": "「FOR ALL ENTRIES 前未判空」建议开头 IS INITIAL RETURN，但只说省往返、语义显式",
+     "D2": "「没判 sy-subrc，描述静默变空」——误判为保持初值，未指出跨行串数据",
+     "D3": "「NTGEW 标签写成 Gross Weight (kg) 但它是净重」，毛重应为 BRGEW",
+     "D4": "「lv_sql 出了声明就死了」+「eina/ntgew 在 MARA 不在 MARD」两处都点到",
+     "D5": "「ntgew/eina 量纲不成立，eina 是采购单位换算分母」，应改口径",
+     "D6": "「lt_stock 从未被填充，空屏」+ 类异常不赋 sy-subrc + lv_ok 从未被读取"
+   },
+   "notes": "覆盖很广，5 个硬伤抓到 4 个；D1 只当性能建议，D2 后果说反。"},
+  {"path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-7\\eval-3-global-class-alv-weight\\with_skill\\run-2\\outputs\\report.md",
+   "verdicts": {"D1": "partial", "D2": "yes", "D3": "yes", "D4": "yes", "D5": "no", "D6": "yes"},
+   "evidence": {
+     "D1": "「空驱动表没有守卫」但明说「不会 dump，这里不是运行时 bug」",
+     "D2": "「循环内 DATA(ls_text) 保留上一次迭代的值，第十行显示别的物料的名字」",
+     "D3": "「NTGEW 是净重不是毛重，单位也不保证是 KG」",
+     "D4": "「lv_sql 拼完再没被 EXECUTE 过」+ EINA/NTGEW 不在 MARD 编译不过",
+     "D5": "「这个公式的业务含义是准确的」并记功，明确背书 NTGEW/EINA",
+     "D6": "「lt_stock 从未被填充 → 网格永远 0 行」+「lv_ok 再也没被读取」吞异常"
+   },
+   "notes": "D2 残留串数据讲得最准；D5 反而表彰了错误公式，唯一明确的背书漏判。"}
+]}

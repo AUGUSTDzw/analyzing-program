@@ -1,0 +1,10 @@
+{"eval": 4, "config": "without_skill", "reports": [
+  {"path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-7\\eval-4-function-group-rfc-price\\without_skill\\run-1\\outputs\\report.md",
+   "verdicts": {"D1": "partial", "D2": "no", "D3": "yes", "D4": "yes", "D5": "yes"},
+   "evidence": {"D1": "无 COMMIT WORK / ROLLBACK 约定，与调用方事务耦合不清", "D2": "称抛 cx_sy_no_data 属 CX_ROOT 异常契约错配，未指出非异常类", "D3": "BRGEW 毛重/EINA 采购单位数量得单位毛重，与净重不天然可比", "D4": "传入 waers 币种给 normalise_uom 形参 iv_uom，语义错位", "D5": "gt_cache EMPTY KEY 跨调用驻留单调增长；SELECT INTO TABLE 覆盖调用方内表"},
+   "notes": "写库与单位口径问题抓得准，但把 cx_sy_no_data 当合法异常类，事务问题被淡化为可接受"},
+  {"path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-7\\eval-4-function-group-rfc-price\\without_skill\\run-2\\outputs\\report.md",
+   "verdicts": {"D1": "no", "D2": "no", "D3": "partial", "D4": "yes", "D5": "partial"},
+   "evidence": {"D1": "无 COMMIT WORK，但称 IN UPDATE TASK 下是正确行为，未提回滚", "D2": "两套异常机制混用，把 cx_sy_no_data 当可 CATCH 的类", "D3": "基准重量除以 EAN 码，公式业务上无意义", "D4": "is_row 名不匹配，且把币种当计量单位传", "D5": "gt_cache 从不清空不去重堆 n 份数据；TABLES 被误判为真实传表"},
+   "notes": "结构与写库风险充分，但误判 TABLES 语义与异常类，未落到事务与净重口径"}
+]}

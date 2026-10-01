@@ -1,0 +1,8 @@
+{"eval": 4, "config": "with_skill", "reports": [
+  {"path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-7\\eval-4-function-group-rfc-price\\with_skill\\run-1\\outputs\\report.md", "verdicts": {"D1": "yes", "D2": "partial", "D3": "yes", "D4": "yes", "D5": "yes"},
+   "evidence": {"D1": "3.5表：没有COMMIT WORK、没有ROLLBACK；异常不回滚会提交半成品", "D2": "只说与classic EXCEPTIONS机制冲突、dump，当成有效OO异常类", "D3": "brgew毛重/eina条数，量纲不成立，既非单件毛重也非任何业务量", "D4": "传的是waers币种，塞进做单位归一的CASE，lv_uom变'USD'", "D5": "gt_cache每次追加整份副本、无失效、内存翻倍；TABLES按引用有副作用"},
+   "notes": "P0清单扎实，D1/D4/D5到位；D2误判为机制冲突而非非类对象"},
+  {"path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-7\\eval-4-function-group-rfc-price\\with_skill\\run-2\\outputs\\report.md", "verdicts": {"D1": "yes", "D2": "partial", "D3": "yes", "D4": "yes", "D5": "yes"},
+   "evidence": {"D1": "完全没有事务控制(COMMIT/ROLLBACK)，无ROLLBACK分支，不提交则改价丢失", "D2": "称其为真正的OO异常类、建议改EXCEPTIONS cx_sy_no_data，未指出非类", "D3": "EINA是内容量单位代码非数量，BRGEW除它是量纲错误，本不需再除", "D4": "传waers币种而非单位字段，币种当单位映射语义完全错位", "D5": "gt_cache会话级只增不去无失效；TABLES按引用进函数即清空调用方内表"},
+   "notes": "缓存与TABLES引用两条都点透，D1结论清楚；D2同样把cx_sy_no_data当合法异常类"}
+]}

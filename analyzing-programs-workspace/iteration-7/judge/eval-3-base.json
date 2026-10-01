@@ -1,0 +1,25 @@
+{"eval": 3, "config": "without_skill", "reports": [
+  {"path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-7\\eval-3-global-class-alv-weight\\without_skill\\run-1\\outputs\\report.md",
+   "verdicts": {"D1": "yes", "D2": "partial", "D3": "no", "D4": "yes", "D5": "yes", "D6": "yes"},
+   "evidence": {
+     "D1": "缺少空表守卫，ct_stock 为空行为未定义最坏 dump",
+     "D2": "提到未判 sy-subrc，但称失败时取初始值（判为空白）",
+     "D3": "",
+     "D4": "lv_sql 死字符串；真 SELECT 只 FROM mard 却选 eina/ntgew",
+     "D5": "ntgew/eina 得到的数值没有物理意义，分母口径错",
+     "D6": "lt_stock 声明后从未填充；lv_ok 设后未用，异常被吞"
+   },
+   "notes": "问题清单详尽但漏 NTGEW 标签误写；描述残留被判为空白，方向反了"},
+
+  {"path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-7\\eval-3-global-class-alv-weight\\without_skill\\run-2\\outputs\\report.md",
+   "verdicts": {"D1": "partial", "D2": "yes", "D3": "yes", "D4": "yes", "D5": "yes", "D6": "yes"},
+   "evidence": {
+     "D1": "提到 ct_stock 为空 FAE 会跳过执行，但称不报错",
+     "D2": "ls_text 保留上一行内容，串行继承上个物料描述",
+     "D3": "NTGEW 标签写 Gross Weight (kg)，实为净重",
+     "D4": "lv_sql 死代码；eina/ntgew 是 MARA 字段不在 MARD",
+     "D5": "eina 是单位码不是数量，当除数语义错",
+     "D6": "lt_stock 恒空致 ALV 空白；异常只写 lv_ok 被吞"
+   },
+   "notes": "六项几乎全覆盖，仅 FAE 空表后果判断偏轻（说成安全跳过）"}
+]}

@@ -1,0 +1,8 @@
+{"eval": 5, "config": "with_skill", "reports": [
+  {"path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-7\\eval-5-report-bapi-rfc-upload\\with_skill\\run-1\\outputs\\report.md", "verdicts": {"D1": "yes", "D2": "yes", "D3": "yes", "D4": "partial", "D5": "yes"},
+   "evidence": {"D1": "对gt_return的处理止步于WRITE，没有任何一处基于消息内容做决策", "D2": "BAPI写入后无COMMIT WORK，失败也无ROLLBACK WORK，LUW边界未设计", "D3": "金额×重量=既不是金额也不是重量，是没有物理意义的第四种量", "D4": "只提FAE对重复物料产生重复行，未提空内表无保护", "D5": "READ TABLE完全不检查sy-subrc；EXCEPTIONS声明但sy-subrc从未评估"},
+   "notes": "五条主线命中清晰，FAE空表保护只擦到边，另有大量额外缺陷。"},
+  {"path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-7\\eval-5-report-bapi-rfc-upload\\with_skill\\run-2\\outputs\\report.md", "verdicts": {"D1": "yes", "D2": "yes", "D3": "yes", "D4": "yes", "D5": "yes"},
+   "evidence": {"D1": "BAPI返回的错误必须被真正处理，而不是只WRITE出来", "D2": "全程无COMMIT WORK/ROLLBACK/BAPI_TRANSACTION_COMMIT，数据一行没落库", "D3": "价格(元/单位)×毛重(kg)得到的量纲不是金额也不是重量", "D4": "没有sy-subrc保护：gt_change为空时FAE外层不执行，也没有任何提示", "D5": "READ TABLE不判sy-subrc会沿用上一个物料毛重；从不检查sy-subrc"},
+   "notes": "五条全覆盖且均点名语句与后果，FAE空表项亦单独点到。"}
+]}

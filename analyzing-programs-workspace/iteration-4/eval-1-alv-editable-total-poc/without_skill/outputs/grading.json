@@ -1,0 +1,65 @@
+{
+  "run_id": "eval-1-without_skill",
+  "expectations": [
+    {
+      "text": "报告含全部六章",
+      "passed": false,
+      "evidence": "找到 []"
+    },
+    {
+      "text": "二章含责任链表且表头含调用者列",
+      "passed": false,
+      "evidence": ""
+    },
+    {
+      "text": "含 Mermaid flowchart TD",
+      "passed": false,
+      "evidence": ""
+    },
+    {
+      "text": "含 Mermaid sequenceDiagram",
+      "passed": true,
+      "evidence": ""
+    },
+    {
+      "text": "无源码行号引用",
+      "passed": true,
+      "evidence": "无"
+    },
+    {
+      "text": "Mermaid 标签无裸尖括号",
+      "passed": true,
+      "evidence": "安全"
+    },
+    {
+      "text": "含 P0 与 P3 优先级标记",
+      "passed": false,
+      "evidence": ""
+    },
+    {
+      "text": "每个 abap 块后有做什么与风险层",
+      "passed": false,
+      "evidence": "abap=12 做什么=0 风险=2 (whole-doc fallback)"
+    },
+    {
+      "text": "代码块标注 ```abap",
+      "passed": true,
+      "evidence": "abap块 12 (ch3 内 12)"
+    },
+    {
+      "text": "含 ### 3.X 分组标题(≥2)",
+      "passed": true,
+      "evidence": "4 个"
+    },
+    {
+      "text": "子程序分组按执行顺序(≥2 section)",
+      "passed": true,
+      "evidence": ""
+    },
+    {
+      "text": "ntgew/brgew 语义错配被识别为风险(非背书)",
+      "passed": true,
+      "evidence": "已识别为风险"
+    }
+  ]
+}

@@ -33,10 +33,16 @@ def check(t):
     bad_ang = [m for b in blocks for m in re.findall(r"<(?!br/?[>])\s*[A-Za-z_]", b)]
     res.append(("A6","Mermaid 标签无裸尖括号", len(bad_ang)==0, f"违规 {len(bad_ang)}" if bad_ang else "安全"))
     res.append(("A7","含 P0 与 P3 优先级标记", "P0" in t and "P3" in t, ""))
-    nblk = len(re.findall(r"```abap", t))
-    n_do = t.count("做什么"); n_risk = t.count("风险")
-    res.append(("A8","每个 abap 块后有做什么与风险层", nblk>0 and n_do>=nblk and n_risk>=nblk, f"abap={nblk} 做什么={n_do} 风险={n_risk}"))
-    res.append(("A9","代码块标注 ```abap", nblk>0, f"abap块 {nblk}"))
+    # A8/A9 scope: count ```abap blocks inside chapter 3 only. A suggested-fix snippet
+    # in chapter 5 is not a subprogram walkthrough and must not inflate the denominator.
+    # Reports that use a different chapter scheme (baselines) fall back to the whole doc,
+    # keeping them comparable to earlier rounds.
+    m3 = re.search(r"##\s*三[、\.].*?(?=##\s*四[、\.]|\Z)", t, re.S)
+    scope = m3.group(0) if m3 else t
+    nblk = len(re.findall(r"```abap", scope))
+    n_do = scope.count("做什么"); n_risk = scope.count("风险")
+    res.append(("A8","每个 abap 块后有做什么与风险层", nblk>0 and n_do>=nblk and n_risk>=nblk, f"abap={nblk} 做什么={n_do} 风险={n_risk} (ch3)" if m3 else f"abap={nblk} 做什么={n_do} 风险={n_risk} (whole-doc fallback)"))
+    res.append(("A9","代码块标注 ```abap", len(re.findall(r"```abap", t))>0, f"abap块 {len(re.findall(r'```abap', t))} (ch3 内 {nblk})"))
     nsec = len(re.findall(r"###\s*3\.\d", t))
     res.append(("A10","含 ### 3.X 分组标题(≥2)", nsec>=2, f"{nsec} 个"))
     res.append(("A11","子程序分组按执行顺序(≥2 section)", nsec>=2, ""))

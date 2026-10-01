@@ -1,0 +1,20 @@
+{"eval": 2, "config": "without_skill", "reports": [
+  {"path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-7\\eval-2-procedural-vendor-report\\without_skill\\run-1\\outputs\\report.md",
+   "verdicts": {"D1": "yes", "D2": "yes", "D3": "yes", "D4": "partial"},
+   "evidence": {
+     "D1": "P3-6 行33/45 MESSAGE 无消息号、无消息类，翻译与维护不便",
+     "D2": "P2-2 行19-28 未过滤删除标记，统计含已删除单据，与财务口径不一致",
+     "D3": "新语法与旧语法混用：用了 @ 主机变量却仍用 TABLES:，半新半旧",
+     "D4": "P2-4 MESSAGE 'I'+STOP 直接终止事务/批处理；未说用户无法回选屏改条件"
+   },
+   "notes": "覆盖面广，四项全触到；D4 强调批处理而非用户返回选屏"},
+  {"path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-7\\eval-2-procedural-vendor-report\\without_skill\\run-2\\outputs\\report.md",
+   "verdicts": {"D1": "yes", "D2": "no", "D3": "partial", "D4": "yes"},
+   "evidence": {
+     "D1": "消息全是字面量、不带消息类：无法被 SE63 翻译，多语言硬伤",
+     "D2": "",
+     "D3": "5.8 TABLES 只用了一半、工作区是死的，保留合理，非功能缺陷",
+     "D4": "被踢回初始屏幕白跑一趟，而非让用户放宽条件重查"
+   },
+   "notes": "D1/D4 很准；D2 完全未提删除/冻结口径，且把 TABLES 判为合理"}
+]}

@@ -1,0 +1,27 @@
+{
+  "eval": 1,
+  "reports": [
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-7\\eval-1-alv-editable-total-poc\\with_skill\\run-1\\outputs\\report.md",
+      "verdicts": {"D1": "no", "D2": "yes", "D3": "partial", "D4": "partial"},
+      "evidence": {
+        "D1": "`_mara`与`gt_mara`是两张不同的表……属于命名遗留，不是 bug",
+        "D2": "用 NTGEW（净重）累加 BRGEW（毛重），业务语义错配，必须改为 TYPE brgew",
+        "D3": "`ASSIGN gr_data->*`用在非 typed 引用上是风险最高的一行，可能短 dump",
+        "D4": "finished 的正确处理是静默退出；当前把两者混在一起空处理，等于把错误也静默了"
+      },
+      "notes": "D1 明确背书为「命名遗留，不是 bug」，未指出 ALV 显示空；D2 命中最准；D3 只谈弱类型风险，未提 IS BOUND 与 INDEX 1 假设；D4 只批「混在一起空处理」"
+    },
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-7\\eval-1-alv-editable-total-poc\\with_skill\\run-2\\outputs\\report.md",
+      "verdicts": {"D1": "yes", "D2": "yes", "D3": "partial", "D4": "partial"},
+      "evidence": {
+        "D1": "目标写成 _mara，ALV 用的是 gt_mara，要么报错要么显示和 ALV 无关的空表",
+        "D2": "累加器 INIT lv_i TYPE ntgew_15 用净重数据元素累加 BRGEW 毛重，语义错位",
+        "D3": "`ASSIGN gr_data->*`未判 IS BOUND 就 READ TABLE，未绑定会短转储；空表时静默跳过",
+        "D4": "FINISHED 通常意味着用户已退出/正在导出，忽略是合理的，但应写注释"
+      },
+      "notes": "D1、D2 命中明确且给出修复；D3 抓到 IS BOUND 缺失与空表静默，但未质疑 INDEX 1 假设总计行在首行；D4 认为忽略 finished 合理，只批空分支是残留"
+    }
+  ]
+}
