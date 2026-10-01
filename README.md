@@ -25,15 +25,25 @@ analyzing-programs/
 │   ├── evals.json                    # Eval definitions (prompt, files).
 │   │                                 #   Triggers are NOT stored — grade_v2.py
 │   │                                 #   derives them from source at grading time.
-│   ├── judge-defects.json            # Planted defects per eval (machine-readable)
-│   ├── planted-defects.md            # Same, human-readable, with fairness notes
+│   ├── judge-defects.json            # 77 planted defects across 13 evals
+│   ├── planted-defects.md            # Evals 1-5, human-readable, with fairness notes
 │   ├── ztest7.abap                   # Eval 1: procedural report, editable ALV + totals
 │   ├── zmmr_vend_list.abap           # Eval 2: procedural vendor report
 │   ├── zcl_stock_check.clas.abap     # Eval 3: global OO class, 9 methods, ALV grid
 │   ├── zfg_material_price.fg.abap    # Eval 4: function group main program
 │   ├── lzfg_material_pacetop.abap    # Eval 4: function group global data
 │   ├── lzfg_material_pacu01.abap     # Eval 4: function group FM implementations
-│   └── zreport_bapi_upload.abap      # Eval 5: report calling BAPI + remote RFC
+│   ├── zreport_bapi_upload.abap      # Eval 5: report calling BAPI + remote RFC
+│   ├── zsalv_po_list.abap            # Eval 6: OO ALV, aggregations, events, popup
+│   ├── zcl_grade_calc.clas.abap      # Eval 7: abstract superclass, inheritance,
+│   │                                 #   polymorphism, locking, number range
+│   ├── zorder_dialog.abap            # Eval 8: dynpro PBO/PAI, AT SELECTION-SCREEN
+    │   ├── zsales_synch.abap            # Eval 9: CDS consumer + CL_HTTP_CLIENT + JSON
+    │   ├── zi_vbak_open.asddls         # Eval 9: the CDS view DDL source it consumes
+    │   ├── zprice_batch.abap            # Eval 10: SY-BATCH branching, conditional COMMIT
+    │   ├── zcl_price_watch.clas.abap    # Eval 11: CLASS-EVENTS publish + two subscribers
+    │   ├── zvendor_notify.abap          # Eval 12: ENQUEUE/DEQUEUE, MESSAGE ID
+    │   └── zmodern_lo.abap              # Eval 13: inline DATA(), FILTER, REDUCE, VALUE #
 ├── Test-source/                      # Ad-hoc analysis inputs (not part of the eval set)
 ├── Test-result/                      # Reports produced from Test-source
 └── analyzing-programs-workspace/     # Iteration artifacts
@@ -41,7 +51,10 @@ analyzing-programs/
     ├── grade3.py                     # Scoring driver (iteration-3..6, 4 hardcoded evals)
     ├── grade_v2.py                   # Scoring driver (iteration-7): N evals x N runs,
     │                                 #   source-derived triggers, A13 coverage, McNemar
-    ├── check_fixtures.py             # Dry-run: fixture triggers vs declared, A13 sanity
+    ├── check_fixtures.py             # Dry-run: files exist, A13 inventory non-trivial,
+    │                                 #   ≥1 content trigger fires. Imports its
+    │                                 #   derivations from grade_v2.py (no duplicated regexes)
+    ├── coverage_audit.py             # Maps 28 ABAP constructs onto the eval set; prints gaps
     ├── merge_judge.py                # Folds judge/*.json into grading_summary.json
     ├── validate_judge.py             # Invariants on the judge merge (coverage, arithmetic)
     ├── build_benchmark4.py           # Cross-iteration compare (rounds 3-6)
@@ -130,6 +143,50 @@ BAPI + RFC**.
   which penalised a good report for embedding short snippets as inline evidence inside its own
   风险与改进 prose. Verified by reading iteration-7 eval-3/with/run-2 manually: fully compliant,
   yet scored 22/33. v2 counts `#### ① ② ③` sub-steps.
+
+## Eval set coverage
+
+`coverage_audit.py` inventories 41 ABAP constructs against the fixtures.
+Rounds 3-7 tested one program type; the set now spans 13:
+
+| eval | Program type | Key constructs exercised |
+|---|---|---|
+| 1 | Procedural report | `REUSE_ALV_GRID_DISPLAY`, editable totals, `DATA_CHANGED` |
+| 2 | Procedural report | `REUSE_ALV_FIELDCATALOG_MERGE`, inline host vars |
+| 3 | Global OO class | `CLASS-POOL`, `CL_GUI_ALV_GRID`, `SET HANDLER`, `CALL SCREEN`, `CX_` |
+| 4 | Function group | `FUNCTION-POOL` + TOP + U01, shared global data |
+| 5 | Report + integration | `BAPI_MATERIAL_MAINTAIN`, RFC `DESTINATION` |
+| 6 | OO ALV | `CL_SALV_TABLE`, aggregations, `double_click`/`link_click`, popup |
+| 7 | Inheritance | abstract superclass, `INHERITING`, `super->`, redefinition, polymorphism |
+| 8 | Dialog program | dynpro 0100, `MODULE` PBO/PAI, `AT SELECTION-SCREEN`, `AUTHORITY-CHECK` |
+| 9 | CDS + HTTP | ABAP SQL on a CDS entity, `CL_HTTP_CLIENT`, JSON assembly |
+| 10 | Background batch | `SY-BATCH` branching, conditional `COMMIT WORK` |
+| 11 | Class events | `CLASS-EVENTS`, `RAISE EVENT`, `FOR EVENT` subscribers |
+| 12 | Locking + message class | `ENQUEUE`/`DEQUEUE`, `MESSAGE ID`/`NUMBER` |
+| 13 | Modern syntax | inline `DATA()`, `FILTER`, `REDUCE`, `VALUE #`, string templates |
+
+**All 41 constructs are now exercised.** The gaps that were closed, and what each
+new fixture turned out to be for:
+
+| Gap | Closed by | Why it matters |
+|---|---|---|
+| `CL_SALV_TABLE`, inheritance, dialog flow | evals 6-8 | The three largest. The OO ALV is the default choice for new reports, and a report can be mostly inheritance or mostly screen flow. |
+| `CLASS-EVENTS`, HTTP/JSON, background, message class, CDS | evals 9-12 | Publishing/subscriber events, outbound REST, batch-safe transaction handling, the *correct* `MESSAGE ID` pattern, and a DDL source shipped alongside its consumer. |
+| inline `DATA()` as a statement | eval 13 | Modern syntax has scoping rules (`DATA(x)` is visible only inside its FORM) that are a genuine source of bugs. |
+
+`check_fixtures.py` asserts per eval that the files exist, the A13 subprogram
+inventory is non-trivial (a vacuous inventory would make A13 pass trivially), and
+at least one content assertion's trigger fires. It imports its trigger and
+subprogram derivations from `grade_v2.py` rather than keeping a second copy —
+an earlier version duplicated the regexes and silently disagreed with the grader
+about `MODULE`, which is how the A13-vacuous-on-dialog-programs bug surfaced.
+
+Fixtures are synthetic, authored for this benchmark to match the constructs SAP Help
+and SAP Community document. They are not copied from any customer system. Every
+fixture carries planted defects listed in `evals/judge-defects.json` (77 across
+13 evals), with a human-readable annotation of the first eight in
+`evals/planted-defects.md`.
+
 
 ## Iteration History
 

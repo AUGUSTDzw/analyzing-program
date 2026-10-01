@@ -40,6 +40,54 @@
       "name": "report-bapi-rfc-upload",
       "prompt": "分析这个报表 @zreport_bapi_upload.abap，重点看 BAPI 调用和 RFC 复制这两段的正确性，以及价格计算有没有算错",
       "files": ["zreport_bapi_upload.abap"]
+    },
+    {
+      "id": 6,
+      "name": "salv-table-events",
+      "prompt": "@zsalv_po_list.abap 这个用 CL_SALV_TABLE 的报表，帮我分析一下取数、聚合、事件绑定和下钻弹窗这几块写得对不对",
+      "files": ["zsalv_po_list.abap"]
+    },
+    {
+      "id": 7,
+      "name": "abstract-inheritance-polymorphism",
+      "prompt": "这是我们的成绩计算类 @zcl_grade_calc.clas.abap，里面有抽象基类和两个子类。帮我讲清楚继承结构、多态是怎么生效的，以及严格评级的判定逻辑有没有问题",
+      "files": ["zcl_grade_calc.clas.abap"]
+    },
+    {
+      "id": 8,
+      "name": "dialog-screen-modules",
+      "prompt": "走读 @zorder_dialog.abap，重点看选择屏幕事件块和屏幕 0100 的 PBO/PAI 模块，保存那段有没有风险",
+      "files": ["zorder_dialog.abap"]
+    },
+    {
+      "id": 9,
+      "name": "cds-consume-http-synch",
+      "prompt": "@zsales_synch.abap 这个报表从 CDS 视图取数（视图定义在 @zi_vbak_open.asddls）然后调外部 REST 服务推送。重点看 CDS 取数条件、JSON 拼装和 HTTP 调用的错误处理有没有问题",
+      "files": ["zsales_synch.abap", "zi_vbak_open.asddls"]
+    },
+    {
+      "id": 13,
+      "name": "modern-syntax-table-expr",
+      "prompt": "@zmodern_lo.abap 用了不少 ABAP 7.4+ 新语法（内联声明、表表达式、字符串模板、FILTER/REDUCE）。帮我确认这些用法有没有用错地方，特别是内联声明的作用域和 VALUE #( 的映射",
+      "files": ["zmodern_lo.abap"]
+    },
+    {
+      "id": 10,
+      "name": "batch-price-recalc",
+      "prompt": "这是我们的夜间调价程序 @zprice_batch.abap，前台和后台作业都会跑。帮我分析取数、调价逻辑和提交那段，特别是后台运行时有没有风险",
+      "files": ["zprice_batch.abap"]
+    },
+    {
+      "id": 11,
+      "name": "class-events-publisher",
+      "prompt": "@zcl_price_watch.clas.abap 是我们的价格监控类，用 CLASS-EVENTS 广播价格下跌事件、两个订阅类各自响应。讲清楚事件机制怎么工作，发布订阅有没有遗漏",
+      "files": ["zcl_price_watch.clas.abap"]
+    },
+    {
+      "id": 12,
+      "name": "vendor-maintain-lock-msgs",
+      "prompt": "走读 @zvendor_notify.abap，这是供应商主数据维护程序，用了消息类、编号和表锁。帮我讲清楚锁的加解锁时机、消息类的使用是否规范",
+      "files": ["zvendor_notify.abap"]
     }
   ]
 }

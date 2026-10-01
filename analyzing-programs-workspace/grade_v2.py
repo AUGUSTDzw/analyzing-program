@@ -40,17 +40,26 @@ for e in EV["evals"]:
                   "files": e["files"], "src": src})
 
 # ------------------------------------------------- source-derived triggers
+# Fields whose data element carries business semantics that a naive
+# length/precision check would pass: weights, quantities, currency,
+# document counters. Used to decide whether A17 (semantic review) applies.
 WEIGHTY = ("BRGEW", "NTGEW", "EINA", "EINUM", "MENGE", "WAERS", "NETPR",
-           "MSTOCK", "MVBELN", "WRBTR", "BWHTB")
+           "NETWR", "MSTOCK", "MVBELN", "WRBTR", "BWHTB", "WRDAT", "SHKZG")
+
+# Standard tables whose MODIFY/INSERT/UPDATE is a real database write.
+# Internal-table MODIFYs (`MODIFY ct_stock FROM ...`) must NOT match, so the
+# target has to be an allow-listed DDIC table.
+DBTABLES = ("MARA", "MARC", "MARD", "MAKT", "KNA1", "LFA1", "EKKO", "EKPO",
+            "VBAK", "VBAP", "VBELN_VA")
 
 
 def triggers(src):
     u = src.upper()
     db_writes = bool(
-        re.search(r"\bMODIFY\s+(MARA|MARC|MARD|MAKT|KNA1|LFA1|EKKO|EKPO)\s+FROM", u)
-        or re.search(r"\bINSERT\s+INTO\s+\w+", u)
-        or re.search(r"\bUPDATE\s+\w+\s+SET\b", u)
-        or re.search(r"\bDELETE\s+FROM\s+\w+", u)
+        re.search(r"\bMODIFY\s+(" + "|".join(DBTABLES) + r")\s+FROM", u)
+        or re.search(r"\bINSERT\s+INTO\s+(" + "|".join(DBTABLES) + r")\b", u)
+        or re.search(r"\bUPDATE\s+(" + "|".join(DBTABLES) + r")\s+SET\b", u)
+        or re.search(r"\bDELETE\s+FROM\s+(" + "|".join(DBTABLES) + r")\b", u)
         or re.search(r"BAPI_\w*(MAINTAIN|CREATE|CHANGE|DELETE)\w*", u))
     return {
         # a READ TABLE that is never followed by a sy-subrc guard anywhere near it
@@ -59,20 +68,40 @@ def triggers(src):
         # a language / currency literal where sy-langu or a config should be
         "hardcode": bool(re.search(r"SPRAS\s*=\s*'", u)
                          or re.search(r"VALUE\s+'(EN|DE|ZH|JA|1|USD|EUR|CNY)'", u)
-                         or re.search(r"\bWAERS\b[^.]{0,40}=\s*'", u)),
+                         or re.search(r"\bWAERS\b[^.]{0,40}=\s*'", u)
+                         or re.search(r"\bWAERK\b[^.]{0,40}=\s*'", u)),
         "semantic": any(w in u for w in WEIGHTY),
         "persist": db_writes,
+        # hardcoded message text (as opposed to MESSAGE ID ... NUMBER, which is
+        # the correct pattern; that is tracked separately as msg_class_ok)
         "literal_msg": bool(re.search(r"MESSAGE\s+'", u)),
+        "msg_class_ok": bool(re.search(r"MESSAGE\s+ID\s+'", u)),
+        "locking": bool(re.search(r"\b(ENQUEUE|DEQUEUE)_\w+", u)),
+        "bg_job": bool(re.search(r"\bSY-BATCH\b", u)),
+        "http": bool(re.search(r"\bCL_HTTP_CLIENT\b|\bIF_HTTP_CLIENT\b", u)),
+        "cds": bool(re.search(r"DEFINE\s+(ROOT\s+)?VIEW\s+ENTITY", u)
+                    # or an ABAP SQL SELECT whose source is a Z_/Y_/I_ CDS entity
+                    or re.search(r"FROM\s+[ZYI]_[A-Z0-9_]+", u)),
     }
 
 
 def subprograms(src):
-    """FORM / METHOD / FUNCTION names — the A13 coverage inventory."""
+    """Subprogram inventory driving the A13 coverage assertion.
+
+    Covers every callable unit a report can contain. MODULE was added for
+    dialog programs (eval-8): without it the inventory is empty, A13 becomes
+    vacuously true, and a report could omit every PBO/PAI module and still
+    pass.
+    """
     names = re.findall(r"^\s*FORM\s+(\w+)", src, re.M | re.I)
     names += re.findall(r"^\s*METHOD\s+(\w+)\s*\.", src, re.M | re.I)
     names += re.findall(r"^\s*FUNCTION\s+(\w+)", src, re.M | re.I)
+    names += re.findall(r"^\s*MODULE\s+(\w+)\s+(OUTPUT|INPUT)", src, re.M | re.I)
     seen, out = set(), []
     for n in names:
+        # MODULE regex yields a 2-tuple; normalise before de-duplicating.
+        if isinstance(n, tuple):
+            n = n[0]
         k = n.lower()
         if k not in seen:
             seen.add(k)
@@ -102,6 +131,12 @@ KW = {
                 "忽略错误", "失败处理", "EXCEPTIONS"),
     "msg": ("消息类", "硬编码消息", "硬编码文本", "不可翻译", "SE63", "文本元素",
             "MESSAGE ID", "直接写在", "文本硬编码", "翻译"),
+    # A20 HTTP: response status, timeouts, transport failures
+    "timeout": ("timeout", "超时", "HTTP 状态", "状态码", "4xx", "5xx",
+                "transport", "通信失败", "get_status", "响应码"),
+    "status": ("get_status", "状态码", "HTTP 状态", "响应码", "4xx", "5xx"),
+    # A23 background: the same report running in batch has different rules
+    "bg_cn": ("后台", "批处理", "sy-batch", "SY-BATCH", "定时", "作业", "job"),
 }
 
 
@@ -206,6 +241,34 @@ def check(report, ev):
               g("msg") if tr["literal_msg"] else None,
               "已标注消息类问题" if g("msg") else "未标注"
               if tr["literal_msg"] else "skipped: 源码无 MESSAGE '...'"))
+
+    # ---- A20-A23: added with eval 9-12 ------------------------------------
+    # These fire on the *presence* of a pattern that carries its own risk, so
+    # the assertion is "did the report discuss it", not "did it call it bad".
+    # For A21 the correct practice is the point, so passing means the report
+    # noticed the positive pattern at all.
+    r.append(("A20", "HTTP 调用的错误/状态码处理被讨论", "content",
+              (g("persist") or g("subrc") or g("timeout") or g("status"))
+              if tr["http"] else None,
+              "已讨论" if (g("persist") or g("subrc") or g("timeout")
+                            or g("status")) else "未讨论"
+              if tr["http"] else "skipped: 源码无 HTTP 调用"))
+    r.append(("A21", "消息类用法(MESSAGE ID/NUMBER)被提及", "content",
+              g("msg") if tr["msg_class_ok"] else None,
+              "已提及消息类/SE63" if g("msg") else "未提及"
+              if tr["msg_class_ok"] else "skipped: 源码无 MESSAGE ID"))
+    r.append(("A22", "表锁的释放与异常路径被讨论", "content",
+              (g("persist") or "DEQUEUE" in t or "解锁" in t or "锁" in t)
+              if tr["locking"] else None,
+              "已讨论" if (g("persist") or "DEQUEUE" in t or "解锁" in t
+                            or "锁" in t) else "未讨论"
+              if tr["locking"] else "skipped: 源码无 ENQUEUE/DEQUEUE"))
+    r.append(("A23", "后台运行分支(sy-batch)被讨论", "content",
+              (g("bg_cn") or "sy-batch" in t or "SY-BATCH" in t)
+              if tr["bg_job"] else None,
+              "已讨论后台/批处理" if (g("bg_cn") or "sy-batch" in t
+                                       or "SY-BATCH" in t) else "未讨论"
+              if tr["bg_job"] else "skipped: 源码无 sy-batch"))
     return r
 
 
