@@ -19,7 +19,7 @@ ABAP/SAP 源码分析报告 Skill。给定一个 ABAP 程序文件，自动输�
 
 ```
 analyzing-programs/
-├── SKILL.md                          # Skill definition (prompt rules)
+├── SKILL.md                          # Skill 定义（提示词规则）
 ├── evals/                            # 评测素材
 │   ├── evals.json                    # 评测定义（提示词、预期输出）
 │   ├── ztest7.abap                   # 评测 1 源文件：ALV 可编辑合计示例
