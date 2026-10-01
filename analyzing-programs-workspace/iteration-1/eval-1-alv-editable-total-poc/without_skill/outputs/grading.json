@@ -1,0 +1,60 @@
+{
+  "run_id": "eval-1-without_skill",
+  "expectations": [
+    {
+      "text": "报告含全部六章（一二三四五六）",
+      "passed": false,
+      "evidence": "找到 0/6: []"
+    },
+    {
+      "text": "二章含责任链表且表头含'调用者'列",
+      "passed": false,
+      "evidence": "未找到含调用者的表头"
+    },
+    {
+      "text": "含 Mermaid flowchart TD",
+      "passed": false,
+      "evidence": ""
+    },
+    {
+      "text": "含 Mermaid sequenceDiagram",
+      "passed": false,
+      "evidence": ""
+    },
+    {
+      "text": "无行号引用",
+      "passed": false,
+      "evidence": "疑似行号引用: ['（第 51–72 行）', '（第 78–83 行）', '（第 85–88 行）']"
+    },
+    {
+      "text": "Mermaid 块无裸尖括号标识符",
+      "passed": true,
+      "evidence": "mermaid 标签安全"
+    },
+    {
+      "text": "含 P0 与 P3 优先级标记",
+      "passed": false,
+      "evidence": ""
+    },
+    {
+      "text": "每个 abap 代码块后有'做什么'与'风险'层",
+      "passed": false,
+      "evidence": "abap块=7 做什么=0 风险=3"
+    },
+    {
+      "text": "代码块标注 ```abap",
+      "passed": true,
+      "evidence": "abap块数 7"
+    },
+    {
+      "text": "含 ### 3.X 分组标题(≥2)",
+      "passed": false,
+      "evidence": "分组标题数 1"
+    },
+    {
+      "text": "子程序分组按执行顺序(≥2 section)",
+      "passed": false,
+      "evidence": ""
+    }
+  ]
+}

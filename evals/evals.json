@@ -1,0 +1,19 @@
+{
+  "skill_name": "analyzing-programs",
+  "evals": [
+    {
+      "id": 1,
+      "name": "alv-editable-total-poc",
+      "prompt": "帮我看懂这个 ABAP 程序，分析一下它解决什么问题、整体架构怎么设计的 @ztest7.abap",
+      "expected_output": "一份 6 章结构齐全的中文分析报告：含责任链表、flowchart、sequenceDiagram，每个子程序三层（做什么/为什么/风险），问题清单按 P0-P3 分级且用子程序名标注，无行号引用，Mermaid 标签无裸尖括号。",
+      "files": ["ztest7.abap"]
+    },
+    {
+      "id": 2,
+      "name": "procedural-vendor-report",
+      "prompt": "走读一下这个 ABAP 报表程序，讲清楚它的执行流程和设计 @zmmr_vend_list.abap",
+      "expected_output": "一份 6 章结构齐全的中文分析报告：按 PERFORM 调用顺序分组（get_data→build_fieldcat→display_alv），含责任链表、flowchart、sequenceDiagram，每个 FORM 三层分析，问题清单按 P0-P3 分级且用子程序名标注，无行号引用。",
+      "files": ["zmmr_vend_list.abap"]
+    }
+  ]
+}
