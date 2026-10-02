@@ -46,6 +46,13 @@ analyzing-programs/
     │   └── zmodern_lo.abap              # Eval 13: inline DATA(), FILTER, REDUCE, VALUE #
 ├── Test-source/                      # Ad-hoc analysis inputs (not part of the eval set)
 ├── Test-result/                      # Reports produced from Test-source
+│   └── zr.*                          # zr.abap run three times on the SAME skill version to
+│                                     #   measure run-to-run stability; see zr.comparison.md
+│                                         (baseline 72% / skill 75% / skill-rerun 100% of 32
+│                                          defect fingerprints; the rerun uniquely caught
+│                                          `MODIFY zfinal` with `zfinal` undeclared, which
+│                                          neither earlier run found — the program cannot
+│                                          compile as written)
 └── analyzing-programs-workspace/     # Iteration artifacts
     ├── grade.py                      # Scoring driver (iteration-1)
     ├── grade3.py                     # Scoring driver (iteration-3..6, 4 hardcoded evals)

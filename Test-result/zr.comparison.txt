@@ -1,0 +1,38 @@
+                                           baseline (no skill)           skill run 1    skill run 2 (this)
+----------------------------------------------------------------------------------------------------------
+no persistence in SAVE                                     YES                   YES                   YES
+it_makt READ TABLE no sy-subrc                             YES                   YES                   YES
+it_zfinal READ TABLE no sy-subrc                           YES                   YES                   YES
+hardcoded spras = 'EN'                                     YES                   YES                   YES
+MODIFY would pollute the snapshot                          YES                   YES                   YES
+value-equality used instead of subrc                       YES                   YES                   YES
+IC1 writes whole table / screen spam                       YES                   YES                   YES
+no key/hotspot -> IC1 unreachable                          YES                   YES                   YES
+check_changed_data return ignored                          YES                   YES                   YES
+GET_GLOBALS_FROM_SLVC_FULLSCR unsafe                       YES                   YES                   YES
+no message class / hardcoded message                       YES                   YES                   YES
+empty EXCEPTIONS branch on ALV                             YES                   YES                   YES
+no input validation (data_changed)                         YES                   YES                   YES
+event-block split START/END-OF-SELECT                      YES                   YES                   YES
+color loop = 2nd full traversal O(n^2)                     YES                   YES                   YES
+color magic numbers unexplained                            YES                   YES                   YES
+lv_index global only used in one FORM                      YES                   YES                   YES
+SET PF-STATUS no existence check                           YES                   YES                   YES
+s_matnr not mandatory -> full scan                         YES                   YES                   YES
+wa_zzfinal vs wa_zfinal confusion                          YES                   YES                   YES
+FORM name typo 'dispaly'                                   YES                   YES                   YES
+p_selfield unused                                          YES                   YES                   YES
+no OO / not extensible                                     YES                   YES                   YES
+snapshot timing depends on order                             -                   YES                   YES
+undeclared zfinal -> syntax error                            -                     -                   YES
+LEAVE TO CURRENT TRANSACTION redundant                       -                     -                   YES
+it_makt linear search O(n^2)                                 -                     -                   YES
+cellcolor carried per row                                    -                     -                   YES
+ty_makt-matnr typed as makt-maktx                            -                     -                   YES
+fieldcat titles hardcoded EN                                 -                     -                   YES
+i_callback_program couples to REPORT                         -                     -                   YES
+matnr +0(1) offset style                                     -                     -                   YES
+----------------------------------------------------------------------------------------------------------
+coverage (of 32 fingerprints)                              72%                   75%                  100%
+
+unique to skill run 2 (this): undeclared zfinal -> syntax error; LEAVE TO CURRENT TRANSACTION redundant; it_makt linear search O(n^2); cellcolor carried per row; ty_makt-matnr typed as makt-maktx; fieldcat titles hardcoded EN; i_callback_program couples to REPORT; matnr +0(1) offset style
