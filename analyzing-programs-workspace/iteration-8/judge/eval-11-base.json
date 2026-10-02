@@ -1,0 +1,46 @@
+{
+  "eval": 11,
+  "config": "without_skill",
+  "reports": [
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-11-class-events-publisher\\without_skill\\run-1\\outputs\\report.md",
+      "verdicts": {
+        "D1": "partial",
+        "D2": "yes",
+        "D3": "yes",
+        "D4": "yes",
+        "D5": "yes",
+        "D6": "yes"
+      },
+      "evidence": {
+        "D1": "§2.2: '注册表是类级别的全局列表，与实例无关'、'同一个处理器重复注册在运行时被视为同一项（幂等），但没有任何注销路径'；§3 P1: '只要这个类池被加载过一次，两个处理器就是永久生效的'、'别人 CREATE OBJECT 一个实例，等于替所有人打开了开关'、'本地类，没有 CLEANUP 生命周期钩子'；§2.4 '顺手把两个处理器挂到全局表上'。识别到处理器是全局条目、影响所有实例且永久生效，但未把责任落到『引用类名而非实例』这一写法本身，也未指出类被增强/删除会波及所有实例这一后果。",
+        "D2": "§0 一句话结论 + §3 P0『阻断：if_price_listener 定义在使用之后（编译失败）』，给出 L43 INTERFACES vs L69 INTERFACE 的对比、激活期报错（Interface IF_PRICE_LISTENER not found）与修复方式（上移接口）；§2.1 补充 FOR EVENT ... OF 与事件签名硬耦合。",
+        "D3": "§3 P1『只有订阅，没有退订』: 'constructor 里注册，代码里找不到任何 UNSET HANDLER'、'订阅时机被迫与构造耦合：别人 CREATE OBJECT 一个实例，等于替所有人打开了开关'；§3 P2: 'constructor 里做全局副作用，让这个类不可安全地批量实例化（典型：一次 ALV 循环里 CREATE OBJECT N 次），注册应属于静态方法'；§2.2 点明重复注册幂等；§5 自测题'CREATE OBJECT 两次，处理器被注册了几次'。",
+        "D4": "§3 P2『mt_watched 不查重，count_watched 不可信』: 'APPEND iv_matnr TO mt_watched. \" watch：完全没判重'、'连续 watch(\"M-100\") 两次 ⇒ count_watched( ) = 2，但只有一个物料在被观察'；并准确指出 'forget：一次删光所有副本'。",
+        "D5": "§3 P2: 'WITH EMPTY KEY 表还让每次 check 都是 O(n) 线性扫描，全量比价退化成 O(n²)'，建议 'DATA mt_watched TYPE HASHED TABLE OF mara-matnr WITH UNIQUE KEY table_line' 使 check 变 O(1)；§3 P3 表格 'check 的 WITH TABLE KEY | 合法但 O(n)'。",
+        "D6": "§3 P1『静态事件 + 实例状态：订阅者收不到\"是谁降的、降到多少以下\"』: 用阈值 5 与阈值 100 两个实例举例，说明订阅者'完全无法判断这是跌破 5 的严重事件还是跌破 100 的边缘事件'，建议载荷补 iv_threshold 与实例句柄。"
+      },
+      "notes": "6 项缺陷中 5 项明确命中（顺序脆弱、constructor 重复注册语义含混、APPEND 不查重、EMPTY KEY 线性扫描 O(n²)、事件载荷缺阈值/跌幅）。唯一失分是 D1：报告把 handler 描述成类级全局条目并给出『永久生效/无 CLEANUP/批量实例化不安全』的后果，但没有把问题归因到 `SET HANDLER lcl_alert=>...` 用类名（静态引用）而非实例引用，也没提到类增强/删除波及全部实例这一层。另注：报告额外指出主类定义缺 ENDCLASS 这一真实结构问题（P3 未列，属加分项）。"
+    },
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-11-class-events-publisher\\without_skill\\run-2\\outputs\\report.md",
+      "verdicts": {
+        "D1": "partial",
+        "D2": "yes",
+        "D3": "partial",
+        "D4": "yes",
+        "D5": "yes",
+        "D6": "yes"
+      },
+      "evidence": {
+        "D1": "§2.2 点名语句: '`lcl_alert=>on_price_dropped` 是用类静态引用调用一个实例方法。这在 ABAP 里合法，前提是该方法不使用 me……一旦它需要属性，就必须改成对象引用形式 lo_alert->on_price_dropped'，§7.2 建议改成对象引用形式。但同节又说'省略 FOR 时事件源隐式取当前对象 me……每个实例都会为自己注册一套 handler'（把静态事件误判为实例级），§0 判定 'SET HANDLER……三点齐全' 写法正确，§8 自测表第 4 项把重复注册标为 ✅，§5.3 只对外部订阅者提到'必须挂在全局引用否则 handler 静默失效'。看到了类引用语句及其『不能用 me』的局限，但未识别『全局处理器条目、影响所有实例、类被增强/删除即波及全部』这一后果，方向上甚至与其相反。",
+        "D2": "§1 指出依赖方向成环、'调整任意一处的顺序都可能引发激活错误'；§6.2『接口在实现它的类之后才声明』: 'class pool 中这些虽是全局对象，处理仍按源码顺序，稳妥做法是把接口整体上移到 L43 之前'；§7.1 作为最高优先级结构修复。",
+        "D3": "§0 第 3 条'订阅者挂在构造函数里，外部无法注册、无法 mock、无法解绑'；§5.3『没有注册/退订入口，生命周期绑死在构造函数』；§7.2/§7.3 建议把 handler 生命周期收归发布者（register_listener/UNSET HANDLER … OFF）。同时 §2.2 把『重复 SET HANDLER 是覆盖，不是叠加』当正常语义，§8 表第 4 项标 ✅，未把『每次 CREATE OBJECT 重复注册 + 幂等』的语义含混作为缺陷提出。",
+        "D4": "§3 watch: 'APPEND 前不查重。mt_watched 是 STANDARD TABLE OF mara-matnr WITH EMPTY KEY（L40），非唯一表 → 同一物料可以 watch 多次'；§3 forget 指出 'DELETE … WHERE table_line = iv_matnr 语义正确（一次删掉所有重复项）'；§5.11 与 §8 表第 8 项 'count_watched 虚高 / 返回 2'。",
+        "D5": "§5.11 'mt_watched 用 EMPTY KEY 表：允许重复 watch → count_watched 虚高；forget 与 check 都要全表扫描。应改为 SORTED TABLE … WITH UNIQUE KEY table_line，并在 watch 里用 INSERT 的 sy-subrc 判重'；§3 check 亦指出 '对 EMPTY KEY 表这个写法能跑（逐行比对），但没利用唯一性'；§7.4 给出 SORTED + UNIQUE KEY 的具体改法。",
+        "D6": "§5.9『事件参数不足以支撑订阅者』: '不带币种 → 订阅者要显示价格必须回查 MARC'、'不带旧价格 → 无法算跌幅'、'不带阈值 → 不知道报警线'、'不带触发时间/物料描述/严重级别 → 审计行没有自解释能力'。"
+      },
+      "notes": "结构顺序（D2）、不查重（D4）、EMPTY KEY 表型（D5）、事件载荷不足（D6）四项命中清晰且给了修法。D1 与 D3 仅部分：D1 点名了 `lcl_alert=>...` 类静态引用但把 handler 作用域误判为随实例（『事件源隐式取 me』），且把 SET HANDLER 写法整体判定为正确，未识别全局处理器条目波及所有实例；D3 指出注册耦合在 constructor 属缺陷，但对『每次 CREATE OBJECT 重复注册且幂等』的语义含混反而给了 ✅ 背书。另注：报告 §6.1 断言主类定义缺 ENDCLASS，与缺陷清单无关且属次要结构判断；其额外发现的负价（netpr 返利）恒触发误报是有价值的补充。"
+    }
+  ]
+}

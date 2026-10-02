@@ -96,8 +96,18 @@ for eid in sorted({v["eval_id"] for v in per_run.values()}):
 # per-defect breakdown across both configs.
 # NOTE: defect ids restart at D1 for every eval, so the key MUST be eval-scoped
 # or eval-5/D1 silently overwrites eval-3/D1.
+# NOTE: iterate only the evals that were ACTUALLY judged. DEFECTS is the current
+# master list (13 evals), but an older iteration dir only ran 5 of them —
+# walking the whole list there emitted rows with n=0 for 53 defects that were
+# never scored, inflating per_defect and skewing any mean computed over it.
 per_defect_agg = {}
-for eid_str, want in DEFECTS.items():
+judged_evals = sorted({v["eval_id"] for v in per_run.values()})
+skipped = sorted(set(int(k) for k in DEFECTS) - set(judged_evals))
+if skipped:
+    print(f"note: {len(skipped)} eval(s) in judge-defects.json were not judged "
+          f"in this iteration and are excluded from per_defect: {skipped}")
+for eid_str in (str(e) for e in judged_evals):
+    want = DEFECTS[eid_str]
     for d in want:
         did = d["id"]
         key = f"eval-{eid_str}-{did}"
@@ -120,11 +130,15 @@ w = [v["mean"] for v in per_cell.values() if v["config"] == "with_skill"]
 b = [v["mean"] for v in per_cell.values() if v["config"] == "without_skill"]
 
 # paired sign test on per-report judged score (with_skill vs baseline, same
-# eval + same run) — nonparametric, exact, appropriate for n=5 per arm
+# eval + same run) — nonparametric, exact, appropriate for n=13 per arm.
+# NOTE: iterate the with_skill arm only. Walking all of per_run would count
+# every pair twice with mirrored signs, forcing pos == neg and pinning p at
+# 1.0 regardless of the actual effect.
 diffs = []
 for k, v in per_run.items():
-    eid, cfg, run = v["eval_id"], v["config"], v["run"]
-    o = per_run.get(f"eval-{eid}-{'without_skill' if cfg == 'with_skill' else 'with_skill'}-run{run}")
+    if v["config"] != "with_skill":
+        continue
+    o = per_run.get(f"eval-{v['eval_id']}-without_skill-run{v['run']}")
     if o:
         diffs.append(v["score"] - o["score"])
 pos = sum(1 for x in diffs if x > 0)

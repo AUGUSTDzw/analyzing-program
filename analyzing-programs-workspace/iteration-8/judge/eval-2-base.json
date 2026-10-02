@@ -1,0 +1,38 @@
+{
+ "eval": 2,
+ "config": "without_skill",
+ "reports": [
+  {
+   "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-2-procedural-vendor-report\\without_skill\\run-1\\outputs\\report.md",
+   "verdicts": {
+    "D1": "yes",
+    "D2": "yes",
+    "D3": "partial",
+    "D4": "yes"
+   },
+   "evidence": {
+    "D1": "5.6【中·可维护性】中文硬编码消息，无消息类（report.md:313-323）直接引用 `MESSAGE '无符合条件的供应商' TYPE 'I'.` 与 `MESSAGE '字段目录生成失败' TYPE 'E'.`，指出『没有消息类/消息号』，『裸文本消息无法被 SE91 收集、无法被 SE63 翻译、无法被代码扫描工具识别』，4.2 与 5.6 两处均点名这两条语句。",
+    "D2": "第 1 节口径确认第 2 点（report.md:28）：『已删除/已作废的采购订单（EKKO 上的删除标记字段…以及交货记录删除标记 EBKLV）**没有过滤**，会被计入』；5.5【中·正确性】缺失的过滤条件（report.md:299-311）列表要求 EKKO 排掉删除/不适用标记，明确后果为『不把已删订单算进\"在办订单\"』，即 COUNT(DISTINCT ebeln) 计数偏高。注：字段名写成 LOEKE/EBKLV 而非 MEMHO，且未提及被凭证块 BUKO 锁定的订单，属部分字段名偏差，但缺陷本体（删除/锁定单未排除导致计数偏高）已明确指出。",
+    "D3": "5.9 技术债清单（report.md:341）点名 `TABLES: lfa1, ekko` 是『加载透明表到 ABAP 字典的老写法…TABLES 在现代 ABAP 里已属遗留概念』；第 2 节（report.md:67）另有『语法是 7.40 风格（@ 转义、内联 @DATA）…但结构上仍是完全的老式 FORM + TABLES 写法——语法新、架构旧…典型混合体』。两者都点到语句并泛泛点出新旧混合，但未把 TABLES 工作区声明与 WHERE 中 `IN @s_lifnr` 主机变量写法这一对具体冲突讲成一条独立缺陷。",
+    "D4": "5.6 第 3 点（report.md:324）：『`MESSAGE 'I' + STOP` 的组合…`STOP` 会终止整个程序回到选择屏幕，用户得重输一遍条件』，并给出 TYPE 'S' + LEAVE LIST 的替代；5.1（report.md:223-225）进一步说明该分支在现状下走不到、无结果时弹空白 ALV。缺陷与后果均已说清。"
+   },
+   "notes": "报告 4 项全中或近中。D2 的字段名（LOEKE/EBKLV vs MEMHO）与遗漏 BUKO 属细节偏差，不影响缺陷本体判定。D3 只给 partial：识别了 TABLES 遗留性与『语法新/架构旧』的混合体，但未落到『过时 TABLES 工作区与 @ 主机变量语法并存』这一具体冲突点。报告另额外发现 sy-subrc 误用（5.1）、INNER JOIN 丢零单供应商（5.3）、全空选全库聚合（5.4）、无权限校验（5.7）等，均超出本次缺陷清单。"
+  },
+  {
+   "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-2-procedural-vendor-report\\without_skill\\run-2\\outputs\\report.md",
+   "verdicts": {
+    "D1": "partial",
+    "D2": "no",
+    "D3": "partial",
+    "D4": "yes"
+   },
+   "evidence": {
+    "D1": "仅在 7.4 现代化重构对照表（report.md:403）出现一行 `MESSAGE '中文'` → `MESSAGE-ID` + `T100` 消息类，『支持 &1 占位符与多语言』，隐含当前写法不可多语言；报告的问题清单（第六节）完全未收录硬编码消息这一项，且其自带的 7.1/7.2 修法（report.md:315, 335）仍原样保留 `MESSAGE '无符合条件的供应商' TYPE 'S'.` / `MESSAGE '字段目录生成失败，请检查 DDIC 结构 ZMMR_VEND_S' TYPE 'E'.` 裸文本。属泛泛提及且未落到『无消息类/无法 SE63 翻译』这一具体缺陷，故 partial。",
+    "D2": "全文无任何删除标记或凭证块字段的讨论（未出现 MEMHO / BUKO / LOEKE / EBKLV / 冻结 / 作废）。相反，SQL 解读表（report.md:105）把 `b~bstyp = 'F'` 评价为『**最关键的过滤条件**，说明报表只关心真实采购订单』，并把 `COUNT(DISTINCT ebeln)` 的去重语义判为正确（report.md:27, 107, 280），对现有过滤充分性形成明确背书。按判定标准，明确背书计 no。",
+    "D3": "结论速览（report.md:11）『SQL 已用 Open SQL（新语法），但 UI 层仍是经典 FM + TABLES + 全局 DATA』；D 组（report.md:246-253）点名 `TABLES: lfa1, ekko`『官方标注为过时（obsolete）』并建议移除；问题清单 #12『TABLES: 语句过时 | 官方 obsolete，建议移除』。识别了 TABLES 过时与新旧写法并存的调子，但把 TABLES 归入『UI 层旧代码』，未指出它与 `IN @s_lifnr` 主机变量转义在同一程序内的并存冲突，partial。",
+    "D4": "Step 1（report.md:137）：『更糟的是 MESSAGE ... TYPE 'I' + STOP 的组合：TYPE 'I' 是信息提示，用户点确认后 STOP 直接终止整个事务』；问题清单 #9（report.md:278）`MESSAGE '无..' TYPE 'I'. STOP.` 组合不当，建议 TYPE 'S' + LEAVE TRANSACTION；7.1（report.md:324）改用 TYPE 'S' + RETURN。语句点名、后果（终止整个事务，无法回到选择屏幕继续）已说清，计 yes。"
+   },
+   "notes": "仅 D4 明确命中。D2 判 no 的依据是报告不仅未提，还把 BSTYP='F' 视为充分且正确的过滤、把 COUNT(DISTINCT) 判为『安全但冗余』，属明确背书。D1 因只在『可选现代化重构』对照表里被顺带提及、且自身修法仍硬编码中文，判 partial。D3 与 run-1 同因，未把 TABLES 声明与 @ 主机变量写法的并存讲成具体缺陷，判 partial。报告强项集中在 sy-subrc 误用判空与 ALV 配置缺失上。"
+  }
+ ]
+}

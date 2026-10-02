@@ -1,0 +1,46 @@
+{
+ "eval": 10,
+ "config": "without_skill",
+ "reports": [
+  {
+   "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-10-batch-price-recalc\\without_skill\\run-1\\outputs\\report.md",
+   "verdicts": {
+    "D1": "yes",
+    "D2": "no",
+    "D3": "yes",
+    "D4": "partial",
+    "D5": "yes",
+    "D6": "yes"
+   },
+   "evidence": {
+    "D1": "§3.1【高危】『调价系数按运行模式静默切换』，点名 lv_factor = COND #( WHEN sy-batch = 'X' THEN 1.02 ELSE 1.05 )，列出后台 +2% / 前台 +5% 对照表，并说明『前台试跑结论不能外推到正式执行』『MARC 里没有存本次调价比例，无法反推系数』。风险表 R2、代码质量表 #9、上线检查表 #1 均重复。",
+    "D2": "报告确实把 IF p_commit EQ 'X'. COMMIT WORK 标为【高危】4.1『是否提交由一个勾选框决定』，但结论与 D2 相反：§4.1 明确写出『未勾选 p_commit → 对话步结束，框架仍会隐式 COMMIT WORK』『p_commit 在后台模式下几乎不起不提交的作用』『维护者以为忘了勾 = 保险不落库，实际后台照样落库』，并把该参数的真实语义重新定义为『是否打一行 committed 日志』。这是对『后台没人勾 p_commit 则整轮 MODIFY 被回滚、作业显示成功却没落库』的明确否定/背书，故判 no。§4.2 提到的整段回滚属单事务巨型 LUW 风险（触发条件是超时/DB 重启），与 p_commit 条件提交无关。",
+    "D3": "§3.6『gv_ok / gv_failed 语义反了：测试模式下所有记录都进 gv_failed，于是 dry run 的输出是 ok 0 failed 120000。实际上没有任何一条失败，只是没写库。作业日志里出现 failed 120000 会让运维误判为事故』。代码质量表 #12『gv_failed 语义错误』。",
+    "D4": "§3.6『gv_run 计数错位：INITIALIZATION 里 gv_run = 1，循环内 gv_run = gv_run + 1，N 行后 gv_run = N + 1。日志里的 run 值永远比实际行数大 1，对账时会误导』。准确点名了语句与 off-by-one，但落点是计数偏移/日志误导，未指出 D4 的实质——gv_run 既不作行号、也无任何地方引用它，是残留计数器/死代码（报告对 gv_commit、status 判了死变量/死字段，却未对 gv_run 下此结论）。故 partial。",
+    "D5": "§2.3『空结果在后台的处理（MESSAGE 'S' + LEAVE）』，称为『本报告中最隐蔽的后台缺陷』：MESSAGE ... TYPE 'S' 是状态消息不抛异常，紧跟 LEAVE TO CURRENT TRANSACTION 正常退出，『结果：SM37 里这个作业状态是\"已完成 / Completed\"，无错误』，运维看到作业照常绿但价格未调。风险 1、质量表 #6、上线检查表 #3 均呼应。",
+    "D6": "§3.5『【中危】无锁、无排他、无与并发作业的互斥』，明确指出没有 LOCK OBJECT 与工厂级排他，并点名『同一 MARC 行被两个 ZPRICE_BATCH 实例同时处理 → 丢失更新（lost update）：两个会话都读到 100，各自 ×1.02 后各写 102.04，最后写者胜，实际只调了一次』。§7.6 给出 LOCK OBJECT zprice_batch_lock 方案。"
+   },
+   "notes": "结构完整、覆盖 D1/D3/D5/D6 四项且有具体后果链条，D5 被标为『最隐蔽的后台缺陷』。主要失分在 D2：报告点名了 IF p_commit EQ 'X' 语句并标为高危，但给出了相反的技术结论（后台靠对话步隐式提交、照样落库），等于对预埋缺陷做了背书；D4 只停在 off-by-one，未判定为无人引用的残留计数器。全篇另外自行扩展了重复执行复利累涨、MARC 与条件记录口径不一致、STPR 分叉等缺陷（属预埋清单外的高质量发现）。"
+  },
+  {
+   "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-10-batch-price-recalc\\without_skill\\run-2\\outputs\\report.md",
+   "verdicts": {
+    "D1": "yes",
+    "D2": "no",
+    "D3": "yes",
+    "D4": "partial",
+    "D5": "yes",
+    "D6": "partial"
+   },
+   "evidence": {
+    "D1": "§3.1 第 1 条【P0】『调价系数依赖运行方式 —— 前后台结果不可复现』，点名 lv_factor = COND #( WHEN sy-batch = 'X' THEN 1.02 ELSE 1.05 )，说明『夜间作业涨 2%，运维在 SA38 里手动跑一次实际涨 5% 并直接写库』『没有任何提示能区分』。R1 风险表与『场景 B：调试时前台跑了一把』把后果写成把生产价格写高 3 个百分点且无提示。",
+    "D2": "§4.1 第 1 条【P0】把条件提交标为高危，但结论与 D2 相反：『调度时若漏勾 p_commit，程序仍会跑完并打印 batch run finished，真正的落库依赖 START-OF-SELECTION 正常退出时的隐式 COMMIT WORK』；『场景 A：调度时忘了勾 p_commit……数据靠隐式提交落库，这次是侥幸成功』。即报告明确认定『没勾 p_commit 仍会落库』，否定了 D2 的前提与后果（整轮 MODIFY 被回滚、作业显示成功却没落库）。§4.1 第 2 条/§4.1 第 4 条提到的『中途转储全量回滚』『提交后无可核对输出』属单 LUW 与审计问题，不是 p_commit 条件提交导致的回滚，故判 no。",
+    "D3": "§3.1 第 7 条【P2】『p_test 的计数语义反了：测试模式下所有记录计入 gv_failed，测试跑 10 万条就打印 failed 100000，看起来像\"全军覆没\"。测试模式应该单独用 simulated/skipped 计数』。§7.3 的建议代码也改为 <job>-status = 'S' / 不再记 failed。",
+    "D4": "§3.1 第 5 条【P1】『gv_run 计数器 off-by-one：INITIALIZATION 置 1，循环内先 +1 再处理，于是结束时 gv_run = 行数 + 1。输出 run 500001 而真实处理 500000 行』。点名语句与偏移，但未指出 D4 的实质——gv_run 不作行号且无任何读取方，属残留计数器（报告对 gv_commit 判了『声明未使用（死变量）』，对 gv_run 未下同样结论），故 partial。",
+    "D5": "§2 第 6 条『LEAVE TO CURRENT TRANSACTION 不适合后台』：『在后台模式下它会直接终止整个程序……空结果时后台会静默结束、不输出统计、不写日志，运维只会看到作业\"成功完成但什么都没有\"』，并与前面的 MESSAGE ... TYPE 'S' 代码块（空结果分支）一并引用；风险表 R10『空结果用 LEAVE TO CURRENT TRANSACTION → 后台静默退出』；§4.1 第 5 条『错误路径里没有任何 TYPE E/A 或 ABORT……作业在 SM37 里都是成功结束』。",
+    "D6": "未出现 LOCK OBJECT / FOR UPDATE / 丢失更新 / lost update 任何一词。相关论述停在锁的持有侧：§4.1 第 2 条『从第一次 MODIFY 起就持有 MARC 行锁，直到程序结束。若夜间时段有用户（或另一个批处理）在 MM03 里改同一物料价格，就会锁超时/更新冲突』、R8『逐行 MODIFY，长事务持锁』、§8 第 6 条『确认夜间时段不会有 MM03/其他价格程序并发修改同一批物料』。即注意到了逐行 MODIFY 与并发场景，但落点是长事务持锁导致超时/冲突，既未指出缺少 FOR UPDATE/表锁保护，也未点出两个实例并发读-改-写同一 MARC 行会产生丢失更新，故 partial。"
+   },
+   "notes": "D1/D3/D5 三项命中且证据充分（后台静默成功、failed 计数语义反了、系数随 sy-batch 变化）。D2 与 run-1 犯了同一个方向性错误：都把条件提交标为 P0，却都断定『没勾 p_commit 靠隐式提交照样落库』，等于对预埋缺陷做了背书，判 no。D4 停在 off-by-one 未定性为死代码；D6 只谈长事务持锁与锁冲突，未落到无 FOR UPDATE/表锁保护导致的丢失更新。报告另自建高质量发现（sy-subrc 未检查、空 waers 死条件、datnr/eintr 读出未用、缺 AUTHORITY-CHECK、无 BAL 应用日志）。"
+  }
+ ]
+}

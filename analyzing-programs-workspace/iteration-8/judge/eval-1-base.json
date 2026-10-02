@@ -1,0 +1,38 @@
+{
+  "eval": 1,
+  "config": "without_skill",
+  "reports": [
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-1-alv-editable-total-poc\\without_skill\\run-1\\outputs\\report.md",
+      "verdicts": {
+        "D1": "no",
+        "D2": "partial",
+        "D3": "no",
+        "D4": "partial"
+      },
+      "evidence": {
+        "D1": "明确背书，判为 no。4.2 节 L160：「`INTO TABLE _mara` 实际等价于 `INTO TABLE @gt_mara`（`MARA-MATNR/NAME` 结构兼容分配），此处写法绕」——直接断言 SELECT 目标与 gt_mara 等价，否认了断链；L77-78 流程图注释「`_mara` 是行结构变量，隐式用作 it_outtab 之外的容器」同样把该语句当作无害写法；L143 进一步把 gt_mara 描述为「同时是 ALV 数据源和编辑结果落地表（单一真相源）」。既未指出 `_mara` 未声明，也未指出 ALV 会显示空表。",
+        "D2": "触及语句但结论跑偏，partial。M1（行 95）提到「`lv_i TYPE ntgew_15` 只覆盖前 3 位小数」「累加 N 行可能溢出到 QUAN/MATH」，即只当作小数位/长度问题；且行 251 与 M1 都反向断言「`MARA-BRGEW` 是 `NTGEW_15`」，把净重数据元素当成毛重字段的类型，方向完全反了，从未点出『净重元素累加毛重字段』的口径错配。",
+        "D3": "完全背书，no。行 264：「`ASSIGN gr_data->*` 把引用指向的整个结构/表整体赋给泛型表字段符号……这里只有一个 total 组合 → 1 行」「`READ INDEX 1` 取那条唯一的 overall total 行」；行 280「`IS ASSIGNED` 检查防止组件不存在时的短程赋值崩溃」把仅有的检查说成防护完备。既没有指出 gr_data->* 缺少 IS BOUND 判断，也明确认定 INDEX 1 取总计行是安全的。",
+        "D4": "提到语句与导出场景，但没说清用户侧后果，partial。行 298 原文引用了 `EXCEPTIONS finished = 1 / OTHERS = 2`，行 304-308：「`IF sy-subrc <> 0. ENDIF.` 空异常处理——`refresh_table_display` 在 ALV 已销毁（如导出后）时会 dump，这里只是『吞掉』（注释说是 by Export）。**风险：异常被吞，无任何日志**」。既提到 finished 被静默吞掉、也提到导出场景，但把后果说成『无日志』且误判为『会 dump』，没有指出用户导出 ALV 时得不到任何反馈或提示，改进建议中也未要求区分 finished 与 OTHERS。"
+      },
+      "notes": "4 个预埋缺陷 0 命中（yes=0，partial=2）。run-1 的问题清单共 13 条（S1-S4/M1-M6/P1-P2/A1-A5），全部落在输入校验、落库、权限、性能、API 现代化等通用 ALV 评审模板上，对本次埋点的四条缺陷无一击中；更关键的是对 D1、D3 做出了明确的错误背书（声称 `_mara` 等价于 `gt_mara`、声称 INDEX 1 与 ASSIGN 无风险），这类误判比漏报更危险，因为下游会据此认为链路可用。D2、D4 仅停留在语句表层提及，未落到具体后果。"
+    },
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-1-alv-editable-total-poc\\without_skill\\run-2\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "partial",
+        "D3": "partial",
+        "D4": "yes"
+      },
+      "evidence": {
+        "D1": "命中且点名后果。流程图 [1] 标注「注意：目标是 host variable _mara，不是 gt_mara ⚠️」、[6] 标注「t_outtab = gt_mara ⚠️ 空表」；三节结论「从 [1] 到 [6] 之间存在一个**数据断链**——`SELECT` 写进的是局部 host variable `_mara`，而 ALV 展示与后续所有处理用的是全局 `gt_mara`。`gt_mara` 自始至终是空的。因此 [6] 之后，网格是一张**空表**，`get_data_changed` 里 `READ TABLE gt_mara` 必然 `sy-subrc = 4`，整条回写链路从未真正跑通过」；问题清单 P0-1「致命 L18：`SELECT ... INTO TABLE _mara` 写入 host variable，而 ALV 展示与回写都用全局 `gt_mara` → **数据断链**：ALV 显示空表…整条链路不可用」，并在 6.1 给出 `INTO TABLE @gt_mara` 修法。",
+        "D2": "只碰到类型字面量，未识别口径错配，partial。C-3 第 3 点与 P3-4 提到「`REDUCE` 的累加器硬编码 `ntgew_15`」「若 `ZTEST_S-BRGEW` 定义为 `NETGEW`（QUAN 13,3）或其他长度，赋值时截断/异常」「无溢出保护」。但从未指出 NTGEW 是净重数据元素、BRGEW 是毛重字段这一语义/口径错配，也未指出小计被写回净重类型变量的后果；6.2 方案 B 甚至又换用 `ngeuw_15`，说明仍未抓住该问题。",
+        "D3": "命中一半（未绑定的 ASSIGN），INDEX 1 假设被背书，故 partial。C-3 第 3 点：「`ASSIGN gr_data->* TO <gtr_sum_tab>`：`gr_data` 若未绑定或不是表类型，会抛运行时异常，而这里**没有 `CATCHING`**，直接 dump」，P1-4 复述并在 6.5 建议 `ASSIGN ... CATCHING cx_root`——`gr_data->*` 缺 IS BOUND 保护被明确指出。但另一半被明确背书：C-2 写「`EP_COLLECT00` 取的是**总体合计**集合：一个只有一行的表」，未指出 `READ TABLE ... INDEX 1` 假设总计行必在第 1 行的脆弱性。",
+        "D4": "命中。C-4 瑕疵段：「`EXCEPTIONS finished = 1` 是**正常情况**：ALV 被导出/打印/跳转清屏时 `refresh_table_display` 就会抛 `FINISHED`。把它和 `OTHERS` 一起塞进一个**空的** `IF sy-subrc <> 0. ENDIF.`，等于把所有异常都吞了。空异常处理块是明确的坏味道。」P2-4 后果列写「出错时完全无感，故障排查只能靠 ST22」；6.5 建议「至少区分 `finished`（正常）与 `OTHERS`（记日志 + 提示）」。语句、导出场景、被静默忽略三项均点明。"
+      },
+      "notes": "命中 D1、D4，D3 半命中，D2 未命中。报告对数据断链（P0-1）的定位准确且给了完整链路推演（连『空表掩盖了回写 bug』这一连带效应都写到了），问题清单也按 P0/P1/P2 分级，结构上优于 run-1。额外发现了 D1/D2/D3/D4 之外的缺陷：mt_mod_cells 的 ROW_ID 0 基错位（P0-2）、i_callback_pf_status_set 只触发一次导致空 CASE 成死代码（P1-3）、合计重算无回推机制（P1-1）——但 P0-2 与 P1-1 属于对埋点缺陷的过度演绎/误判（实际 mt_mod_cells 的 row_id 在 cl_alv_changed_data_protocol 中按内表行号给出，且 get_subtotals 返回的集合本就是可写引用），不计入本次评分。扣分点在于 D2（净重元素累加毛重字段）这一最具业务语义的错配被降格成截断/溢出风险，D3 的 INDEX 1 假设则被当作事实背书。"
+    }
+  ]
+}

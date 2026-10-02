@@ -49,26 +49,32 @@ analyzing-programs/
 └── analyzing-programs-workspace/     # Iteration artifacts
     ├── grade.py                      # Scoring driver (iteration-1)
     ├── grade3.py                     # Scoring driver (iteration-3..6, 4 hardcoded evals)
-    ├── grade_v2.py                   # Scoring driver (iteration-7): N evals x N runs,
+    ├── grade_v2.py                   # Scoring driver (iteration-7+): N evals x N runs,
     │                                 #   source-derived triggers, A13 coverage, McNemar
     ├── check_fixtures.py             # Dry-run: files exist, A13 inventory non-trivial,
     │                                 #   ≥1 content trigger fires. Imports its
     │                                 #   derivations from grade_v2.py (no duplicated regexes)
-    ├── coverage_audit.py             # Maps 28 ABAP constructs onto the eval set; prints gaps
+    ├── coverage_audit.py             # Maps 41 ABAP constructs onto the eval set; prints gaps
     ├── merge_judge.py                # Folds judge/*.json into grading_summary.json
-    ├── validate_judge.py             # Invariants on the judge merge (coverage, arithmetic)
+    ├── validate_judge.py             # Invariants on the judge merge (coverage, arithmetic,
+    │                                 #   sign-test pairing — counts derived, never hardcoded)
     ├── build_benchmark4.py           # Cross-iteration compare (rounds 3-6)
     ├── build_benchmark7.py           # iteration-7 benchmark.json, honest measurement notes
     ├── build_benchmark7_html.py      # iteration-7 benchmark.html (two verdict layers)
     ├── smoke_benchmark7.js           # Executes the page JS against a stub DOM/ECharts
+    ├── build_benchmark8.py           # iteration-8 benchmark.json; findings + discrimination
+    │                                 #   analysis are COMPUTED from data, not hardcoded prose
+    ├── build_benchmark8_html.py      # iteration-8 benchmark.html; all counts injected from
+    │                                 #   benchmark.json and asserted fully substituted
+    ├── smoke_benchmark8.js           # Row counts + defect-key coverage derived from payload
     ├── build_html.py                 # Renders benchmark.html + review.html (rounds 3-6)
     ├── validate_html.py              # Static checks on generated HTML
     ├── smoke_benchmark.js            # Executes benchmark.html JS (rounds 3-6)
     ├── smoke_review.js               # Executes review.html markdown render loop
     ├── verify_review_embed.js        # Proves embedded reports match report.md byte-for-byte
-    ├── iteration-1/ … iteration-6/   # Earlier rounds (see Iteration History)
-    └── iteration-7/                  # Latest: 5 program types, 2 runs, paired tests, judge
-        ├── benchmark.json            # Aggregates + headline findings
+    ├── iteration-1/ … iteration-7/   # Earlier rounds (see Iteration History)
+    └── iteration-8/                  # Latest: 13 program types, 41 constructs, 77 defects,
+        ├── benchmark.json            #   2 runs, paired tests, judge + discrimination
         ├── benchmark.html            # Two verdict layers, side by side
         ├── grading_summary.json      # Per-run assertions + merged judge verdicts
         ├── judge/                    # Raw LLM judge output, one file per eval x config
@@ -197,6 +203,26 @@ fixture carries planted defects listed in `evals/judge-defects.json` (77 across
 | iteration-5 | 2 | 1 | 100% | 43% | A8 fix landed in `SKILL.md` ("拆分步骤时怎么办" section with compact bold-label template) |
 | iteration-6 | 2 | 1 | 100% | 39% | Same SKILL.md re-run; **0pp spread** confirmed format compliance is deterministic |
 | iteration-7 | **5** | **2** | 0.987 / 0.766 | 0.546 / 0.729 | **Coverage 1→5 program types; format significant (p=2.4e-19) but technical correctness NOT (p=1.00)** |
+| iteration-8 | **13** | **2** | 0.980 / 0.849 | 0.554 / 0.826 | **Coverage 5→13 program types / 41 constructs. Format still significant (p=5.6e-44) but the judge layer CEILINGED: 46/77 defects full marks for BOTH arms, so technical correctness is unmeasurable, not merely flat (p=1.00)** |
+
+### iteration-8: the judge layer stopped discriminating
+
+Widening the eval set did not widen the gap — it removed the ability to measure one.
+With 77 planted defects across 13 program types, **46 (60%) are scored full marks by
+both arms**, and only 21 of 77 discriminate at all. At `with_skill` 0.849 vs baseline
+0.826 there is no headroom left, so a null result here means *the benchmark ran out of
+difficulty*, not that the skill is provably neutral on code review.
+
+Consequences for how this table should be read:
+
+- The format result (`p = 5.6e-44`, 170 with-only vs 5 baseline-only cells) is solid and
+  strengthened by the wider set.
+- The technical result is **not evidence of equivalence**. The correct next step is a
+  harder defect tier, not more runs; `benchmark.json → discrimination` records the
+  saturated, floor, and discriminating sets explicitly.
+- Two bugs found and fixed while producing this round would each have hidden a real
+  effect (see `Known limitations`).
+
 
 > Rounds 3–6 are not directly comparable to 7: the grader changed, the eval set grew, and
 > the scoring model moved from mean-of-assertions to paired tests. Their `benchmark.json`
@@ -205,12 +231,36 @@ fixture carries planted defects listed in `evals/judge-defects.json` (77 across
 
 ## Known limitations
 
+- **The judge layer has ceilinged** (iteration-8). 46 of 77 planted defects are full marks
+  for both arms; 7 more are missed by both. A null technical result is therefore
+  uninterpretable until the defect tier gets harder.
 - The judge is a single pass with no inter-rater agreement data. Add a second judge and
   report Cohen's kappa before treating the technical layer as authoritative.
-- Planted defects are 4–6 per fixture by construction; the absolute recall numbers do not
+- Planted defects are 4–10 per fixture by construction; the absolute recall numbers do not
   extrapolate to real code. Only the with/baseline *relative* comparison is meaningful.
 - n=2 supports the sign test but not variance estimation. Raise to 3 runs and run a power
   analysis to distinguish "skill has no effect" from "not enough samples".
+
+### Measurement bugs found in iteration-8 (both fixed, both regression-guarded)
+
+These are recorded because each one *silently* produced a plausible-looking number:
+
+1. **`merge_judge.py` double-counted every sign-test pair.** It iterated all 52 `per_run`
+   records and matched each to its counterpart, so each pair was counted twice with
+   mirrored signs — which forces `with_higher == baseline_higher` and pins `p` at 1.0
+   regardless of the real effect. iteration-7 had reported `9 better / 9 worse / 2 ties`
+   over "20 pairs"; the true figures are **5 / 4 / 1 over 10 pairs**. Fixed by walking only
+   the `with_skill` arm. `validate_judge.py` now recomputes the tallies from `per_run` and
+   fails if they disagree.
+2. **`merge_judge.py` emitted `per_defect` rows for evals that were never judged.** It
+   walked the whole `judge-defects.json` master list, so re-running merge on the older
+   iteration-7 directory produced 53 phantom rows with `n=0` (24 → 77 defects) and skewed
+   any mean computed over them. Now restricted to the evals actually judged, with a
+   validation that every row has a non-zero sample count.
+3. **`validate_judge.py` and the smoke tests hardcoded counts** (20 reports / 24 defects /
+   19 assertions), so they passed against stale expectations after the eval set grew. Both
+   now derive counts from the payload; `smoke_benchmark8.js` additionally asserts every
+   defect key actually reaches the DOM, which a row count alone cannot catch.
 
 ## Core Rules (from SKILL.md)
 

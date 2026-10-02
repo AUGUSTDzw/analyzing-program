@@ -1,0 +1,42 @@
+{
+  "eval": 5,
+  "config": "without_skill",
+  "reports": [
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-5-report-bapi-rfc-upload\\without_skill\\run-1\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "yes",
+        "D3": "yes",
+        "D4": "yes",
+        "D5": "yes"
+      },
+      "evidence": {
+        "D1": "§3.1 (L121): '报告中没有任何一处检查 gt_return 中是否存在 TYPE = \\'E\\' 的错误消息就直接进入 RFC 推送'; §5.3 (L415): 'BAPI 部分失败（gt_return 中有 E）的行照样被推送到远端（第 90–96 行的 LOOP 只是 WRITE，没有任何过滤/标记逻辑）'; §3.4 指出自造 ty_rmess 把 type 改名为 typeid 导致无法做错误分级; 问题清单 #8 'L90-96 未按 BAPI 返回消息分级即宣告 uploaded → 失败被当成功'。",
+        "D2": "§3.1 标题 '🔴 致命：完全缺少 BAPI_COMMIT WORK，LUW 不会提交'，并给出 '没有形成校验→提交完整闭环' 的结论与 BAPI_COMMIT WORK 补法；问题清单 #7 'L84-87 缺 BAPI_COMMIT WORK'；§7.1 第 4 条。",
+        "D3": "§4.1 '算式本身没有业务含义'，量纲表列出 'NETPR * BRGEW → 混量纲/无意义'，并指出 NETPR 已是每基本单位价；问题清单 #2 'netpr * brgew：算式无业务含义（价格已是每单位价）'。",
+        "D4": "§2.2 'FOR ALL ENTRIES 缺空表守卫（🟠 高）'，明确说明驱动内表为空时 WHERE 被忽略等价于全表 SELECT，会把整个 MARA 读入，并给出 IF gt_change IS NOT INITIAL 的补法；问题清单 #14。",
+        "D5": "READ TABLE：§2.3 'READ TABLE 未检查 sy-subrc'，指出未判 sy-subrc 会让 brgew 静默取 0 或残值进入价格算式；问题清单 #18。RFC：§5.1 'lv_ok 从未被赋任何值 → 三个 EXCEPTIONS 编号 1/2/3 被完全丢弃'、'SYST-SUBRC 是 0 还是 1/2/3 都打印 replicated to'；问题清单 #9。"
+      },
+      "notes": "5/5 全部命中。D2/D3/D4/D5 均有专节 + 位置 + 后果 + 修复建议。D1 表述略有偏差（§3.1 提到 SAPLUW 可能仍会隐式提交），但仍明确指出未做 TYPE='E'/'A' 分级即宣告成功并推送远端，判 yes。附带还发现多项预埋清单外的真实缺陷（gr_weight TYPE TABLE OF p 编译错误、写入 MARA-BRGEW、dry-run 不覆盖 RFC、p_dest 空值本地执行、ty_chg 非字典类型）。"
+    },
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-5-report-bapi-rfc-upload\\without_skill\\run-2\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "yes",
+        "D3": "yes",
+        "D4": "no",
+        "D5": "yes"
+      },
+      "evidence": {
+        "D1": "P1-1 'gt_return 恒为空 → 所有 BAPI 错误被彻底丢弃'; P1-5 '只判断 p_dryrun，从不按 GT_RETURN 过滤成功条目就进入 RFC 段 → 把失败数据推给远端财务系统'; §3.2 给出必须 LOOP gt_return 判 type='E'/'A' 的骨架; §七 'BAPI 正确性：无成功过滤'; 一览表 L278。",
+        "D2": "概览表 '事务边界 | 无 COMMIT WORK / ROLLBACK WORK，无 BAPI 单据分段'; P1-4 '全局 | 无 COMMIT WORK。BAPI_MATERIAL_MAINTAIN 写入的物料主数据会随对话结束回滚，而日志已报 uploaded'; 改进建议第 5 条 '每个物料一个逻辑单元 + BAPI_COMMIT_WORK / BAPI_ROLLBACK'。",
+        "D3": "P2-2 '价格 × 重量 ≠ 价格。NETPR × BRGEW 得到的是行项目总金额，却被赋值回单价字段 NETPR … 这是把金额当单价用的量纲错误'; §五 价格计算结论 '量纲 | 净价 × 毛重 = 金额，却存回单价字段'。",
+        "D4": "未识别。P3-6 称 '空区间在 FOR ALL ENTRIES 下短路但主查询仍会全量扫描 MARC'，P3-8 称 'FOR ALL ENTRIES 在 gt_change 为空时虽不执行，但仍是一次多余的全表扫描' —— 两处都把空驱动内表下的 FAE 行为判断为安全/无害（实际 ABAP 语义是忽略 WHERE、退化为全表 SELECT），未指出缺少空内表保护。改进建议 13 '空选择集短路返回并提示，避免全表扫描 MARC' 只是笼统建议，理由指向主查询而非 FAE 守卫。",
+        "D5": "READ TABLE：P2-5 'READ TABLE 后未判 sy-subrc，ls_w 未 CLEAR，上一次循环的 BRGEW 会被沿用到下一个物料 → 跨物料污染'; §五 '空值 | 无 sy-subrc 检查、无零值过滤'; RFC：P1-2 '声明了 system_failure / destination_unavailable / OTHERS，却完全没有判断 sy-subrc'; §4.1 'sy-subrc 从未被读取'。"
+      },
+      "notes": "4/5。D4 判 no：报告两次点到 FOR ALL ENTRIES 语句，但都明确背书其空表行为是安全的（'短路'/'虽不执行'），属于误判而非疏漏，按规则明确背书计 no。其余四项均明确指出缺陷位置与后果。另有额外发现（gr_weight TYPE TABLE OF p 激活失败、写入 MARA-BRGEW、MODIFY 无 key 全字段匹配、ty_rmess 自造结构）。"
+    }
+  ]
+}

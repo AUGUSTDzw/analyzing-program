@@ -1,0 +1,42 @@
+{
+  "eval": 6,
+  "config": "without_skill",
+  "reports": [
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-6-salv-table-events\\without_skill\\run-1\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "yes",
+        "D3": "yes",
+        "D4": "yes",
+        "D5": "yes"
+      },
+      "evidence": {
+        "D1": "2.1「同一个逻辑对象被查了两遍，字段列表还不一致。mt_data 有 LIFNR、MENGE、EBELN_T，但从未被展示——display_alv 传的是 gt_po」；2.3 单独展开 MODIFY mt_data FROM ls_row 对无键内表整行匹配失败、静默不生效；7. 优先级表 P1「重复 SELECT；mt_data 死代码；ALV 缺 LIFNR」。同时点出标签只写进 mt_data 而显示的是 gt_po。",
+        "D2": "2.1 第 3 点「WHERE 条件不一致：选择屏只给了 EBELN，代码却私自加了 waers = 'EUR'。用户在选择屏选一堆美元订单 → ALV 空白，而且没有任何提示（没有 MESSAGE、没有 sy-subrc 检查）。这是典型的『报表静默少数据』」；3. 聚合段再次指出合计口径被 waers='EUR' 悄悄过滤。重复查询在 2.1 第 1 点已认定。",
+        "D3": "5.2「致命：异常吞掉后仍解引用引用」——引用 CATCH cx_salv_msg 后没有 IF lo_popup IS INITIAL. RETURN. ENDIF.，明确写出「lo_popup 就是未绑定引用，lo_popup->display( ) 立刻 CX_SY_REF_IS_INITIAL short dump——异常处理把一个可读的错误消息变成了 dump」；7. 表中 P0 运行「CATCH 后 lo_popup->display( ) 对未绑定引用解引用 :177-180」。",
+        "D4": "4.1「go_handler->mv_show = lo_alv 编译不过」判定为 private 外部访问的编译期错误，并补一句「而且退一步讲：这个属性即使能访问也毫无用处——on_double_click / on_link_click 里一次都没用到 mv_show」，即赋值后从不读取的无用属性。",
+        "D5": "4.2「on_link_click 是一个永远不会触发的死处理器」——说明 link_click 只有 cell type 为 link 时才触发，代码只设了 set_long_text 与 numeric，「没有任何 set_cell_type( if_salv_c_cell_type=>link )」，判定为纯死分支；7. 表 P1「on_link_click 永不触发（无 link 型单元格）」。"
+      },
+      "notes": "5/5 全中，且对每个缺陷都点名了具体语句/行号并写清后果（D1 死代码 + 标签到不了 ALV、D2 静默丢其它币种订单、D3 CX_SY_REF_IS_INITIAL 短 dump、D4 赋值后从不读取、D5 无 link 型单元格故事件不可达）。报告额外发现的编译/拼写问题（SELECT-OPTIONS 顺序、private 赋值、kumvw 笔误）与 INDEX row 反查底表属预埋清单之外，不影响本次判定。唯一可注意的偏差：run-1 认定 mt_data 是『TYPE ty_po 的无主键标准内表』，与 run-2 的『单行结构』判断不一致，但这不影响 D1 的识别结论。"
+    },
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-6-salv-table-events\\without_skill\\run-2\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "yes",
+        "D3": "yes",
+        "D4": "yes",
+        "D5": "yes"
+      },
+      "evidence": {
+        "D1": "2.1「同一份数据查了两次，第一次的结果被完全丢弃」——引用两次 SELECT 原文后写「ALV 最终绑定的是 gt_po，mt_data 算完 ebeln_t 就被扔了。等于白白多打一次 DB」；4.6 再次点明 mt_data 是『永远不会被 ALV 使用的私有内表（ALV 绑的是全局 gt_po）』；P0 第 3 条「删除 mt_data 与第一次 SELECT + LOOP」。",
+        "D2": "2.4「waers = 'EUR' 是个隐形业务规则」——「不在任何注释里、不在选择屏上、不在 ALV 标题里。用户看到的是『采购订单总览 + 合计金额』，实际是『只看欧元单』」，并指出若参数化会导致不同币种直接相加的废数；2.1 指出两次查询 WHERE 几乎相同即重复查询。P2 第 17 条也要求抽掉硬编码 EUR。",
+        "D3": "5.2「lo_popup 可能未初始化 → dump ❌」——「CATCH 之后没有 RETURN，接着就无条件 lo_popup->display( )。一旦 factory 抛 cx_salv_msg，lo_popup 保持初始引用 → CX_SY_REF_IS_INITIAL 短转储」，并与 display_alv 中 CATCH 内有 RETURN 作对比；P0 第 5 条「CATCH cx_salv_msg 后补 RETURN」。",
+        "D4": "1.2「私有属性被外部赋值」——在指出 private 编译错误后写「mv_show 除了这条赋值之外全程序再无任何引用，也就是说修掉这个错误之后，唯一的影响是『少一个死字段』」，最小改法直接删掉 mv_show 和第 137 行；0. 结论速览事件绑定行亦写「mv_show 是死字段」。",
+        "D5": "4.2「on_link_click 永远不会触发 ❌」——「link_click 只会由以链接/热点形式渲染的单元格触发……当前程序里没有任何一列被设成链接或热点（只有 NETWR 被设成 numeric），所以 on_link_click 是一个纯死代码处理器」；P2 第 13 条给出补 set_cell_type( link_text ) 或删除的方案。"
+      },
+      "notes": "5/5 全中，每个缺陷均点名语句/行号并说明后果（D1 双查 + 标签结果被丢弃成死代码、D2 硬编码币种成为隐形业务规则并与合计耦合、D3 未绑定引用被无条件解引用导致短 dump、D4 赋值后全程序无引用属死字段、D5 无 link/hotspot 单元格故处理器不可达）。报告额外提出 select list 与结构位置错位、EKPO POSNR='00000' 表头条、INDEX row 与 ALV 排序错位等清单外缺陷，不影响判定。需注意 run-2 把 mt_data 判为单行结构 TYPE ty_po（run-1 判为无键内表），二者对源码的理解存在分歧，但 D1 的核心结论（第一次查询结果被丢弃、标签到不了 ALV）在两份报告中一致成立。"
+    }
+  ]
+}

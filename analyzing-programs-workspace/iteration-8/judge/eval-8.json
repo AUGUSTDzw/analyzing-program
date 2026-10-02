@@ -1,0 +1,45 @@
+{
+  "eval": 8,
+  "config": "with_skill",
+  "defect_file": "zorder_dialog.abap",
+  "reports": [
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-8-dialog-screen-modules\\with_skill\\run-1\\outputs\\report.md",
+      "verdicts": {
+        "D1": "partial",
+        "D2": "yes",
+        "D3": "yes",
+        "D4": "yes",
+        "D5": "yes"
+      },
+      "score": "4/5",
+      "evidence": {
+        "D1": "3.9②/④（行 452-504）。报告点名了 `SELECT SINGLE * FROM vbak INTO ls_order` 与 `INSERT INTO vbak VALUES ls_order`，并指出「不检查 INSERT 结果…主键冲突、非空字段未填…被静默吞掉」以及「没有一处给 ls_order 赋业务值」「复制而不是新增，VBAK 主键会立刻冲突」。但全程没有提到 SELECT 之后未判断 sy-subrc，也没有说出「订单不存在时会把一条全初始值记录插进 VBAK」这一后果，反而在 ② 中把该语句判为「结构不匹配，必然失败，这段程序不可能正常运行」，实际后果被替换成另一个缺陷。属于注意到相邻语句但未落到这个具体缺陷。",
+        "D2": "3.8②（行 333-352）明确写「SAVE 分支…`SET SCREEN 0100`——也就是留在当前屏，什么都不做」「按当前代码，SAVE 要么不落库」，并给出「按当前代码，SAVE 要么不落库，要么根本不该走到这里」的结论，直接点出 save_order 收不到触发。缺 MOVE/传值一面见 3.9①「`gs_order-vbeln` 不是从屏幕 0100 的输入字段实时读回来的…正确做法是从屏幕结构重新 MOVE 到独立的局部结构再判断」。",
+        "D3": "3.9③（行 481）「🔴 异常被吞掉，导致 fail-open（失败即放行）。声明了 `OTHERS = 2`，却只处理 `sy-subrc = 1`，对 `sy-subrc = 2` 视而不见…此时程序继续往下执行 `INSERT INTO vbak` 写入数据」，并在 P0 清单第 1 条重复。",
+        "D4": "3.9⑤（行 523-524）「在未确认写入成功的前提下 `COMMIT WORK`…变成永久丢失（无法回滚、无法追查）」与「🔴 全程序没有一处 `ROLLBACK`。任何异常路径（④ 失败、后续校验不过）都没有回滚语义」；P0 第 7 条「全程无 ROLLBACK」。",
+        "D5": "3.5（行 213）「它没有实现任何 F4 功能。用户在订单号框按 F4 得不到帮助列表，只得到一句莫名其妙的成功提示…真正要补的是 `DYNAMIC_F4` + 一个基于 `VBAK` 的搜索帮助」；P1 第 12 条同义。"
+      },
+      "notes": "5 项里命中 4 项，D3/D4/D5 说得很到位（D3 直接判为 P0 fail-open）。唯一漏判 D1：报告把注意力放在「SELECT SINGLE * 与 5 字段结构不匹配必然失败」上，并据此推出「程序不可能正常运行」，反而没有落到「未判 sy-subrc → 查不到就写空记录」这一条；另外第四章对屏幕 0100 传值有一段错误背书（认为「屏幕自身的输入字段通过同名结构自动传输」可得数据），不过 3.9① 已从另一角度触及缺 MOVE 的问题，不影响 D2 判定。"
+    },
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-8-dialog-screen-modules\\with_skill\\run-2\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "yes",
+        "D3": "yes",
+        "D4": "yes",
+        "D5": "yes"
+      },
+      "score": "5/5",
+      "evidence": {
+        "D1": "3.8② 第 2 点（行 390）「**没有检查 `sy-subrc`。** 即使改成显式字段列表，`sy-subrc = 4`（订单不存在）时 `ls_order` 保持初始值，而下一句 `INSERT` 会**照样执行**——把一条几乎全空的记录插进 `VBAK`。这是典型的『查不到就写空』的经典事故」，并给出 `IF sy-subrc <> 0. MESSAGE 'Order not found' TYPE 'E'.` 放在 INSERT 之前的修法；P0 第 4 条复述。",
+        "D2": "3.6 第 1 点（行 293）「PBO 里没有任何『把数据搬到屏上』的动作…屏上字段不可能与结构分量同名…也没有任何 `vbeln = gs_order-vbeln` 这样的搬运动作。结果就是：0100 屏上的输入值**无处可落**」；3.7 第 1 点（行 332）「**`SAVE` 分支是空动作，保存永远不发生。** `SET SCREEN 0100`…不会触发 `save_order`」；P0 第 1 条「对话框输入值与业务结构之间没有连线，保存功能是死代码」。",
+        "D3": "3.8③ 第 1 点（行 422）「**`OTHERS`（`sy-subrc = 2`）完全没有处理。**…此时程序会静默当成『检查通过』继续往下走写库。**检查失败的兜底必须是保守的**」；P1 第 7 条「内部错误被当成放行」。",
+        "D4": "3.8④ 第 2、4 点（行 448、457）：INSERT 失败仍走 `COMMIT` 并弹假成功，建议 `IF sy-subrc <> 0. ROLLBACK WORK. ...`；「**事务控制过于生硬。** 在对话框模块里无条件 `COMMIT WORK` 意味着：用户没有撤销机会，失败时无法 `ROLLBACK`（只能靠 DB 恢复工具），与『一次业务操作 = 一个对话步』的对话原则相悖」；P1 第 12 条「用户无撤销机会、失败无法回滚」。",
+        "D5": "3.4（行 203-205）「数据源在时间上根本不存在…`READ TABLE` 必然 `sy-subrc = 4`，整段逻辑是『读取一个尚不存在的数据集』」「**F4 里弹 `'S'` 消息等于什么都没说。**…这段代码在**任何情况下**都弹这条消息（没有条件判断）」，并给出正确形态「取到值就回填、取不到就 `MESSAGE ... TYPE 'E'` 阻断」；P0 第 5 条要求改用 `F4_VALUES` / 搜索帮助 / 自定义 F4 FM 并判 sy-subrc。"
+      },
+      "notes": "5/5 全中，且对预埋缺陷的因果链描述准确：D1 精确到「sy-subrc = 4 → 保持初始值 → INSERT 照样执行 → 插入几乎全空的记录」，D2 把「屏值无处可落」与「SAVE 分支空动作导致 save_order 不触发」串成同一条死链，D3、D4 均给出 fail-close / ROLLBACK 的具体修法。少量次要判断有瑕疵（如把 ① 的必填校验断为 100% 触发、把 back 里的 CALL SCREEN 判为规范禁止、说 VBAK 有约 300 个字段、与 3.1 中把 MENGE 说成抬头汇总值而 3.5 又主张取 VBAP 略有张力），但不影响任何一条缺陷的判定。"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "eval": 10,
+  "config": "with_skill",
+  "reports": [
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-10-batch-price-recalc\\with_skill\\run-1\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "no",
+        "D3": "yes",
+        "D4": "partial",
+        "D5": "yes",
+        "D6": "yes"
+      },
+      "evidence": {
+        "D1": "3.5 ① 风险 1「🔴 调价系数依赖运行方式 = 同一份数据、两种结果」：「sy-batch 是环境事实，不是业务规则」「用户完全不知情」；3.7 有专门的前台/后台对照表（系数 1.05 / 1.02）；P0-1 列为最高优先级业务正确性问题。",
+        "D2": "3.6 ② 风险 1：「**不勾 p_commit ≠ 不落库**……dialog step 结束时工作进程会执行隐式数据库提交。只要 p_test 为空，MARC 的修改最终一定会提交，勾不勾 p_commit 都不改变最终结果」「p_commit 在这里提供的『安全感』是假的」；3.7 表格「提交语义：step 结束隐式提交，与前台一致」；P0-7 亦以此为前提。报告明确背书了相反结论，未识别『后台无人勾 p_commit → 整轮 MODIFY 全部回滚、作业显示成功却一条没落库』。",
+        "D3": "3.5 ③ 风险 4「🟠 计数语义反了。测试模式下每条都被记成 gv_failed，最终输出 failed = N, ok = 0……这份统计会被运维当成『昨夜全部处理失败』」；并给出 written/skipped(test)/failed 三分改进；P1-5 复述。",
+        "D4": "只把 gv_run 当成 off-by-one 计数错来讲：3.2 ①「初值取 1 意味着处理 N 条记录后输出是 N+1……最终 WRITE 输出的数字天然偏大 1」，并提到「gv_run 名字叫运行次数，实际被 recalculate 当作记录计数用」的命名债（3.5 ① 风险 4、P1-8、P2-4）。始终按『有意义的计数』处理，未指出它是既不作行号也无其他用途的残留/死计数器（真正同类的死变量它只认出了 gv_commit）。",
+        "D5": "3.4 ② 风险「🔴 这是后台作业里最典型的监控陷阱」：S 级消息后台不显示、LEAVE 属正常离场、SM21 无错、作业最终是绿色 Finished，看到『成功完成』实际一条价格都没改；P0-6。",
+        "D6": "3.5 ③ 风险 2「🔴 绕过应用层写透明表」：「不经过更新任务（V2），与 MM 正在进行的采购订单、收货过账之间不产生冲突检测 → 典型的 lost update；碰上 MM02/ME21 的业务锁会直接 DUMP_DBSYS_LOCKS 短转储或静默丢弃」；P0-4「无锁冲突处理……与 MM 并发写产生 lost update」；3.6 ② 风险 2 还提到 COMMIT WORK 会释放记录锁。"
+      },
+      "notes": "6 项中 4 项明确命中（D1/D3/D5/D6），D4 只停在 off-by-one 与命名层面记为 partial；D2 不仅未命中，还在 3.6 与 P0-7 中明确断言『不勾 p_commit 数据照样隐式提交』，属对相反结论的背书，按判定标准记 no。"
+    },
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-10-batch-price-recalc\\with_skill\\run-2\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "no",
+        "D3": "yes",
+        "D4": "partial",
+        "D5": "yes",
+        "D6": "partial"
+      },
+      "evidence": {
+        "D1": "3.5 ① 风险 1「🔴 P0：前后台系数不同 = 前台试算无法复现后台结果」：前台看到 1.05、后台落库 1.02，『试运行看到的数字和实际发生的数字不是一回事』；P0-2；6.3 经验 3「前台能跑通不等于后台跑对了」。",
+        "D2": "3.6 ② 风险 1：「ABAP 会在 dialog step 结束（前台）或 background step 结束（后台，由作业驱动隐式执行）自动提交 LUW。所以『不勾选』并不等于『不落库』，只是把提交时机推迟到步末」；P1-3；sequence 图结尾「步末隐式提交剩余变更」。明确背书『不勾也落库』，与缺陷『不勾则整轮回滚、作业绿灯却零落库』相反。",
+        "D3": "3.5 ③ 风险 2「🔴 计数器语义完全颠倒」：试运行未发任何数据库写却累加 gv_failed，运维会把 failed = N 误读为 N 条写入失败；并指出真实写库路径失败时 gv_failed 永不增长；P1-1「试运行（不写库）累加 gv_failed，真实写库从不累加」。",
+        "D4": "3.2 ①「计数初值与累加位置不匹配，产生了差一（off-by-one）错误……gv_run = 记录数 + 1」并加命名/用途错位分析；3.5 ① 风险 5「gv_run 的差一错误在此处定型，且它同时被当成『循环序号』而非运行标识」；P2-3 建议初值改 0、另起 gv_run_id。始终把它当成真实计数器在讨论，未指出是既不作行号、无实际用途的残留计数器。",
+        "D5": "3.4 ② 风险「这是后台运行最阴险的一处缺陷」：S 级消息后台等于沉默、LEAVE TO CURRENT TRANSACTION 在后台等于正常结束步、不标失败不告警，作业绿灯却一条价格都没改；P0-4。",
+        "D6": "3.5 ③ 风险 3「⚠️ MODIFY 的成功 ≠ 数据已落库」讨论的是更新任务与步末隐式提交可能部分失败仍报绿；P1-2 是无异常处理、无 ROLLBACK；3.4 ① 风险 3 提到更新任务队列塞满。全文未点名表锁/ENQUEUE/FOR UPDATE 缺失，也未把后果落到『多作业并发产生丢失更新』——并发丢失更新的后果没有说清，故记 partial。"
+      },
+      "notes": "与 run-1 同构：4 项明确命中（D1/D3/D5 + D1），D4 同样停在 off-by-one 与命名错位记 partial；D2 明确背书『不勾 p_commit 也隐式提交』，记 no；D6 只泛谈并发与更新任务失败，未点明缺表锁导致 lost update，记 partial。相较 run-1 唯一优势在 D5 的措辞更贴切、run-1 的 D6 更完整；run-2 的 D6 是本次两份报告唯一明显偏弱的命中项。"
+    }
+  ]
+}

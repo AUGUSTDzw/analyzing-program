@@ -1,0 +1,50 @@
+{
+  "eval": 9,
+  "config": "with_skill",
+  "reports": [
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-9-cds-consume-http-synch\\with_skill\\run-1\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "partial",
+        "D3": "partial",
+        "D4": "yes",
+        "D5": "yes",
+        "D6": "partial",
+        "D7": "yes"
+      },
+      "evidence": {
+        "D1": "3.5 ①「过滤条件与视图完全重复…口径双写：需求一改要同时改 DDL 和 ABAP 两处」；3.4 ④「硬编码日期…没有 WITH PARAMETERS 就没有任何动态窗口能力」「waerk = 'USD' 把业务口径焊进了『通用』视图…币种过滤属于消费方口径，应该通过参数传入」；问题清单 P0-7 / P1-5 / P1-8 均点名硬编码与双写。",
+        "D2": "3.4 ③ 专列 `cast( sy-datum as abap.dats ) as run_date`，指出「SY-DATUM 不是表数据…视图内容随时钟变化、不可重放」「SY-DATUM 在消费方系统求值」并建议「删掉 run_date…需要动态日期范围就用 WITH PARAMETERS 传参」（P2-1）。但完全没指出 sy-datum 在 DDL 层面不成立，反而写「cast(... as abap.dats) 本身…语法上无害」，对代码前提做了部分背书。",
+        "D3": "3.4 ②「这个关联被本程序完全闲置…为了一个从未使用的能力，视图多维护了一条依赖…要么让消费方真的用上路径取客户名，要么把关联先摘掉」；P2-3 点名 association 基数未核对 + 关联未被使用。但报告写「出现在投影列表里意味着它是『暴露关联』」，与 D3 所指的『未公开关联、外部 CDS 与 ABAP SQL 无法沿其取字段』正好相反，未落到该具体缺陷。",
+        "D4": "3.6 ①「完全没有 JSON 转义…一个含引号、逗号或换行的客户名就会直接产出非法 JSON」；P2-4「手写 JSON 无任何转义」；并给出 to_json / json_serialization / cl_abap_json 替代方案。",
+        "D5": "3.7 ③「send 之后完全没有 IF sy-subrc <> 0…代码继续往下调 receive；receive 必然也失败，于是 sy-subrc 变成了 receive 的结果、lv_status 保持初值 0，后面的 >= 400 判定不成立」；3.7 ① 与 P0-3 指出 lv_status 初值 0 无法区分『未取到』；3.7 ③「timeout = 3 硬编码且只设了结束超时…3 秒对『大报文 + 慢服务』偏紧」。",
+        "D6": "3.7 ⑤「当前这段『恰好总会执行』…但这是靠一个巧合维持的脆弱结构：任何人日后把那句消息改成 'E' 或加一句 RETURN，连接就会在 close 之前漏掉。正确结构是用 TRY...CATCH 或把 close( ) 放在一段统一收尾逻辑里」。识别到 close 不在统一出口与泄漏后果，但明确断言现有代码总会执行，未认定当前已存在泄漏分支。",
+        "D7": "3.8「p_dryrun 在整个程序里只被读了这一次…而它在 push_to_service 中完全没被使用——所以『试运行』勾选框不 dry run：默认勾选的情况下程序照样真的把数据外发」；§1.1 对账表亦点名；P0-1 列首位。"
+      },
+      "notes": "5/7。D1/D4/D5/D7 命中且证据充分；D2、D3、D6 为 partial——均触碰了对应语句并给出部分后果，但分别缺『sy-datum 在 DDL 不成立』这一核心事实（且对 cast 语法写了『无害』）、把未公开关联误述为『暴露关联』、以及只说 close 的结构性脆弱而否认当前泄漏。额外发现：报告还独立抓到 SELECT INTO TABLE 后 sy-subrc 判空是死代码、缺少 set_method 导致实际发 GET、@AccessControl #NOT_REQUIRED 无 DCL 等未列入清单的真实缺陷。"
+    },
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-9-cds-consume-http-synch\\with_skill\\run-2\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "partial",
+        "D3": "no",
+        "D4": "yes",
+        "D5": "yes",
+        "D6": "partial",
+        "D7": "yes"
+      },
+      "evidence": {
+        "D1": "3.6 ①「过滤条件与 CDS 视图完全重复…必须记得改两个地方…这种『双份真相』是维护事故的温床。既然视图已经收口，报表里根本不该写 WHERE」；3.1 ③「币种写死 USD…必须同时改视图和报表两处」与硬编码日期「口径会被永久冻结在 2024-01-01」；P1-11『过滤条件双份真相』、P3-29『币种写死 USD』。",
+        "D2": "3.1 ②「RUN_DATE 让视图结果依赖系统日期…不适合做 CDS 视图缓冲（Buffering）/ Analytic 查询被复用」，P2-27 列为『声明了不用』。只泛泛提到结果随日期变化与字段闲置，没有指出 sy-datum 是 ABAP 运行时系统字段、在 DDL 里不成立，也未给出系统字段注解/WITH PARAMETERS 的替代建议（其参数化建议只针对 WHERE）。",
+        "D3": "对关联做了明确背书：3.1 ①「association 而不是直接 join 是 CDS 建模的正确姿势…这一段写得没问题」；6.1「CDS 建模的两个关键动作做对了：关联用 association 而非 join，以及把关联路径 _Customer 排在业务字段之后」。仅在 P3-31 记『未使用的 _Customer 关联』（属使用率问题，非未公开关联不可沿路径取字段的设计失效），未识别 D3 本身，按明确背书计 no。",
+        "D4": "3.7 ①「把『转义』这件事完全托付给了开发者自己。JSON 规范要求所有字符串值里的 \"、\\、控制字符必须转义，而本程序一行转义代码都没有」；3.7 ②⑤「一旦某字段里出现 \" 或 \\，整个 JSON 直接解析失败、整批数据全部丢失」；P1-8 同款表述。",
+        "D5": "3.8 ④「SEND 的异常被完全丢弃…中间的 SY-SUBRC 从未检查…代码判断的其实是『接收』结果，却当成『整个调用』的结果」；「TIMEOUT = 3 秒过于苛刻…超时值应放大（如 30~60 秒）」；3.8 ⑤「LV_STATUS…若 RECEIVE 失败，LV_STATUS 保持初始值 0，于是 IF lv_status >= 400 为假 → 程序认为一切正常」；P0-6 / P1-12。",
+        "D6": "3.8 ⑤「CLOSE( ) 不在统一出口。中间各条失败路径（创建失败时 RETURN、其余路径靠 MESSAGE 继续）并不一致地把连接关掉…若将来在中间加 RETURN，连接就泄漏了」；P1-18「连接关闭不在统一出口，将来在中间加 RETURN 就会泄漏连接」；另补「CLOSE( ) 之后没有释放 LO_CLIENT」。点名了创建失败 RETURN 分支不走 close，但把泄漏表述为未来风险而非当前缺陷。",
+        "D7": "3.3 ①「p_dryrun 在整个程序里只被 log_result 用来决定『要不要打印一行日志』…push_to_service 从头到尾没有读过它。也就是说勾着『演练』照样发出真实 HTTP 请求。默认打勾反而更危险」；3.9 同款；P0-2『演练开关 p_dryrun 形同虚设』。"
+      },
+      "notes": "4/7。D1/D4/D5/D7 命中；D2 只泛泛提及结果依赖日期与字段闲置，未落到『DDL 中 sy-datum 不成立』；D3 明确背书 association 写法与字段位置『写得没问题/做对了』，只指出关联未被本程序使用，按背书计 no；D6 指出 close 不在统一出口并点出创建失败 RETURN 分支，但把泄漏写成未来风险，计 partial。额外发现：报告独立指出 set_method 缺失导致实际发 GET、HTTPS 未启用 prop_ssl、无鉴权、SY-SUBRC 判空是死代码等清单外真实缺陷。"
+    }
+  ]
+}

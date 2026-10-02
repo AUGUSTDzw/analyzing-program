@@ -5906,7 +5906,7 @@
         "eval": 1,
         "defect": "D2",
         "area": "语义校核",
-        "question": "报告是否指出 `REDUCE #( INIT lv_i TYPE ntgew_15 ... NEXT lv_i = lv_i + brgew )` 用净重数据元素 NTGEW 去累加毛重字段 BRGEW，且把小计结果写回净重变量，属类型/口径错配？",
+        "question": "报告是否指出 `REDUCE #( INIT lv_i TYPE ntgew_15 ... NEXT lv_i = lv_i + brgew )` 用净重数据元素 NTGEW 累加毛重字段 BRGEW，并把小计写回净重变量，属口径错配？",
         "with_skill": {
           "n": 2,
           "yes": 2,
@@ -5926,7 +5926,7 @@
         "eval": 1,
         "defect": "D3",
         "area": "健壮性",
-        "question": "报告是否指出 `gr_data->*` 未判 IS BOUND 就 ASSIGN，且 `READ TABLE ... INDEX 1` 假设总计行一定在第 1 行，在多行小计或空收集时越界或取错行？",
+        "question": "报告是否指出 `gr_data->*` 未判 IS BOUND 就 ASSIGN，且 `READ TABLE ... INDEX 1` 假设总计行一定在第 1 行，多行小计或空收集时会越界或取错行？",
         "with_skill": {
           "n": 2,
           "yes": 0,
@@ -5946,7 +5946,7 @@
         "eval": 1,
         "defect": "D4",
         "area": "错误处理",
-        "question": "报告是否指出 `refresh_table_display` 的 `finished = 1`（显示因导出而结束）被与其它异常一起静默忽略，导致用户导出 ALV 时得不到任何反馈？",
+        "question": "报告是否指出 `refresh_table_display` 的 `finished = 1`（显示因导出而结束）被与其它异常一起静默忽略，用户导出 ALV 时得不到任何反馈？",
         "with_skill": {
           "n": 2,
           "yes": 0,
@@ -5966,7 +5966,7 @@
         "eval": 2,
         "defect": "D1",
         "area": "可维护性",
-        "question": "报告是否指出源码里 `MESSAGE '无符合条件的供应商'` 与 `MESSAGE '字段目录生成失败'` 把提示文本硬编码在程序里、没有用消息类，违反 SAP 规范且无法通过 SE63 翻译？",
+        "question": "报告是否指出 `MESSAGE '无符合条件的供应商'` 与 `MESSAGE '字段目录生成失败'` 把提示文本硬编码在程序里、没用消息类，无法通过 SE63 翻译，违反 SAP 规范？",
         "with_skill": {
           "n": 2,
           "yes": 0,
@@ -6369,10 +6369,10 @@
       "delta_pp": 3.6
     },
     "paired_sign_test": {
-      "n_paired": 20,
-      "with_higher": 9,
-      "baseline_higher": 9,
-      "ties": 2,
+      "n_paired": 10,
+      "with_higher": 5,
+      "baseline_higher": 4,
+      "ties": 1,
       "exact_two_sided_p": 1.0
     }
   },
@@ -6397,7 +6397,7 @@
   },
   "headline_findings": [
     "FORMAT COMPLIANCE: with_skill 0.987 vs baseline 0.546 across 5 program types. Paired McNemar on 304 cells: 68 with-only vs 1 baseline-only, exact p = 2.37e-19. The skill's structural value is real and large.",
-    "TECHNICAL CORRECTNESS: judged defect recall with_skill 0.766 vs baseline 0.729 (delta +3.6pp). Paired sign test 9 better / 9 worse / 2 ties, exact p = 1.0. NO significant difference.",
+    "TECHNICAL CORRECTNESS: judged defect recall with_skill 0.766 vs baseline 0.729 (delta +3.6pp). Paired sign test 5 better / 4 worse / 1 ties, exact p = 1.0. NO significant difference.",
     "REGEX CONTENT ASSERTIONS A14-A19 ARE DEAD: every run including bare-model baselines scored 100% on all of them. They measure keyword presence, and any competent Chinese ABAP write-up contains those keywords. They were replaced by the LLM judge as the real content layer.",
     "SKILL DOES NOT IMPROVE DEFECT DETECTION: on planted defects the bare model is already strong (0.729). The skill's contribution is structure and completeness, not sharper code review. Per-defect table shows the skill wins big on 语义校核 (eval-1-D2 +100pp, eval-3-D3 +50pp) and 事务处理 (eval-4-D1 +75pp) but LOSES on eval-2-D1 (-100pp, hardcoded MESSAGE text).",
     "A8 v1 WAS A FALSE-NEGATIVE PROVOCATION: it required one three-layer set per ```abap block, penalising inline evidence snippets. eval-3/with/run-2 was read manually and found fully compliant yet scored 22/33. Now counts #### ① ② ③ sub-steps."

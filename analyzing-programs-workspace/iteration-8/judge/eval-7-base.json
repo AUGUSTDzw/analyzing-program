@@ -1,0 +1,62 @@
+{
+  "eval": 7,
+  "config": "without_skill",
+  "reports": [
+    {
+      "path": "analyzing-programs-workspace/iteration-8/eval-7-abstract-inheritance-polymorphism/without_skill/run-1/outputs/report.md",
+      "verdicts": {
+        "D1": "partial",
+        "D2": "yes",
+        "D3": "yes",
+        "D4": "yes",
+        "D5": "yes",
+        "D6": "yes",
+        "D7": "yes",
+        "D8": "partial",
+        "D9": "partial",
+        "D10": "yes"
+      },
+      "evidence": {
+        "D1": "P2-16（:233）+ §4.4：指出「两个子句完全相同」「条件重复强烈暗示原意包含上界判断」；但把缺失的第二条件猜成上界（lv_score > mv_max_points）而非 LV_ZERO，且 §7 的 invalid_input_raises 用 it_scores = VALUE #( ( 0 ) ) 并写「修复后必须抛」，等于认可合法 0 分被判非法，没有说清 D1 的后果。",
+        "D2": "P0-2 + §3.2 整节：明确 derive_grade 的 iv_ratio 是 0~1 比例、实参传 points（0~100），points=90.00 与 0.9 永不相等 → 落 OTHERS → 'F'，并与父类 :117 的正确用法对照。",
+        "D3": "§6.2 末段：「threshold 现有的 iv_ratio 入参在三个实现里都没被用到——删掉它，或让钩子无入参」；§8 待确认第 5 条重复一遍。",
+        "D4": "P1-7 + §4.5「对象状态中毒」：mv_errors 只在构造函数重置，validate 只累加，成为粘性状态，复用实例重试必抛异常，对象被永久毒化。",
+        "D5": "§5.3：贴出 super->constructor( ) 并注明「iv_text 从未被传给 cx_static_check」，给出 super->constructor( text = iv_text ) 的修法；P2-13 亦列出。",
+        "D6": "P2-11：「get_scale 硬编码 'A+ A F'，只描述 strict，base 与 lenient 完全不匹配」；§2.3 称多态契约缺失。",
+        "D7": "§4.6 首条 + P2-10：「先 rs_bill-waers = is_fee-waers.，五行后又被 rs_bill-waers = is_fee-waerk. 覆盖」，并指出计价/记账币种语义混淆；§8 第 4 条追问是笔误还是刻意。",
+        "D8": "§4.6 只在「不校验 is_result-passed」条目里顺带写「只是金额为分数×单价」，把该乘法当既有事实陈述，没有指出「分数×单价」缺量纲换算、金额直接写入 NETWR 的问题。",
+        "D9": "§5.1 末尾顺带一句：「DO 5 TIMES 对 buffer_overflow 重试是危险的（号码范围溢出通常不会因为重试而恢复）」——点名了循环内反复取号，但把后果说成「重试无意义/浪费」，未指出失败重试会消耗号码造成跳号。",
+        "D10": "P1-9 + §5.2：三点全中——conflict_lock/OTHERS 声明却不判 sy-subrc（调用方永远拿到 abap_false，无法区分未锁与被占）、无对应 DEQUEUE 导致锁泄漏，另加疑似 FM 签名错误。"
+      },
+      "notes": "结构化程度最高的一份：抽象/继承/多态分发讲得完整（P0 级问题定位到 strict 重写 calculate 未回写 rs_result、derive_grade 单位错配、RAISING 被当 RAISE 用），10 项预埋缺陷中 7 项完全命中。D1 与 D8 属「看到了相关语句但归因/后果说偏」：D1 把重复条件猜成漏写上界而非漏写 = 0，并在单元测试建议里反过来认可 0 分抛异常；D8 只把 分数×单价 当描述性文字带过。D9 点到 NUMBER_GET 放在 DO 5 TIMES 里重试，但归因写成重试无意义，未落到跳号。"
+    },
+    {
+      "path": "analyzing-programs-workspace/iteration-8/eval-7-abstract-inheritance-polymorphism/without_skill/run-2/outputs/report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "yes",
+        "D3": "no",
+        "D4": "yes",
+        "D5": "yes",
+        "D6": "yes",
+        "D7": "yes",
+        "D8": "no",
+        "D9": "partial",
+        "D10": "yes"
+      },
+      "evidence": {
+        "D1": "§3.5 + P1-2：「同一条件写了两遍」「两个分支完全相同，高度怀疑是复制粘贴时丢了第二个条件」，并给出后果「只要有一个 0 分就整批抛异常，而负分、超满分反而放行」——点名语句 + 说清 0 分被当校验错误。",
+        "D2": "P0-3 + §3 问题②：明确第 ① 行传的是绝对分数 points，derive_grade 语义是 0~1 比率，并列表说明 100.00/90.00/80.00 全部判 'F'、0.90 反判 'A+'，且与第 ② 行 passed 自相矛盾。",
+        "D3": "全文只在 §1.4、§2、§3 问题③、P1-5、§7.4 讨论 threshold 的「返回值被覆盖 / 双写 / 死代码」，从未提到 threshold( iv_ratio = ... ) 的形参在基类与子类实现里未被使用。",
+        "D4": "§3.5 + P1-3：「mv_errors 是实例属性且只增不减。第一次因 0 分失败后，该对象此后再也无法成功计算，构造函数里初始化的 0 也失去了意义」。",
+        "D5": "P1-4：「cx_grade_error 丢弃 iv_text，所有异常无文本、无消息类/号」；§7.2 直接给出 super->constructor( ) 未传参的现状代码与补 text 的修法。",
+        "D6": "§2.2 路径 C + §4.4：「返回值只对应 strict 的刻度，与 lenient（C/D）、pool 自身（B/C）全部矛盾」，并指出本该是各子类重写的多态展示点却写成常量。",
+        "D7": "P1-7 + §4.3：贴出两行赋值，标注「① 成了死代码」「② 又被本地货币覆盖」，指出 netpr 是文档货币价而 waers 被写成 waerk 导致金额与币种单位不匹配。",
+        "D8": "全文未把「分数×单价」当作缺陷：仅在 §3 问题①里引用 lv_amount = is_result-points * is_fee-netpr. 说明 points 恒 0 导致账单恒 0（属于 D2/P0-2 的后果），§7.9 的修复代码原样保留该乘法，等于默认该公式正确。",
+        "D9": "§4.1 末段 + P2-3：「DO 5 TIMES 对 NUMBER_GET 的 internal_error / buffer_overflow 重试 5 次，对确定性失败是纯粹的资源浪费」——点名循环内反复取号，但后果写成资源浪费，未指出失败重试会取走号码造成跳号。",
+        "D10": "P1-6 + §4.2：不检查 sy-subrc 把「锁失败」映射为「未锁定」，语义反了可能导致双重占座；全类无 DEQUEUE 配对、可能泄漏锁。"
+      },
+      "notes": "同样 7/10，但命中组合不同。D1 是本轮最干净的一次：点名重复条件并直接写出「只要有一个 0 分就整批抛异常」，比 run-1 更贴 D1 的原意。漏掉 D3（threshold 形参未使用，只谈其死代码/双写）与 D8（分数×单价，且修复代码里保留该公式，等同背书）。D9 与 run-1 情况相同：点到 DO 5 TIMES + NUMBER_GET 重试，但归因为无意义重试而非跳号。另有若干 run-1 未发现的额外项（P0-1 ratio_of PRIVATE 编译错误、COALESCE 把显式 0 当未传、lv_sum 溢出风险），属报告增值，不影响本项评分。"
+    }
+  ]
+}

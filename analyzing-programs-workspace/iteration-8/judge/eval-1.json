@@ -1,0 +1,38 @@
+{
+  "eval": 1,
+  "config": "with_skill",
+  "reports": [
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-1-alv-editable-total-poc\\with_skill\\run-1\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "yes",
+        "D3": "partial",
+        "D4": "partial"
+      },
+      "evidence": {
+        "D1": "§1.3 数据链路全景 画图标注'断链'（L31-38）；§3.2 ① 风险 🔴'落表对象错了：数据进了内联表 _mara，而后面 REUSE_ALV_GRID_DISPLAY 传的是全局表 gt_mara…gt_mara 永远是空表，屏幕上是空 ALV'（L139）；§3.2 ⑤ 重申 🔴（L226）；问题清单 P0-1 明写'INTO TABLE _mara…与 gt_mara 完全无关，屏幕是空表，后续合计恒为 0，get_subtotals 拿不到集合'（L466）。同时点出 _mara 为未声明的内联/隐式表。",
+        "D2": "§3.4 ③ 首条 🔴'累加器声明为 ntgew_15——NTGEW 是净重（net weight），而累加的对象是 BRGEW，即毛重（gross weight）…典型的能跑但语义错'，并给出改用与 MARA-BRGEW 一致类型的改进（L379）；P0-3 ① 同口径错配（L468）。",
+        "D3": "一半明确命中：§3.1 风险与 P1-1'ASSIGN gr_data->* 前没有 IF gr_data IS BOUND；空表/无 do_sum/未完成首次绘制时 ep_collect00 会 unbound，直接 CX_SY_ASSIGN_ERROR 短消息'（L351、L474），并给出 IS BOUND 包裹的改进代码。另一半被背书：§3.4 ③ 🟡'READ TABLE ... INDEX 1 硬编码第 1 行就是整体合计…虽然该约定成立，但没注释'（L384），明确判定假设成立，只要求加注释，未指出该假设本身的风险。",
+        "D4": "既注意到又自我背书：§3.4 ④ 🟠'空的 IF sy-subrc <> 0. ENDIF.：这是吞异常的典型写法——既不区分 finished…也不处理 OTHERS，等于把真实问题静音'（L410），P1-4 同样列'静默吞掉 finished 与 OTHERS，grid 异常时无任何提示'（L477）；但紧接着明确写'finished：正常返回，直接忽略即可（甚至不需要声明）'（L411），即认可忽略 finished。提到导出场景时指向的是另一个后果——'导出走的路径没有做同样的合计计算，导出的表格里合计可能不对'（L416），并未指出'用户导出 ALV 时得不到反馈'这一后果。"
+      },
+      "notes": "D1、D2 完全命中且点名语句与后果。D3 覆盖了 IS BOUND 一半（后果说到 dump 短消息），但对 INDEX 1 假设显式判定'约定成立'，按规则属背书那一半，故判 partial。D4 泛泛提到空 IF 吞掉 finished/OTHERS 且无提示，但又明确建议 finished 直接忽略；其提出的导出问题是合计口径而非用户无反馈，故判 partial。四项里 2 项满分，另两项分别命中一半。"
+    },
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-1-alv-editable-total-poc\\with_skill\\run-2\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "yes",
+        "D3": "partial",
+        "D4": "partial"
+      },
+      "evidence": {
+        "D1": "§1.4 预警表格'运行期：数据写进隐式内表 _mara，而 ALV 的 t_outtab 是 gt_mara → 数据源为空 → 屏幕白屏'（L50）；§3.2 ① 🔴'_mara 从未声明，是 SELECT ... INTO TABLE 隐式生成的内表…而 ALV 的数据源是 t_outtab = gt_mara。二者毫无关系，结果是屏幕 0 行'（L165）；§3.2 ④ 🔴 重申（L255）；P0-1（L505）同样给出改 INTO TABLE gt_mara 的建议。",
+        "D2": "§3.4 ② 🔴'BRGEW 是毛重，累加容器却是 TYPE ntgew_15（净重语义的数据元素）…合计单元的口径也和它所在的那一列（毛重列）不是一回事'，并补充跨 MEINS 基本单位求和量纲不成立（L403）；P0-3（L507）给出容器类型改 BRGEW / CONV_PU 折算的建议。",
+        "D3": "未命中 IS BOUND 一半：全文对 gr_data 的引用只出现在声明与'靠 ASSIGN 拆成内表'的中性描述（L87/L121/L376/L379），未指出 ASSIGN gr_data->* 前缺少 IS BOUND；反而把 <lg_val> IS ASSIGNED 称为'好习惯，应保留'（L407），全文无对 gr_data 未绑定即 ASSIGN 会 CX_SY_ASSIGN_ERROR 的判断。对 INDEX 1 一半只是点到即判无害：🟡'READ TABLE ... INDEX 1 假设了汇总组的第一行就是总合计…多此一举但无害'（L405）。",
+        "D4": "§3.4 ③'做什么'里说明声明并捕获了 finished（显示已因导出而结束）与 OTHERS（L435）；风险条目指出空 IF 分支'等于把失败静默吞掉…要么至少 WRITE / MESSAGE 落日志，要么干脆不写 EXCEPTIONS'（L444），P1-7 也把它并入'未捕获异常一律静默…零诊断信息'（L514）。但未把 finished 单独识别为'因导出结束、应给用户反馈而当前没有任何反馈'这一具体缺陷，也未区分 finished 属正常结束路径与 OTHERS 属真实错误。"
+      },
+      "notes": "D1、D2 明确命中并点名语句与后果（含 UNITS 口径延伸）。D3 两个子点都未站住：IS BOUND 缺失完全未提，INDEX 1 假设被明判'无害'，整体判 partial。D4 只在'空 IF 静默吞异常'这一泛化层面提到，且把 finished 的语义（导出结束）写在'做什么'而非风险里，未落到'用户导出时得不到反馈'的后果，判 partial。附带观察：run-2 大量篇幅花在 <ls_t> 未声明的激活期语法错误上（源码 L95 确有此问题，但不在本轮缺陷清单内）。"
+    }
+  ]
+}

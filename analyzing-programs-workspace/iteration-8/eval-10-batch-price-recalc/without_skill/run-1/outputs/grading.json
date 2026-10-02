@@ -1,0 +1,166 @@
+{
+  "run_id": "eval-10-without_skill-run1",
+  "expectations": [
+    {
+      "aid": "A1",
+      "name": "报告含全部六章",
+      "kind": "format",
+      "passed": true,
+      "evidence": "找到 ['一、', '二、', '三、', '四、', '五、', '六、']"
+    },
+    {
+      "aid": "A2",
+      "name": "二章含责任链表且表头含调用者列",
+      "kind": "format",
+      "passed": false,
+      "evidence": ""
+    },
+    {
+      "aid": "A3",
+      "name": "含 Mermaid flowchart TD",
+      "kind": "format",
+      "passed": false,
+      "evidence": ""
+    },
+    {
+      "aid": "A4",
+      "name": "含 Mermaid sequenceDiagram",
+      "kind": "format",
+      "passed": false,
+      "evidence": ""
+    },
+    {
+      "aid": "A5",
+      "name": "无源码行号引用",
+      "kind": "format",
+      "passed": true,
+      "evidence": "无"
+    },
+    {
+      "aid": "A6",
+      "name": "Mermaid 标签无裸尖括号",
+      "kind": "format",
+      "passed": true,
+      "evidence": "安全"
+    },
+    {
+      "aid": "A7",
+      "name": "含 P0 与 P3 优先级标记",
+      "kind": "format",
+      "passed": false,
+      "evidence": ""
+    },
+    {
+      "aid": "A8",
+      "name": "每个 ① ② ③ 拆分步骤都带齐三层标签",
+      "kind": "format",
+      "passed": false,
+      "evidence": "子步骤=0 做什么=0 风险=0 (abap块 5，其中含行内证据片段，不参与判定)"
+    },
+    {
+      "aid": "A9",
+      "name": "代码块标注 ```abap",
+      "kind": "format",
+      "passed": true,
+      "evidence": "21 块"
+    },
+    {
+      "aid": "A10",
+      "name": "含 ### 3.X 分组标题(≥2)",
+      "kind": "format",
+      "passed": true,
+      "evidence": "6 个"
+    },
+    {
+      "aid": "A11",
+      "name": "子程序分组按执行顺序(≥2 section)",
+      "kind": "format",
+      "passed": true,
+      "evidence": ""
+    },
+    {
+      "aid": "A12",
+      "name": "ntgew/brgew 语义错配被识别为风险(非背书)",
+      "kind": "content",
+      "passed": null,
+      "evidence": "skipped: 报告未提及 ntgew"
+    },
+    {
+      "aid": "A13",
+      "name": "源码 3 个子程序全部被报告覆盖",
+      "kind": "coverage",
+      "passed": true,
+      "evidence": "3/3 覆盖"
+    },
+    {
+      "aid": "A14",
+      "name": "READ TABLE 缺 sy-subrc 被识别为风险",
+      "kind": "content",
+      "passed": null,
+      "evidence": "skipped: 源码无 READ TABLE"
+    },
+    {
+      "aid": "A15",
+      "name": "FOR ALL ENTRIES 空驱动表风险被识别",
+      "kind": "content",
+      "passed": null,
+      "evidence": "skipped: 源码无 FOR ALL ENTRIES"
+    },
+    {
+      "aid": "A16",
+      "name": "硬编码语言/币种字面量被标为风险",
+      "kind": "content",
+      "passed": null,
+      "evidence": "skipped: 源码无硬编码语言/币种"
+    },
+    {
+      "aid": "A17",
+      "name": "字段语义校核(毛重/净重/单位/币种口径)",
+      "kind": "content",
+      "passed": true,
+      "evidence": "已讨论语义"
+    },
+    {
+      "aid": "A18",
+      "name": "持久化操作的事务与错误处理被讨论",
+      "kind": "content",
+      "passed": true,
+      "evidence": "已讨论 COMMIT/RETURN/EXCEPTIONS"
+    },
+    {
+      "aid": "A19",
+      "name": "硬编码 MESSAGE 文本被标为风险",
+      "kind": "content",
+      "passed": true,
+      "evidence": "已标注消息类问题"
+    },
+    {
+      "aid": "A20",
+      "name": "HTTP 调用的错误/状态码处理被讨论",
+      "kind": "content",
+      "passed": null,
+      "evidence": "已讨论"
+    },
+    {
+      "aid": "A21",
+      "name": "消息类用法(MESSAGE ID/NUMBER)被提及",
+      "kind": "content",
+      "passed": null,
+      "evidence": "已提及消息类/SE63"
+    },
+    {
+      "aid": "A22",
+      "name": "表锁的释放与异常路径被讨论",
+      "kind": "content",
+      "passed": null,
+      "evidence": "已讨论"
+    },
+    {
+      "aid": "A23",
+      "name": "后台运行分支(sy-batch)被讨论",
+      "kind": "content",
+      "passed": true,
+      "evidence": "已讨论后台/批处理"
+    }
+  ]
+}

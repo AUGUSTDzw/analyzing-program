@@ -1,0 +1,54 @@
+{
+  "eval": 13,
+  "config": "without_skill",
+  "reports": [
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-13-modern-syntax-table-expr\\without_skill\\run-1\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "yes",
+        "D3": "yes",
+        "D4": "yes",
+        "D5": "yes",
+        "D6": "no",
+        "D7": "yes",
+        "D8": "yes"
+      },
+      "evidence": {
+        "D1": "§2.2 + §0 速览第 1 条：「lv_total 同理：它在 FORM filter_and_aggregate 里诞生，却在 FORM report_output 里被用（73 行）」，明确判为语法错误、程序无法激活；顺带指出 lv_waers 跨 FORM 同样不可见。",
+        "D2": "§4.4「FILTER 的条件恒假」：「NTGEW（净重）> BRGEW（毛重）在业务上不可能成立（毛重 = 净重 + 包装重）……这行也必然把 gt_stock 清空，导致 lv_total = 0、lv_header 显示 0 行、整个 LOOP 不执行、lt_good 为空」。",
+        "D3": "§4.2「REDUCE 与 lines() 重复」：指出 lv_first 算行数与 lv_rows 的 lines( gt_stock ) 等价、CONV i( 冗余、「这两行都是死代码」；§0 第 10 条与 §7 第 10 项再次列出。",
+        "D4": "§4.3「COND i( WHEN row-mstock IS INITIAL ... ) 计数」：「它统计的是过滤前的空库位行，而 lv_total 统计的是过滤后的总量，两个数字口径不同却并排 WRITE 打印（65 行）」，并建议统一口径。",
+        "D5": "§3.1 ②：点名「没提到的组件（werks、lgort、ntgew、brgew）一律保持初始值」，并指出 mard 主键含 WERKS+LGORT，下游按工厂/库位分组会把不同库存混作一条。",
+        "D6": "§5.4 明确背书：「模板与 && 拼接、模板内嵌 lines()、W = 12 格式化——这些都是 7.40 合法语法」「唯一要注意的是：W = 12 只是显示格式，不改变 lv_total 的值」；未指出 W = <n> 是字符型零填充格式、误用于数值型数量，也完全未提表头硬编码文字/可翻译文本元素问题。",
+        "D7": "§5.1 第 1 点：「从来没人给 gv_min 赋值，永远是 0。于是 <> gv_min 对任何 mstock > 0 的行恒真，条件退化成 mstock > 0——半条死逻辑」。",
+        "D8": "§2.1 给出内联声明作用域规则（FORM 内 DATA(x) 作用域 = 该 FORM，ENDFORM 后失效），§2.4 速查表列出「FORM 内 → 该 FORM → ✗ 以为下一个 FORM 能看见」，并具体落到 lv_total / lv_header（73 行）与 lv_waers。",
+        "notes": "覆盖 7/8。缺陷覆盖最全：作用域类、过滤恒假、口径颠倒、映射丢字段、死变量、恒真条件均命中。唯一漏项是 D6 的单位格式/硬编码表头，且对 `W = 12` 给出合法背书。另有几处超出缺陷清单的额外发现（SELECT-OPTIONS FOR gt_stock-matnr 语法错、MARD 无 NTGEW/BRGEW、REDUCE p 精度截断、LOOP 内 MESSAGE、EMPTY KEY）。"
+      }
+    },
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-13-modern-syntax-table-expr\\without_skill\\run-2\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "no",
+        "D3": "yes",
+        "D4": "yes",
+        "D5": "yes",
+        "D6": "no",
+        "D7": "yes",
+        "D8": "yes"
+      },
+      "evidence": {
+        "D1": "§2.1「lv_total 跨 FORM 引用 —— 内联声明作用域用错了地方」：「DATA(x) 写在 FORM 里，变量就归入该 FORM 的局部数据，ENDFORM 之后失效。report_output 里引用 lv_total 会得到『未声明的变量』类错误，程序无法激活」，并给三种修法。",
+        "D2": "§4.1 明确背书：「另外 WHERE ntgew > brgew（净重 > 毛重）作为『重点物料』过滤条件，量纲上说得通，但业务含义未在程序里体现」——把恒假条件当成可接受写法，未指出毛重恒 ≥ 净重、条件永远筛不出行、报表输出恒为空。",
+        "D3": "§4.3「REDUCE i( ... ) —— 命名与语义不符，且是死代码」：「lv_first 从头到尾没有被使用——纯死代码」「它算的是行数，和 lines( gt_stock ) 完全等价（:43 已经算过一次了）」。",
+        "D4": "§0 P2-7 与 §4.4：「lv_missing（过滤前口径）与 lv_total（过滤后口径）混在同一行输出，两个数字不可比」；§4.4 建议总行数与零行数成对输出并在 §7 参考骨架中把两者统一到过滤后。",
+        "D5": "§4.5 第 1 点：「没列出的字段 = initial，不报错。werks、lgort、ntgew、brgew 全被静默清空」；§5 表格另标「结果集丢失库位维度，同物料多行无法辨识」，修正版补回全部字段。",
+        "D6": "§4.6 只讨论 W = 12 带来的尾部空格与 && 拼接风险，并断言「W = 12 对 p 会补足符号位和小数位……显示上无害」，未指出 W = <n> 属字符型零填充格式、误用于数值型数量字段，也未提 lv_header 硬编码表头文字/文本元素问题。",
+        "D7": "§5「gv_min 无人赋值 → 恒为 initial → ls_row-mstock <> gv_min 恒为真 → 整个第二个条件是废的，等价于只判 mstock > 0」。",
+        "D8": "§3 作用域规则表：「DATA(x) 在 FORM 内 → 该 FORM 的局部数据，仅本 FORM，ENDFORM 后消失」，规则 1「FORM 是硬边界……本程序 :61 走的是第二条（错误）」，并落到 lv_total 在 lv_header 模板中的引用。",
+        "notes": "覆盖 6/8。D2 是明确背书型漏判（把 ntgew > brgew 说成『量纲上说得通』，未识别恒假）。D6 同 run-1，只谈空格副作用并判定显示无害，未落到缺陷本身。附带错误一处：声称 START-OF-SELECTION 内联声明 lv_waers 会落进程序全局数据区、FORM 可见（第 62 行），实际事件块内联变量同样是块内局部，故第 93 行也是作用域错误——该误判不影响 D1/D8 的判定。另有额外发现：P1-6 QUAN 结构 IS INITIAL 误用、空选择范围=全表读入等。"
+      }
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "eval": 3,
+  "config": "with_skill",
+  "reports": [
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-3-global-class-alv-weight\\with_skill\\run-1\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "yes",
+        "D3": "yes",
+        "D4": "yes",
+        "D5": "yes",
+        "D6": "yes"
+      },
+      "evidence": {
+        "D1": "3.5 风险点 3：\"`FOR ALL ENTRIES` 前没有判断驱动表非空……当 `ct_stock` 为空时，`FOR ALL ENTRIES` 的 `WHERE` 条件会被**整体忽略**，这条语句退化成'全表扫描 `MAKT`'……必须在前面加 `IF ct_stock IS INITIAL. RETURN. ENDIF.`\"；P1 清单 #12 同项。",
+        "D2": "3.5 ② 风险点 1：\"**`READ TABLE` 没有检查 `SY-SUBRC`**……`ls_text` 保持上一次的赋值 —— 于是**这一行会继承上一行的描述**。用户看到的报表里会出现'某物料的描述是隔壁物料的描述'\"，并给出判 sy-subrc + CLEAR 的修法；时序图注 \"READ回填（未判subrc，描述可能串行）\"；P1 清单 #10 \"无描述物料继承上一行描述\"。",
+        "D3": "3.8 第五列风险（标为 P0）：\"`NTGEW` 是净重（Net Weight），不是毛重……毛重是 `MARA-BRGEW`……**危害**：程序能正常运行，但列标题告诉业务方'这是毛重'……**不会有任何报错**\"，并指出 NTGEW 单位基于基本单位 MEINS；P0 清单 #4。",
+        "D4": "3.4 ①：\"这一整段是**死代码**，`lv_sql` 构造完就再也没被 `EXECUTE IMMEDIATE` 或 `PERFORM ON` 使用\"；3.4 ②（标 P0）：\"`MARD` 表里没有 `EINA` 和 `NTGEW` 这两个字段……SQL 的字段清单校验在这一句就会失败\"；P0 清单 #1 与 P1 清单 #23。",
+        "D5": "3.7 风险：\"**类型层面：`EINA` 是字符型的单位代码，不是数值**……**语义层面：正确的基数不是单位代码**。MARA 里承载'换算数量'语义的是 `EINR`（每发料单位的基本单位数量）\"，给出改用 `is_row-einr` 的写法；P0 清单 #3 \"`EINA`（CHAR 3 单位代码）被当作数值除数，类型错误且语义错误\"。",
+        "D6": "3.9 ③：\"**绑定的是空内表**。`lt_stock` 在方法开头声明后从未被赋值……**ALV 永远是空表**\"；3.9 ④：\"**显示失败被静默吞掉**。`lv_ok = abap_false` 设了值，但 `lv_ok` 后面**从未被读取** —— 是个死变量\"，并指出 OTHERS = 2 吞异常；P0 清单 #8 与 P1 清单 #14。"
+      },
+      "notes": "六项缺陷全部命中且均点名了具体语句/字段并说清业务后果；D3/D5 还额外给出了正确的替代字段（BRGEW / EINR）与修法。报告另有大量与缺陷清单无关的额外发现（MARD-MSTOCK 不存在、mard-mvbeln 非法、mt_stock/ms_stock 未声明、空内表 EMPTY KEY 等），不影响本次判定。"
+    },
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-3-global-class-alv-weight\\with_skill\\run-2\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "no",
+        "D3": "yes",
+        "D4": "yes",
+        "D5": "yes",
+        "D6": "yes"
+      },
+      "evidence": {
+        "D1": "3.5 ①：\"**没有判驱动表是否为空。** 这是 `FOR ALL ENTRIES` 最经典的坑：当驱动表为空时，条件里的 `matnr = ct_stock-matnr` **被完全忽略**，SQL 退化成 `WHERE spras = 'ZH'`，即**扫描整张 `MAKT` 的中文记录**\"，给出 `IF ct_stock IS INITIAL. RETURN. ENDIF.`；P1 清单 #17。",
+        "D2": "3.5 ② 只写：\"**不判断 `sy-subrc`。** 查不到时 `ls_text` 保持初始值，`maktx` 被写成空串（**这里恰好无害**，因为 `MAKTX` 本来就是空的）\"；P2 清单 #28 \"`sy-subrc` 未判，查不到时静默写空描述，会覆盖已有值\"。既未指出 `DATA(ls_text)` 在循环中复用导致保留上一行残留，也未提到描述跨行串数据，反而断言该处无害。",
+        "D3": "3.8 ③：\"**标题与字段语义不符**……`MARA-NTGEW` = `Net Weight` = **净重**；毛重是 `MARA-BRGEW` = `Gross Weight`……**一个搞错方向的标签会让整张体检表的结论反过来**\"；同节还指出\"一旦 `NTGEW` 的单位在其他系统里不是 KG，标题就会撒谎\"；P0 清单 #11。",
+        "D4": "3.4 ①：\"**这条语句从头到尾没有被执行**——方法体里没有任何 `EXECUTE IMMEDIATE`、`PERFORM ... ON COMMIT` 或动态 `SELECT ... FROM (lv_sql)` 之类的调用\"；3.4 ②（标 P0）：\"`MARD` 表里**没有 `EINA` 也没有 `NTGEW`**……这条 SELECT 会因为'未知数据库字段'而失败。**必须改回 `JOIN MARA`**\"；时序图注 \"lv_sql 从未被执行\"；P0 清单 #2、#3 与 P2 清单 #25。",
+        "D5": "3.6 \"**方法名和实现不符**……实际算的是 `NTGEW / EINA`……物料 B（`EINA = 1000 KG`，`NTGEW = 2500`）算出 2.5000……**不是**单件重量。如果报表列名叫 `Unit Weight`，MM 的同事会按'每件 2.5 KG'去理解，结论直接是错的\"，并建议要么直接返回 `NTGEW`、要么改名为 `calc_weight_per_base_uom`；6.3 之 2 复述 \"`EINA` 是基础计量单位，拿它当除数得到的是'每基础单位重量'而不是'单件重量'\"；P0 清单 #12。",
+        "D6": "3.10 ①：\"**`lt_stock` 是局部变量，等于没有数据。** 这张内表在本方法里从头到尾**没有任何一行数据**……`it_outtab = lt_stock` 等于把一张空表交给 ALV，屏幕 100% 空\"；3.10 ②：\"**`lv_ok` 只写不读，异常被彻底吞掉。** 赋了 `abap_false` 之后，`lv_ok` 再也没被读过……**`set_table_for_first_display` 失败和成功，用户看到的都是一张空屏幕**\"；P0 清单 #9 与 P1 清单 #13。"
+      },
+      "notes": "D2 未命中：报告注意到了 READ TABLE 未判 sy-subrc，但把后果判反——称 `ls_text` 保持初始值、maktx 被写成空串且'恰好无害'，并只给出'覆盖已有描述/静默吞掉缺描述'这一无关后果，属于对缺陷的明确背书，故判 no。其余五项均点名语句/字段并说清后果。附带瑕疵：D5 一节把 MARA-EINA 的类型误述为数量型 QUAN（实为 CHAR 3 单位代码），也未指出正确换算字段应为 EINR，但'以 EINA 作除数得到的不是单件重量'这一核心语义错误与后果仍然说清了，故仍判 yes。"
+    }
+  ]
+}

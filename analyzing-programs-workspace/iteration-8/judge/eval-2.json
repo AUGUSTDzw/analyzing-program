@@ -1,0 +1,38 @@
+{
+  "eval": 2,
+  "config": "with_skill",
+  "reports": [
+    {
+      "path": "analyzing-programs-workspace/iteration-8/eval-2-procedural-vendor-report/with_skill/run-1/outputs/report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "partial",
+        "D3": "partial",
+        "D4": "yes"
+      },
+      "evidence": {
+        "D1": "3.3③ 风险项：\"消息写法违反 SAP 约定：中文文本硬编码、消息类默认 00、没有 &1 占位符，意味着永远无法翻译\"；并给出建 ZMMR_MSG + SE63 的改法（report.md:232）。P1 清单第 8 条再次点名：\"消息文本硬编码中文、无消息类、无占位符，无法翻译\"，所在子程序标注为 get_data / build_fieldcat，覆盖两条 MESSAGE（report.md:384）。",
+        "D2": "只覆盖了删除标记这一半，且换了字段名：\"【语义校核】完全没有做订单项级过滤，因此计数可能虚高……订单头已被标记删除（EKKO-LOEKZ = 'X'）的订单，照样会被计入 po_cnt\"（report.md:183）；P0 第 3 条建议加 ekko-loekz = ' '（report.md:374）。后果（计数偏高）说清了，但全文未出现 EKKO-BUKO（凭证块锁定），也未提 EKKO-MEMHO；且把问题重心放在 EKPO-DELETE_FLAG 的项级过滤上，与本缺陷的表头标志口径不完全对齐。",
+        "D3": "指出了 TABLES 过时但没落到\"新旧两代并存\"这个缺陷：\"TABLES 已被 SAP 官方列入过时语句，后续版本在新代码检查（ATC）中会被标记。替代写法是 DATA lfa1 TYPE lfa1.\"（report.md:99），P1 第 13 条也把 TABLES 列为废弃语句（report.md:389）。但报告未把 TABLES 工作区与 WHERE 里的 IN @s_lifnr / INTO TABLE @DATA(lt_vend) 放在一起看，反而在优点里把 @DATA(lt_vend)、IN @s_lifnr 单列为\"新式写法\"予以肯定（report.md:420），等于背书了这种混用，未识别出新旧语法并存的矛盾。",
+        "D4": "两条语句都点名并说清后果：\"get_data 里如果走'无数据'分支，用的是 STOP 而不是 RETURN。STOP 会终止整个程序运行单元\"（report.md:146）；\"TYPE 'I' 用得也不合适。信息弹窗会中断操作流……用 TYPE 'S' 写状态栏\"（report.md:231）；\"STOP 用错关键字。STOP 是'以状态 1 退出整个程序'\"（report.md:233），并列入 P1 第 9/10 条（report.md:385-386）。"
+      },
+      "notes": "报告对空结果分支的处理重心押在\"聚合后 sy-subrc 恒为 0、分支不可达\"上（report.md:181/227-234），这是源码外延的正确观察，但它顺带把 TYPE 'I' + STOP 的后果讲全了，因此 D4 判 yes。三个未命中的点都有相邻讨论，故 D2/D3 判 partial 而非 no。"
+    },
+    {
+      "path": "analyzing-programs-workspace/iteration-8/eval-2-procedural-vendor-report/with_skill/run-2/outputs/report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "partial",
+        "D3": "partial",
+        "D4": "yes"
+      },
+      "evidence": {
+        "D1": "3.2② 第 4 条：\"消息文本直接写在代码里，没有走消息类与 T100（SAP 的翻译与文本维护机制被绕过）\"，并要求建 Z 消息类、在 T100 维护文本（report.md:197）；P1-6 再次列出\"硬编码中文消息文本绕过消息类与 T100\"（report.md:353）。覆盖 get_data 与 build_fieldcat 两条 MESSAGE。",
+        "D2": "同样只覆盖删除标记且换了字段名：\"口径失真：缺删除标记过滤。EKKO 有表头删除标记 LOKZ。带删除标记的采购单（整单已删除/逻辑作废）仍会被 COUNT(DISTINCT) 数进来\"（report.md:171）；P0-3 建议补 AND b~lokz = @abap_false，并把后果写成 po_cnt 含已作废单、与本期活跃度直觉偏离（report.md:341）。后果说清了，但全文未提 EKKO-BUKO（凭证块锁定），也未提 EKKO-MEMHO；该项与报告同时提出的 BEDAT 期间缺失捆绑在一起，不是独立的表头有效性标志缺陷。",
+        "D3": "同样只谈 TABLES 过时、未谈并存：\"TABLES 语句已废弃（ABAP 关键字 TABLES 自 7.40 起被官方弃用）。它不仅产生隐式工作区，还把 DDIC 结构'注入'全局命名空间，让程序无法在单元测试里被替换\"（report.md:116），P1-2 重复该点（report.md:349）。但报告把 @ 转义与内联声明单独当成优点夸：\"@ 转义宿主机变量、INTO TABLE @DATA(...) 内联声明……这不是'穿新皮的 old code'\"（report.md:385），等于正面背书了与 TABLES 并存的新式写法，未识别出同一程序里新旧两代写法共存的问题。",
+        "D4": "直接点出组合缺陷并写清用户可见后果：\"MESSAGE 硬编码中文 + TYPE 'I' + STOP 的组合……TYPE 'I' 是信息消息，正常操作序列应该是 TYPE 'S'（状态消息，可自然回退到选择屏）；STOP 是硬终止\"（report.md:197），P1-1 再次要求\"用 TYPE 'S' 或 LEAVE LIST-PROCESSING 代替 STOP\"（report.md:348）。\"可自然回退到选择屏\"正对应本缺陷的后果。"
+      },
+      "notes": "报告把 D4 说得最贴合（明确提到回退选择屏），但整体把错误处理重心押在 sy-subrc 三态与 build_fieldcat 的无效 subrc 判断上（report.md:235-240），这两点属源码外延问题，与本轮四项缺陷不重叠。D2/D3 的相邻讨论存在但未落到具体缺陷，且对新式 @ 写法给了正面评价，故判 partial。"
+    }
+  ]
+}

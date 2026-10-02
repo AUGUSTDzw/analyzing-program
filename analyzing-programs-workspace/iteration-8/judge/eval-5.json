@@ -1,0 +1,42 @@
+{
+  "eval": 5,
+  "config": "with_skill",
+  "reports": [
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-5-report-bapi-rfc-upload\\with_skill\\run-1\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "yes",
+        "D3": "yes",
+        "D4": "yes",
+        "D5": "yes"
+      },
+      "evidence": {
+        "D1": "L355-L360: \"P0：返回表被'打印'而不是被'处理'\"，并明写\"程序完全没有 `IF ls_ret-type = 'E'` 这类判断，等于把'3 条成功 + 2 条错误'和'3 条错误'同等对待\"；P0-4 汇总为\"BAPI 返回表只被 WRITE，不按 TYPE 判断 'E'/'A'\"。另 L41\"第 5 步不看 BAPI 错误\"。",
+        "D2": "L325-L330: \"P0：完全没有事务控制（无 COMMIT WORK / ROLLBACK）\"，指出不落库且失败路径无 ROLLBACK；L329 明确点名应使用 `BAPI_TRANSACTION_COMMIT` / `BAPI_TRANSACTION_ROLLBACK`；P0-5 复述。",
+        "D3": "L240: \"P0：这是量纲错误（维度不一致的乘法），而且语义上根本不成立\"，并用表格校核 MARC-NETPR（金额/币种）× MARA-BRGEW（重量）=\"金额·重量/币种\"，指明应除；P0-2 汇总\"量纲错误；方向也错（应除）\"。",
+        "D4": "L221: \"`FOR ALL ENTRIES` 前没有 `IF gt_change IS NOT INITIAL` 判断\"，并说明一旦换成非空驱动场景会踩空表陷阱、建议养成加判断的习惯；P2-2\"`FOR ALL ENTRIES` 前无空表判断\"。",
+        "D5": "两处都覆盖。READ：L257 \"`READ TABLE` 未检查 `sy-subrc`。理论上毛重一定查得到……但 `READ` 失败时 `ls_w-brgew` 是初始值 `0`，乘法结果变成 `0`，程序毫无察觉\"；P2-3\"`READ TABLE` 未判 `sy-subrc`\"。RFC：L397/L415-L417 \"P0：声明了异常却不判断，`lv_ok` 是死代码\"、\"RFC 的三种失败路径全部被吞掉\"，P0-9 复述。"
+      },
+      "notes": "5/5 全部命中。报告额外识别了 SQL 投影列数与 ty_chg 不匹配（编译期 STRUCTMISMATCH）、价格写进 MARA-BRGEW、BAPI 选错（materialdata 不含 NETPR）、p_dryrun 不阻断 RFC、uploaded/replicated 谎报等额外缺陷。D4 的后果描述偏保守（称空驱动表时 FAE 不会炸），但仍明确点出缺少 IS NOT INITIAL 保护并给出改法，故判 yes。"
+    },
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-5-report-bapi-rfc-upload\\with_skill\\run-2\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "yes",
+        "D3": "yes",
+        "D4": "yes",
+        "D5": "partial"
+      },
+      "evidence": {
+        "D1": "3.5 ③ 第 2 条（L284）: \"BAPI 判定成败的唯一依据是 `TYPE` 字段（'E'/'A' = 失败，'W' = 警告，'S' = 成功）……所以这段循环没有任何 `IF`，只是打印——即使消息读出来了，也不会有人去判断它是不是 E\"；P0-4（L465）\"BAPI 返回表结构不匹配且未处理错误……即使读出来也没有 TYPE 字段，无法判定 E/W\"。",
+        "D2": "3.5 ②（L257）: \"BAPI 不提交……本程序既没有 `BAPI_TRANSACTION_COMMIT`，也没有 `COMMIT WORK`\"，L258 要求\"若出现 TYPE='E'/'A' 则 BAPI_TRANSACTION_ROLLBACK 并中止；确认无错误才 BAPI_TRANSACTION_COMMIT\"；P0-8（L469）\"事务边界缺失：无 COMMIT/ROLLBACK\"。",
+        "D3": "3.4 ③（L188）: \"净价乘毛重是量纲错误（单位错误），不是精度问题\"，并说明 NETPR（价格/件量纲）× BRGEW（质量量纲）没有任何业务含义、缺失 PRICE_UNIT/EINRZ 换算链；P0-1 复述。",
+        "D4": "3.4 ②（L159）: \"**没有 `IF gt_change IS NOT INITIAL` 保护**\"，并给出必须展开为显式判断的修复代码；P1-10（L474）\"`FOR ALL ENTRIES` 无空表保护\"。",
+        "D5": "只覆盖一半。RFC 侧：3.6 ②（L372）\"**完全没检查 `sy-subrc`**。三个异常捕获了风险却没有分支，system_failure / destination_unavailable 被静默吞掉\"，P0-6 复述。READ TABLE 侧缺失：3.4 ③（L194）对 `READ TABLE gr_weight` 只提\"无二级键……整体 O(N×M)\"，P1-12 亦仅谈键/性能，全文未提未判 sy-subrc（未说明 READ 失败时 ls_w-brgew 为 0 导致结果被算成 0）。"
+      },
+      "notes": "命中 4 项 + 1 项部分。D5 为复合缺陷（READ TABLE 未判 sy-subrc + RFC 异常未判断），run-2 只抓到 RFC 侧，READ TABLE 侧被误判为纯粹的键/性能问题，故整条判 partial。另注：报告把 RETURN 表结构不匹配升级为 P0 并据此声称消息读不到，这掩盖了 D1 的核心（缺少 TYPE 分支），但仍明确写出了\"没有任何 IF，只是打印\"，故 D1 判 yes；D4 的后果（\"退化成不带任何限制条件的全表扫描\"）与实际 ABAP 语义不符（空驱动表会跳过查询），但缺陷本身被明确指出并给了改法，故判 yes。"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "eval": 12,
+  "config": "without_skill",
+  "reports": [
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-12-vendor-maintain-lock-msgs\\without_skill\\run-1\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "yes",
+        "D3": "yes",
+        "D4": "yes",
+        "D5": "yes",
+        "D6": "yes"
+      },
+      "evidence": {
+        "D1": "§2.8「P2 缺陷 ⑦：异常 / 中断路径没有显式解锁」：「release_lock 只在 L38 的正常路径被调用。若在 lock_records 与 release_lock 之间发生运行时错误（short dump）或 MESSAGE ... TYPE 'E'（终止），release_lock 不会执行——此时依赖 ABAP 程序结束时隐式释放全部锁的机制才不至于留下孤儿锁。」§2.2 补充「当前代码之所以没有立刻造成生产事故，是因为 MESSAGE ... TYPE 'E'（L57）会终止整个报表」；§2.4「这把锁会一直存在到 L38 或程序结束」、§3.2 指出 CONTINUE 为死代码「任意一段冲突 → 整个通知任务中止」，多段 ENQUEUE 累积持锁亦被点到。",
+        "D2": "§3.3「（2）SET HANDLER 'ON_HELP_REQUEST' 指向一个不存在的 FORM」：「本程序 117 行中没有 FORM on_help_request 的定义…为不存在的 FORM 注册事件处理，会在程序激活/运行时报错…按当前源码，这个程序无法通过激活检查。」§3.3「（1）机制用错」：「AT SELECTION-SCREEN ON HELP-REQUEST 里显示帮助信息的标准做法是 MESSAGE-ID，它会把 T100 中该消息的长文本作为帮助内容显示；现在用 MESSAGE ... TYPE 'I' 会弹出一个信息提示框…把业务信息消息 001 和选屏帮助文本复用了同一编号」。§5 P1 第 9/10 条再次列出。",
+        "D3": "§2.7：「L90 DATA lt_recipients TYPE STANDARD TABLE OF adr6-adr_email. —— 声明后从未 SELECT 填充；L93 CONCATENATE LINES OF lt_recipients INTO lv_body … 对一个空内表做拼接，恒等于把 lv_body 置初值，纯粹的无操作」；「L100–102 因为 lv_body 必然为空，消息 005 每次运行都必然触发」；「这个 FORM 名叫『发邮件通知』，实际既不发邮件也不改库」。§4 表 P0 行同述。",
+        "D4": "§1.1 对象表：「gv_dummy | i | 死代码占位（L115 赋值）」；§2.9「唯一与『编号』沾边的是 L22 的 gv_dummy TYPE i，它在 L115 被赋值为 1 后再无用途（典型的『消警告占位』）」；§4 表 P2「gv_dummy 死代码，应删除而非占位」；§5 P2 第 15 条复述。HELP-REQUEST 消息方面，§3.3 指其只是弹框复用业务消息号、非真正帮助文本。",
+        "D5": "§2.7：「L95–98 循环给 ls_vendor-status 赋值后 MODIFY gt_vendor —— 只改内存内表 gt_vendor，从头到尾没有一句 MODIFY lfa1 / INSERT / UPDATE」；§4 表 P0 行「只 MODIFY 内表 gt_vendor，无 MODIFY lfa1 —— 整个程序只读，因此全部加锁逻辑在当前实现下没有任何保护对象」；§2.7 标题即「锁被持有期间零次数据库写入」。",
+        "D6": "§2.7「P1 缺陷 ⑥：锁被持有期间零次数据库写入 —— 纯粹的连接与锁占用」：「整段逻辑是在持有 LFA1 表锁的状态下执行的…一次网络往返的邮件发送就会被 LFA1 行锁全程罩住，锁等待时间会随收件人数量线性上升，并发运行时报 conflict_lock 的概率大幅升高。锁的作用域必须收敛到真正发生写入的那几行，读取和通知一律放到锁外面」；§6 末「一个只读报表持有 LFA1 行锁，纯粹是在给并发制造阻塞」；§2.6 指出与 MK01/MK02 并发的相互影响。"
+      },
+      "notes": "六个缺陷全部明确命中，且都点名了具体行号/语句并说明后果（激活失败、锁泄漏到工作单元结束、收件人恒空、W005 恒触发、只读无回写、只读报表持锁阻塞并发）。D1 判定依据是 §2.8 明确写出 TYPE 'E' 中途退出导致 release_lock 不执行、锁靠程序结束隐式释放；多区间累积持锁在 §2.2/§2.4 中亦有体现，故记 yes 而非 partial。报告额外给出的『区间只锁 low』『ZLFA1 与 E_LFA1 不互斥』『gv_locked 未判断』等为清单外加分项，不影响本次判定。"
+    },
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-12-vendor-maintain-lock-msgs\\without_skill\\run-2\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "yes",
+        "D3": "yes",
+        "D4": "yes",
+        "D5": "yes",
+        "D6": "yes"
+      },
+      "evidence": {
+        "D1": "§3.1「泄漏路径一：E 消息终止（最常见的泄漏源）」：「TYPE 'E' 是消息终止语句…CONTINUE 永远不会执行。而程序从抛出 E 到结束，中间没有任何解锁动作」「选了 3 个供应商，第 2 个被别的用户锁着 → 第 1 个的锁被留在 SAP 内存里 → 程序 dump → 这个锁一直存在，直到对话超时被清掉（默认可以到小时级），或者等管理员在 SM12/SM13 里手工清」。§2.7 注 ⑤「原代码在 LOOP 里遇到冲突就 TYPE 'E' 直接终止，此时前面几次迭代已经拿到的锁全部留在内存里」对应多区间 ENQUEUE 累积持锁。",
+        "D2": "§5「问题 6：SET HANDLER 'ON_HELP_REQUEST' 是无效代码」：「这个程序是纯 REPORT/FORM，没有任何类定义、没有任何全局方法，ON_HELP_REQUEST 这个处理器在程序里不存在；而且 SET HANDLER 通常写在过程化程序的初始化段里…这条语句要么激活时报语法错、要么是句无效的废代码，两种都得删」。HELP-REQUEST 中 TYPE 'I' 部分：「原代码在这个事件块里用 'I' 消息占位是可以的（会替代标准帮助弹窗），但更好的做法是给选择屏字段挂真正的 F1 文本，而不是弹一条消息」。",
+        "D3": "§1 表「notify_by_email | 发邮件 | lt_recipients 声明后从未填充，邮件从未发出；只把内表 status 标成 'X'」；§5 问题 5：「整段是死代码：lt_recipients 声明后从未 SELECT adr6，所以它恒为空，lv_body 恒为空，W 005 每次执行都会弹。这不是『数据质量告警』，这是『功能没写』」。",
+        "D4": "§3.2「gv_dummy = 1; 没有任何作用，属于填充代码。要么删掉，要么说明它原本想占位做什么」；§6 表「gv_dummy TYPE i | 全程序无任何作用 | 🟢」。HELP-REQUEST 消息在 §5 问题 6 中被称为「'I' 消息占位」并建议换成真正的 F1 文本。",
+        "D5": "§6 表「MODIFY gt_vendor FROM ls_vendor | 写的是一个进程结束就消失的内表，status 字段没有任何消费者，属于无效写入」；§1「代码里没有任何 MODIFY lfa1 / INSERT / UPDATE」「这个程序根本不写 LFA1」；结论 4「只读程序加写锁，是纯粹的负收益」。",
+        "D6": "§2.6「问题五：只读程序加锁，是纯负收益」：「它挡住其他用户的正常操作——别的 ABAP 顾问想改这批供应商时，会收到『已被用户 XXX 锁定』的报错；它占用对话/模态 SAP 内存中的锁对象…而这个程序一行数据库都没写，所以它防不住任何东西」；「结论：如果程序保持只读，直接删掉 lock_records / release_lock 两个 PERFORM」；§2.6 末「邮件发送…把锁窗口撑到『读 → 邮件 → 释放』这段时间毫无收益」，对应锁覆盖整个供应商区间直到程序结束。"
+      },
+      "notes": "六个缺陷全部明确命中。D2 的 SET HANDLER 半边判定的依据是报告明确指出该行指向不存在的事件处理器、会导致激活语法错或无效废代码；同一缺陷的『TYPE 'I' 代替真正 HELP-TEXT』半边被以『可以的』轻描淡写、措辞接近部分背书（但同段仍建议改用真正的 F1 文本），属清单 D2 的弱项，不改变整体 yes。D4 的 gv_dummy 半边（从未被读取、全程序无作用）判定充分。报告额外给出的『ZVND 四位消息类非 3 位』『选择屏非必填导致全量处理』等为清单外发现，说明整体源码阅读深度足够。"
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "eval": 9,
+  "config": "without_skill",
+  "reports": [
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-9-cds-consume-http-synch\\without_skill\\run-1\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "yes",
+        "D3": "no",
+        "D4": "yes",
+        "D5": "yes",
+        "D6": "yes",
+        "D7": "yes"
+      },
+      "evidence": {
+        "D1": "速览表 #9「业务过滤条件（USD / >= 20240101）写死在 CDS 视图里，报表再次重复同一条件（第二份真值来源）」；§3.1 逐条论证「过滤逻辑不该固化在视图里」「WHERE 里的日期是硬编码字面量，没有参数化」「报表侧 :47-48 又写了一遍完全相同的条件…制造了两处配置的错觉」；P1-1 给出 WITH PARAMETERS / 宿主变量参数化方案。",
+        "D2": "§3.2 原文：「cast( sy-datum as abap.dats ) as run_date：sy-datum 本身就是 abap.dats，这个 cast 是空操作；同时把 sy- 系统字段塞进视图定义，属于『非确定性 / 与运行上下文绑定』的建模方式，会带来缓存、后台任务、测试可复现性的困扰。更合理的是由 ABAP 侧传入 sy-datum。」点名语句 + 说清后果（不可缓存/后台不可复现），并额外指出 run_date 根本未被报表消费。",
+        "D3": "唯一相关论述在 §3.2：「association [0..1] to ZI_KNA1_NAME：客户名被暴露为 _Customer 关联，但报表没有 join 取名。要么用上…要么删掉。注意基数声明为 [0..1]…」——把问题定位为『报表没用 / 死元数据 + 基数声明风险』，并明确按『被暴露、可以 join』的前提给建议（『日后有人加 join 会踩坑』）。全文未提出『该关联未公开、外部 CDS 视图与 ABAP SQL 不能沿它取字段』这一后果，等同于对该构造的可用性做了背书。",
+        "D4": "速览表 #8「手工字符串拼 JSON：无转义」；§五缺陷表首行「无转义｜vbeln / kunnr / waerk 直接插值｜…一旦把 ZI_KNA1_NAME 的客户名塞进 payload（客户名必含空格、\"、\\、&），产出的就是非法 JSON，远端 400」，并补充 escape(... format=...) 是 HTML/XML 语义不能用于 JSON 转义；P1-2 给出手写 REPLACE 转义 + /ui2/cl_json 方案；§九测试用例含「kunnr 含 引号/反斜杠/中文」。",
+        "D5": "速览表 #2「send / receive 的 sy-subrc 完全没有检查，且 lv_status 初始为 0。远端 500、超时、连接失败时，程序打印 posted to ... 后以绿灯正常结束」；§6.2「send 的 sy-subrc 完全未判：失败后仍然调 receive…receive 的失败只会让 lv_status 保持 0」「lv_status 初值 0 → 0 >= 400 为假 → 一路绿灯走到 log_result」。timeout 量级：速览表 #5「无超时参数化（timeout = 3 秒对公网接口过激）」+ §6.2「timeout = 3 秒硬编码：公网 + 大 payload 下必然大量 http_communication_failure，而且失败被静默」。D5 两个子项均覆盖。",
+        "D6": "速览表 #7「MESSAGE ... TYPE 'S' 会终止当前 FORM，导致 lo_client->close( ) 被跳过（HTTP 连接泄漏）」；§6.2「MESSAGE 会终止当前 FORM，因此 close( ) 不会执行 → HTTP 连接不归还，长跑任务下 ICM 连接池耗尽」；§6.3 专门给出「清理路径不完整」出口表，逐条标注 create_by_url 失败 RETURN / send-receive 失败 / >=400 MESSAGE / 正常 四条路径的 close( ) 是否执行；P0-2 修复骨架把 close( ) 提到错误上报之前。",
+        "D7": "速览表 #1（P0 阻塞）「p_dryrun 只在 log_result 里用于控制打印，HTTP 调用无条件执行。『空跑』开关是假的，默认 'X' 下依然会把数据推到外部系统」；§二执行流程图标注「push_to_service ← 不看 p_dryrun，直接走 HTTP」；§七「没有 dry-run 语义隔离 → 最危险的一点：想『先看看不真发』，实际上已经发出去了」；P0-1 给出在 push_to_service 开头 IF p_dryrun = 'X' … RETURN 的修复；§九测试用例「p_dryrun = 'X' → 零 HTTP 请求」。"
+      },
+      "notes": "6/7。报告整体质量高：P0 覆盖了 dry-run 失效、sy-subrc 不检查导致失败被报成成功、create_by_url 误用（发空 GET）三个真实缺陷，JSON 无转义、close() 泄漏、过滤条件双份硬编码均点名并说清后果。唯一漏判 D3：把 association 当作『已暴露、可 join 的死元数据』，其给出的『要么用上、要么删掉』建议隐含否认了『未公开关联无法被外部消费』这一缺陷。附带说明：报告称 MESSAGE TYPE 'S' 会终止 FORM 从而跳过 close()，该 ABAP 语义判断有误（TYPE 'S' 不中断 FORM），但因 D6 关注的是 close() 泄漏与清理路径不完整这一后果，仍判 yes。"
+    },
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-9-cds-consume-http-synch\\without_skill\\run-2\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "yes",
+        "D3": "partial",
+        "D4": "yes",
+        "D5": "yes",
+        "D6": "yes",
+        "D7": "yes"
+      },
+      "evidence": {
+        "D1": "§2.1①「业务过滤条件被写死在 DDL 里，且无法覆盖…想取 EUR 单据、想换时间窗的调用方无法覆盖，只能得到空结果；没有 @Consumption / WITH PARAMETERS 之类的参数化出口，所以『换条件』唯一的办法就是改视图，而视图是被多个程序共用的」；§3.2「过滤条件在 CDS 和 ABAP 里重复了…对结果没有任何影响（下推后 CDS 先过滤），却制造了『两处规则』的错觉」，并点出改 ABAP 侧条件会永远 0 行且因 §3.1 bug 无提示。",
+        "D2": "§2.1② 标题即「cast( sy-datum as abap.dats ) as run_date 让视图变成非确定性对象」，正文「把会话变量 sy-datum 塞进 SELECT 列表是 DDL 层的反模式：结果依赖调用时点，不可缓存、不可复用；该表达式通常会阻止谓词下推（pushdown），让 WHERE wrdat >= ... 无法完全下推到 DB；任何二次加工（CDS 消费模型、MDM 抽取、跨系统同步）复用这个视图都会得到『运行当天』这个伪业务字段」。点名语句 + 后果（还额外命中下推/缓存），优于 run-1。",
+        "D3": "§2.1⑤「association 是死元数据：ZI_KNA1_NAME 没有 join、也没有被任何消费方 select，运行时零开销，但它让视图多了一个激活期依赖。若该 CDS 不存在/未激活，视图无法激活。另一个待确认点：若 ZI_KNA1_NAME 带语言字段（spras），[0..1] 的基数声明就是错的，应为 [0..*]」；§10 遗留问题 4 亦复述关联存在性与基数。提到了该语句并讨论了激活期依赖与基数风险，但把问题定性为『未使用的死元数据』，完全没有落到 D3 的后果——未公开关联导致外部 CDS 视图与 ABAP SQL 沿它取不到字段。属『泛泛提及未落到具体缺陷』，判 partial（未明确背书可用性，故不判 no）。",
+        "D4": "§5.1「### 5.1 没有任何转义：整段靠 | | 把 {、\" 硬转义出来手写 JSON。只要任一字段出现 \"、\\、换行或控制字符，产出的就是语法错误的 JSON，而且没有任何机制能发现。vbeln/kunnr 是纯数字字符，暂时安全；一旦把客户名称（ZI_KNA1_NAME）接进来，中文/引号立刻炸」，并给出 /ui2/cl_json=>serialize( ) 修复与 str_replace 转义思路。",
+        "D5": "§6.3「【P0】所有失败都被报成成功」三步链路：①「send 的 sy-subrc 完全没有检查，发送失败被静默吞掉，紧接着仍然调用 receive」②「lv_status 初始为 0，receive 失败 → lv_status 保持 0 → IF lv_status >= 400 为假 → 不发任何消息」③「MESSAGE ... TYPE 'S'（成功类型）…不中断 FORM…走到 log_result 打印 posted to」；并给出「网络不通、超时、证书错误、服务端 500、参数被拒 —— 屏幕上都会显示 posted to」。timeout 量级：§6.7「send 给了 3 秒，receive 完全没给（走默认值）…3 秒本身对外部网络也偏激进…也没有任何重试/退避」。D5 两子项均覆盖。",
+        "D6": "§6.4「客户端资源没有可靠释放：close( ) 写在最后一行，前面任何一条 MESSAGE ... TYPE 'A'、或 response->get_data( ) 抛异常，都会跳过它 → HTTP 连接泄漏。建议 close 紧跟处理逻辑，或用 TRY/CATCH + FINALLY 保证释放」；§8 重构骨架在 TRY/CATCH 之后统一 close( )。",
+        "D7": "§6.2「【P0】p_dryrun 是个假开关：p_dryrun 只出现在 log_result 里，决定要不要打印那行提示。push_to_service 完全不看它…默认勾选（试运行）→ 照样真的发送；取消勾选（真要发）→ 只是多打一行日志」，并从默认值 DEFAULT 'X' 推断作者主观意图为『默认安全』却被架空；给出 IF p_dryrun = abap_true … RETURN 修复；§9 复核清单第 4 条专门设计验证动作（保持 p_dryrun='X' 抓包仍有出站请求）；§11 优先级第 2 条。"
+      },
+      "notes": "6/7。报告把 P0 押在 set_method 缺失、p_dryrun 失效、失败被报成成功三点上，与预埋缺陷 D5/D7 完全对应；D2 的『sy-datum 进 DDL 层反模式 + 阻止谓词下推』说得比 run-1 更准；D4 明确点名引号/反斜杠导致非法 JSON。唯一未判定的 D3：识别到 association 存在并讨论了激活期依赖与 [0..1] 基数风险，但把它定性为『死元数据/零开销』，没有指出『未公开关联，外部 CDS 视图与 ABAP SQL 不能沿它取字段』这一核心后果，故记 partial 而非 no。"
+    }
+  ]
+}

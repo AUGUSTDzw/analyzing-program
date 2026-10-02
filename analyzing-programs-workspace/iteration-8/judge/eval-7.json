@@ -1,0 +1,62 @@
+{
+  "eval": 7,
+  "config": "with_skill",
+  "reports": [
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-7-abstract-inheritance-polymorphism\\with_skill\\run-1\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "yes",
+        "D3": "yes",
+        "D4": "yes",
+        "D5": "yes",
+        "D6": "yes",
+        "D7": "yes",
+        "D8": "yes",
+        "D9": "partial",
+        "D10": "yes"
+      },
+      "evidence": {
+        "D1": "3.9 ③ 完整引用 validate 方法体并写明「条件被抄了两遍：lv_score IS INITIAL OR lv_score IS INITIAL 两侧完全相同，第二个子条件是死代码」，推断本意应为 > mv_max_points 或 < 0；另指出 IS INITIAL 使合法 0 分被判非法。P0-5 同步列出。",
+        "D2": "3.6 ③「单位错位（最致命）」：points(0~100) 当 iv_ratio 传入，derive_grade 用 WHEN 0.9/WHEN 0.8 精确等值匹配，100.00 必落 OTHERS → 'F'，明确「严格评分器对任何学生都返回 F，无一例外」。P0-2。",
+        "D3": "3.3 ② 与 3.4 ③ 均指出「threshold 的入参 iv_ratio 在两个实现里都完全没被用到……一个永远不被读的参数」；P1-9「iv_ratio 入参在所有实现中都不被读取」。",
+        "D4": "3.9 ③「计数器粘滞：mv_errors 只在构造函数里清零，validate 只增不减……之后每一次 calculate 哪怕分值合法都会抛 cx_grade_error」，并建议改局部变量；P0-4。",
+        "D5": "3.2 ②「iv_text 从未被使用」，只调 super->constructor( ) 空参，导致 SE80 里 Text 为空、message 为 ???，并给出 text = iv_text 修法；P1-6。",
+        "D6": "3.9 ②「get_scale 硬编码 'A+ A F'，所有动态类型都返回这一份」，指向 lenient 时返回错误刻度（实际只有 C/D），strict 才正确；P0-8 判定多态在该处完全失效。",
+        "D7": "3.9 ⑥「币种被写错两次：第 3 行 rs_bill-waers = is_fee-waers 立刻被第 5行 rs_bill-waers = is_fee-waerk 覆盖，前一行是死代码」，并解释 WAERK 为价格单位币种不能充当账单币种；P0-7。",
+        "D8": "3.9 ⑥「核心语义错配：points * netpr 得到的不是任何业务上成立的金额……缺了最关键的一环——数量（MENGE）」，指出 ty_fee 无数量/汇率字段，0.83 × 3.50 无业务含义却写入 NETWR；P0-7。",
+        "D9": "仅在 3.9 ⑦ 以 🟠「失败路径没有清理：若某次调用在号码段端已经消耗了号段而本地后续处理失败，没有回滚也没有释放语义」及 P2-2「失败不回滚已消耗号码」点到号码被消耗，但始终未说出「跳号/号段留空洞」这一后果；主攻方向反而是 RETURNCODE 误判成功与异常名不属该 FM。",
+        "D10": "3.9 ⑧「列了 conflict_lock 和 OTHERS 却完全不判 sy-subrc：lv_locked 在异常路径上保持初始值 abap_false，返回值会把加锁失败伪装成未加锁」＋「只 ENQUEUE、从不 DEQUEUE……届时所有学生都会被永久锁死」；P2-1。"
+      },
+      "notes": "10 项中 9 项明确命中（D1~D8、D10），仅 D9 判为 partial。报告逐段贴出 validate/get_scale/calculate_fee/cx_grade_error 源码并给出量化后果，缺陷定位精确度很高。唯一短板在 reserve_seat：把 NUMBER_GET 的重点放在 RETURNCODE 误判成功与无效异常名（这是另一处更严重的缺陷），对重试导致的号段空洞只以「没有回滚」一句带过，未落到跳号留洞的业务后果。"
+    },
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-7-abstract-inheritance-polymorphism\\with_skill\\run-2\\outputs\\report.md",
+      "verdicts": {
+        "D1": "no",
+        "D2": "yes",
+        "D3": "yes",
+        "D4": "yes",
+        "D5": "yes",
+        "D6": "yes",
+        "D7": "yes",
+        "D8": "yes",
+        "D9": "yes",
+        "D10": "yes"
+      },
+      "evidence": {
+        "D1": "全文未出现 validate 的方法体，也未引用 `IF lv_score IS INITIAL OR lv_score IS INITIAL`；仅在流程图（2.1 D节点）与责任链表里把 validate 描述为「逐项检查零分并累计 mv_errors」「因零分抛异常」，属于中性描述而非缺陷判定。既未指出重复分支这一死代码，也未把合法 0 分被判非法立为缺陷。",
+        "D2": "3.6 ②「【P0 #2】形参语义错配：把『得分』传给了形参名为 iv_ratio、实现在按比例分派的形参」，传 90.00 永远匹配不上 WHEN 0.9 而落 OTHERS 得 'F'，并注明即使修好 ls_result 仍恒返回 F；P0 第 3 条。",
+        "D3": "3.3 ③ 第 1 条「threshold( iv_ratio = lv_ratio ) 的入参是废的……它只是个取值器」，会诱使后来者以为阈值随比例动态变化，建议改为无参方法；P1 第 7 条。",
+        "D4": "P1 第 3 条「mv_errors 是跨调用累积的持久状态——只在构造函数归零；一旦某次调用因零分抛异常，后续所有 calculate 都会因 mv_errors > 0 继续抛异常，即使传入的分数完全合法」，建议改为局部计数器。",
+        "D5": "3.1 ④「这是一个『有嘴不能说』的异常类：iv_text 声明为可选形参，实现里却完全不读它，super->constructor( ) 是空参调用」，三处 RAISE 均无消息，线上无法区分失败原因；P1 第 2 条。",
+        "D6": "3.10 ①「三个实例、三种刻度（根类 B/C、lenient C/D、strict A+/A/F），但 get_scale 永远返回 'A+ A F'」，判为里氏替换违反、多态最大漏洞；P0 第 7 条。",
+        "D7": "3.7 ①「第一步本身有一个必须指出的死赋值：rs_bill-waers = is_fee-waers 紧接着被 rs_bill-waers = is_fee-waerk 覆盖」；②2「【币种语义错配·P0】WAERS 是凭证币种、WAERK 是交易币种，把交易币种写进了凭证币种字段」；P0 第 6 条。",
+        "D8": "3.7 ②1「【语义错配·P0】用『分数』当『数量』做金额计算……正确公式应是 MENGE × NETPR，而 ty_fee 结构里根本没有数量字段」，并指出这是计费模型缺维度而非少传参数；P0 第 6 条。",
+        "D9": "3.8 ①1「【断号·P1】失败路径会永久消耗号段，形成不可见的空洞。NUMBER_GET 一旦被调用，号就被取走，即使失败该号也不会回到号段，断号意味着有实体但没有编号记录，事后对账极其痛苦」，并建议记录已取号或改批量取号；P1 第 6 条。",
+        "D10": "3.9 ①1「【P0·锁失效】CALL FUNCTION 之后完全没有检查 SY-SUBRC，conflict_lock 异常被彻底吞掉……返回值对锁冲突和锁成功给出的回答是一样的」；①2「【P0·锁泄漏】类里只有 ENQUEUE，没有任何 DEQUEUE……调用方一旦中途抛异常且未提交事务，锁就被永久持有」；P1 第 1 条与 6.2 短板 5。"
+      },
+      "notes": "9/10 命中。D1 完全漏判：报告对 validate 只做流程性描述（『逐项检查零分』），未引用其方法体，因此既未发现 OR 两分支完全相同的死代码，也未把合法的 0 分被当作校验错误拒绝立为缺陷。其余 9 项均点名具体语句并给出后果，其中 D9、D10 的后果表述最完整（断号空洞、锁泄漏与无 SY-SUBRC 判定）。该报告另有两处不在清单内的高价值发现：ratio_of 为 PRIVATE 却被子类调用导致类池无法激活，以及 strict->calculate 中 ls_result 未回填 rs_result。"
+    }
+  ]
+}

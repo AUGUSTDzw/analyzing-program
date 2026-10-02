@@ -1,0 +1,42 @@
+{
+  "eval": 4,
+  "config": "without_skill",
+  "reports": [
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-4-function-group-rfc-price\\without_skill\\run-1\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "partial",
+        "D3": "partial",
+        "D4": "yes",
+        "D5": "yes"
+      },
+      "evidence": {
+        "D1": "§5.5「P1：两条 DB 写非原子 + 全程无行锁 → 丢失更新」：『MODIFY marc 与 UPDATE mard 是两个独立的 DB 操作，**中间没有 COMMIT WORK**，也**没有放在同一个 LUW 语义下**。RFC 上下文里没有隐式提交。中途 dump/断连 → MARC 已改、MARD 未改（或反之）』；§5.8 缺失机制表「事务 | 无 LUW/提交策略 | 半写状态（§5.5）」。",
+        "D2": "§3 注释④ 点了该语句但定性为接口异常契约错配：『接口声明的是 EXCEPTIONS NO_DATA 1，实现抛的却是 cx_sy_no_data…CX_SY_NO_DATA 没有 RFC 文本，从外部 RFC 调用时通常在调用方侧以未映射异常结束』。§7.2「会影响激活的硬错误」只列了 3 条（lt_desc 未声明、normalise_uom 实参名、MARC 三列存疑），未把 cx_sy_no_data 列为激活/语法错误；全文默认该异常类存在（写成『CX_SY_NO_DATA 没有 RFC 文本』）。",
+        "D3": "§4 注释③ 只谈除零：『ls_row-eina 未做非零判断。EINA（订货单位）在实际数据里经常为空，一旦为空就是 CX_SY_ZERODIVIDE 直接 dump』；§4 概述 3 写『用毛重/订货单位算一个「重量」，并夹到 0.5 上限（算完丢弃）』，但未指出毛重口径与 z_read_price_rows 输出净重（ntgew）不一致这一语义缺陷。",
+        "D4": "§4 注释② 双重错误：『即便名字改对，传的也是 ls_row-waers（货币），而 iv_uom TYPE marc-uom 要的是计量单位。而 MARC 的 uom 字段根本没被 SELECT 出来，值恒为初始』；§6.2 血缘图『normalise_uom ← 调用错误（实参名/语义双错）』。",
+        "D5": "§7.3「gt_cache 内存增长」：『函数组是会话级共享内存…反复调用 z_read_price_rows 会把同样的行重复追加：既是内存泄漏…也是语义错误（叫 cache 却从不命中）』；§6.3 读写矩阵 gt_cache 写 ✅ 读 ❌。TABLES 按引用被写后又被读/追加的副作用只在 §3 顺带提到『异常抛出时 it_rows 已被清空/填充…需要文档化』，未作为风险点展开。"
+      },
+      "notes": "整体质量很高，把 P0 集中在「写入目标工厂不确定 / 币种硬编码 USD / 只改派生字段不同步 EINE / mard 空写」上。5 个预埋缺陷中 3 个明确命中（D1、D4、D5），D2、D3 只停在相关语句层：D2 被误判为 RFC 异常映射问题（并默认 cx_sy_no_data 是存在的类，故未进激活错误清单），D3 被压缩为除零防护问题，毛重/净重口径不一致这一层没看出来。"
+    },
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-4-function-group-rfc-price\\without_skill\\run-2\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "yes",
+        "D3": "partial",
+        "D4": "yes",
+        "D5": "yes"
+      },
+      "evidence": {
+        "D1": "§6.7「中危 · 无授权检查、无锁、无事务边界」：『无 COMMIT WORK、无异常、无错误回传：失败时静默，甚至在 long-running 场景下留下不一致』；§4.2 流程图终点节点『结束，无 COMMIT / 无异常 / 无 sy-subrc 处理』；§6.8 汇总表第 14 行「无授权检查 / 无锁 / 无事务边界 | 中 | 越权 + 并发覆盖」。",
+        "D2": "§3.3 第 3 条：『cx_sy_no_data 这个类在标准 SAP 里并不存在（SAP 没有叫这个名字的异常类），本仓库也没有定义它，**引用不存在的类 → 激活失败**』；§6.8 汇总表第 4 行「cx_sy_no_data 不存在 | 阻断 | 编译失败」；§4.2 流程图将 RAISE 节点标红。",
+        "D3": "§6.6 标题即『除零未防护』，只论证『eina（国际单位换算分母）为初始值 0 时直接 CX_SY_ZERODIVIDE』以及 MARA/MARC 字段混用；全文未指出 brgew（毛重）÷ eina（国际单位换算分母）得到的是单位重量、与 z_read_price_rows 取 ntgew（净重）的口径不一致。",
+        "D4": "§4.3：『而且传入的是 ls_row-waers（币种字段），而形参类型是 marc-uom（基本计量单位）——字段语义完全错位』；§7 P1『形参是 iv_uom TYPE marc-uom，必须传基本计量单位…不能传币种字段 waers』；§6.8 汇总表第 5 行『normalise_uom( is_row = … ) 参数名非法 | 阻断 | 编译失败』。",
+        "D5": "§2.2：『调用一次读 FM，就往 gt_cache 里塞一份快照，内存单调增长；重复调用同一物料会产生重复行…等于纯粹的状态污染』；§6.8 汇总表第 15 行「gt_cache 单调增长、重复累积 | 中 | 内存与状态污染」；§7 P1 建议删除 gt_cache。TABLES it_rows 按引用传入后被写入（INTO TABLE）并被读取/追加的部分，仅在 §3.1 作为遗留风格一笔带过，未定级为风险。"
+      },
+      "notes": "4/5 命中。D2 判定最准（明确指出 cx_sy_no_data 不是有效异常类、引用即激活失败，并与 EXCEPTIONS no_data 契约不符叠加）。唯一未落地的是 D3：报告把 brgew/eina 只当作除零与 MARA/MARC 结构混用问题处理，没有识别『毛重 ÷ 国际单位换算分母 = 单位重量，与读 FM 输出的净重口径不一致』这一语义缺陷。附带优点：额外指出 MODIFY marc FROM ls_row 的 work area 类型不匹配、主程序可能未 INCLUDE PACU01 等源码结构层面的编译阻断点。"
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "eval": 4,
+  "config": "with_skill",
+  "reports": [
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-4-function-group-rfc-price\\with_skill\\run-1\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "no",
+        "D3": "partial",
+        "D4": "yes",
+        "D5": "yes"
+      },
+      "evidence": {
+        "D1": "3.5⑤『没有事务（LUW）管理。FM 内既没有 COMMIT WORK 也没有 ROLLBACK WORK』，并给出后果链（MODIFY 打开 LUW、数据挂在 SAP-LUWA、RFC 结束不隐式提交、可能形成『看不见的幽灵修改』，调用方 ROLLBACK 依赖调用方事务）；时序图末尾亦标注『LUW 保持打开，无 COMMIT 也无 ROLLBACK』（L477-L481、L618、L702）。",
+        "D2": "3.4④ 把该语句定性为『经典 FM 异常 vs 类异常混用』，明说『RAISE EXCEPTION TYPE cx_sy_no_data 抛的是类异常』，并给出 CATCH cx_sy_no_data 的改法（L337-L340）。全文未指出 CX_SY_NO_DATA 不是有效异常类/代码无法通过语法检查，反而默认它是可用类，等同于背书，故判 no。",
+        "D3": "3.5③ 确实点名 `ls_row-brgew / ls_row-eina` 并判定为错：把 EINA 当作采购信息记录号 CHAR(10)、不是一个数量，可能静默算错或 CONVT_NO_NUMBER 短 dump；建议改 ntgew/brgew（L440-L443）。但未指出『用毛重 brgew 而非净重 ntgew 计算单位重量，与 z_read_price_rows 输出的净重口径不一致』这一具体口径问题，仅泛泛谈分母语义 → partial。",
+        "D4": "3.5③『调用本身编译不过』：实参名 is_row 不存在（那是 is_valid_price 的形参名），且传入的是 waers（币种 CHAR 5）而非 UOM；并指出 ty_price_row 里根本没有 UOM 字段。P1 清单 #13 重复（L438、L649）。命中。",
+        "D5": "gt_cache 部分完全命中：3.3① 与 3.4⑤ 指出 APPEND LINES OF it_rows TO gt_cache 只写不读、不随调用重置、绑定 SAP-LUWA、长会话单调增长直至 STX/内存泄漏，且无失效机制；P1 #19 复述（L208-L212、L355、L655）。TABLES/`lines( it_rows )` 部分只部分触及：3.4① 提到 TABLES 内表按引用传、IT_ROWS 未 CLEAR 会与旧数据混同、P2 #24 批评 TABLES 语义含糊，但明确把 `lines( it_rows )` 判定为『不算错』（L259-L261、L320、L665）。因主要预埋点（全局内存污染 + 无失效）已明确点名并说清后果，判 yes，附注 TABLES 半边只算部分覆盖。"
+      },
+      "notes": "强项：D1 事务边界、D4 参数语义错配、D5 全局缓存污染三条均点名语句并给出具体后果；额外发现了 SELECT FROM marc 取 MARA 字段、lt_desc 未声明、include 命名错配等旁支问题。失分点：D2 方向完全反了（把 CX_SY_NO_DATA 当成有效类异常讨论，还给出基于该类的改法）；D3 只诊断出分母语义错误，未落到毛重/净重口径不一致。"
+    },
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-4-function-group-rfc-price\\with_skill\\run-2\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "no",
+        "D3": "partial",
+        "D4": "yes",
+        "D5": "yes"
+      },
+      "evidence": {
+        "D1": "3.4⑥『无事务边界、无异常捕获：代码里既没有 COMMIT WORK，也没有 CATCH cx_sy_db_error』，并讨论提交时点与调用方 ROLLBACK 的关系，要求『明确事务语义』；P1 清单 #11『写 FM 没有 EXCEPTIONS 出口，且无 COMMIT WORK / ROLLBACK / CATCH cx_sy_db_error，事务边界不明、失败无法反馈』（L445、L606）。命名并说清后果 → yes。",
+        "D2": "3.3④『RAISE EXCEPTION TYPE cx_sy_no_data 抛的是一个全局异常类（CX_SY_NO_DATA，SAP 通用“无数据”类）』，仅批评它与 FM 声明的 NO_DATA 不匹配，结论是调用方 EXCEPTIONS 分支永不触发/短 dump（L310）；P1 #7 同样只谈异常契约不统一（L602）。全文明确背书 CX_SY_NO_DATA 为有效全局异常类，未指出其为数据对象、代码无法通过语法检查 → no。",
+        "D3": "3.4④ 明确点出作者意图是『单位重量合理性校验』，并指出量纲错误（EINA 是采购单价而非数量，正确的『单位重量』应除以 MARC-EANZ 或 MARA-EISZ），还判为必抛 CX_SY_ZERODIVIDE（L405-L411）；P0 #3 复述（L593）。但把 EINA 解读为『采购单位的价格』，且完全未涉及毛重 brgew 与 z_read_price_rows 输出的净重口径不一致这一点 → partial。",
+        "D4": "3.4③ 标题即『调用单位归一化（参数语义错配）』：『实际传入的是 ls_row-waers（币种），而方法的形参 iv_uom 类型是 MARC-UOM（基本计量单位）』，并指出长度都是 CHAR 3 所以编译运行都不报错、只能靠人眼发现；3.5① 与 P2 #15 复述（L385-L389、L514、L615）。命中。",
+        "D5": "gt_cache 部分完全命中：3.2③ 与 3.3⑤『只增不减、不去重、无失效』『纯内存泄漏』『无任何 FM 能读它』，建议删除或按 MATNR 覆盖并提供清理 FM；P1 #12『gt_cache 只增不减、不去重、无失效机制、全组零读取——长会话内存持续增长』（L204、L328、L607）。TABLES/`lines( it_rows )` 半边未覆盖：报告反而称『it_rows 是 TABLES 参数（传入即清空）…这是对的』（L266），也未指出按引用传入后 lines( it_rows ) 的共享内存读取风险。因主要预埋点已明确点名并说清后果判 yes，附注 TABLES 半边缺失。"
+      },
+      "notes": "强项：D1 事务边界与失败反馈、D4 参数语义错配、D5 全局缓存无失效三条明确命中且后果描述到位；并系统定位了 SELECT 取 MARA 字段、lt_desc 未声明两处激活期硬错误。失分点：D2 与 D1 相似地反向背书（明说 CX_SY_NO_DATA 是 SAP 通用类），未识别『非有效异常类→语法检查不过』；D3 只覆盖量纲/除零，未覆盖毛重与净重口径不一致。"
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "eval": 6,
+  "config": "with_skill",
+  "reports": [
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-6-salv-table-events\\with_skill\\run-1\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "yes",
+        "D3": "yes",
+        "D4": "yes",
+        "D5": "yes"
+      },
+      "evidence": {
+        "D1": "3.4-② 风险与改进：「这个字段最终根本不上屏。ALV 是用 gt_po 建的…而 gt_po 里没有 ebeln_t 这一列。所以这三行是纯无效计算——所有循环 + 写回都白做。」另见 4.1-1「同一份数据被生产了两次，消费者只有一个…mt_data 生产出来后无人消费」，以及 P0 第 6 条「mt_data（含 lifnr、派生描述）完全作废」。",
+        "D2": "3.4-③ 风险与改进：「静默的硬过滤 + 重复扫描。用户输入的订单区间里，所有非欧元订单被无声丢弃。没有 MESSAGE…」，并给出改选择屏字段/告知用户的建议；同节另列「两次扫同一张表…纯属重复 IO」。P0 第 5 条再次点名 waers='EUR' 硬过滤丢弃非欧元订单零提示。",
+        "D3": "3.6-③ 风险与改进：「致命：CATCH cx_salv_msg. 之后没有 RETURN，紧接着执行 lo_popup->display( )。异常被捕获后 lo_popup 保持初始引用，第 ④ 步解引用会直接 CX_SY_REF_IS_INITIAL 短转储」，并与 display_alv 的 CATCH...RETURN 作对比。P0 第 7 条同点。",
+        "D4": "3.1-② 风险与改进：「这个属性在两个事件处理方法里一次都没被读过…典型的『重构做了一半』的残留字段——建议直接删除」；3.5-⑥「这个属性的赋值目的不明且毫无效果…建议直接删除」；P3 第 4 条「mv_show 命名/类型/用途三者不一致，是未完成的重构残留」。",
+        "D5": "3.5-⑥ 风险与改进：「绑定 on_link_click 是无效绑定。LINK_CLICK 事件只在用户点击 cell type 为 hotspot 或 button 的单元格时触发，而 ⑤ 里只给 EBELN 设了长文本、给 NETWR 设了 numeric，没有任何一列被设为 hotspot/button。所以 on_link_click 在正常运行路径下永远不会执行——这是一个『看起来有、实际是死代码』的事件处理器」；3.8 与 P1 第 4 条重复确认。"
+      },
+      "notes": "5/5 全中。报告在 1.4 结论表和 6.1「直接回答四件事」里对 D1/D2/D3/D4/D5 均有明确背书式判定（死代码、静默过滤、必崩短转储、无用属性、永不触发），不仅提到语句也讲清了后果。另有大量超出缺陷清单的额外发现（kumqw 字段不存在、mt_data 声明成结构、SELECT-OPTIONS 顺序、INDEX row 排序串单、?= 假防护、LOOP+MODIFY 冗余等），未影响本轮判定。"
+    },
+    {
+      "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-6-salv-table-events\\with_skill\\run-2\\outputs\\report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "yes",
+        "D3": "yes",
+        "D4": "yes",
+        "D5": "yes"
+      },
+      "evidence": {
+        "D1": "3.4-② 风险与改进：「结果被丢弃。拼好的 ebeln_t 留在 mt_data 里，而 ALV 用的是 gt_po，所以这列根本不会显示。」；3.4-①「这条查询的结果被完全丢弃。mt_data 全程序只在本方法内被写入，从未被 display_alv 读取」；时序图 Note「mt_data 之后无人读取 结果丢弃」；P1 第 8 条「mt_data（6 列 + ebeln_t）查完即弃」。",
+        "D2": "3.4-③ 风险与改进：「硬编码 waers = 'EUR' 是最严重的问题…用户在界面上完全看不到这个限制…非欧元订单被静默丢弃」，建议改为选择屏参数 + F4 读 TCURX；同节「和 ① 是重复查询」；P0 第 4 条「硬编码 waers = 'EUR' 静默过滤订单」。",
+        "D3": "3.7-③ 风险与改进：「CATCH cx_salv_msg 后没有 RETURN，紧接着 lo_popup->display( ) 必然 CX_SY_REF_IS_INITIAL 短转储。对比 3.5-① 的工厂调用——那里 catch 之后老老实实 RETURN 了；这里漏了」，并给出两种修法。P0 第 3 条同点。",
+        "D4": "3.1-② 风险与改进：「mv_show 声明了却在全程序中只被赋值、从未被读取…别留误导性设计」；3.5-⑥「mv_show 只写不读。回填主 ALV 引用之后没有任何一处使用它」；P3 第 22 条「mv_show 声明后从未使用」。",
+        "D5": "3.5-⑥ 风险与改进：「link_click 事件实际不可达。SALV 的 link_click 只在用户点击被设为 hot-spot（超链接）类型的单元格时才触发，而 ⑤ 里只给 NETWR 设了 numeric，没有任何列被设为 if_salv_c_cell_type=>hotspot。所以 on_link_click 是一个永远不会被调用的死方法」；3.8 首条「事件永远不会触发」；P1 第 5 条；并总结「事件绑定有两个前提：处理方法注册 + 单元格类型」。"
+      },
+      "notes": "5/5 全中。D1/D2/D3/D5 均点名具体语句并说清后果（不上屏/被丢弃、短转储、死方法），D4 也明确指出「只被赋值、从未被读取」并给出删除建议，无任何对缺陷的背书。额外发现同样丰富（两处编译期硬错误、list_display=false 与弹窗意图相反、全局引用共享串号、INDEX row 行号语义、? 假防护、工具栏未激活等）。"
+    }
+  ]
+}

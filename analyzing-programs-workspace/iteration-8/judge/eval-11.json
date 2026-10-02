@@ -1,0 +1,46 @@
+{
+ "eval": 11,
+ "config": "with_skill",
+ "reports": [
+  {
+   "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-11-class-events-publisher\\with_skill\\run-1\\outputs\\report.md",
+   "verdicts": {
+    "D1": "yes",
+    "D2": "no",
+    "D3": "partial",
+    "D4": "yes",
+    "D5": "yes",
+    "D6": "yes"
+   },
+   "evidence": {
+    "D1": "3.3 第②步『风险与改进』第一层（L201）：『`=>` 只能用于静态方法，处理者不是静态的……`on_price_dropped` 是通过 `INTERFACES if_price_listener` 声明的普通方法，没有 `STATIC` 附加项，因此它是实例方法，引用它的正确写法只能是 `lo_alert->on_price_dropped`。用 `lcl_alert=>on_price_dropped` 会让 `=>` 指向一个非静态方法，激活阶段就会报语法/语义错误（……注册关系不会按预期建立）』，并升级为 P0 第 2 条（L417）。",
+    "D2": "全文检索『前向 / 定义顺序 / 倒置 / DEFERRED』无匹配。3.2 只谈接口寄生在类池、删除或改名会连带实现者（L169），未涉及 lcl_alert/lcl_audit 声明在 if_price_listener 之前的顺序依赖问题。",
+    "D3": "3.3 第四层（L204）：『多次 `CREATE OBJECT` 会执行多次 `SET HANDLER`……本类没有任何\"只注册一次\"的保护』，P3 第 20 条（L444）『多实例构造会重复注册』。指出了语句与重复注册，但对后果的判断与缺陷要点相反（声称会对不同引用『重复注册、事件被多次触发』，未点出 SET HANDLER 对同一事件同一处理器幂等、订阅语义含混）。",
+    "D4": "3.4 ①（L226）：『**这里有一个明确的功能缺陷：`APPEND` 不做去重，同一个物料可以被重复 `watch` 任意多次**』，并给出 count_watched 虚高、forget 一次清空的连锁后果与 `INSERT ... INTO TABLE` 修法；P2 第 12 条（L433）复述。",
+    "D5": "3.1 ④（L150）：『内表声明为 `STANDARD TABLE`（全序表）：`READ TABLE ... WITH TABLE KEY` 只能线性查找、`DELETE ... WHERE` 是 O(n) 全扫……改成 `HASHED TABLE` 更合适』；P2 第 13 条（L434）给出 `SORTED TABLE WITH UNIQUE KEY table_line`。",
+    "D6": "3.1 ②（L106）：『载荷信息量严重不足……订阅者**无法算出跌幅**』；第四章（L408）：『`iv_threshold` 从未进入过事件流：订阅者拿不到阈值，因此无法判断这次跌价\"离阈值有多远\"』；P0 第 4 条（L419）。"
+   },
+   "notes": "命中 4 项。D2 完全未提（全文无任何定义顺序/前向引用的讨论）。D1 抓得最重，直接判为『本程序最硬的缺陷』，但其给出的后果（激活期语法错误/注册不成立）与缺陷清单所述的『成为全局处理器条目、影响所有实例』侧重略有差异，仍属同一语句的明确指认。D3 触及语句但把幂等语义讲反了，只给 partial。D4/D5/D6 均为明确指认（注意 3.1④『为什么』段曾 praised `WITH EMPTY KEY』是正确优化，但同段风险与 P2-13 已明确指出线性扫描问题，故不计为背书）。"
+  },
+  {
+   "path": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\iteration-8\\eval-11-class-events-publisher\\with_skill\\run-2\\outputs\\report.md",
+   "verdicts": {
+    "D1": "partial",
+    "D2": "yes",
+    "D3": "yes",
+    "D4": "yes",
+    "D5": "yes",
+    "D6": "yes"
+   },
+   "evidence": {
+    "D1": "3.5 ②（L222）把 `SET HANDLER lcl_alert=>on_price_dropped` 判为合法的静态注册：『这是**静态注册**：不需要对象引用，注册一次对本程序（本内层会话）内该类的**所有实例**生效』；L127 甚至把这种类名引用当成接口解耦的优点来表扬，3.10（L343）断言『机制本身是通的……两个订阅者都能收到』，属明确背书。但同处 L227/L338/L392（P0-6）确实点出『注册是类级而不是实例级』『对整个类的所有实例生效』并判为『过度广播』缺陷，只把落点放在事件参数缺来源实例上，未识别 `=>` 引用非静态方法本身的问题。",
+    "D2": "3.2 风险①（L129）：『**定义顺序倒置**：两个订阅者类（`INTERFACES if_price_listener`）出现在接口声明之前，而程序内的局部类/局部接口**不支持前向引用**（要前向引用必须显式写 `CLASS … DEFINITION DEFERRED`，本文件没有）……激活时就会报错』；并升为 P0 第 2 条（L388）『把接口上移到订阅者类之前是零成本的修复』。",
+    "D3": "3.5 ②①（L227）：『第二个实例的构造函数重复执行这两条 `SET HANDLER` 时，ABAP 会返回 `sy-subrc = 4`（该处理程序已注册同一事件），代码完全没检查』；3.10（L344）『\"第二个实例的注册\"实际上是空操作（`sy-subrc = 4`）』；P1 第 1 条（L396）『重复注册被忽略』。准确覆盖注册写在 constructor、幂等返回 4、未检查三点。",
+    "D4": "3.6 风险①（L249）：『**不去重导致登记与取消语义不对称**：`watch` 三次就存三行，`count_watched` 随之虚高；而 `forget` 的 `DELETE … WHERE table_line =` 会一次删光所有重复行』；P1 第 5 条（L400）。",
+    "D5": "3.1 ②风险②（L112）：『选标准表让 `check` 的存在性判断退化成线性扫描：批处理里对 N 个物料逐个 `check`，配 M 个监控项就是 O(N×M)』；P2 第 1 条（L407）建议改 `SORTED/HASHED TABLE ... WITH UNIQUE KEY table_line`。",
+    "D6": "3.1 ①风险②（L97）：『事件参数只有 MATNR 和 NETPR，**没有阈值、币种、价格基准、时间戳、来源实例**：订阅者拿到事件后无法判断\"这条事件是不是我该管的\"』；3.7 ②风险③（L284）『没有容差、没有相对跌幅概念——跌 0.01 与跌 50% 在这里没有区别』；P3 第 1 条建议事件参数升为含阈值的结构体。"
+   },
+   "notes": "命中 5 项，且 D2/D3 的技术表述最准确（唯二把『顺序倒置缺 DEFERRED』和『重复注册返回 sy-subrc=4 属幂等空操作』讲对的报告）。唯一失分在 D1：报告把 `SET HANDLER 类名=>方法名` 当成正确的静态注册并明确背书『机制是通的』，只把它降格为『类级注册导致过度广播』的设计局限（落点偏向事件参数缺来源实例），未识别类名引用非静态处理方法本身有误，故只给 partial。D4/D5/D6 三项均为明确指认。"
+  }
+ ]
+}

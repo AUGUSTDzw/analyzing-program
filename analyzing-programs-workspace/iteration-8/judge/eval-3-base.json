@@ -1,0 +1,46 @@
+{
+  "eval": 3,
+  "config": "without_skill",
+  "reports": [
+    {
+      "path": "analyzing-programs-workspace/iteration-8/eval-3-global-class-alv-weight/without_skill/run-1/outputs/report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "partial",
+        "D3": "no",
+        "D4": "yes",
+        "D5": "yes",
+        "D6": "yes"
+      },
+      "evidence": {
+        "D1": "§5 P2 问题 29「`FOR ALL ENTRIES` 未防空/未去重」；§3.5 性能表「思路正确，但应用 2 字段局部结构 + 非空/去重守卫」；§6.5 修复代码「`FOR ALL ENTRIES` 前判空」。",
+        "D2": "代码摘录行内注释「未检查 sy-subrc / sy-tabix」，§3.2 次生问题「未检查查找结果：查不到时 `ls_text` 是未初始化的内联结构，`MAKTX` 被静默写成空串」，P2 问题 29 亦列出该项。点名了缺失的 sy-subrc 判断，但把后果说成『未初始化/写成空串』，未指出 ABAP `READ TABLE ... INTO` 失败时工作区保留上一行内容、导致描述跨行串数据这一真实后果。",
+        "D3": "全文检索 `Gross` 零命中；报告从未提及 build_fieldcat 里 NTGEW 列的标题文本。且全文反复把 NTGEW 直接称作「毛重（kg）」（TL;DR、§1 隐含业务规则①、§3.3、P0-7），等于明确背书该标题语义正确。",
+        "D4": "§3.1 ①「`lv_sql` 是纯死代码 …… 这段 SQL 永远不会执行」并解释模板内 `iv_warehouse_range( )` 是字面文本；②「真正的 SQL 是错的。`EINA`/`NTGEW` 都只存在于 `MARA` …… 是编译错误」。P0-1 与 P1-8 分别复述两部分。",
+        "D5": "P0-7「`calc_unit_weight` 毛重 ÷ EAN 编码 → 业务数据完全错误」；§3.3「`35.5 / 6901234567892` 这个数字没有任何业务含义」「按 EAN 除是纯粹的误用」「正确分母应当是基本计量单位下的数量」。命中缺陷（NTGEW/EINA 求单位重量不成立），但对 EINA 的语义解释本身有误（说成 EAN 条码）。",
+        "D6": "§4.2 代码摘录「`DATA lt_stock TYPE ty_stock_tab. \" ❌ 数据放在方法局部变量`」「`lv_ok` ❌ 赋值后从未被读取」；§4.1 实际流程「（空）lt_stock ← 从未赋值的初始内表」；⑤「异常被彻底吞掉 …… `lv_ok` 是死变量」。P1-9 / P1-13 复述。"
+      },
+      "notes": "报告整体缺陷密度高、细节扎实，D4/D6 两项死代码与空表问题抓到且解释到位。主要失分点是 D3：整份报告把 MARA-NTGEW 当毛重来理解，完全没有去校核 build_fieldcat 里写死的英文列标题，因此既没发现『净重被标成毛重』的语义错配，也错过了单位硬编码 KG 的问题。D2 只差最后一步：识别出缺 sy-subrc，却把后果理解成空串而非上一行残留串数据。"
+    },
+    {
+      "path": "analyzing-programs-workspace/iteration-8/eval-3-global-class-alv-weight/without_skill/run-2/outputs/report.md",
+      "verdicts": {
+        "D1": "yes",
+        "D2": "partial",
+        "D3": "partial",
+        "D4": "yes",
+        "D5": "no",
+        "D6": "yes"
+      },
+      "evidence": {
+        "D1": "§4.2 问题表「`FOR ALL ENTRIES` 无判空 | 新版本对空内表不会 dump，但仍是反模式」；§4.5 性能表第 3 行；L-3「`FOR ALL ENTRIES` 未做空表判断」；§6.2 修复代码加了 `IF ct_stock IS INITIAL. RETURN.`。点名了缺失的保护，但同时背书『新版无害』把严重度降到低。",
+        "D2": "全文只在修复代码（§6.2 B-1 改写）里出现 `IF sy-subrc <> 0 / = 0` 守卫，正文分析、问题清单（H-6、M-*）、附录 A 行号对照均未把 `READ TABLE lt_text INTO ls_text` 缺 sy-subrc 列为缺陷，也完全没有描述『失败时工作区保留上一行 → 描述跨行串数据』的后果。只能算隐含意识到，没落到该缺陷。",
+        "D3": "§5.2「`NTGEW` 的标题写死 `'Gross Weight (kg)'`，把单位钉死在 KG。若物料基本单位是 TON、或用户在变式里想换显示单位，标题就会说谎」；M-13「`NTGEW` 标题钉死 `(kg)`；未做显示单位换算」。命中了单位不保证是 KG 的那一半，但把 NTGEW 直接称作毛重/基本含量并沿用该标题，未发现『净重被标成毛重』的语义错配。",
+        "D4": "§4.1（1）「`lv_sql` 从头到尾没被使用 …… 死代码 + 逻辑漂移」；（2）「`SELECT ... eina ntgew FROM mard` 引用了 `MARD` 上不存在的字段 …… 这是 Blocker」；B-2 与 M-1 分别复述两部分。",
+        "D5": "§4.3 标题即「数学对，单位错」，正文「设计意图：单位重量 = `NTGEW / EINA`（毛重 ÷ 基本含量）」，只补 UMREZ/UMREN/MEINS；§7.2 修正公式仍为 `is_row-ntgew / is_row-eina * is_row-umren / is_row-umre`，M-6 亦只批评缺换算。等于明确背书以 EINA 作分母成立，未质疑其语义是辅单位换算分母而非包装单位数。",
+        "D6": "B-6「`display_alv` 从不调用 `collect_stock`/`enrich_text`/`check_capacity`/`set_cell_styles`，ALV 数据源永远是空局部表」；H-8「`EXCEPTIONS OTHERS = 2` 吞掉所有异常，`lv_ok` 赋值后从未使用，用户看不到任何错误」；§5.1 逐行批注「① 空局部表」「⑤ 异常被吞」。"
+      },
+      "notes": "结构化程度最高（B/H/M/L 分级 + 行号对照 + 附录 B），D4/D6 抓得干净利落，两个编译级 Blocker（MARD 无 EINA/NTGEW、lv_sql 死代码）证据完整。失分处：一是 calc_unit_weight 方向判反了，把 NTGEW/EINA 当作正确设计而非缺陷，只补单位换算因子，等于背书了错误分母；二是 enrich_text 挖出了 MODIFY 无键表导致行翻倍的隐藏 Bug，却漏掉了同方法内 READ TABLE 缺 sy-subrc 造成的跨行串数据；三是 fieldcatalog 只看出标题把单位钉死 KG，没看出净重被写成毛重。"
+    }
+  ]
+}
