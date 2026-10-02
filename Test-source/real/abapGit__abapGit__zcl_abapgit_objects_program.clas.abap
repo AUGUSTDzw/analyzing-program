@@ -1,0 +1,1597 @@
+CLASS zcl_abapgit_objects_program DEFINITION
+  PUBLIC
+  INHERITING FROM zcl_abapgit_objects_super
+  CREATE PUBLIC .
+
+  PUBLIC SECTION.
+
+    TYPES:
+      BEGIN OF ty_cua,
+        adm TYPE rsmpe_adm,
+        sta TYPE STANDARD TABLE OF rsmpe_stat WITH DEFAULT KEY,
+        fun TYPE STANDARD TABLE OF rsmpe_funt WITH DEFAULT KEY,
+        men TYPE STANDARD TABLE OF rsmpe_men WITH DEFAULT KEY,
+        mtx TYPE STANDARD TABLE OF rsmpe_mnlt WITH DEFAULT KEY,
+        act TYPE STANDARD TABLE OF rsmpe_act WITH DEFAULT KEY,
+        but TYPE STANDARD TABLE OF rsmpe_but WITH DEFAULT KEY,
+        pfk TYPE STANDARD TABLE OF rsmpe_pfk WITH DEFAULT KEY,
+        set TYPE STANDARD TABLE OF rsmpe_staf WITH DEFAULT KEY,
+        doc TYPE STANDARD TABLE OF rsmpe_atrt WITH DEFAULT KEY,
+        tit TYPE STANDARD TABLE OF rsmpe_titt WITH DEFAULT KEY,
+        biv TYPE STANDARD TABLE OF rsmpe_buts WITH DEFAULT KEY,
+      END OF ty_cua.
+
+    METHODS serialize_program
+      IMPORTING
+        !io_xml     TYPE REF TO zif_abapgit_xml_output OPTIONAL
+        !is_item    TYPE zif_abapgit_definitions=>ty_item
+        !io_files   TYPE REF TO zcl_abapgit_objects_files
+        !iv_program TYPE syrepid OPTIONAL
+        !iv_extra   TYPE clike OPTIONAL
+      RAISING
+        zcx_abapgit_exception.
+    METHODS deserialize_program
+      IMPORTING
+        !is_progdir TYPE zif_abapgit_sap_report=>ty_progdir
+        !it_source  TYPE abaptxt255_tab
+        !it_tpool   TYPE textpool_table
+        !iv_package TYPE devclass
+      RAISING
+        zcx_abapgit_exception.
+  PROTECTED SECTION.
+
+    TYPES:
+      ty_spaces_tt TYPE STANDARD TABLE OF i WITH DEFAULT KEY .
+    TYPES:
+      BEGIN OF ty_dynpro,
+        header     TYPE rpy_dyhead,
+        containers TYPE dycatt_tab,
+        fields     TYPE dyfatc_tab,
+        flow_logic TYPE swydyflow,
+        spaces     TYPE ty_spaces_tt,
+        nat_header TYPE d020s,
+        nat_fields TYPE STANDARD TABLE OF d021s WITH DEFAULT KEY,
+        nat_texts  TYPE STANDARD TABLE OF d021t WITH DEFAULT KEY,
+      END OF ty_dynpro .
+    TYPES:
+      ty_dynpro_tt TYPE STANDARD TABLE OF ty_dynpro WITH DEFAULT KEY .
+
+    TYPES:
+      ty_varikey_tt        TYPE STANDARD TABLE OF rsvarkey WITH DEFAULT KEY,
+      ty_vari_dynnr_tt     TYPE STANDARD TABLE OF rsdynnr WITH DEFAULT KEY,
+      ty_vari_value_tt     TYPE STANDARD TABLE OF rsparamsl_255 WITH DEFAULT KEY,
+      ty_vari_text_crea_tt TYPE STANDARD TABLE OF varit WITH DEFAULT KEY,
+      ty_vari_object_tt    TYPE STANDARD TABLE OF vanz WITH DEFAULT KEY.
+    TYPES:
+      BEGIN OF ty_vari_text,
+        langu TYPE langu,
+        vtext TYPE rvart_vtxt,
+      END OF ty_vari_text,
+      ty_vari_text_tt TYPE STANDARD TABLE OF ty_vari_text WITH DEFAULT KEY.
+    TYPES:
+      BEGIN OF ty_vari,
+        variant     TYPE varid-variant,
+        flag1       TYPE varid-flag1,
+        flag2       TYPE varid-flag2,
+        transport   TYPE varid-transport,
+        environmnt  TYPE varid-environmnt,
+        protected   TYPE varid-protected,
+        secu        TYPE varid-secu,
+        xflag1      TYPE varid-xflag1,
+        xflag2      TYPE varid-xflag2,
+        variscreens TYPE ty_vari_dynnr_tt,
+        objects     TYPE STANDARD TABLE OF vanz WITH DEFAULT KEY,
+        values      TYPE ty_vari_value_tt,
+        texts       TYPE STANDARD TABLE OF ty_vari_text WITH DEFAULT KEY,
+      END OF ty_vari.
+    TYPES:
+      ty_vari_tt TYPE STANDARD TABLE OF ty_vari WITH DEFAULT KEY.
+
+    METHODS strip_generation_comments
+      CHANGING
+        ct_source TYPE STANDARD TABLE. " tab of string or charX
+    METHODS serialize_dynpros
+      IMPORTING
+        !iv_program_name TYPE syrepid
+      RETURNING
+        VALUE(rt_dynpro) TYPE ty_dynpro_tt
+      RAISING
+        zcx_abapgit_exception .
+    METHODS serialize_cua
+      IMPORTING
+        !iv_program_name TYPE syrepid
+      RETURNING
+        VALUE(rs_cua)    TYPE ty_cua
+      RAISING
+        zcx_abapgit_exception .
+    METHODS serialize_varis
+      IMPORTING
+        !iv_program_name TYPE syrepid
+      RETURNING
+        VALUE(rt_varis)  TYPE ty_vari_tt
+      RAISING
+        zcx_abapgit_exception .
+    METHODS deserialize_dynpros
+      IMPORTING
+        !it_dynpros TYPE ty_dynpro_tt
+      RAISING
+        zcx_abapgit_exception .
+    METHODS deserialize_textpool
+      IMPORTING
+        !iv_program    TYPE syrepid
+        !it_tpool      TYPE textpool_table
+        !iv_language   TYPE sy-langu OPTIONAL
+        !iv_is_include TYPE abap_bool DEFAULT abap_false
+      RAISING
+        zcx_abapgit_exception .
+    METHODS deserialize_cua
+      IMPORTING
+        !iv_program_name TYPE syrepid
+        !is_cua          TYPE ty_cua
+      RAISING
+        zcx_abapgit_exception .
+    METHODS deserialize_varis
+      IMPORTING
+        !iv_program_name TYPE syrepid
+        !it_varis        TYPE ty_vari_tt
+      RAISING
+        zcx_abapgit_exception .
+    METHODS is_any_dynpro_locked
+      IMPORTING
+        !iv_program                    TYPE syrepid
+      RETURNING
+        VALUE(rv_is_any_dynpro_locked) TYPE abap_bool
+      RAISING
+        zcx_abapgit_exception .
+    METHODS is_cua_locked
+      IMPORTING
+        !iv_program             TYPE syrepid
+      RETURNING
+        VALUE(rv_is_cua_locked) TYPE abap_bool
+      RAISING
+        zcx_abapgit_exception .
+    METHODS is_text_locked
+      IMPORTING
+        !iv_program              TYPE syrepid
+      RETURNING
+        VALUE(rv_is_text_locked) TYPE abap_bool
+      RAISING
+        zcx_abapgit_exception .
+    CLASS-METHODS add_tpool
+      IMPORTING
+        !it_tpool       TYPE textpool_table
+      RETURNING
+        VALUE(rt_tpool) TYPE zif_abapgit_lang_definitions=>ty_tpool_tt.
+    CLASS-METHODS read_tpool
+      IMPORTING
+        !it_tpool       TYPE zif_abapgit_lang_definitions=>ty_tpool_tt
+      RETURNING
+        VALUE(rt_tpool) TYPE textpool_table.
+  PRIVATE SECTION.
+
+    CONSTANTS:
+      BEGIN OF c_state,
+        active   TYPE r3state VALUE 'A',
+        inactive TYPE r3state VALUE 'I',
+        off      TYPE r3state VALUE '',
+      END OF c_state.
+
+    CONSTANTS c_native_dynpro TYPE c LENGTH 2 VALUE 'IN'.
+
+    CONSTANTS c_sysvari_clnt        TYPE mandt      VALUE '000'.
+    CONSTANTS c_sysvari_pattern_sap TYPE c LENGTH 5 VALUE 'SAP&*'.
+    CONSTANTS c_sysvari_pattern_cus TYPE c LENGTH 5 VALUE 'CUS&*'.
+
+    METHODS:
+      uncondense_flow
+        IMPORTING it_flow        TYPE swydyflow
+                  it_spaces      TYPE ty_spaces_tt
+        RETURNING VALUE(rt_flow) TYPE swydyflow.
+
+    CLASS-METHODS auto_correct_cua_adm
+      IMPORTING
+        is_cua TYPE ty_cua
+      CHANGING
+        cs_adm TYPE rsmpe_adm.
+
+    METHODS get_program_title
+      IMPORTING
+        !it_tpool       TYPE textpool_table
+      RETURNING
+        VALUE(rv_title) TYPE repti .
+    METHODS insert_program
+      IMPORTING
+        !is_progdir TYPE zif_abapgit_sap_report=>ty_progdir
+        !it_source  TYPE abaptxt255_tab
+        !iv_title   TYPE repti
+        !iv_package TYPE devclass
+        !iv_state   TYPE progdir-state DEFAULT c_state-inactive
+      RAISING
+        zcx_abapgit_exception .
+    METHODS update_program
+      IMPORTING
+        !is_progdir TYPE zif_abapgit_sap_report=>ty_progdir
+        !it_source  TYPE abaptxt255_tab
+        !iv_title   TYPE repti
+        !iv_state   TYPE progdir-state DEFAULT c_state-inactive
+      RAISING
+        zcx_abapgit_exception .
+    METHODS is_exit_include
+      IMPORTING
+        !iv_program               TYPE syrepid
+      RETURNING
+        VALUE(rv_is_exit_include) TYPE abap_bool.
+    METHODS deserialize_exit_include
+      IMPORTING
+        !is_progdir TYPE zif_abapgit_sap_report=>ty_progdir
+        !it_source  TYPE abaptxt255_tab
+        !it_tpool   TYPE textpool_table
+        !iv_package TYPE devclass
+      RAISING
+        zcx_abapgit_exception.
+    METHODS get_varis_for_report
+      IMPORTING
+        iv_repid        TYPE repid
+      RETURNING
+        VALUE(rt_varis) TYPE ty_varikey_tt
+      RAISING
+        zcx_abapgit_exception.
+    METHODS get_vari_screens
+      IMPORTING
+        is_vari                TYPE rsvarkey
+      RETURNING
+        VALUE(rt_vari_screens) TYPE ty_vari_dynnr_tt
+      RAISING
+        zcx_abapgit_exception.
+    METHODS get_vari_data
+      IMPORTING
+        is_vari    TYPE rsvarkey
+      EXPORTING
+        es_varid   TYPE varid
+        et_values  TYPE ty_vari_value_tt
+        et_objects TYPE ty_vari_object_tt
+        et_texts   TYPE ty_vari_text_tt
+      RAISING
+        zcx_abapgit_exception.
+    METHODS create_vari
+      IMPORTING
+        is_varid   TYPE varid
+        it_screens TYPE ty_vari_dynnr_tt
+        it_values  TYPE ty_vari_value_tt
+        it_objects TYPE ty_vari_object_tt
+        it_texts   TYPE ty_vari_text_crea_tt
+      RAISING
+        zcx_abapgit_exception.
+    METHODS delete_vari
+      IMPORTING
+        is_vari TYPE rsvarkey
+      RAISING
+        zcx_abapgit_exception.
+    METHODS set_vari_protection
+      IMPORTING
+        is_vari                 TYPE rsvarkey
+        iv_protect              TYPE abap_bool
+      RETURNING
+        VALUE(rv_was_protected) TYPE abap_bool.
+ENDCLASS.
+
+
+
+CLASS zcl_abapgit_objects_program IMPLEMENTATION.
+
+
+  METHOD add_tpool.
+
+    FIELD-SYMBOLS: <ls_tpool_in>  LIKE LINE OF it_tpool,
+                   <ls_tpool_out> LIKE LINE OF rt_tpool.
+
+
+    LOOP AT it_tpool ASSIGNING <ls_tpool_in>.
+      APPEND INITIAL LINE TO rt_tpool ASSIGNING <ls_tpool_out>.
+      MOVE-CORRESPONDING <ls_tpool_in> TO <ls_tpool_out>.
+      IF <ls_tpool_out>-id = 'S'.
+        <ls_tpool_out>-split = <ls_tpool_out>-entry.
+        <ls_tpool_out>-entry = <ls_tpool_out>-entry+8.
+      ENDIF.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD auto_correct_cua_adm.
+    " issue #1807 automatic correction of CUA interfaces saved incorrectly in the past (ADM was not saved in the XML)
+
+    CONSTANTS:
+      lc_num_n_space TYPE string VALUE ' 0123456789',
+      lc_num_only    TYPE string VALUE '0123456789'.
+
+    FIELD-SYMBOLS:
+      <ls_pfk> TYPE rsmpe_pfk,
+      <ls_act> TYPE rsmpe_act,
+      <ls_men> TYPE rsmpe_men.
+
+    IF cs_adm IS NOT INITIAL
+        AND cs_adm-actcode CO lc_num_n_space
+        AND cs_adm-mencode CO lc_num_n_space
+        AND cs_adm-pfkcode CO lc_num_n_space. "Check performed in form check_adm of include LSMPIF03
+      RETURN.
+    ENDIF.
+
+    LOOP AT is_cua-act ASSIGNING <ls_act>.
+      IF <ls_act>-code+6(14) IS INITIAL AND <ls_act>-code(6) CO lc_num_only.
+        cs_adm-actcode = <ls_act>-code.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_cua-men ASSIGNING <ls_men>.
+      IF <ls_men>-code+6(14) IS INITIAL AND <ls_men>-code(6) CO lc_num_only.
+        cs_adm-mencode = <ls_men>-code.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_cua-pfk ASSIGNING <ls_pfk>.
+      IF <ls_pfk>-code+6(14) IS INITIAL AND <ls_pfk>-code(6) CO lc_num_only.
+        cs_adm-pfkcode = <ls_pfk>-code.
+      ENDIF.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD create_vari.
+
+    CALL FUNCTION 'RS_CREATE_VARIANT_255'
+      EXPORTING
+        curr_report    = is_varid-report
+        curr_variant   = is_varid-variant
+        vari_desc      = is_varid
+      TABLES
+        vari_contents  = it_values
+        vari_text      = it_texts
+        vscreens       = it_screens
+      EXCEPTIONS
+        variant_exists = 0
+        OTHERS         = 1.
+    IF sy-subrc <> 0.
+      zcx_abapgit_exception=>raise_t100( ).
+    ENDIF.
+
+    CALL FUNCTION 'RS_CHANGE_CREATED_VARIANT_255'
+      EXPORTING
+        curr_report   = is_varid-report
+        curr_variant  = is_varid-variant
+        vari_desc     = is_varid
+      TABLES
+        vari_contents = it_values
+        vari_text     = it_texts
+        objects       = it_objects
+      EXCEPTIONS
+        OTHERS        = 1.
+    IF sy-subrc <> 0.
+      zcx_abapgit_exception=>raise_t100( ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD delete_vari.
+
+    TRY.
+        CALL FUNCTION 'RS_VARIANT_DELETE'
+          EXPORTING
+            report                = is_vari-report
+            variant               = is_vari-variant
+            flag_confirmscreen    = abap_true " true = No confirm screen
+            " suppress parameters do not exist in older releases
+            suppress_message      = abap_true
+            suppress_input_dialog = abap_true
+          EXCEPTIONS
+            OTHERS                = 1 ##FM_SUBRC_OK.
+      CATCH cx_sy_dyn_call_param_not_found.
+        CALL FUNCTION 'RS_VARIANT_DELETE'
+          EXPORTING
+            report             = is_vari-report
+            variant            = is_vari-variant
+            flag_confirmscreen = abap_true " true = No confirm screen
+          EXCEPTIONS
+            OTHERS             = 1 ##FM_SUBRC_OK.
+    ENDTRY.
+    IF sy-subrc <> 0.
+      zcx_abapgit_exception=>raise_t100( ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD deserialize_cua.
+
+    DATA: ls_tr_key TYPE trkey,
+          ls_adm    TYPE rsmpe_adm.
+
+
+    IF lines( is_cua-sta ) = 0
+        AND lines( is_cua-fun ) = 0
+        AND lines( is_cua-men ) = 0
+        AND lines( is_cua-mtx ) = 0
+        AND lines( is_cua-act ) = 0
+        AND lines( is_cua-but ) = 0
+        AND lines( is_cua-pfk ) = 0
+        AND lines( is_cua-set ) = 0
+        AND lines( is_cua-doc ) = 0
+        AND lines( is_cua-tit ) = 0
+        AND lines( is_cua-biv ) = 0.
+      RETURN.
+    ENDIF.
+
+    SELECT SINGLE devclass INTO ls_tr_key-devclass
+      FROM tadir
+      WHERE pgmid = 'R3TR'
+      AND object = ms_item-obj_type
+      AND obj_name = ms_item-obj_name.                  "#EC CI_GENBUFF
+    IF sy-subrc <> 0.
+      zcx_abapgit_exception=>raise( 'not found in tadir' ).
+    ENDIF.
+
+    ls_tr_key-obj_type = ms_item-obj_type.
+    ls_tr_key-obj_name = ms_item-obj_name.
+    ls_tr_key-sub_type = 'CUAD'.
+    ls_tr_key-sub_name = iv_program_name.
+
+    ls_adm = is_cua-adm.
+    auto_correct_cua_adm( EXPORTING is_cua = is_cua CHANGING cs_adm = ls_adm ).
+
+    sy-tcode = 'SE41' ##WRITE_OK. " evil hack, workaround to handle fixes in note 2159455
+    CALL FUNCTION 'RS_CUA_INTERNAL_WRITE'
+      EXPORTING
+        program   = iv_program_name
+        language  = mv_language
+        tr_key    = ls_tr_key
+        adm       = ls_adm
+        state     = c_state-inactive
+      TABLES
+        sta       = is_cua-sta
+        fun       = is_cua-fun
+        men       = is_cua-men
+        mtx       = is_cua-mtx
+        act       = is_cua-act
+        but       = is_cua-but
+        pfk       = is_cua-pfk
+        set       = is_cua-set
+        doc       = is_cua-doc
+        tit       = is_cua-tit
+        biv       = is_cua-biv
+      EXCEPTIONS
+        not_found = 1
+        OTHERS    = 2.
+    IF sy-subrc <> 0.
+* if moving code from SAPlink, see https://github.com/abapGit/abapGit/issues/562
+      zcx_abapgit_exception=>raise_t100( ).
+    ENDIF.
+
+    zcl_abapgit_objects_activation=>add(
+      iv_type = 'CUAD'
+      iv_name = iv_program_name ).
+
+  ENDMETHOD.
+
+
+  METHOD deserialize_dynpros.
+
+    CONSTANTS lc_rpyty_force_off TYPE c LENGTH 1 VALUE '/'.
+
+    DATA: lv_name            TYPE dwinactiv-obj_name,
+          lt_d020s_to_delete TYPE TABLE OF d020s,
+          ls_d020s           LIKE LINE OF lt_d020s_to_delete,
+          lt_params          TYPE TABLE OF d023s,
+          ls_dynpro          LIKE LINE OF it_dynpros.
+
+    FIELD-SYMBOLS: <ls_field> TYPE rpy_dyfatc.
+
+    " Delete DYNPROs which are not in the list
+    CALL FUNCTION 'RS_SCREEN_LIST'
+      EXPORTING
+        dynnr     = ''
+        progname  = ms_item-obj_name
+      TABLES
+        dynpros   = lt_d020s_to_delete
+      EXCEPTIONS
+        not_found = 1
+        OTHERS    = 2.
+    IF sy-subrc = 2.
+      zcx_abapgit_exception=>raise_t100( ).
+    ENDIF.
+
+    SORT lt_d020s_to_delete BY dnum ASCENDING.
+
+* ls_dynpro is changed by the function module, a field-symbol will cause
+* the program to dump since it_dynpros cannot be changed
+    LOOP AT it_dynpros INTO ls_dynpro.
+
+      READ TABLE lt_d020s_to_delete WITH KEY dnum = ls_dynpro-header-screen
+        TRANSPORTING NO FIELDS
+        BINARY SEARCH.
+      IF sy-subrc = 0.
+        DELETE lt_d020s_to_delete INDEX sy-tabix.
+      ENDIF.
+
+      " todo: kept for compatibility, remove after grace period #3680
+      ls_dynpro-flow_logic = uncondense_flow(
+        it_flow   = ls_dynpro-flow_logic
+        it_spaces = ls_dynpro-spaces ).
+
+      IF ls_dynpro-flow_logic IS INITIAL.
+        ls_dynpro-flow_logic = mo_files->read_abap( iv_extra = 'screen_' && ls_dynpro-header-screen ).
+      ENDIF.
+
+      LOOP AT ls_dynpro-fields ASSIGNING <ls_field>.
+* if the DDIC element has a PARAMETER_ID and the flag "from_dict" is active
+* the import will enable the SET-/GET_PARAM flag. In this case: "force off"
+        IF <ls_field>-param_id IS NOT INITIAL
+            AND <ls_field>-from_dict = abap_true.
+          IF <ls_field>-set_param IS INITIAL.
+            <ls_field>-set_param = lc_rpyty_force_off.
+          ENDIF.
+          IF <ls_field>-get_param IS INITIAL.
+            <ls_field>-get_param = lc_rpyty_force_off.
+          ENDIF.
+        ENDIF.
+
+* If the previous conditions are met the value 'F' will be taken over
+* during de-serialization potentially overlapping other fields in the screen,
+* we set the tag to the correct value 'X'
+        IF <ls_field>-type = 'CHECK'
+            AND <ls_field>-from_dict = abap_true
+            AND <ls_field>-text IS INITIAL
+            AND <ls_field>-modific IS INITIAL.
+          <ls_field>-modific = 'X'.
+        ENDIF.
+
+        "fix for issue #2747:
+        IF <ls_field>-foreignkey IS INITIAL.
+          <ls_field>-foreignkey = lc_rpyty_force_off.
+        ENDIF.
+
+      ENDLOOP.
+
+      IF ls_dynpro-header-type CA c_native_dynpro AND ls_dynpro-nat_header IS NOT INITIAL.
+        DELETE FROM d021t WHERE prog = ls_dynpro-header-program AND dynr = ls_dynpro-header-screen ##SUBRC_OK.
+        INSERT d021t FROM TABLE ls_dynpro-nat_texts ##SUBRC_OK.
+
+        ls_dynpro-nat_header-dgen = sy-datum.
+        ls_dynpro-nat_header-tgen = sy-uzeit.
+
+        CALL FUNCTION 'RPY_DYNPRO_INSERT_NATIVE'
+          EXPORTING
+            header             = ls_dynpro-nat_header
+            dynprotext         = ls_dynpro-header-descript
+          TABLES
+            fieldlist          = ls_dynpro-nat_fields
+            flowlogic          = ls_dynpro-flow_logic
+            params             = lt_params
+          EXCEPTIONS
+            cancelled          = 1
+            already_exists     = 2
+            program_not_exists = 3
+            not_executed       = 4
+            OTHERS             = 5.
+      ELSE.
+        CALL FUNCTION 'RPY_DYNPRO_INSERT'
+          EXPORTING
+            header                 = ls_dynpro-header
+            suppress_exist_checks  = abap_true
+            suppress_generate      = ls_dynpro-header-no_execute
+          TABLES
+            containers             = ls_dynpro-containers
+            fields_to_containers   = ls_dynpro-fields
+            flow_logic             = ls_dynpro-flow_logic
+          EXCEPTIONS
+            cancelled              = 1
+            already_exists         = 2
+            program_not_exists     = 3
+            not_executed           = 4
+            missing_required_field = 5
+            illegal_field_value    = 6
+            field_not_allowed      = 7
+            not_generated          = 8
+            illegal_field_position = 9
+            OTHERS                 = 10.
+      ENDIF.
+      IF sy-subrc <> 2 AND sy-subrc <> 0.
+        zcx_abapgit_exception=>raise_t100( ).
+      ENDIF.
+
+      CONCATENATE ls_dynpro-header-program ls_dynpro-header-screen
+        INTO lv_name RESPECTING BLANKS.
+      ASSERT NOT lv_name IS INITIAL.
+
+      zcl_abapgit_objects_activation=>add(
+        iv_type = 'DYNP'
+        iv_name = lv_name ).
+
+    ENDLOOP.
+
+    " Delete obsolete screens
+    LOOP AT lt_d020s_to_delete INTO ls_d020s.
+
+      CALL FUNCTION 'RS_SCRP_DELETE'
+        EXPORTING
+          dynnr                  = ls_d020s-dnum
+          progname               = ms_item-obj_name
+          with_popup             = abap_false
+        EXCEPTIONS
+          enqueued_by_user       = 1
+          enqueue_system_failure = 2
+          not_executed           = 3
+          not_exists             = 4
+          no_modify_permission   = 5
+          popup_canceled         = 6.
+      IF sy-subrc <> 0.
+        zcx_abapgit_exception=>raise_t100( ).
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD deserialize_exit_include.
+
+    DATA:
+      lv_progname TYPE reposrc-progname,
+      lv_title    TYPE rglif-title.
+
+    " Includes in SAP exit function groups must be processed in active state only
+    " (check in RS_INSERT_INTO_WORKING_AREA)
+    lv_title = get_program_title( it_tpool ).
+
+    SELECT SINGLE progname FROM reposrc INTO lv_progname
+      WHERE progname = is_progdir-name
+      AND r3state = c_state-active.
+
+    IF sy-subrc = 0.
+      update_program(
+        is_progdir = is_progdir
+        it_source  = it_source
+        iv_title   = lv_title
+        iv_state   = c_state-off ).
+    ELSE.
+      insert_program(
+        is_progdir = is_progdir
+        it_source  = it_source
+        iv_title   = lv_title
+        iv_package = iv_package ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD deserialize_program.
+
+    DATA:
+      lv_progname TYPE reposrc-progname,
+      lv_title    TYPE rglif-title.
+
+    IF is_exit_include( is_progdir-name ) = abap_true.
+      deserialize_exit_include(
+        is_progdir = is_progdir
+        it_source  = it_source
+        it_tpool   = it_tpool
+        iv_package = iv_package ).
+      RETURN.
+    ENDIF.
+
+    zcl_abapgit_factory=>get_cts_api( )->insert_transport_object(
+      iv_object   = 'ABAP'
+      iv_obj_name = is_progdir-name
+      iv_package  = iv_package
+      iv_language = mv_language ).
+
+    lv_title = get_program_title( it_tpool ).
+
+    " Check if program already exists
+    SELECT SINGLE progname FROM reposrc INTO lv_progname
+      WHERE progname = is_progdir-name
+      AND r3state = c_state-active.
+
+    IF sy-subrc = 0.
+      update_program(
+        is_progdir = is_progdir
+        it_source  = it_source
+        iv_title   = lv_title ).
+    ELSE.
+      insert_program(
+        is_progdir = is_progdir
+        it_source  = it_source
+        iv_title   = lv_title
+        iv_package = iv_package ).
+    ENDIF.
+
+    zcl_abapgit_factory=>get_sap_report( )->update_progdir(
+      is_progdir = is_progdir
+      iv_package = iv_package ).
+
+    zcl_abapgit_objects_activation=>add(
+      iv_type = 'REPS'
+      iv_name = is_progdir-name ).
+
+  ENDMETHOD.
+
+
+  METHOD deserialize_textpool.
+
+    DATA lv_language TYPE sy-langu.
+    DATA lv_state    TYPE c.
+    DATA lv_delete   TYPE abap_bool.
+
+    IF iv_language IS INITIAL.
+      lv_language = mv_language.
+    ELSE.
+      lv_language = iv_language.
+    ENDIF.
+
+    IF lv_language = mv_language.
+      lv_state = c_state-inactive. "Textpool in main language needs to be activated
+    ELSE.
+      lv_state = c_state-active. "Translations are always active
+    ENDIF.
+
+    IF it_tpool IS INITIAL.
+      IF iv_is_include = abap_false OR lv_state = c_state-active.
+        DELETE TEXTPOOL iv_program "Remove initial description from textpool if
+          LANGUAGE lv_language     "original program does not have a textpool
+          STATE lv_state.
+
+        lv_delete = abap_true.
+      ELSE.
+        INSERT TEXTPOOL iv_program "In case of includes: Deletion of textpool in
+          FROM it_tpool            "main language cannot be activated because
+          LANGUAGE lv_language     "this would activate the deletion of the textpool
+          STATE lv_state.          "of the mail program -> insert empty textpool
+      ENDIF.
+    ELSE.
+      INSERT TEXTPOOL iv_program
+        FROM it_tpool
+        LANGUAGE lv_language
+        STATE lv_state.
+      IF sy-subrc <> 0.
+        zcx_abapgit_exception=>raise( 'error from INSERT TEXTPOOL' ).
+      ENDIF.
+    ENDIF.
+
+    "Textpool in main language needs to be activated (not for FUGS/FUGX)
+    IF lv_state = c_state-inactive AND iv_program NP 'SAPLX*'.
+      zcl_abapgit_objects_activation=>add(
+        iv_type   = 'REPT'
+        iv_name   = iv_program
+        iv_delete = lv_delete ).
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD deserialize_varis.
+
+    DATA: lt_local_varis      TYPE ty_varikey_tt,
+          ls_varikey          LIKE LINE OF lt_local_varis,
+          lt_vari_text        TYPE STANDARD TABLE OF varit WITH DEFAULT KEY,
+          ls_vari_text_create LIKE LINE OF lt_vari_text,
+          ls_varid            TYPE varid,
+          lv_recreate         TYPE abap_bool,
+          lv_was_protected    TYPE abap_bool,
+          lv_exists_locally   TYPE abap_bool.
+
+    FIELD-SYMBOLS: <ls_vari>             LIKE LINE OF it_varis,
+                   <ls_vari_text_remote> TYPE ty_vari_text.
+
+    lt_local_varis = get_varis_for_report( iv_program_name ).
+
+    ls_varikey-report = iv_program_name.
+
+    LOOP AT it_varis ASSIGNING <ls_vari>.
+      CLEAR: lt_vari_text,
+             ls_varid,
+             lv_recreate,
+             lv_was_protected,
+             lv_exists_locally.
+
+      ls_varikey-variant = <ls_vari>-variant.
+
+      DELETE lt_local_varis WHERE variant = <ls_vari>-variant.
+      lv_exists_locally = boolc( sy-subrc = 0 ).
+
+      lv_was_protected = set_vari_protection( is_vari    = ls_varikey
+                                              iv_protect = abap_false ).
+
+      TRY.
+          IF lv_exists_locally = abap_true.
+            delete_vari( ls_varikey ).
+          ENDIF.
+
+          MOVE-CORRESPONDING <ls_vari> TO ls_varid.
+          ls_varid-mandt  = c_sysvari_clnt.
+          ls_varid-report = iv_program_name.
+
+          " Assemble text table
+          LOOP AT <ls_vari>-texts ASSIGNING <ls_vari_text_remote>.
+            ls_vari_text_create-mandt   = c_sysvari_clnt.
+            ls_vari_text_create-report  = iv_program_name.
+            ls_vari_text_create-variant = <ls_vari>-variant.
+            ls_vari_text_create-langu   = <ls_vari_text_remote>-langu.
+            ls_vari_text_create-vtext   = <ls_vari_text_remote>-vtext.
+            INSERT ls_vari_text_create INTO TABLE lt_vari_text.
+          ENDLOOP.
+
+          create_vari( is_varid   = ls_varid
+                       it_values  = <ls_vari>-values
+                       it_texts   = lt_vari_text
+                       it_screens = <ls_vari>-variscreens
+                       it_objects = <ls_vari>-objects ).
+
+          set_vari_protection( is_vari    = ls_varikey
+                               iv_protect = ls_varid-protected ).
+
+        CLEANUP.
+          set_vari_protection( is_vari    = ls_varikey
+                               iv_protect = lv_was_protected ).
+      ENDTRY.
+    ENDLOOP.
+
+    " remaining variants have been deleted on remote
+    " => delete
+    LOOP AT lt_local_varis INTO ls_varikey.
+      CLEAR lv_was_protected.
+
+      lv_was_protected = set_vari_protection( is_vari    = ls_varikey
+                                              iv_protect = abap_false ).
+
+      TRY.
+          delete_vari( ls_varikey ).
+        CLEANUP.
+          set_vari_protection( is_vari    = ls_varikey
+                               iv_protect = lv_was_protected ).
+      ENDTRY.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD get_program_title.
+
+    DATA ls_tpool LIKE LINE OF it_tpool.
+
+    FIELD-SYMBOLS <lg_any> TYPE any.
+
+    READ TABLE it_tpool INTO ls_tpool WITH KEY id = 'R'.
+    IF sy-subrc = 0.
+      " there is a bug in RPY_PROGRAM_UPDATE, the header line of TTAB is not
+      " cleared, so the title length might be inherited from a different program.
+      ASSIGN ('(SAPLSIFP)TTAB') TO <lg_any>.
+      IF sy-subrc = 0.
+        CLEAR <lg_any>.
+      ENDIF.
+
+      rv_title = ls_tpool-entry.
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD get_varis_for_report.
+
+    DATA: ls_catalog TYPE rsvcat,
+          ls_vari    LIKE LINE OF rt_varis.
+
+    FIELD-SYMBOLS <ls_cat> TYPE cat_var.
+
+    CALL FUNCTION 'RS_ALL_VARIANTS_4_1_REPORT'
+      EXPORTING
+        program = iv_repid
+      IMPORTING
+        cat     = ls_catalog
+      EXCEPTIONS
+        OTHERS  = 1.
+    IF sy-subrc <> 0.
+      zcx_abapgit_exception=>raise_t100( ).
+    ENDIF.
+
+    ls_vari-report = iv_repid.
+    LOOP AT ls_catalog-cat ASSIGNING <ls_cat>
+         WHERE variant CP c_sysvari_pattern_sap
+         OR variant CP c_sysvari_pattern_cus.
+      ls_vari-variant = <ls_cat>-variant.
+      INSERT ls_vari INTO TABLE rt_varis.
+    ENDLOOP.
+
+    SORT rt_varis.
+
+  ENDMETHOD.
+
+
+  METHOD get_vari_data.
+
+    DATA: lt_language_filter TYPE zif_abapgit_environment=>ty_system_language_filter,
+          ls_language_filter LIKE LINE OF lt_language_filter.
+
+    CLEAR: es_varid,
+           et_values,
+           et_objects,
+           et_texts.
+
+    CALL FUNCTION 'RS_VARIANT_VALUES_TECH_DAT_255'
+      EXPORTING
+        report         = is_vari-report
+        variant        = is_vari-variant
+        sorted         = abap_true
+      IMPORTING
+        techn_data     = es_varid
+      TABLES
+        variant_values = et_values " is ignored
+      EXCEPTIONS
+        OTHERS         = 1.
+    IF sy-subrc <> 0.
+      zcx_abapgit_exception=>raise_t100( ).
+    ENDIF.
+
+    " Use variant values from CONTENTS call
+    " both calls have this parameter as non-optional
+    CLEAR et_values.
+
+    IF mo_i18n_params->ms_params-main_language_only <> abap_true.
+      lt_language_filter = mo_i18n_params->build_language_filter( ).
+    ENDIF.
+    ls_language_filter-sign   = 'I'.
+    ls_language_filter-option = 'EQ'.
+    ls_language_filter-low    = mv_language.
+    CLEAR ls_language_filter-high.
+    INSERT ls_language_filter INTO TABLE lt_language_filter.
+
+    " SELECT because RS_VARIANT_TEXT and related FMs cannot list available languages
+    SELECT langu vtext FROM varit CLIENT SPECIFIED
+      INTO CORRESPONDING FIELDS OF TABLE et_texts
+      WHERE mandt = c_sysvari_clnt
+        AND report = is_vari-report
+        AND variant = is_vari-variant
+        AND langu IN lt_language_filter
+      ORDER BY langu.
+
+    CALL FUNCTION 'RS_VARIANT_CONTENTS_255'
+      EXPORTING
+        report         = is_vari-report
+        variant        = is_vari-variant
+        execute_direct = abap_true
+      TABLES
+        valutab        = et_values
+        objects        = et_objects
+      EXCEPTIONS
+        OTHERS         = 1.
+    IF sy-subrc <> 0.
+      zcx_abapgit_exception=>raise_t100( ).
+    ENDIF.
+
+    " reproducible order
+    SORT et_values.
+    SORT et_objects.
+    SORT et_texts.
+
+  ENDMETHOD.
+
+
+  METHOD get_vari_screens.
+
+    DATA lt_dynnr LIKE rt_vari_screens ##NEEDED.
+
+    CALL FUNCTION 'RS_GET_SCREENS_4_1_VARIANT'
+      EXPORTING
+        program     = is_vari-report
+        variant     = is_vari-variant
+      TABLES
+        dynnr       = lt_dynnr
+        variscreens = rt_vari_screens
+      EXCEPTIONS
+        OTHERS      = 1.
+    IF sy-subrc <> 0.
+      zcx_abapgit_exception=>raise_t100( ).
+    ENDIF.
+
+    SORT rt_vari_screens.
+
+  ENDMETHOD.
+
+
+  METHOD insert_program.
+
+    TRY.
+        CALL FUNCTION 'RPY_PROGRAM_INSERT'
+          EXPORTING
+            development_class = iv_package
+            program_name      = is_progdir-name
+            program_type      = is_progdir-subc
+            title_string      = iv_title
+            save_inactive     = iv_state
+            suppress_dialog   = abap_true
+            uccheck           = is_progdir-uccheck " does not exist on lower releases
+          TABLES
+            source_extended   = it_source
+          EXCEPTIONS
+            already_exists    = 1
+            cancelled         = 2
+            name_not_allowed  = 3
+            permission_error  = 4
+            OTHERS            = 5 ##FM_SUBRC_OK.
+      CATCH cx_sy_dyn_call_param_not_found.
+        CALL FUNCTION 'RPY_PROGRAM_INSERT'
+          EXPORTING
+            development_class = iv_package
+            program_name      = is_progdir-name
+            program_type      = is_progdir-subc
+            title_string      = iv_title
+            save_inactive     = iv_state
+            suppress_dialog   = abap_true
+          TABLES
+            source_extended   = it_source
+          EXCEPTIONS
+            already_exists    = 1
+            cancelled         = 2
+            name_not_allowed  = 3
+            permission_error  = 4
+            OTHERS            = 5 ##FM_SUBRC_OK.
+    ENDTRY.
+    IF sy-subrc = 3.
+
+      " For cases that standard function does not handle (like FUGR),
+      " we save active and inactive version of source with the given PROGRAM TYPE.
+      " Without the active version, the code will not be visible in case of activation errors.
+      zcl_abapgit_factory=>get_sap_report( )->insert_report(
+        iv_name         = is_progdir-name
+        iv_package      = iv_package
+        it_source       = it_source
+        iv_state        = c_state-active
+        iv_version      = is_progdir-uccheck
+        iv_program_type = is_progdir-subc ).
+
+      zcl_abapgit_factory=>get_sap_report( )->insert_report(
+        iv_name         = is_progdir-name
+        iv_package      = iv_package
+        it_source       = it_source
+        iv_state        = c_state-inactive
+        iv_version      = is_progdir-uccheck
+        iv_program_type = is_progdir-subc ).
+
+    ELSEIF sy-subrc > 0.
+      zcx_abapgit_exception=>raise_t100( ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD is_any_dynpro_locked.
+
+    DATA: lt_dynpros TYPE ty_dynpro_tt,
+          lv_object  TYPE seqg3-garg.
+
+    FIELD-SYMBOLS: <ls_dynpro> TYPE ty_dynpro.
+
+    lt_dynpros = serialize_dynpros( iv_program ).
+
+    LOOP AT lt_dynpros ASSIGNING <ls_dynpro>.
+
+      lv_object = |{ <ls_dynpro>-header-screen }{ <ls_dynpro>-header-program }|.
+
+      IF exists_a_lock_entry_for( iv_lock_object = 'ESCRP'
+                                  iv_argument    = lv_object ) = abap_true.
+        rv_is_any_dynpro_locked = abap_true.
+        EXIT.
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD is_cua_locked.
+
+    DATA: lv_object TYPE eqegraarg.
+
+    lv_object = |CU{ iv_program }|.
+    OVERLAY lv_object WITH '                                          '.
+    lv_object = lv_object && '*'.
+
+    rv_is_cua_locked = exists_a_lock_entry_for( iv_lock_object = 'ESCUAPAINT'
+                                                iv_argument    = lv_object ).
+
+  ENDMETHOD.
+
+
+  METHOD is_exit_include.
+    rv_is_exit_include = boolc(
+      iv_program CP 'LX*' OR iv_program CP 'SAPLX*' OR
+      iv_program+1 CP '/LX*' OR iv_program+1 CP '/SAPLX*' ).
+  ENDMETHOD.
+
+
+  METHOD is_text_locked.
+
+    DATA: lv_object TYPE eqegraarg.
+
+    lv_object = |*{ iv_program }|.
+
+    rv_is_text_locked = exists_a_lock_entry_for( iv_lock_object = 'EABAPTEXTE'
+                                                 iv_argument    = lv_object ).
+
+  ENDMETHOD.
+
+
+  METHOD read_tpool.
+
+    FIELD-SYMBOLS: <ls_tpool_in>  LIKE LINE OF it_tpool,
+                   <ls_tpool_out> LIKE LINE OF rt_tpool.
+
+
+    LOOP AT it_tpool ASSIGNING <ls_tpool_in>.
+      APPEND INITIAL LINE TO rt_tpool ASSIGNING <ls_tpool_out>.
+      MOVE-CORRESPONDING <ls_tpool_in> TO <ls_tpool_out>.
+      IF <ls_tpool_out>-id = 'S'.
+        CONCATENATE <ls_tpool_in>-split <ls_tpool_in>-entry
+          INTO <ls_tpool_out>-entry
+          RESPECTING BLANKS.
+      ENDIF.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD serialize_cua.
+
+    CALL FUNCTION 'RS_CUA_INTERNAL_FETCH'
+      EXPORTING
+        program         = iv_program_name
+        language        = mv_language
+        state           = c_state-active
+      IMPORTING
+        adm             = rs_cua-adm
+      TABLES
+        sta             = rs_cua-sta
+        fun             = rs_cua-fun
+        men             = rs_cua-men
+        mtx             = rs_cua-mtx
+        act             = rs_cua-act
+        but             = rs_cua-but
+        pfk             = rs_cua-pfk
+        set             = rs_cua-set
+        doc             = rs_cua-doc
+        tit             = rs_cua-tit
+        biv             = rs_cua-biv
+      EXCEPTIONS
+        not_found       = 1
+        unknown_version = 2
+        OTHERS          = 3.
+    IF sy-subrc > 1.
+      zcx_abapgit_exception=>raise_t100( ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD serialize_dynpros.
+    DATA: ls_header               TYPE rpy_dyhead,
+          lt_containers           TYPE dycatt_tab,
+          lt_fields_to_containers TYPE dyfatc_tab,
+          lt_flow_logic           TYPE swydyflow,
+          lt_d020s                TYPE TABLE OF d020s,
+          lt_texts                TYPE TABLE OF d021t,
+          lt_fieldlist_int        TYPE TABLE OF d021s. "internal format
+
+    FIELD-SYMBOLS: <ls_d020s>       LIKE LINE OF lt_d020s,
+                   <lv_outputstyle> TYPE scrpostyle,
+                   <ls_container>   LIKE LINE OF lt_containers,
+                   <ls_field>       LIKE LINE OF lt_fields_to_containers,
+                   <ls_dynpro>      LIKE LINE OF rt_dynpro,
+                   <ls_field_int>   LIKE LINE OF lt_fieldlist_int.
+
+    "#2746: relevant flag values (taken from include MSEUSBIT)
+    CONSTANTS: lc_flg1ddf TYPE x VALUE '20',
+               lc_flg3fku TYPE x VALUE '08',
+               lc_flg3for TYPE x VALUE '04',
+               lc_flg3fdu TYPE x VALUE '02'.
+
+
+    CALL FUNCTION 'RS_SCREEN_LIST'
+      EXPORTING
+        dynnr     = ''
+        progname  = iv_program_name
+      TABLES
+        dynpros   = lt_d020s
+      EXCEPTIONS
+        not_found = 1
+        OTHERS    = 2.
+    IF sy-subrc = 2.
+      zcx_abapgit_exception=>raise_t100( ).
+    ENDIF.
+
+    SORT lt_d020s BY dnum ASCENDING.
+
+* loop dynpros and skip generated selection screens
+    LOOP AT lt_d020s ASSIGNING <ls_d020s>
+        WHERE type <> 'S' AND type <> 'W' AND type <> 'J'
+        AND NOT dnum IS INITIAL.
+
+      CALL FUNCTION 'RPY_DYNPRO_READ'
+        EXPORTING
+          progname             = iv_program_name
+          dynnr                = <ls_d020s>-dnum
+        IMPORTING
+          header               = ls_header
+        TABLES
+          containers           = lt_containers
+          fields_to_containers = lt_fields_to_containers
+          flow_logic           = lt_flow_logic
+        EXCEPTIONS
+          cancelled            = 1
+          not_found            = 2
+          permission_error     = 3
+          OTHERS               = 4.
+      IF sy-subrc <> 0.
+        zcx_abapgit_exception=>raise_t100( ).
+      ENDIF.
+
+      "#2746: we need the dynpro fields in internal format:
+      FREE lt_fieldlist_int.
+
+      CALL FUNCTION 'RPY_DYNPRO_READ_NATIVE'
+        EXPORTING
+          progname   = iv_program_name
+          dynnr      = <ls_d020s>-dnum
+        TABLES
+          fieldlist  = lt_fieldlist_int
+          fieldtexts = lt_texts.
+
+      LOOP AT lt_fields_to_containers ASSIGNING <ls_field>.
+* output style is a NUMC field, the XML conversion will fail if it contains invalid value
+* field does not exist in all versions
+        ASSIGN COMPONENT 'OUTPUTSTYLE' OF STRUCTURE <ls_field> TO <lv_outputstyle>.
+        IF sy-subrc = 0 AND <lv_outputstyle> = '  '.
+          CLEAR <lv_outputstyle>.
+        ENDIF.
+
+        "2746: we apply the same logic as in SAPLWBSCREEN
+        "for setting or unsetting the foreignkey field:
+        UNASSIGN <ls_field_int>.
+        READ TABLE lt_fieldlist_int ASSIGNING <ls_field_int> WITH KEY fnam = <ls_field>-name.
+        IF <ls_field_int> IS ASSIGNED.
+          IF <ls_field_int>-flg1 O lc_flg1ddf AND
+              <ls_field_int>-flg3 O lc_flg3for AND
+              <ls_field_int>-flg3 Z lc_flg3fdu AND
+              <ls_field_int>-flg3 Z lc_flg3fku.
+            <ls_field>-foreignkey = 'X'.
+          ELSE.
+            CLEAR <ls_field>-foreignkey.
+          ENDIF.
+        ENDIF.
+
+        IF <ls_field>-from_dict = abap_true AND
+           <ls_field>-modific   <> 'F' AND
+           <ls_field>-modific   <> 'X'.
+          CLEAR <ls_field>-text.
+        ENDIF.
+      ENDLOOP.
+
+      LOOP AT lt_containers ASSIGNING <ls_container>.
+        IF <ls_container>-c_resize_v = abap_false.
+          CLEAR <ls_container>-c_line_min.
+        ENDIF.
+        IF <ls_container>-c_resize_h = abap_false.
+          CLEAR <ls_container>-c_coln_min.
+        ENDIF.
+      ENDLOOP.
+
+      APPEND INITIAL LINE TO rt_dynpro ASSIGNING <ls_dynpro>.
+      <ls_dynpro>-header = ls_header.
+
+      " Store flow logic as separate ABAP files instead of XML
+      mo_files->add_abap(
+        iv_extra = 'screen_' && ls_header-screen
+        it_abap  = lt_flow_logic ).
+
+      READ TABLE lt_fieldlist_int TRANSPORTING NO FIELDS WITH KEY fill = 'X'.
+      IF ls_header-type CA c_native_dynpro AND sy-subrc = 0.
+        " In particular for dynpros with splitter
+        <ls_dynpro>-nat_header = <ls_d020s>.
+        CLEAR: <ls_dynpro>-nat_header-dgen, <ls_dynpro>-nat_header-tgen.
+        <ls_dynpro>-nat_fields = lt_fieldlist_int.
+        <ls_dynpro>-nat_texts  = lt_texts.
+      ELSE.
+        <ls_dynpro>-containers = lt_containers.
+        <ls_dynpro>-fields     = lt_fields_to_containers.
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD serialize_program.
+
+    DATA: ls_progdir      TYPE zif_abapgit_sap_report=>ty_progdir,
+          lv_program_name TYPE syrepid,
+          lt_dynpros      TYPE ty_dynpro_tt,
+          ls_cua          TYPE ty_cua,
+          lt_varis        TYPE ty_vari_tt,
+          li_report       TYPE REF TO zif_abapgit_sap_report,
+          lt_source       TYPE TABLE OF abaptxt255,
+          lt_tpool        TYPE textpool_table,
+          ls_tpool        LIKE LINE OF lt_tpool,
+          li_xml          TYPE REF TO zif_abapgit_xml_output.
+
+    IF iv_program IS INITIAL.
+      lv_program_name = is_item-obj_name.
+    ELSE.
+      lv_program_name = iv_program.
+    ENDIF.
+
+    zcl_abapgit_language=>set_current_language( mv_language ).
+
+    CALL FUNCTION 'RPY_PROGRAM_READ'
+      EXPORTING
+        program_name     = lv_program_name
+        with_includelist = abap_false
+        with_lowercase   = abap_true
+      TABLES
+        source_extended  = lt_source
+        textelements     = lt_tpool
+      EXCEPTIONS
+        cancelled        = 1
+        not_found        = 2
+        permission_error = 3
+        OTHERS           = 4.
+
+    IF sy-subrc = 2.
+      zcl_abapgit_language=>restore_login_language( ).
+      RETURN.
+    ELSEIF sy-subrc <> 0.
+      zcl_abapgit_language=>restore_login_language( ).
+      zcx_abapgit_exception=>raise_t100( ).
+    ENDIF.
+
+    zcl_abapgit_language=>restore_login_language( ).
+
+    " If inactive version exists, then RPY_PROGRAM_READ does not return the active code
+    li_report = zcl_abapgit_factory=>get_sap_report( ).
+
+    TRY.
+        " Raises exception if inactive version does not exist
+        ls_progdir = li_report->read_progdir(
+          iv_name  = lv_program_name
+          iv_state = c_state-inactive ).
+
+        " Explicitly request active source code
+        lt_source = li_report->read_report(
+          iv_name  = lv_program_name
+          iv_state = c_state-active ).
+      CATCH zcx_abapgit_exception ##NO_HANDLER.
+    ENDTRY.
+
+    ls_progdir = li_report->read_progdir(
+      iv_name  = lv_program_name
+      iv_state = c_state-active ).
+
+    clear_abap_language_version( CHANGING cv_abap_language_version = ls_progdir-uccheck ).
+
+    IF io_xml IS BOUND.
+      li_xml = io_xml.
+    ELSE.
+      CREATE OBJECT li_xml TYPE zcl_abapgit_xml_output.
+    ENDIF.
+
+    li_xml->add( iv_name = 'PROGDIR'
+                 ig_data = ls_progdir ).
+    IF ls_progdir-subc = '1' OR ls_progdir-subc = 'M'.
+      lt_dynpros = serialize_dynpros( lv_program_name ).
+      li_xml->add( iv_name = 'DYNPROS'
+                   ig_data = lt_dynpros ).
+
+      ls_cua = serialize_cua( lv_program_name ).
+      li_xml->add( iv_name = 'CUA'
+                   ig_data = ls_cua ).
+
+      lt_varis = serialize_varis( lv_program_name ).
+      li_xml->add( iv_name = 'VARIS'
+                   ig_data = lt_varis ).
+    ENDIF.
+
+    READ TABLE lt_tpool WITH KEY id = 'R' INTO ls_tpool.
+    IF sy-subrc = 0 AND ls_tpool-key = '' AND ls_tpool-length = 0.
+      DELETE lt_tpool INDEX sy-tabix.
+    ENDIF.
+
+    li_xml->add( iv_name = 'TPOOL'
+                 ig_data = add_tpool( lt_tpool ) ).
+
+    IF NOT io_xml IS BOUND.
+      io_files->add_xml( iv_extra = iv_extra
+                         ii_xml   = li_xml ).
+    ENDIF.
+
+    strip_generation_comments( CHANGING ct_source = lt_source ).
+
+    io_files->add_abap( iv_extra = iv_extra
+                        it_abap  = lt_source ).
+
+  ENDMETHOD.
+
+
+  METHOD serialize_varis.
+
+    DATA: ls_vari  TYPE ty_vari,
+          ls_varid TYPE varid,
+          lt_varis TYPE ty_varikey_tt.
+
+    FIELD-SYMBOLS: <ls_varikey> LIKE LINE OF lt_varis,
+                   <ls_object>  LIKE LINE OF ls_vari-objects.
+
+    lt_varis = get_varis_for_report( iv_program_name ).
+
+    LOOP AT lt_varis ASSIGNING <ls_varikey>.
+      CLEAR: ls_vari,
+             ls_varid.
+
+      get_vari_data( EXPORTING is_vari    = <ls_varikey>
+                     IMPORTING es_varid   = ls_varid
+                               et_values  = ls_vari-values
+                               et_objects = ls_vari-objects
+                               et_texts   = ls_vari-texts ).
+
+      MOVE-CORRESPONDING ls_varid TO ls_vari.
+
+      " Clear texts - they will be provided in TEXTPOOL section
+      LOOP AT ls_vari-objects ASSIGNING <ls_object>.
+        CLEAR <ls_object>-text.
+      ENDLOOP.
+
+      ls_vari-variscreens = get_vari_screens( <ls_varikey> ).
+
+      INSERT ls_vari INTO TABLE rt_varis.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD set_vari_protection.
+
+    SELECT SINGLE FOR UPDATE protected
+      FROM varid CLIENT SPECIFIED
+      INTO rv_was_protected
+      WHERE mandt   = c_sysvari_clnt
+        AND report  = is_vari-report
+        AND variant = is_vari-variant
+        AND flag1   = space
+        AND flag2   = space.
+
+    IF sy-subrc <> 0 OR rv_was_protected = iv_protect.
+      RETURN.
+    ENDIF.
+
+    UPDATE varid CLIENT SPECIFIED
+      SET protected = iv_protect
+      WHERE mandt   = c_sysvari_clnt
+        AND report  = is_vari-report
+        AND variant = is_vari-variant
+        AND flag1   = space
+        AND flag2   = space.
+
+  ENDMETHOD.
+
+
+  METHOD strip_generation_comments.
+
+    FIELD-SYMBOLS <lv_line> TYPE any. " Assuming CHAR (e.g. abaptxt255_tab) or string (FUGR)
+
+    IF ms_item-obj_type <> 'FUGR'.
+      RETURN.
+    ENDIF.
+
+    " Case 1: MV FM main prog and TOPs
+    READ TABLE ct_source INDEX 1 ASSIGNING <lv_line>.
+    IF sy-subrc = 0 AND <lv_line> CP '#**regenerated at *'.
+      DELETE ct_source INDEX 1.
+      RETURN.
+    ENDIF.
+
+    " Case 2: MV FM includes
+    IF lines( ct_source ) < 5. " Generation header length
+      RETURN.
+    ENDIF.
+
+    READ TABLE ct_source INDEX 1 ASSIGNING <lv_line>.
+    ASSERT sy-subrc = 0.
+    IF NOT <lv_line> CP '#*---*'.
+      RETURN.
+    ENDIF.
+
+    READ TABLE ct_source INDEX 2 ASSIGNING <lv_line>.
+    ASSERT sy-subrc = 0.
+    IF NOT <lv_line> CP '#**'.
+      RETURN.
+    ENDIF.
+
+    READ TABLE ct_source INDEX 3 ASSIGNING <lv_line>.
+    ASSERT sy-subrc = 0.
+    IF NOT <lv_line> CP '#**generation date:*'.
+      RETURN.
+    ENDIF.
+
+    READ TABLE ct_source INDEX 4 ASSIGNING <lv_line>.
+    ASSERT sy-subrc = 0.
+    IF NOT <lv_line> CP '#**generator version:*'.
+      RETURN.
+    ENDIF.
+
+    READ TABLE ct_source INDEX 5 ASSIGNING <lv_line>.
+    ASSERT sy-subrc = 0.
+    IF NOT <lv_line> CP '#*---*'.
+      RETURN.
+    ENDIF.
+
+    DELETE ct_source INDEX 4.
+    DELETE ct_source INDEX 3.
+
+  ENDMETHOD.
+
+
+  METHOD uncondense_flow.
+
+    DATA: lv_spaces LIKE LINE OF it_spaces.
+
+    FIELD-SYMBOLS: <ls_flow>   LIKE LINE OF it_flow,
+                   <ls_output> LIKE LINE OF rt_flow.
+
+
+    LOOP AT it_flow ASSIGNING <ls_flow>.
+      APPEND INITIAL LINE TO rt_flow ASSIGNING <ls_output>.
+      <ls_output>-line = <ls_flow>-line.
+
+      READ TABLE it_spaces INDEX sy-tabix INTO lv_spaces.
+      IF sy-subrc = 0.
+        SHIFT <ls_output>-line RIGHT BY lv_spaces PLACES IN CHARACTER MODE.
+      ENDIF.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD update_program.
+
+    zcl_abapgit_language=>set_current_language( mv_language ).
+
+    CALL FUNCTION 'RPY_INCLUDE_UPDATE'
+      EXPORTING
+        include_name     = is_progdir-name
+        title_string     = iv_title
+        save_inactive    = iv_state
+      TABLES
+        source_extended  = it_source
+      EXCEPTIONS
+        not_found        = 1
+        cancelled        = 2
+        permission_error = 3
+        OTHERS           = 4.
+
+    IF sy-subrc <> 0.
+      zcl_abapgit_language=>restore_login_language( ).
+
+      IF sy-msgid = 'EU' AND sy-msgno = '510'.
+        zcx_abapgit_exception=>raise( 'User is currently editing program' ).
+      ELSEIF sy-msgid = 'EU' AND sy-msgno = '522'.
+        " for generated table maintenance function groups, the author is set to SAP* instead of the user which
+        " generates the function group. This hits some standard checks, pulling new code again sets the author
+        " to the current user which avoids the check
+        IF is_exit_include( is_progdir-name ) = abap_false.
+          zcx_abapgit_exception=>raise( |Delete function group and pull again, { is_progdir-name } (EU522)| ).
+        ENDIF.
+      ELSE.
+        zcx_abapgit_exception=>raise_t100( ).
+      ENDIF.
+    ENDIF.
+
+    zcl_abapgit_language=>restore_login_language( ).
+
+  ENDMETHOD.
+ENDCLASS.

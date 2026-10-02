@@ -45,14 +45,16 @@ analyzing-programs/
     │   ├── zvendor_notify.abap          # Eval 12: ENQUEUE/DEQUEUE, MESSAGE ID
     │   └── zmodern_lo.abap              # Eval 13: inline DATA(), FILTER, REDUCE, VALUE #
 ├── Test-source/                      # Ad-hoc analysis inputs (not part of the eval set)
+│   └── real/                         # Real open-source ABAP, provenance in MANIFEST.json
+│                                     #   abapGit (MIT) + SAP-samples (Apache-2.0); up to 1598
+│                                     #   lines, adds FIELD-SYMBOL / INCLUDE layers / RAP+BDL
 ├── Test-result/                      # Reports produced from Test-source
-│   └── zr.*                          # zr.abap run three times on the SAME skill version to
-│                                     #   measure run-to-run stability; see zr.comparison.md
-│                                         (baseline 72% / skill 75% / skill-rerun 100% of 32
-│                                          defect fingerprints; the rerun uniquely caught
-│                                          `MODIFY zfinal` with `zfinal` undeclared, which
-│                                          neither earlier run found — the program cannot
-│                                          compile as written)
+│   ├── generality-audit.md           # Generality + correctness evidence for real-world input
+│   ├── judge-zvend.json              # Independent judge's own 21-defect list + 2-run scores
+│   ├── zr.*                          # zr.abap run 3x on the SAME skill version to measure
+│   │                                 #   stability: baseline 72% / skill 75% / skill 100%
+│   │                                 #   of 32 defect fingerprints
+│   └── real/*.skill.md               # Reports over the fetched real-world corpus
 └── analyzing-programs-workspace/     # Iteration artifacts
     ├── grade.py                      # Scoring driver (iteration-1)
     ├── grade3.py                     # Scoring driver (iteration-3..6, 4 hardcoded evals)
@@ -247,6 +249,34 @@ Consequences for how this table should be read:
   extrapolate to real code. Only the with/baseline *relative* comparison is meaningful.
 - n=2 supports the sign test but not variance estimation. Raise to 3 runs and run a power
   analysis to distinguish "skill has no effect" from "not enough samples".
+- **The skill is not self-validating.** On real open-source input it has produced
+  fabricated code statements and asserted that genuinely broken syntax was fine. Treat it as a
+  *first-pass reading checklist*, not as a defect oracle — see `Test-result/generality-audit.md`.
+
+### Generalality and correctness on real-world input
+
+`Test-result/generality-audit.md` records the full evidence. Headline:
+
+| | baseline | skill |
+|---|---|---|
+| Six-section structure, 2 Mermaid diagrams, responsibility table | — | **7/7 reports pass** |
+| Locating issues by name rather than line number | — | **7/7 pass** |
+| A8 three-layer labels after every abap block | — | **154/170 blocks** |
+| `zvend.abap`, 21 judge-derived defects | — | run1 0.833 / run2 0.738, 8/21 disagree |
+| Verbatim fidelity to the source | — | **fails** (invented `ASSERT`, `ELSE.` → `ELSE:`) |
+
+Real-world corpus: 10 files from abapGit (MIT) and SAP-samples (Apache-2.0), up to 1598 lines,
+covering `FIELD-SYMBOL`, `INCLUDE` layers, global classes, RAP behavior definitions and CDS —
+with provenance pinned per file in `Test-source/real/MANIFEST.json`. Still uncovered: AMDP,
+BADI implementations, class pools / function modules, dynamic SQL.
+
+Two failure modes recur and are the highest-value fixes:
+1. **Confident wrongness.** When unsure of a syntax/environment detail, the skill asserts the
+   construct is valid. Both `zvend` runs explicitly backed an unqualified `JOIN ... WHERE bedat`
+   as "unambiguous" when the field is ambiguous across `EKKO`/`EKPO`.
+2. **A8 lapses specifically on remediation code.** The three-layer rule is documented, but 16/170
+   missing blocks cluster entirely where the report shows *corrected* code and then comments on it
+   in unlabeled prose.
 
 ### Measurement bugs found in iteration-8 (both fixed, both regression-guarded)
 

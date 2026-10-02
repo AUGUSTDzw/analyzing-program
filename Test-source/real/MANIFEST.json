@@ -1,0 +1,122 @@
+[
+  {
+    "repo": "abapGit/abapGit",
+    "ref": "main",
+    "path": "src/zabapgit_forms.prog.abap",
+    "url": "https://github.com/abapGit/abapGit/blob/main/src/zabapgit_forms.prog.abap",
+    "license": "MIT",
+    "note": "PROGRAM/INCLUDE with many FORMs; abapGit's legacy procedural core",
+    "local": "abapGit__abapGit__zabapgit_forms.prog.abap",
+    "lines": 332,
+    "bytes": 10359,
+    "sha256": "ec5a734ef4feb25f4a996e1cdba49e58f0a70a8da9c4372e608df5ba082f57ec"
+  },
+  {
+    "repo": "abapGit/abapGit",
+    "ref": "main",
+    "path": "src/objects/zcl_abapgit_object_fugr.clas.abap",
+    "url": "https://github.com/abapGit/abapGit/blob/main/src/objects/zcl_abapgit_object_fugr.clas.abap",
+    "license": "MIT",
+    "note": "large global class: serialises function groups and their INCLUDEs",
+    "local": "abapGit__abapGit__zcl_abapgit_object_fugr.clas.abap",
+    "lines": 1530,
+    "bytes": 48463,
+    "sha256": "dd237caf0c89110f7002f531a7bc8347f2f0b2f883e3e0b6919ed9b9d75affdd"
+  },
+  {
+    "repo": "SAP-samples/cloud-abap-rap",
+    "ref": "abap-environment",
+    "path": "src/zdmo_c_rapg_projecttp.bdef.asbdef",
+    "url": "https://github.com/SAP-samples/cloud-abap-rap/blob/abap-environment/src/zdmo_c_rapg_projecttp.bdef.asbdef",
+    "license": "Apache-2.0",
+    "note": "RAP business object behavior definition (BDL)",
+    "local": "SAP-samples__cloud-abap-rap__zdmo_c_rapg_projecttp.bdef.asbdef",
+    "lines": 76,
+    "bytes": 1264,
+    "sha256": "3348407e2a61a13b3576953e8ae772a8b26760d3bc84dbcfdfee64199dbdc4af"
+  },
+  {
+    "repo": "SAP-samples/cloud-abap-rap",
+    "ref": "abap-environment",
+    "path": "src/zdmo_c_rapg_projecttp.ddls.asddls",
+    "url": "https://github.com/SAP-samples/cloud-abap-rap/blob/abap-environment/src/zdmo_c_rapg_projecttp.ddls.asddls",
+    "license": "Apache-2.0",
+    "note": "CDS DDL source for the RAP root entity",
+    "local": "SAP-samples__cloud-abap-rap__zdmo_c_rapg_projecttp.ddls.asddls",
+    "lines": 83,
+    "bytes": 3076,
+    "sha256": "719751d9194255c6f39937e18f5c3a6817af227e3d869d481a5f4e8c186f5f8e"
+  },
+  {
+    "repo": "abapGit/abapGit",
+    "ref": "main",
+    "path": "src/zabapgit.prog.abap",
+    "url": "https://github.com/abapGit/abapGit/blob/main/src/zabapgit.prog.abap",
+    "license": "MIT",
+    "note": "PROGRAM that INCLUDEs the forms layer; top-level event flow",
+    "local": "abapGit__abapGit__zabapgit.prog.abap",
+    "lines": 80,
+    "bytes": 3040,
+    "sha256": "bbd13befd4db84bbbba29300a2430500ff992bc581f55dff7ac02ce35fcf82bd"
+  },
+  {
+    "repo": "abapGit/abapGit",
+    "ref": "main",
+    "path": "src/zabapgit_password_dialog.prog.abap",
+    "url": "https://github.com/abapGit/abapGit/blob/main/src/zabapgit_password_dialog.prog.abap",
+    "license": "MIT",
+    "note": "dialog program: CL_GUI_ALV_GRID + FIELD-SYMBOL + call-back",
+    "local": "abapGit__abapGit__zabapgit_password_dialog.prog.abap",
+    "lines": 201,
+    "bytes": 5284,
+    "sha256": "d54b94adab3bbb363f833b9b1b8916a7814a8db3bf9e9746b5bae01592b55fd0"
+  },
+  {
+    "repo": "abapGit/abapGit",
+    "ref": "main",
+    "path": "src/objects/zcl_abapgit_objects_program.clas.abap",
+    "url": "https://github.com/abapGit/abapGit/blob/main/src/objects/zcl_abapgit_objects_program.clas.abap",
+    "license": "MIT",
+    "note": "large global class: serialises REPORTs/PROGRAMs incl. INCLUDE members",
+    "local": "abapGit__abapGit__zcl_abapgit_objects_program.clas.abap",
+    "lines": 1598,
+    "bytes": 48792,
+    "sha256": "bf5661698e3d35b125a8fa4abc435daf686d4d173226aaa172531c29170a9fe6"
+  },
+  {
+    "repo": "abapGit/abapGit",
+    "ref": "main",
+    "path": "src/ui/flow/zcl_abapgit_flow_logic.clas.abap",
+    "url": "https://github.com/abapGit/abapGit/blob/main/src/ui/flow/zcl_abapgit_flow_logic.clas.abap",
+    "license": "MIT",
+    "note": "UI flow logic class: ~1000 lines of real control-flow wiring",
+    "local": "abapGit__abapGit__zcl_abapgit_flow_logic.clas.abap",
+    "lines": 1115,
+    "bytes": 38594,
+    "sha256": "5766bd3e7c2ce02f9b196709bbfaf6aef7b99e87669cdf1e6e2e4b7b8e7ce0cd"
+  },
+  {
+    "repo": "SAP-samples/abap-platform-reuse-services",
+    "ref": "main",
+    "path": "src/zreusebp_r_salesordertp_002.clas.abap",
+    "url": "https://github.com/SAP-samples/abap-platform-reuse-services/blob/main/src/zreusebp_r_salesordertp_002.clas.abap",
+    "license": "Apache-2.0",
+    "note": "RAP unmanaged behaviour pool: numbering, EML, determinations",
+    "local": "SAP-samples__abap-platform-reuse-services__zreusebp_r_salesordertp_002.clas.abap",
+    "lines": 16,
+    "bytes": 244,
+    "sha256": "520c72ddbadd7a35eabdec0e7b9e07656e3a7debeec82c99045182641354c9f9"
+  },
+  {
+    "repo": "SAP-samples/abap-platform-reuse-services",
+    "ref": "main",
+    "path": "src/zcl_zreuse_so_002_chdo.clas.abap",
+    "url": "https://github.com/SAP-samples/abap-platform-reuse-services/blob/main/src/zcl_zreuse_so_002_chdo.clas.abap",
+    "license": "Apache-2.0",
+    "note": "change-document handling around a RAP BO",
+    "local": "SAP-samples__abap-platform-reuse-services__zcl_zreuse_so_002_chdo.clas.abap",
+    "lines": 131,
+    "bytes": 4606,
+    "sha256": "300838655a12c712a5ecca8360178823070354d2797329aa88b03fe0e08c18b6"
+  }
+]
