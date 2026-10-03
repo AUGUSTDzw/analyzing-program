@@ -90,6 +90,26 @@ analyzing-programs/
         └── eval-<id>-<name>/{with_skill,without_skill}/run-<k>/outputs/report.md
 ```
 
+### Report and corpus tooling
+
+Kept flat in `analyzing-programs-workspace/`. Every one is runnable from the repo
+root and takes its paths as `argv` — nothing hardcodes a machine-specific path.
+
+| Script | Purpose |
+|---|---|
+| `qc_report.py <report.md …>` | Checks generated reports against the skill's own rules: six sections, three-layer labels after every `abap` block, Mermaid label safety, no line-number locators, priority buckets. Two A8 sub-patterns are counted separately (consecutive blocks vs group-level `风险与改进`). |
+| `summarise_judges.py <Test-result>` | Aggregates `judge-*.json` / `ab-judge-*.json` into one table with weighted recall and a false-claim count. |
+| `preflight.py <corpus> <file …>` | Encoding gate run **before** handing a source to an analyser: valid UTF-8, no `U+FFFD`, no NULs, ABAP keywords present, sha256 for cross-checking. Added after a UTF-16 file was stored as mojibake. |
+| `verify_corpus.py <corpus>` | Re-hashes every corpus file against `MANIFEST.json`, checks line counts, rejects non-UTF-8 and replacement characters, and flags files on disk that the manifest does not list. |
+| `repair_corpus.py <corpus>` | Fixes manifest `path`/`url` fields and re-fetches files mangled by a wrong decode. Needed because zipballs carry a `<repo>-<branch>/` root that must be stripped from both the local name and the recorded path. |
+| `scan_corpus.py <corpus>` | Maps ABAP constructs onto the corpus and prints what is still absent. Two probes here were previously wrong and reported false absences: AMDP (matched a method body, not its declaration) and `CLASS x IMPLEMENTATION.` (missed the trailing period, so every class looked absent). |
+| `build_corpus_md.py <corpus> <scanner>` | Regenerates `Test-source/real/CORPUS.md` from the manifest plus the scan. Idempotent. |
+| `audit_skill_redundancy.py <SKILL.md>` | Reports how many times each rule is restated and in which sections. Written after an A/B test showed that growing `SKILL.md` by 49% regressed two previously-perfect rules in the same files the new rule was meant to improve. |
+| `find_abap_repos.py <out.json>` | Enumerates ABAP repositories on GitHub across 22 queries, paginated and de-duplicated. |
+| `sweep_repos.py <corpus> <topK> <MB> <repos.json> <wanted> <report>` | Downloads repos as zipballs from codeload and keeps every file carrying a target construct plus the largest few. Bypasses the REST rate limit (60/hour anonymous) and stops sampling, which is what made earlier "construct absent" claims unprovable. |
+| `fix_judge_json.py <judge-dir> <defects>` | Repairs unparseable judge JSON caused by unescaped quotes in `evidence` text, then validates verdict ids against the defect manifest. |
+
+
 ## Evaluation Flow
 
 Every iteration round follows the same flow:
