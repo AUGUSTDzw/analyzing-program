@@ -27,6 +27,8 @@ The value of this skill is the **fixed report structure** and the **three-layer 
    因为那需要判断后面那段散文本来属于哪一层，猜错会把风险论述标成"做什么"。
    闸门不通过就改到通过为止。不同模型的产出漂移很大（同一文件同一 skill 重复跑，
    缺陷召回 0.700/0.625/0.650），所以格式不能靠自觉，要靠这个脚本。
+   闸门只管形状。**分析对不对、漏没漏，它答不了** —— 那需要一份冻结的缺陷清单，
+   见 `evals/README.md` 与 `scripts/evaluate.py`。
 
 ## Report Structure（必须遵循）
 
