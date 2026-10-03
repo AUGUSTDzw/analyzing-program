@@ -1,0 +1,162 @@
+{
+  "source": "ysichov__AVE__src__z_ave_standalone.prog.abap (29564 lines / 1278609 bytes; 46 DEFINITION DEFERRED classes + 3 ZIF interfaces + zcx_ave + lif_abapmerge_marker; 433 METHOD implementations)",
+  "defect_list_source": "judge-ave.json -> defects (22), not re-derived. All 22 anchors were re-verified present in the source before scoring.",
+  "v1": {
+    "path": "Test-result/real/ysichov__AVE__z_ave_standalone.skill.md",
+    "size": "3257 lines, 85 ```abap blocks (1514 code lines), 2 mermaid blocks, 92 problem rows (P0-1..8, P1-1..18, P2-1..36, P3-1..30)",
+    "verdicts": {
+      "D1": "yes",
+      "D2": "yes",
+      "D3": "yes",
+      "D4": "no",
+      "D5": "no",
+      "D6": "yes",
+      "D7": "yes",
+      "D8": "yes",
+      "D9": "yes",
+      "D10": "partial",
+      "D11": "no",
+      "D12": "no",
+      "D13": "yes",
+      "D14": "yes",
+      "D15": "no",
+      "D16": "no",
+      "D17": "yes",
+      "D18": "yes",
+      "D19": "partial",
+      "D20": "no",
+      "D21": "yes",
+      "D22": "yes"
+    },
+    "tally": {"yes": 13, "partial": 2, "no": 7},
+    "evidence": {
+      "D1": "P0-6 + s3.29 risk 4 quotes the two unguarded /ui2/cl_json=>deserialize sites verbatim and names the cx_web_json dump plus the do_askai/do_ai_summary/FORM f4_model callers; remediation (TRY/CATCH cx_web_json -> 'Error: ...') matches the file's own degradation style.",
+      "D2": "P2-6 + s3.2 risk 1 + s3.29 risk 9: quotes `p_apikey TYPE text255 MEMORY ID api`, states it is displayed in clear and stays in SAP memory.",
+      "D3": "P0-7 'no authorisation check: any user who can execute Z_AVE can read and rewrite any request's review verdicts ... no object-level AUTHORITY-CHECK', naming load/save/delete_review_payload. Mechanically confirmed: AUTHORITY-CHECK appears 0 times in 29564 lines.",
+      "D4": "no. Zero occurrences of set_registered_events / cntl_error / mo_html in the report; source 12519-12530 (CREATE OBJECT mo_html EXCEPTIONS cntl_error..OTHERS, no sy-subrc check, then mo_html->set_registered_events) is never read.",
+      "D5": "no. mo_toolbar appears once (line 730) only as a CREATE OBJECT vs NEW style nit; the build_layout early-RETURN / show-ignores-it chain is never analysed.",
+      "D6": "P3-18 'go_popup is overwritten repeatedly, old window not explicitly closed' with the correct remediation.",
+      "D7": "P2-31 'FORM run_ave's CHECK sy-ucomm IS INITIAL makes the toolbar Execute and every other standard action unresponsive'; confirmed 0 START-OF-SELECTION blocks in the source.",
+      "D8": "P0-5 quotes `iv_korr(3) <> sy-sysid` and the resulting wrong R/V/W verdicts; remediation is the correct positive test.",
+      "D9": "P2-19 'gt_korr_exists caches negative results: a request created later in the session is still judged N'; matches source 1938/22458/22469 (never CLEARed, only gt_scope_korr is reset at 22376).",
+      "D10": "partial. P0-2 correctly identifies the text-keyed blame map and the wrong-author consequence ('repeated lines like ENDIF. ... all blame records for the same text are cleared'), and P1-4 cites a real text-keyed READ. But it attributes the defect to build_blame_map's DELETE and names zcl_ave_acr_stats~from_diff (19758/19787), never the frozen site zcl_ave_acr_hunk_info~collect at 27507; the per-author statistics consequence is not stated.",
+      "D11": "no. The report quotes an unchecked READ TABLE mt_versions (INDEX 2) at line 639 and explicitly backs it ('this is exactly the intent the comment describes, so the behaviour is correct'). The show_source WITH KEY versno/objtype/objname read (13149) and its ls_ver_row-system -> iv_system IS INITIAL -> DDIF_TABL_GET live-active chain are never analysed.",
+      "D12": "no. `rv_answer = i_json` appears inside the D1/SSRF quote blocks (2753, 2762) but is never identified as the failure of the Error:* contract; the report contains no CP/NP 'Error:*' analysis at all.",
+      "D13": "P2-17 names all three cross-class statics exactly: gv_comment_check / zcl_ave_popup_data~mv_no_toc / zcl_ave_adt~gv_gui_nav, and the popup constructor as the writer.",
+      "D14": "P2-1 (N+1 SELECT SINGLE strkorr FROM e070) plus s3.5 risk 2 which spells out the parts x requests x SELECT SINGLE nesting and the 250-source-read + 250-diff cost.",
+      "D15": "no. handle_sapevent is discussed (s3.27) and P1 asks for parameter validation, but the unchecked FIND FIRST OCCURRENCE OF '~' MATCH OFFSET lv_tld2 (28160) and its effect on the mass-approve DO loop are absent.",
+      "D16": "no. s3.26 describes the note dialog; P1-14 covers only missing TRY/CATCH on GUI event entry. The empty-note -> RAISE EVENT cancelled -> CLEAR mv_pending_decline path that loses the decline entirely is not found.",
+      "D17": "yes. s3.29 risk 6 'no explicit timeout ... if_http_client defaults to 120 s' and P1-16 prescribes o_client->set_timeout( 30 ). The per-hunk blocking amplification and 'hangs the session indefinitely' are missed, but the primary mechanism and a working fix are identified (set_timeout occurs 0 times in the source).",
+      "D18": "s3.29 risk 3 quotes the whole escape_json body and enumerates the uncovered C0 characters; P2-22 adds the i_schema verbatim-splice issue.",
+      "D19": "partial. Line 1692 states `authors` has no invalidation and 'only grows, never shrinks' - then explicitly dismisses it ('memory negligible. P3 no risk'), and gt_rel_cache (4896) is never mentioned. The observation is right, the verdict is wrong, and half the defect is absent.",
+      "D20": "no. The lt_child_task_korrs block is quoted verbatim at 662-677 with the missing CLEAR visible in the quote, and neither the surrounding analysis nor the 92-row problem list notices it; the later SORT/DELETE ADJACENT DUPLICATES is read as the fix.",
+      "D21": "P2-7 'mv_counter increments and nobody reads it' and s3.4 risk 4; confirmed CLASS-DATA at 3534 with only 2 references in the file and no read.",
+      "D22": "P1-13 (every approve/decline/comment rewrites the whole multi-MB payload with one UPDATE) plus P2-21 (no COMMIT WORK, relies on the caller's transaction). Both halves of the frozen defect, with a workable incremental-UPDATE remediation."
+    },
+    "false_claims": 9,
+    "false_claim_detail": [
+      {"claim": "s3.6 abap block: `CASE object_type. WHEN gc_type-class. result = NEW zcl_ave_object_clas( ... ). ... ENDCASE.` (11 branches, three separate DDIC branches with hardcoded iv_type 'TABD'/'DOMD'/'DTED')", "why_wrong": "Source 16713-16726 is a single `result = SWITCH #( object_type WHEN ... THEN ... )` expression with 9 WHEN clauses; the DDIC case is ONE branch, `WHEN gc_type-tabd OR gc_type-doma OR gc_type-dtel THEN NEW zcl_ave_object_ddic( name = CONV #( object_name ) iv_type = CONV #( object_type ) )`, with positional parameters. v1 also drops the trailing `IF result IS NOT BOUND OR result->check_exists( ) = abap_false. RAISE EXCEPTION TYPE zcx_ave.` and repeats 'the factory's CASE' in prose - a structure that does not exist in the file."},
+      {"claim": "P0-1 (the headline P0): 'decline notes, change descriptions (E07T), author names and AI answer text are ALL spliced into CL_GUI_HTML_VIEWER without HTML escaping'; repeated in s6 shortcoming 2", "why_wrong": "zcl_ave_acr_renderer~render_decline_thread_html escapes all three at 21428/21429 (`escape( val = CONV string( ls_msg-author ) format = cl_abap_format=>e_html_text )`, `lv_text_esc = escape( val = ls_msg-text ... )`), and ~render_hunk_comments_html does the same at 21944 and 21952-21953. 104 e_html_text escape sites exist in the file. Only the source_to_html i_title / i_meta interpolation (8247-8248) is genuinely unescaped, so the finding as stated is wrong for the two renderer methods it names."},
+      {"claim": "P3-26: 'ty_settings has 27 fields'", "why_wrong": "zif_ave_object=>ty_settings (105-164) declares 29 fields."},
+      {"claim": "P2-32: 'zcl_ave_acr_metrics has 12 model constants'; repeated in s6 strength 4 ('12 constants with unit comments and ##NO_TEXT')", "why_wrong": "Only 11 CLASS-DATA gv_* constants exist (1095-1109: gv_obj_ms, gv_part_ms, gv_ver_ms, gv_line_ms, gv_blame_step_ms, gv_blame_lin_um, gv_blame_sq_um, gv_remote_pct, gv_assumed_lines, gv_heavy_secs, gv_medium_secs)."},
+      {"claim": "P2-13: 'build_css x3'", "why_wrong": "Only 2 `METHOD build_css` definitions exist (19560 zcl_ave_acr_part_view, 25184 zcl_ave_acr_user_view)."},
+      {"claim": "P2-13: 'esc x2'", "why_wrong": "3 `METHOD esc.` definitions exist (7782 zcl_ave_popup_html, 21362 zcl_ave_acr_renderer, 26122 zcl_ave_acr_metrics), plus esc_html / esc_line - the duplication is larger than stated."},
+      {"claim": "P2-12: 'zcl_ave_object_factory~get_instance (11 branches)'", "why_wrong": "The SWITCH has 9 WHEN clauses (16715-16726)."},
+      {"claim": "s3.6 risk 2: 'zcl_ave_object_tr~get_object ... likewise 11 hand-written branches'", "why_wrong": "10 WHEN clauses."},
+      {"claim": "P1-2: 'finally concatenate once with cl_abap_string_utilities=>concat_lines_of( tab = ... ) (zcl_ave_acr_ai~ddic_table_to_text already does it the right way - just unify)'", "why_wrong": "`concat_lines_of` occurs 0 times in the file, and ddic_table_to_text (28330+) builds its text with repeated REPLACE ALL OCCURRENCES on a single string plus && concatenation - no table-to-concat pattern. The cited in-file precedent does not exist (the API itself is valid, so the fix would work, but the justification is fabricated)."}
+    ],
+    "verified_correct_claims": [
+      "29,564 lines / 46 DEFERRED classes; is_openable '27 OR items' (exactly 27); build_parts_list colour chain '12 NE' (exactly 12, 12320-12322); precompute_part ~1615 vs '~1600'; version_list~load 1220 vs '~1200'; diff_to_html 647 vs '~650'; to_html 682 vs '~680'; build_object_report_html 516 vs '~520'; debug_diff_html 444 vs '~445'; build_prompt_page_html 406 vs '~400'; zcl_ave_popup 91 methods",
+      "P3-28 supress_button misspelling and the fact that only 'ONLI' is excluded (29438-29445) - SJOB/SPOS genuinely remain clickable",
+      "P0-3 correctly attributes the author/date forgery to precompute_part (iv_author = sy-uname / iv_datum = sy-datum at 23011-23012, 23078-23083)",
+      "Of 104 code lines that did not match the source line-for-line, 103 are legitimate multi-line collapses or explicit `...` elisions (e.g. compare_mode, percentage, exists_flag); only the get_instance block is a material misquote."
+    ],
+    "remediation_check": "All prescribed fixes are implementable: set_timeout( 30 ), HASHED ... UNIQUE KEY text, cl_abap_context=>encode_json, cl_abap_format=>e_html_text, FOR ALL ENTRIES batching, TEXT-0xx, per-TRKORR+REMOTE+REVIEWER incremental UPDATE, RAISE EXCEPTION TYPE zcx_ave. Only the P1-2 precedent citation is unsound (see above); the fix itself is sound."
+  },
+  "v2": {
+    "path": "Test-result/real2/ysichov__AVE__z_ave_standalone.skill.md",
+    "size": "464 lines, 3 ```abap blocks (13 code lines total, 2 of which are cosmetic), 2 mermaid blocks, 25 problem rows",
+    "verdicts": {
+      "D1": "no",
+      "D2": "yes",
+      "D3": "partial",
+      "D4": "no",
+      "D5": "no",
+      "D6": "no",
+      "D7": "no",
+      "D8": "no",
+      "D9": "no",
+      "D10": "partial",
+      "D11": "partial",
+      "D12": "no",
+      "D13": "partial",
+      "D14": "no",
+      "D15": "no",
+      "D16": "no",
+      "D17": "no",
+      "D18": "partial",
+      "D19": "no",
+      "D20": "no",
+      "D21": "no",
+      "D22": "no"
+    },
+    "tally": {"yes": 1, "partial": 5, "no": 16},
+    "evidence": {
+      "D1": "no, and explicitly backed as correct. s3.13 states `ask` runs 'CREATE_BY_URL -> set auth header -> send -> receive -> parse_response, every step returns a readable error string'. `deserialize` occurs 0 times in the report; the unguarded /ui2/cl_json=>deserialize sites are never read.",
+      "D2": "yes. P0-1 quotes the PARAMETERS block including `p_apikey TYPE text255 MEMORY ID api`, states the key enters the SPA/Tspa parameter buffer in clear, and prescribes a key service / masked display. Exact match.",
+      "D3": "partial. P1-10 flags JSON plaintext, no integrity check and 'comments in the DB can be tampered with or script-injected', and the remediation column does say 'authorise by object key'. But the report contains zero occurrences of AUTHORITY-CHECK or 权限 anywhere, never states that no user is checked, and never names the (TRKORR, REMOTE) write key.",
+      "D4": "no. cntl_error / set_registered_events / mo_html all 0 occurrences; the HTMLViewer creation path is described only as 'create_html_viewer' in a method inventory. This is exactly the runtime-crash class the newer skill was supposed to prioritise.",
+      "D5": "no. mo_toolbar / mo_box 0 occurrences; build_layout appears once, in a method-name list.",
+      "D6": "no. go_popup never discussed; s6.2 mentions static state and SPA windows but only as P1-5 (class-level settings), not the overwritten popup reference.",
+      "D7": "no. The selection-screen flow is described ('enters FORM run_ave when sy-ucomm <> DUMMY') and even rationalised as deliberate ('CHECK sy-ucomm IS INITIAL guarantees launch only on Enter'). No START-OF-SELECTION gap, no toolbar-command dead end - the defect is read as a design decision.",
+      "D8": "no. sy-sysid / SYSID 0 occurrences; is_other_system_korr appears only as a method name in a table cell.",
+      "D9": "no. gt_korr_exists 0 occurrences.",
+      "D10": "partial. P2 'zcl_ave_popup_diff=>build_blame_map + is_trivial_anchor: uncovered lines resolve their author by linear text-key lookup | O(n^2)' identifies that the blame map is keyed by text and that text lookups are the problem - but frames it purely as performance and never states the correctness consequence (duplicate lines -> wrong author, wrong per-author statistics), nor names zcl_ave_acr_hunk_info.",
+      "D11": "partial. P1-4 on get_tabd/get_doma/get_dtel notes 'DDIC structures/values come from active data and are often filtered by the current language' -> 'a historical version's field descriptions/values may be empty or in the wrong language'. Right area and part of the consequence; the mechanism (unchecked READ TABLE mt_versions leaving ls_ver_row-system initial, which then falls into the iv_system IS INITIAL branch and returns the live active definition) is absent, and 'silently shows today's active version' is never claimed.",
+      "D12": "no. 'Error:' appears twice, both times as the generic statement that failures return strings and callers must test the prefix. The `rv_answer = i_json` fallback and the resulting CP/NP 'Error:*' contract bypass are not identified.",
+      "D13": "partial. P1-5 says settings/review view are held as class attributes shared across popup instances and recommends instance fields. It does not name the three cross-class writes (zcl_ave_popup_data=>mv_no_toc, zcl_ave_acr_prepare=>gv_comment_check, zcl_ave_adt=>gv_gui_nav) from the popup constructor, so the mechanism is generalised away.",
+      "D14": "no. The only SQL finding is the opposite one: P2 complains that 'FOR ALL ENTRIES combination queries degrade into large scans'. The 4 `SELECT SINGLE strkorr FROM e070` inside build_parts_list's three nested loops are not flagged, nor is the missing FOR ALL ENTRIES.",
+      "D15": "no. approveall appears once, as a method name in the hunk_renderer inventory. No FIND/OFFSET analysis anywhere.",
+      "D16": "no. The note dialog gets one cell, 'discarding input on cancel (P1-8)', and P1-5/P1-8 are about unsaved work lost on window close. The empty-comment -> RAISE cancelled -> CLEAR mv_pending_decline path, which loses the decline itself with no message, is not found.",
+      "D17": "no. set_timeout / timeout 0 occurrences. 'do_askai waits synchronously on the GUI thread' is stated under P1-9, which is the UI-freeze half, but the missing HTTP timeout is never raised.",
+      "D18": "partial. s3.13: 'escape_json hand-rolled escaping, prone to errors on control characters / Unicode escapes; switch to ABAP's JSON serializer' with the concrete fix /ui2/cl_json. Names the right method and the right remedy; does not enumerate the specific uncovered C0 characters or that it is applied to arbitrary reviewed source.",
+      "D19": "no. Caches are mentioned only as 'type cache has no invalidation (acceptable - DDIC types do not change within a day)', which backs the class of defect as acceptable. gt_rel_cache is never named and authors is never mentioned.",
+      "D20": "no. lt_child_task_korrs never appears.",
+      "D21": "no. mv_counter 0 occurrences - the CLASS-DATA dead counter is entirely absent.",
+      "D22": "no. COMMIT 0 occurrences; ZAVE_REVIEW is only described as 'read/write/delete' in a one-cell inventory. No finding on the write pattern, the uncommitted LUW or the absence of a length guard."
+    },
+    "false_claims": 2,
+    "false_claim_detail": [
+      {"claim": "Header: '432 method implementations'", "why_wrong": "The file contains 433 uncommented METHOD implementation lines (none inside a comment block, none inside an interface)."},
+      {"claim": "s3.3 code-comment label `\" ZCL_AVE_VERSION2=>GET_SOURCE_LOCAL` on the quoted `author = COND #( WHEN iv_author IS NOT INITIAL THEN iv_author ELSE sy-uname ).`", "why_wrong": "That line is at 6765 inside METHOD get_source_local_compat (def at 6740), not get_source_local - which v2 itself lists as a separate method in the adjacent table. The code text is genuine and the class is right; the method attribution is wrong."}
+    ],
+    "verified_correct_claims": [
+      "Arithmetic and inventory are almost entirely exact: 29,564 lines; 1,278,609 bytes; 46 implementation classes; 3 ZIF interfaces + 1 exception class; lif_abapmerge_marker present at 29559 with abapmerge 0.16.7; zcl_ave_popup 91 methods, 4,658-line implementation; every per-class method count checked (popup_data 12, popup_diff 16, acr_prepare 31, acr_precompute 11, acr_state 13, acr_repository 5, acr_renderer 17, acr_metrics 15, acr_ai 14, adt 30, ai_api 8, ai_prompts 10, author 1, zcx_ave 1, diff_decl 8, html_viewer 1, progress 5, ...) all exact",
+      "All method-length estimates land within 1-2%: precompute_part 1615 vs '~1,600'; version_list=>load 1220 vs '~1,200'; to_html 682 vs '~680'; diff_to_html 647 vs '~650'",
+      "Both quoted abap snippets are genuine source: `author = COND #( ... ELSE sy-uname )` (6765) and the RS_CMP_COMPUTE_DELTA call with compare_mode '1' / parameter_invalid=1 OTHERS=2 / IF sy-subrc <> 0. RETURN. (9785-9795)",
+      "`SELECT v~* FROM vrsd v INNER JOIN e070 e ON e~trkorr = v~korrnum` (5054); p_cmtchk as a default-off checkbox (29127); p_maxtok (29233); p_diff driving p_pane/p_cmpct (29285-29286); INITIALIZATION -> PERFORM supress_button blocking only ONLI (29255, 29438-29445); PACK and TR both exposing get_object_keys (16336, 16515)",
+      "Remediations are all implementable (RAISING zcx_ave or an ok flag, LEFT JOIN with a fallback label, HASHED text->line index, rolling-array LCS, batched key sets with an upper bound, escaping on render, access authorisation, customising table for ZAVE_REVIEW and the provider list). No unworkable fix found."
+    ]
+  },
+  "coverage": {
+    "v1": "Adequate as an analysis. 3257 lines / 85 verbatim abap blocks drawn from essentially every large class, per-class 做什么/为什么/风险与改进 structure, and 92 independently-derived problem rows. Verified mechanically: every class/method/constant name referenced exists; the 104 code lines that failed a line-for-line match are 103 legitimate multi-line collapses or explicit elisions plus the one misquote recorded above; per-method length estimates land within 1-2%. Not adequate in three specific directions: GUI-control error handling (CREATE OBJECT ... EXCEPTIONS with no sy-subrc check, then dereference - D4/D5), the HTML event-dispatch / note-dialog state paths (D15/D16), and the persistence write pattern's DDIC degradation (D11/D12/D20). It also backs two flagged-risky items as correct (the unchecked mt_versions read at L639, and the lt_child_task_korrs accumulation quoted verbatim at 662-677).",
+    "v2": "Not adequate. 464 lines / 3 abap blocks (13 code lines) / 25 problem rows. It is a high-quality architecture and inventory summary - every class method count and every method length is accurate to within 1-2% - but it contains no line numbers, no control-flow reading and almost no source quotation, and it scores 1 yes / 5 partial / 16 no against the frozen list. It misses all 22 defects outside its diff/algorithm/persistence-perimeter blind spot, and it actively backs three of them as correct (D1 'every step returns a readable error string'; D7 'CHECK sy-ucomm IS INITIAL guarantees launch only on Enter'; D19 'type cache has no invalidation ... acceptable'). Most pointed against the stated purpose of the newer rule: on a file far over 5000 lines it surfaces ZERO of the runtime-crash class (D4 mo_html->set_registered_events on an unbound reference, D5 CREATE OBJECT mo_toolbar on an unbound parent) - it never even names mo_html, mo_box, mo_toolbar, cntl_error or set_registered_events - while spending its three P0 slots on an API-key naming issue, a diff-FM early RETURN and an author fallback. Length here tracks summary depth, not risk.",
+    "adequate": false
+  },
+  "mermaid_bare_chars": {
+    "v1": 0,
+    "v2": 14,
+    "detail": "CONFIRMED. Both reports contain exactly 2 mermaid blocks (v1: a flowchart + a sequenceDiagram in s4; v2: flowchart s2.1 + sequenceDiagram s4). v1 has zero bare '>' and zero bare '#' in any node label - its sequence-diagram participants use bare class names (SEL/POPUP/RQ/ST/VR/VL/V2/DF/PH/WF/PW/PC/HI/HH/ST/RP/CM/AI/API), so nothing can break rendering. v2's s2.1 flowchart has 22 node labels carrying a bare '>' and 14 of them are the reported `obj->method` form: F `popup->show`, H `zcl_ave_vrsd->load_from_table`, I `version_list->load / load_light`, J `version->load_latest_task` + `request->resolve_parent_k`, K `version2->get_source_local/remote`, L `popup_diff_view->render` + `popup_diff->compute_diff`, N `acr_workflow->prepare_code_review`, O `acr_precompute->precompute_part`, R `popup_html->diff_to_html`, T `zcl_ave_html_viewer->show_html`, V `acr_state->set_hunk_action` + `acr_repository->save_review_payload`, W `ai_api->ask`, X `zcl_ave_adt->open_by_key`, Y `acr_workflow->refresh_secs` + `acr_metrics->collect`. Exactly 14, as reported. The remaining 8 are `<br/>`, which Mermaid parses as its own line-break tag and tolerates; two further bare '>' sit in s4 sequence messages as `popup_html=>diff_to_html` and `ZCL_AVE_AI_API=>ask`, which are harmless because sequence message text is free-form. No bare '#' anywhere in either report. Net: 14 genuinely unsafe node labels in v2, 0 in v1 - a regression the newer skill introduced."
+  },
+  "priority_buckets": {
+    "v1": "emoji",
+    "v2": "table",
+    "detail": "v1 s5 uses the four required emoji bucket headings exactly once each: '### (U+1F534) P0 business correctness', '### (U+1F7E0) P1 robustness', '### (U+1F7E1) P2 performance and standards', '### (U+1F7E2) P3 extensibility' - red circle / orange circle / yellow circle / green circle, matching the skill spec. v2 s5 substitutes a single 5-column markdown table with a priority column of bare text P0/P1/P2/P3 and NO emoji anywhere in the file (a full non-BMP codepoint scan of v2 returns zero characters above U+1F000). So v2 drops the emoji bucket convention the skill specifies, replacing it with a plain table."
+  },
+  "summary": {
+    "v1_tally": "13 yes / 2 partial / 7 no / 9 false claims / 0 unsafe mermaid labels / emoji buckets correct",
+    "v2_tally": "1 yes / 5 partial / 16 no / 2 false claims / 14 unsafe mermaid labels / table buckets instead of emoji",
+    "winner": "v1",
+    "reason": "v1 finds 13 of the 22 frozen defects by mechanism and consequence where v2 finds 1, and its arithmetic (line count, byte count, class/method counts, method lengths) is equally or more accurate. v2's precision is real but it bought structure, not analysis - and the precision it does have is spent on inventory rather than on the risk. v2 also regressed on two format axes the v1 run got right: 14 Mermaid node labels now carry a bare '>' that can break rendering, and the four emoji priority buckets were replaced by a plain P0-P3 table."
+  }
+}

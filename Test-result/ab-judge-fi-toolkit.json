@@ -1,0 +1,118 @@
+{
+  "source": "ZCL_FI_TOOLKIT.abap",
+  "v1": {
+    "path": "Test-result/real/Keremkoseoglu__ABAP-Library__ZCL_FI_TOOLKIT.skill.md",
+    "verdicts": {
+      "D1": "yes",
+      "D2": "partial",
+      "D3": "partial",
+      "D4": "yes",
+      "D5": "no",
+      "D6": "yes",
+      "D7": "yes",
+      "D8": "partial",
+      "D9": "partial",
+      "D10": "yes",
+      "D11": "partial",
+      "D12": "no",
+      "D13": "yes",
+      "D14": "yes",
+      "D15": "yes",
+      "D16": "partial",
+      "D17": "yes",
+      "D18": "no",
+      "D19": "yes",
+      "D20": "yes"
+    },
+    "tally": { "yes": 11, "partial": 6, "no": 3 },
+    "false_claims": 6,
+    "notes": "false_claims = the 6 recorded in judge-fi-toolkit.json, all 6 re-confirmed present (sanity check passes). Verdict notes: D2 notices SELECT SINGLE/##WARN_OK but only as a missing-index performance issue, never the arbitrary-of-several-rows consequence; D3 covers only tt_vbrp, misses the tt_mseg/tt_rbkp WITH TABLE KEY misuse; D5 asserts the ENDLOOP-adjacent sy-subrc 'happens to hold now', i.e. calls the defect correct -> no; D8 flags 'ABAP does not guarantee it' but then calls the pointer behaviour stable and the pattern common practice; D9 hedges ('if the intent was...') and never states the EKSTRE branch is dead; D11 states the empty-BLART consequence but says length 5 is exactly 'BLAR' + one koart char, so the truncation is never identified; D16 covers the unbounded-cache half only, never the UNIQUE-KEY duplicate leaving the field symbol unassigned; D18 absent and the HASHED/UNIQUE return is praised."
+  },
+  "v2": {
+    "path": "Test-result/real2/Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md",
+    "verdicts": {
+      "D1": "yes",
+      "D2": "yes",
+      "D3": "no",
+      "D4": "yes",
+      "D5": "yes",
+      "D6": "yes",
+      "D7": "yes",
+      "D8": "yes",
+      "D9": "yes",
+      "D10": "yes",
+      "D11": "partial",
+      "D12": "no",
+      "D13": "yes",
+      "D14": "yes",
+      "D15": "no",
+      "D16": "partial",
+      "D17": "partial",
+      "D18": "no",
+      "D19": "yes",
+      "D20": "partial"
+    },
+    "tally": { "yes": 12, "partial": 4, "no": 4 },
+    "false_claims": 9,
+    "notes": "false_claims = 3 persisting of the recorded 6 + 6 new. Verdict notes: D2 is a genuine improvement (states AWKEY is not unique, ##WARN_OK hides it, may return another company code's document); D3 is a regression - 3.1(2) and 3.2(3) call the SORTED/NON-UNIQUE key declarations '本类最好的一处' and assert the reads match the declarations, i.e. the WITH TABLE KEY misuse is declared correct; D5, D8, D9 upgraded to yes with correct consequences; D11 still misses the 4+4-into-5 truncation and calls 5 chars '巧合式安全'; D12 and D15 are called correct (i_mode='E' praised as '后台批处理的正确组合'; WRITE-to-date praised as '配对正确'); D17 second half inverted (empty range called '安全默认'); D18 absent, HASHED return praised; D20 covers the underflow but never flags that only INDEX 1 of the range is used."
+  },
+  "old_false_claims_persisting_in_v2": [
+    {
+      "claim": "3.2(1): \"IF sy-cprog = 0 AND sy-cprog(5) = 'RFITE' ...\" rationale and 3.9: \"lv_mode 的取值域（A/E/N）应加注释说明为何选 E\"",
+      "recorded_as": "v1 recorded false claim #1 (ALLGAZMD 'E' misread as 遇错即停)",
+      "why_still_wrong": "v2 now reads i_mode='E' as \"错误信息显示\" and explicitly calls it \"后台批处理的正确组合：后台没有前台可弹窗，错误必须以消息形式返回\". In POSTING_INTERFACE_START, ALLGAZMD 'E' is the exercise/test run (only 'P' posts), so POSTING_INTERFACE_CLEARING never creates the document while the MESSAGE fires as if it had - the opposite of v2's endorsement."
+    },
+    {
+      "claim": "3.9(1): \"lv_fname(5) TYPE c 恰好 5 位是巧合式安全，字段名长度假设一变即溢出，应 TYPE string 或 TABNAME\"",
+      "recorded_as": "v1 recorded false claim #3 (5 chars claimed to be exactly 'BLAR' + one koart char)",
+      "why_still_wrong": "'BLAR' is already 4 characters and KOART is 4, so CONCATENATE produces 8 characters into a 5-character target and is truncated unconditionally - not only 'when the length assumption changes'. The report still treats 5 as sufficient and never states the truncation, so the sy-subrc=4 / blank BLART path is attributed to a missing config row instead."
+    },
+    {
+      "claim": "1.1: \"18 个 CLASS-METHODS 供报表/批处理/接口调用\" and 2.2 responsibility table with 18 rows",
+      "recorded_as": "v1 recorded false claim #5 (18 methods)",
+      "why_still_wrong": "The class declares 17 methods (16 in the PUBLIC section plus the private get_sd_inv). v2's table pads the count to 18 by listing the class definition section as row 1 \"子程序\", so the number contradicts its own inventory."
+    }
+  ],
+  "old_false_claims_gone_from_v2": [
+    "recorded #2: \"② 唯一被写回的是 ALV 行集合，方法本身不写数据库；③ 数据库里唯一被修改的是 BKPF-XBLNR\" - v2 never claims the class does not post; section 4 replaces it with 金额/键/选择屏范围 lines.",
+    "recorded #4: \"不带 INHERITING MESSAGES、不带 LEAVE，走默认嵌套子 LUWI\" - v2 does not invent a nested sub-LUWI (it makes a different, peripheral batch claim instead).",
+    "recorded #6: \"ls_item_devir-zuonr = TEXT-dvg ... 下游和第 ⑧ 步的过滤都靠它识别行\" - v2 makes no claim that TEXT-dvg drives the step-8 filter, so the self-contradiction is gone."
+  ],
+  "new_false_claims_in_v2": [
+    {
+      "claim": "3.2(1): \"sy-cprog(5) 是'第 5 个字符起、长度 1'，值为 E（RFITEMAP 第 5 位）或 R（ZSDP_RFITEMAR）；= 'RFITE' 比较 5 字符串，短操作数补空格成 'E '，永远不等 ... 作者想表达'程序名以 RFITE 开头'，应是 sy-cprog(1) = 'RFITE'\"",
+      "why_wrong": "Three separate errors. (a) name(n) is an offset-n substring running to the end of the field, not length 1 - sy-cprog(5) yields 'EMAP'/'EMGL'/'EMAR' and '_RFITEMAR', and the shorter operand is padded to the longer one, so no 'E ' comparison happens. (b) the 5th character of ZSDP_RFITEMAR is '_', not 'R'. (c) The prescribed fix would not work either: sy-cprog(1) is 'RFITEMAP' to the end of the field, still unequal to 'RFITE'; a real prefix test is sy-cprog(1)(5) = 'RFITE' or CS. The conclusion (condition never true) happens to be right, but the mechanism is fabricated and the remediation would leave the branch dead."
+    },
+    {
+      "claim": "3.1(2): \"把中间表声明为 SORTED TABLE ... WITH NON-UNIQUE KEY 是本类最好的一处 ... tt_vbrp 单键 vbeln 匹配两处 WITH KEY vbeln = ...，tt_mseg 的 mblnr mjahr、tt_rbkp 的 belnr gjahr 也逐一匹配\" (plus 3.2(3) praise \"中间表用 SORTED TABLE 支撑每行 READ\" and 3.4 \"tt_vbrp 声明为 SORTED ... NON-UNIQUE KEY vbeln，正好支持调用方按 vbeln 取首条\")",
+      "why_wrong": "This certifies the D3 defect as correct. WITH TABLE KEY is only allowed for the primary or a UNIQUE secondary key; the code reads tt_mseg/tt_rbkp/tt_vbrp with WITH TABLE KEY on keys declared NON-UNIQUE, so it is an activation error or an undefined first-match. 'Declared so the physical order is guaranteed' is not a defence - it is exactly the misuse."
+    },
+    {
+      "claim": "3.6 risk 2: \"it_lifnr/it_kunnr/it_iban 初始时 IN ( ) 恒假（安全默认），但'空输入 = 校验通过'的语义没有在注释或异常里体现\"",
+      "why_wrong": "In ABAP SQL an empty internal table used with IN drops the condition, so the WHERE clause degrades to the JOIN conditions only and the vendor SELECT pulls LFA1 x LFBK x TIBAN unfiltered (millions of rows). The report asserts the opposite and calls it a safe default, which removes the second half of D17 instead of reporting it."
+    },
+    {
+      "claim": "3.9(1): \"WRITE is_bkpf-bldat TO ls_ftpost-fval. 对 DATS 输出 YYYYMMDD（无分隔符），符合 BDC 要求\"",
+      "why_wrong": "WRITE renders dates and numerics in the logged-on user's display format (typically DD.MM.YYYY), not the internal format - which is why the ftpost macro is unsafe for BDC field values. This also contradicts v2's own 3.12 statement that WRITE yields the internal representation (that statement is the D15 false negative)."
+    },
+    {
+      "claim": "flowchart 2.1 arrow A --> D (ekstre_fblxn -> get_bkpf_xblnr) and section 4 sequence line \"EKF->>EKF: get_bkpf_xblnr 读 XBLNR 后 update_xblnr 回写并提交\"",
+      "why_wrong": "ekstre_fblxn never calls get_bkpf_xblnr, and update_xblnr does not call it either - there is no such call edge anywhere in the file. v2's own 2.2 table contradicts its diagram (row 5 lists the caller as \"报表增强 / 迁移程序\")."
+    },
+    {
+      "claim": "3.9(1) code block: \"ftpost 'K' '1' 'BKPF-BUKRS' is_bkpf-bukrs.\"",
+      "why_wrong": "The file has \"ftpost 'K' '1' 'BKPF-BUKRS' ls_bseg-bukrs.\" (source line 479). The report shows a code line that is not in the class. v1 shows the same altered line."
+    }
+  ],
+  "extra_false_claims_found_in_v1_beyond_the_recorded_6": [
+    {
+      "claim": "3.13 \"做什么\": \"iv_commit_each_doc = abap_true 则每张提交一次，否则循环结束后统一提交一次\" / \"按开关逐单或末尾提交\"",
+      "why_wrong": "CHECK inside a LOOP leaves the loop. With the default iv_commit_each_doc = abap_false the CHECK is false on the first iteration, so the loop ends after document 1 and the rest of it_xblnr is silently skipped before the single COMMIT. v1 describes the switch as working as designed and its remediation (do not COMMIT here / invert the flag) would not fix the real defect - v2 catches this one."
+    },
+    {
+      "claim": "3.13 code block: \"ftpost 'K' '1' 'BKPF-BUKRS' is_bkpf-bukrs.\"",
+      "why_wrong": "Source line 479 reads \"ftpost 'K' '1' 'BKPF-BUKRS' ls_bseg-bukrs.\"; v2 repeats the same alteration."
+    }
+  ],
+  "comparison": "v2 buys 5 upgrades (D2, D5, D8, D9 and the reverse-order/ENDLOOP reasoning behind them) and one new yes (D2) against 3 new/kept negatives it did not have in v1 (D3, D15 now declared correct, D12 still wrong) and 6 new false claims - notably fabricated ABAP substring semantics with a non-working fix (D9) and two places where a defective construct is explicitly certified as good practice (D3, D15). Net: v2 is slightly better on defect recall (12 vs 11 yes) but clearly worse on false-claim control (9 vs 6)."
+}
