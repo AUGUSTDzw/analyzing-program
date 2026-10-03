@@ -32,6 +32,10 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 
 ## Report Structure（必须遵循）
 
+完整范例见 `references/example-report.md` —— 那是一份真实报告，逐字未改，
+`scripts/report_qc.py` 对它零缺陷。它比本文档更能说明 §2 的责任链表、§5 的
+「业务后果」列、§3 的分组小标题该怎么写。
+
 ```
 一、程序定位与业务背景
    - 用具体场景讲清"解决什么问题、现有方案为何不够"
