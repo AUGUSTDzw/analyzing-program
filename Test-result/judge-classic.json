@@ -1,0 +1,75 @@
+{
+  "reports": [
+    {
+      "source": "Test-source/real/hardyp__AbapToTheFuture03__src__zmonsters_p01_enablers__zmonsters_c04_exceptions__zbc_show_error_log.fugr.zbc_show_error_log.abap",
+      "report": "Test-result/real/hardyp__AbapToTheFuture03__zbc_show_error_log.skill.md",
+      "defects": [
+        {"id": "D1", "area": "interface", "question": "Does the report flag IMPORTING REFERENCE(ID_TITLE) TYPE STRING OPTIONAL being declared but never referenced in the body (hardcoded 'Show Error Log'(001) used instead)?", "anchor": "L5 vs L9-L24"},
+        {"id": "D2", "area": "interface/TABLES", "question": "Does the report flag obsolete TABLES ... STRUCTURE ZBC_S_ERROR_LOG (implicit header line, by-reference, no typed table param)?", "anchor": "L6-L7"},
+        {"id": "D3", "area": "global state", "question": "Does the report flag the FM reading/writing the function-group global gd_end_line without initializing or restoring it (non-reproducible height)?", "anchor": "L13-L15"},
+        {"id": "D4", "area": "magic numbers", "question": "Does the report flag hardcoded 6 / 35 with the cap hidden inside the loop condition and a non-idempotent growth across repeated calls?", "anchor": "L13"},
+        {"id": "D5", "area": "cross-include dependency", "question": "Does the report state that PERFORM start_list_viewer lives outside this file, so the FM's whole output is unverifiable here, and that PERFORM offers no result channel?", "anchor": "L18"},
+        {"id": "D6", "area": "error handling", "question": "Does the report flag the total absence of EXCEPTIONS / RETURNING / any success indicator (caller cannot tell success from silent failure)?", "anchor": "L1-L24"},
+        {"id": "D7", "area": "message text", "question": "Does the report flag text symbol 'Show Error Log'(001) depending on a message class that is invisible in the source (silent literal fallback on transfer)?", "anchor": "L9"},
+        {"id": "D8", "area": "efficiency", "question": "Does the report flag the O(n) LOOP AT that reads no field and exists only to count rows (lines() is O(1))?", "anchor": "L12-L16"},
+        {"id": "D9", "area": "robustness", "question": "Does the report flag that an empty it_error_log is not short-circuited (still pops the message and opens an empty viewer)?", "anchor": "L9-L18"},
+        {"id": "D10", "area": "code hygiene", "question": "Does the report note the 5 trailing blank lines before ENDFUNCTION?", "anchor": "L19-L24"}
+      ],
+      "verdicts": {"D1": "yes", "D2": "yes", "D3": "yes", "D4": "yes", "D5": "yes", "D6": "yes", "D7": "yes", "D8": "yes", "D9": "yes", "D10": "yes"},
+      "notes": "All 10 found; but its P0 sy-tabix premise is wrong",
+      "false_claims": [
+        {"claim": "P0-2 / lesson 3: 'sy-tabix is not set by the language in a LOOP AT itab without an INTO/WA target', therefore this loop may silently fail to raise the dialog height (worst defect in the file).", "why_wrong": "sy-tabix IS set in a target-less LOOP AT itab (L3, L6 count correctly). The proposed failure mode is invented; the real, minor issue is only the target-less idiom being fragile style, not a P0 correctness bug."},
+        {"claim": "'PERFORM target not existing passes the syntax check but dumps at runtime (PERFORM target absence is a runtime, not compile-time, error).", "why_wrong": "A PERFORM naming a non-existent FORM is caught by the ABAP syntax check (SE38/ATC) as an error, not deferred to runtime; the certainty is unjustified."}
+      ]
+    },
+    {
+      "source": "Test-source/real/hardyp__AbapToTheFuture03__src__zmonsters_p02_transactional__zmonsters_c10_salv__zsalv_csqt_screen_manager.fugr.lzsalv_csqt_screen_managero01.abap",
+      "report": "Test-result/real/hardyp__AbapToTheFuture03__src__zmonsters_p02_transactional__zmonsters_c10_salv__zsalv_csqt_screen_manager.fugr.lzsalv_csqt_screen_managero01.skill.md",
+      "defects": [
+        {"id": "D1", "area": "control flow", "question": "Does the report flag LEAVE PROGRAM sitting BEFORE the cleanup so gr_container->free, cl_gui_cfw=>flush, CLEAR, SET SCREEN 0, LEAVE SCREEN are all unreachable?", "anchor": "L63 vs L64-L70"},
+        {"id": "D2", "area": "screen flow", "question": "Does the report flag LEAVE PROGRAM as the wrong exit for an FM-activated nested screen flow (should be SET SCREEN 0 + LEAVE SCREEN; LEAVE PROGRAM also kills the caller's program flow)?", "anchor": "L63, L69-L70"},
+        {"id": "D3", "area": "null safety", "question": "Does the report flag gr_container->free being called without IS BOUND/IS INITIAL guard on the offline path where the container was never created?", "anchor": "L64"},
+        {"id": "D4", "area": "guard granularity", "question": "Does the report flag that the is_offline test wraps only CREATE OBJECT while fill_container_content still receives the INITIAL container ref (CX_SY_REF_IS_INITIAL)?", "anchor": "L24-L33"},
+        {"id": "D5", "area": "null safety", "question": "Does the report flag gr_content_manager being dereferenced with no IS BOUND check although the entry FM takes a REFERENCE param that may be initial?", "anchor": "L32-L33"},
+        {"id": "D6", "area": "lifecycle", "question": "Does the report flag that the IS INITIAL guard means the grid is assembled exactly once, so re-entering the screen shows stale data and no refresh ever happens (it instead praises the guard as the correct template)?", "anchor": "L23-L34"},
+        {"id": "D7", "area": "hardcoding / typing", "question": "Does the report flag DATA l_okcode LIKE sy-ucomm truncating the 10-char okcode to CHAR1 so CASE ... WHEN 'EXIT'/'CANC'/'BACK' can never match, plus the hardcoded 'D0100'/'CONTAINER'/screen 100 literals?", "anchor": "L21, L27, L56, L62"},
+        {"id": "D8", "area": "asymmetric setup", "question": "Does the report flag SET TITLEBAR being inside the gr_container IS INITIAL branch while SET PF-STATUS is outside, and g_title never being defaulted?", "anchor": "L21 vs L30"},
+        {"id": "D9", "area": "error handling", "question": "Does the report flag that fill_container_content (implementation outside the file) may raise and there is no TRY/CATCH, leaving PF-STATUS set and container half-built?", "anchor": "L32-L33"},
+        {"id": "D10", "area": "PAI dispatch", "question": "Does the report flag that okcode is cleared before dispatch and the CASE has no ELSE, so unlisted F-codes are silently swallowed?", "anchor": "L58-L71"}
+      ],
+      "verdicts": {"D1": "yes", "D2": "yes", "D3": "yes", "D4": "yes", "D5": "yes", "D6": "partial", "D7": "yes", "D8": "yes", "D9": "yes", "D10": "yes"},
+      "notes": "Strong: 9/10; treats one-shot assembly as correct design",
+      "false_claims": [
+        {"claim": "Screen logic 'must hang the modules D_0100_PBO and D_0100_PAI' (repeated in 3.2-1 and in the naming-contract discussion).", "why_wrong": "The source declares MODULE pbo / MODULE pai, so the screen 100 flow can only call PBO/PAI. D_0100_PBO is a stale generated comment header (L6), not the module name; the report turns a comment artifact into a required binding."},
+        {"claim": "Header table lists CALL SCREEN as part of this file's GUI form.", "why_wrong": "The source contains no CALL SCREEN; it lives in zsalv_csqt_create_container.abap (L15). The report's own code block for that FM is otherwise verbatim-correct."},
+        {"claim": "gr_container is 'a TOP-INCLUDE global TYPE REF TO cl_gui_simple_container'.", "why_wrong": "No TOP include exists in the corpus; the type is asserted as fact but is unverifiable and not derivable from either available file."}
+      ]
+    },
+    {
+      "source": "Test-source/real/PacktPublishing__Mastering-SAP-ABAP__Chapter04__ZMSA_R_CHAPTER4_8.abap",
+      "report": "Test-result/real/PacktPublishing__Mastering-SAP-ABAP__Chapter04__ZMSA_R_CHAPTER4_8.skill.md",
+      "defects": [
+        {"id": "D1", "area": "okcode plumbing", "question": "Does the report flag DATA lv_okcode TYPE syst_ucomm never being assigned from any okcode source, so both CASE statements never match and OPEN/CLOSE/STOP are unreachable?", "anchor": "L23, L81, L149 vs L23/L144"},
+        {"id": "D2", "area": "guard idiom", "question": "Does the report flag CHECK NOT lv_closed IS INITIAL (continue only when the doc is destroyed) as an easily-inverted guard, inconsistent with CLOSE's IF lv_closed IS INITIAL for the same predicate?", "anchor": "L88 vs L119"},
+        {"id": "D3", "area": "error handling", "question": "Does the report flag zero exception/success handling anywhere: no TRY/CATCH, no sy-subrc, no reference checks, and c_oi_errors=>show_message called with a hardcoded 'E' whose result is unusable for branching?", "anchor": "L47, L65, L74, L111, L126"},
+        {"id": "D4", "area": "events", "question": "Does the report flag register_on_close_event/register_on_custom_event = abap_true with no SET HANDLER / event class registered, so closing Word directly desynchronises ABAP state?", "anchor": "L61-L62"},
+        {"id": "D5", "area": "OLE buffer / GUI teardown", "question": "Does the report flag the missing GUI flush discipline: NO_FLUSH is never 'X' and the exit path calls close_document/destroy_control then LEAVE PROGRAM with no cl_gui_cfw=>flush (pending destroy never reaches the frontend, orphan Word window)?", "anchor": "L152-L159 vs L136-L156"},
+        {"id": "D6", "area": "cleanup symmetry", "question": "Does the report flag lo_container being the only one of the three references never freed/destroyed in the exit module?", "anchor": "L148-L158 vs L151-L157"},
+        {"id": "D7", "area": "hardcoding", "question": "Does the report flag hardcoded literals with no constants: 'CUSTOMCONTAINER' control name, 'Word.Document.8' ProgID, 'R/3 Basis', 'DOI Test Document', '0100' status/title, screen 100, and mixed ' ' / abap_true booleans?", "anchor": "L40-L41, L51, L57, L69, L99, L122"},
+        {"id": "D8", "area": "document buffer", "question": "Does the report flag TYPES ty_row TYPE x LENGTH 2048 as a hardcoded OI row-width contract with lv_doc_size semantics and no document size cap?", "anchor": "L29-L31, L95-L99"},
+        {"id": "D9", "area": "one-shot init", "question": "Does the report flag lv_init = abap_true being set unconditionally at the end of init without verifying lo_control/lo_proxy, permanently closing the retry path?", "anchor": "L76 vs L43-L74"},
+        {"id": "D10", "area": "PBO re-entry", "question": "Does the report flag SET PF-STATUS/SET TITLEBAR sitting AFTER CHECK lv_init = abap_false, so they are never re-set on any later PBO (status bar lost) - it only mentions TITLEBAR staleness?", "anchor": "L36-L41"},
+        {"id": "D11", "area": "external contract", "question": "Does the report treat PROCESS BEFORE OUTPUT / PROCESS AFTER INPUT, screen 100 and the PAI module order as outside this file (not shown as its own code), since only MODULE ... OUTPUT/INPUT exist here?", "anchor": "L34-L36, L80, L148 (no PROCESS statement in file)"}
+      ],
+      "verdicts": {"D1": "yes", "D2": "yes", "D3": "yes", "D4": "yes", "D5": "no", "D6": "yes", "D7": "yes", "D8": "yes", "D9": "yes", "D10": "partial", "D11": "yes"},
+      "notes": "9/11; misses CHAR1 truncation of lv_okcode/sy-ucomm",
+      "false_claims": [
+        {"claim": "Fix for the dead okcode: '(a) add lv_okcode = sy-ucomm. at the module start; (b) drop the buffer and use sy-ucomm everywhere' (also 3.3-1 'why' and P0-1 fix).", "why_wrong": "Both fixes cannot work: sy-ucomm is CHAR1 (internal SAP GUI convention), so assigning it to lv_okcode TYPE syst_ucomm and comparing against 'OPEN'/'CLOSE'/'STOP' truncates to one char and never matches. The correct type is sy-okcode (CHAR10) / CASE sy-okcode. The report therefore misses the length defect entirely - the same CHAR1 error report 2 caught in the sibling file."},
+        {"claim": "'PBO/PAI okcode only exists in sy-ucomm' and keeping an lv_okcode buffer is 'a common idiom for deferring okcode handling inside PAI'.", "why_wrong": "There is no such idiom; the PAI command field is sy-okcode. sy-ucomm is a CHAR1 flag, not a function-code holder, so the premise of the whole 3.3-1 'why' section is wrong."},
+        {"claim": "'The program really depends on three external objects: screen 0100, PF-STATUS 0100, TITLEBAR 0100' (also item 23).", "why_wrong": "SET SCREEN 100 activates screen 100, not 0100; only the PF-STATUS and TITLEBAR are named 0100. The report itself quotes SET SCREEN 100 elsewhere."},
+        {"claim": "3.2-4 why: 'putting the gate last is deliberate - only after all four steps succeed is it set, so a failed step can retry on the next PBO'.", "why_wrong": "show_message does not exit the module, so lv_init is set even after a failed step and there is no retry path; the report contradicts its own P0-3."},
+        {"claim": "Item 18: 'liveness is checked in three places in three different forms (NOT ... IS INITIAL / IS INITIAL / NOT ... IS INITIAL)'.", "why_wrong": "Only two forms exist in the file (L88 and L119); the third listed item is a plain null check, so the count is inflated."}
+      ]
+    }
+  ]
+}

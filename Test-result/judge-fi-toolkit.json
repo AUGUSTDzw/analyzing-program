@@ -1,0 +1,177 @@
+{
+  "source": "ZCL_FI_TOOLKIT.abap",
+  "defects": [
+    {
+      "id": "D1",
+      "area": "业务正确性",
+      "question": "Does the report identify that zzstjah is filled from the current line item's fiscal year (<ls_items>-gjahr) while zzstblg comes from a *different* (referenced) document, so a cross-year reversal writes a key pointing at a non-existent document?",
+      "anchor": "zzstjah = <ls_items>-gjahr"
+    },
+    {
+      "id": "D2",
+      "area": "数据流",
+      "question": "Does the report identify that the SELECT SINGLE belnr FROM bkpf WHERE awtyp/awkey suppresses the multiple-rows finding with ##WARN_OK, so when several BKPF rows match one awkey the stored zzstblg is an arbitrary one of them?",
+      "anchor": "##WARN_OK .                   \"#EC CI_NOORDER"
+    },
+    {
+      "id": "D3",
+      "area": "可编译性",
+      "question": "Does the report identify that READ TABLE ... WITH TABLE KEY is used against table keys declared NON-UNIQUE (tt_mseg mblnr/mjahr, tt_rbkp belnr/gjahr, tt_vbrp vbeln) — a key misuse that is an activation error or returns an arbitrary first match?",
+      "anchor": "READ TABLE lt_mseg WITH TABLE KEY mblnr = <ls_items>-zzawkey(10)"
+    },
+    {
+      "id": "D4",
+      "area": "业务正确性",
+      "question": "Does the report identify that lv_awkey is only cleared inside the three IF sy-subrc = 0 branches, so line items whose zzawtyp is none of MKPF/RMRP/VBRK reuse the previous row's awkey and get a foreign document number written into zzstblg?",
+      "anchor": "CLEAR lv_awkey."
+    },
+    {
+      "id": "D5",
+      "area": "数据流",
+      "question": "Does the report identify that IF sy-subrc <> 0 after ENDLOOP does not test whether the opening-balance loop found anything, but the leftover sy-subrc of the last statement executed inside the loop body (READ TABLE / nested LOOP), so the 'no devir' branch is decided by unrelated code?",
+      "anchor": "* devir yoksa boş devir yazısı yazalım."
+    },
+    {
+      "id": "D6",
+      "area": "业务正确性",
+      "question": "Does the report identify that lv_konto_temp compares only konto and ignores bukrs, so a second company code reusing the same account number is treated as 'account unchanged' and gets no opening-balance/summary block?",
+      "anchor": "IF lv_konto_temp IS INITIAL OR"
+    },
+    {
+      "id": "D7",
+      "area": "健壮性",
+      "question": "Does the report identify that ct_items is DELETEd while the same table is being iterated with LOOP AT ... ASSIGNING, and that the inner DELETE matches by document number only, so rows of other accounts and the iteration pointer are affected?",
+      "anchor": "DELETE ct_items WHERE belnr = <ls_items>-zzstblg AND gjahr = <ls_items>-zzstjah."
+    },
+    {
+      "id": "D8",
+      "area": "健壮性",
+      "question": "Does the report identify that ct_items is INSERTed into (INSERT ... INDEX lv_tabix / INSERT LINES OF) inside the very LOOP AT ct_items ASSIGNING <ls_items> that supplies the field symbol, invalidating the loop's row reference and indices?",
+      "anchor": "INSERT LINES OF lt_item_devir INTO ct_items INDEX lv_tabix."
+    },
+    {
+      "id": "D9",
+      "area": "业务正确性",
+      "question": "Does the report identify that sy-cprog(5) = 'RFITE' can never be true for cprog ZSDP_RFITEMAR (first five characters are ZSDP_), so the whole EKSTRE branch and the WHEN 'ZSDP_RFITEMAR' assignment are dead code?",
+      "anchor": "IF sy-subrc = 0 AND sy-cprog(5) = 'RFITE'."
+    },
+    {
+      "id": "D10",
+      "area": "健壮性",
+      "question": "Does the report identify that the dynamically assigned field symbols <lv_vari> and <lv_x_aisel> are dereferenced (CS 'EKSTRE', <> abap_true) without any IS ASSIGNED check, so a failed ASSIGN raises CX_SY_REF_IS_INITIAL?",
+      "anchor": "IF <lv_vari> CS 'EKSTRE'."
+    },
+    {
+      "id": "D11",
+      "area": "类型",
+      "question": "Does the report identify that the dynamic field name target is only 5 characters (lv_fname(5)) while CONCATENATE 'BLAR' ls_bseg-koart needs 4+4 characters, so the name is truncated and SELECT SINGLE (lv_fname) returns no field, leaving BLART initial because sy-subrc is never checked?",
+      "anchor": "DATA: lv_fname(5) TYPE c."
+    },
+    {
+      "id": "D12",
+      "area": "业务正确性",
+      "question": "Does the report identify that lv_mode is initialised to 'E' (ALLGAZMD exercise/test run), i.e. POSTING_INTERFACE_CLEARING only tests the clearing and never creates the document, while the method still reports success via MESSAGE?",
+      "anchor": "lv_mode  TYPE rfpdo-allgazmd VALUE 'E'."
+    },
+    {
+      "id": "D13",
+      "area": "健壮性",
+      "question": "Does the report identify that the sy-subrc test after POSTING_INTERFACE_CLEARING is inverted (IF sy-subrc = 0 -> MESSAGE), so the message is raised only on success and all ten failure branches return silently?",
+      "anchor": "IF sy-subrc = 0 .\n              MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno"
+    },
+    {
+      "id": "D14",
+      "area": "健壮性",
+      "question": "Does the report identify that determine_due_date never checks sy-subrc of the BSEG SELECT SINGLE and swallows the FM's exceptions in an empty ##NEEDED branch, returning the uninitialised e_faede-netdt as a valid due date?",
+      "anchor": "* Implement suitable error handling here"
+    },
+    {
+      "id": "D15",
+      "area": "健壮性",
+      "question": "Does the report identify that WRITE iv_datum TO lv_datxt converts the date into the calling user's display format before it is handed to CONVERSION_EXIT_INVDT_INPUT (which expects the internal format), and that the wrong conversion result is then stored in the class-wide cache (and the FM's conversion exception is not caught)?",
+      "anchor": "CALL FUNCTION 'CONVERSION_EXIT_INVDT_INPUT'"
+    },
+    {
+      "id": "D16",
+      "area": "健壮性",
+      "question": "Does the report identify that INSERT ls_cache INTO TABLE gt_dg_cache ASSIGNING <ls_cache> targets a table with UNIQUE KEY, so a duplicate key leaves the field symbol unassigned and rv_gdatu = <ls_cache>-gdatu dereferences it, and that this class-data cache is unbounded and never invalidated?",
+      "anchor": "INSERT ls_cache INTO TABLE gt_dg_cache ASSIGNING <ls_cache>."
+    },
+    {
+      "id": "D17",
+      "area": "类型",
+      "question": "Does the report identify that the customer branch of get_iban_codes selects kna1~lifnr and filters kna1~lifnr IN @it_kunnr although KNA1 has no LIFNR field, and that the three OPTIONAL range parameters are used unconditionally as ranges so an unsupplied range means 'no restriction'?",
+      "anchor": "SELECT kna1~lifnr, tiban~*"
+    },
+    {
+      "id": "D18",
+      "area": "健壮性",
+      "question": "Does the report identify that rt_blart = VALUE #( FOR ... ) builds a plain list that is assigned to tt_blart (HASHED with UNIQUE KEY table_line), so a document type occurring more than once in zfit_ith_blart raises CX_SY_DUPLICATE_KEY at runtime instead of being deduplicated?",
+      "anchor": "rt_blart = VALUE #( FOR _blart IN lt_returnable_blart ( _blart-blart ) )."
+    },
+    {
+      "id": "D19",
+      "area": "业务正确性",
+      "question": "Does the report identify that get_domestic_import_doc_types filters WHERE is_foreign = abap_true AND is_domestic = abap_true, i.e. the intersection instead of 'domestic only', returning an almost necessarily empty set under a name that promises domestic types?",
+      "anchor": "WHERE ( is_foreign  = abap_true AND"
+    },
+    {
+      "id": "D20",
+      "area": "业务正确性",
+      "question": "Does the report identify that lv_keydt = <ls_budat>-low - 1 underflows to 99999999 when the selection range's low bound is empty (turning 'budat LE keydt' into 'all history') and that only INDEX 1 of the range is considered?",
+      "anchor": "lv_keydt = <ls_budat>-low - 1."
+    }
+  ],
+  "report": {
+    "path": "D:\\Workspace\\Skills\\analyzing-programs\\Test-source\\real\\Keremkoseoglu__ABAP-Library__functional__fi__ZCL_FI_TOOLKIT.report.md",
+    "verdicts": {
+      "D1": "yes",
+      "D2": "partial",
+      "D3": "partial",
+      "D4": "yes",
+      "D5": "partial",
+      "D6": "yes",
+      "D7": "yes",
+      "D8": "yes",
+      "D9": "yes",
+      "D10": "yes",
+      "D11": "yes",
+      "D12": "no",
+      "D13": "yes",
+      "D14": "yes",
+      "D15": "yes",
+      "D16": "partial",
+      "D17": "yes",
+      "D18": "no",
+      "D19": "yes",
+      "D20": "yes"
+    },
+    "notes": "Judged .report.md; named .skill.md does not exist. lv_mode 'E' misread, dup-key on UNIQUE hashed table missed, sy-subrc-over-ENDLOOP called 'currently holds'."
+  },
+  "false_claims": [
+    {
+      "claim": "3.13 risk 4 / section 3.13: \"i_mode='E'（遇错即停）\" and \"lv_mode 是本地变量不是参数 ... 批量场景'遇错继续'往往是业务需要的\"",
+      "why_wrong": "ALLGAZMD 'E' is not 'stop on error'; in POSTING_INTERFACE_START I_MODE 'P' = post, 'E' = exercise/test run. The clearing therefore never creates the document, so the method posts nothing while messages are issued as if it succeeded."
+    },
+    {
+      "claim": "Section 4 summary: \"② 唯一被写回的是 ALV 行集合，方法本身不写数据库；③ 数据库里唯一被修改的是 BKPF-XBLNR，且只发生在另一个方法 update_xblnr 里\"",
+      "why_wrong": "denklestirerek_transfer_kaydi calls POSTING_INTERFACE_CLEARING, which creates and posts a real BKPF document (that is the method's purpose); the class writes to the database in two places, not one."
+    },
+    {
+      "claim": "3.13 risk 2 / summary #41: \"动态字段名 lv_fname(5) ... 长度 5 恰好是 'BLAR' 加一位 koart\"",
+      "why_wrong": "'BLAR' is already 4 characters and KOART is 4, so CONCATENATE produces 8 characters into a 5-character target and is truncated (T041A-BLAR is CHAR(3), so the intended name is 7 characters). The report treats 5 as sufficient and never states the truncation."
+    },
+    {
+      "claim": "3.5 risk 1: \"不带 INHERITING MESSAGES、不带 LEAVE，走默认嵌套子 LUWI\"",
+      "why_wrong": "CALL TRANSACTION without LEAVE continues in the caller's own LUW/LUW1; no nested sub-LUWI is created. The report invents a nesting mechanism (the real effect is that the caller's uncommitted changes stay invisible, which it states separately)."
+    },
+    {
+      "claim": "Header and 1.2: \"全部为 CLASS-METHODS ... 18 个方法 + 3 个类级缓存\" / \"18 个方法之间几乎无耦合\"",
+      "why_wrong": "The class declares 17 methods (16 public + the private get_sd_inv); the report's own sections 3.2-3.17 enumerate 16 methods plus the declaration section."
+    },
+    {
+      "claim": "3.2 risk 5 (step 7): \"ls_item_devir-zuonr = TEXT-dvg ... 下游和第 ⑧ 步的过滤都靠它识别行\"",
+      "why_wrong": "Step 8 filters with CHECK <ls_items>-color <> lc_yellow, i.e. on the colour constant, not on the message text; the report contradicts itself at 3.2 step 7 ('第 ⑧ 步靠黄色过滤掉所有合计行')."
+    }
+  ]
+}
