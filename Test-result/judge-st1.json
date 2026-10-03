@@ -1,0 +1,51 @@
+{
+  "report": "D:\\Workspace\\Skills\\analyzing-programs\\Test-result\\staged\\st1_Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md",
+  "verdicts": {
+    "D1": "yes",
+    "D2": "partial",
+    "D3": "partial",
+    "D4": "no",
+    "D5": "no",
+    "D6": "no",
+    "D7": "partial",
+    "D8": "partial",
+    "D9": "yes",
+    "D10": "yes",
+    "D11": "partial",
+    "D12": "partial",
+    "D13": "yes",
+    "D14": "yes",
+    "D15": "yes",
+    "D16": "partial",
+    "D17": "partial",
+    "D18": "yes",
+    "D19": "yes",
+    "D20": "yes"
+  },
+  "false_claims": [
+    {
+      "claim": "对标准账户类型恰好安全（`KOART = 'D'` 得 `BLARD`、`KOART = 'K'` 得 `BLARK`，都正好 5 位），但这是靠巧合正确……`SELECT SINGLE (lv_fname)` 就会因字段不存在而 dump。",
+      "why_wrong": "Contradicts D11: `CONCATENATE 'BLAR' ls_bseg-koart` needs 4+4 = 8 characters into `lv_fname(5)`, so the name is truncated for every case, `SELECT SINGLE (lv_fname)` simply resolves no field, and because sy-subrc is never checked `lv_blart` stays initial (no dump on standard account types)."
+    },
+    {
+      "claim": "`KNA1-LIFNR` 对纯客户记录基本为空，所以客户侧的 IBAN 查重几乎永远查不到任何行……由于两个字段都是 `CHAR(10)`，语法检查与 ATC 都不会报错。",
+      "why_wrong": "Contradicts D17: KNA1 has no LIFNR field at all, so the customer branch is not a silent empty-result bug but a reference to a non-existent field; the report's \"two fields are both CHAR(10), so nothing flags it\" reasoning cannot hold."
+    },
+    {
+      "claim": "`it_lifnr`/`it_kunnr` 声明为 `OPTIONAL`，但当对应开关为真而范围表为空时，`IN @空表` 使该分支返回零行——查重会静默通过（重复出现在 P2-8）",
+      "why_wrong": "Contradicts D17: the three OPTIONAL range parameters are used unconditionally as ranges, so an unsupplied range means 'no restriction' rather than 'return zero rows' — the report inverts the failure mode."
+    },
+    {
+      "claim": "`lv_konto_temp` 缓存\"上一个账户\"以避免每个账户重复插一遍期初行，也是正确的省时手段",
+      "why_wrong": "Contradicts D6: `lv_konto_temp` compares only `konto` and ignores `bukrs`, so a second company code reusing the same account number is treated as \"account unchanged\" and silently gets no opening-balance/summary block — the guard is not merely a cache, it is a correctness bug."
+    },
+    {
+      "claim": "该报表要么根本不显示 DEVIR 行（因为 `devir_fblxn` 返回空 → 3.2 步骤⑧ 走\"无期初\"分支插一条零金额行）",
+      "why_wrong": "Contradicts D5: whether the opening-balance loop found anything is never tested — the `IF sy-subrc <> 0` after the ENDLOOP sees the leftover sy-subrc of the last statement executed inside the loop body, so the 'no devir' branch is decided by unrelated code, not by the empty return."
+    },
+    {
+      "claim": "在 `LOOP AT ct_items ASSIGNING` 内部对 `ct_items` 做 `INSERT`，虽然用 `sy-tabix` 保存绝对位置是流传较广的可行写法",
+      "why_wrong": "Contradicts D8: the INSERT (`INSERT ... INDEX lv_tabix` / `INSERT LINES OF`) happens inside the very loop whose ASSIGNING field symbol supplies `<ls_items>`, which invalidates the loop's row reference and indices; the sy-tabix trick does not make the pattern sound."
+    }
+  ]
+}
