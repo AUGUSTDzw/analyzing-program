@@ -1,0 +1,356 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Verify and repair reports written against the analyzing-programs skill.
+
+Script-based on purpose. Asking a model whether it followed the skill is exactly
+the wrong instrument: across runs on one file the same skill scored 0.700 /
+0.625 / 0.650 recall, and different models drift further still. Normative text
+cannot be the enforcement mechanism for output that varies; a deterministic gate
+can. Anything a script can decide, decide here, so the model spends its
+judgement only on the parts that need judgement.
+
+Two modes:
+
+    python report_qc.py REPORT [REPORT ...]          check, list every defect
+    python report_qc.py --fix REPORT SOURCE [-o OUT] check, and repair the
+                                                   classes that cannot change
+                                                   meaning
+
+Repair is deliberately narrow. A line-number location label and a bare ``<`` in
+a Mermaid label are both violations the skill states without exception, so
+rewriting them cannot alter meaning. An A8 three-layer violation is different:
+the fix needs to know what the prose after the block was meant to say, and
+guessing re-labels a risk discussion as a description. Those are reported with
+line numbers and left to the model.
+
+Detectors live in this one file and are shared by both modes on purpose. An
+earlier version kept the checker and the fixer in separate scripts with separate
+regexes; they drifted, and the fixer silently missed a form the checker caught.
+"""
+import io
+import os
+import re
+import sys
+
+# ---------------------------------------------------------------- shared rules
+
+SEC = ["## 一", "## 二", "## 三", "## 四", "## 五", "## 六"]
+LAYERS = ("做什么", "为什么", "风险与改进")
+BUCKETS = ("\U0001F534", "\U0001F7E0", "\U0001F7E1", "\U0001F7E2")
+
+FENCE = re.compile(r"```.*?```", re.S)
+TICK = re.compile(r"`([^`\n]{2,80})`")
+TAG = re.compile(r"</?(?:br|b|i|u|em|strong|sub|sup|code|span)\s*/?>", re.I)
+ROW = re.compile(r"^\|\s*(?:P[0-3][-.]?\d+|[\U0001F534\U0001F7E0\U0001F7E1\U0001F7E2])\s*\|", re.M)
+
+# The skill bans line numbers as location labels without exception. The earlier
+# pattern matched only two spellings, so a report written as `L23` throughout
+# scored clean. Keep this the single definition -- check and fix both use it.
+LINE_NUM = re.compile(
+    r"\.abap:\d+"
+    r"|第\s*\d+\s*[-–~]?\s*\d*\s*行"
+    r"|\blines?\s+\d+(?:\s*[-–~]\s*\d+)?\b"
+    r"|\bL\d{2,5}\b"
+    r"|:\d{2,5}\b",
+    re.I,
+)
+# A bare digit range is legitimate when describing a file's size, so only the
+# explicit citation forms above count.
+CITE_NUM = re.compile(r"^\s*(?:L|line|lines|第)?\s*(\d{2,5})\s*(?:行|lines?)?\s*$", re.I)
+
+# ABAP constructs usable as location anchors, ordered so the more specific
+# pattern wins: CLASS x IMPLEMENTATION. must beat CLASS x.
+ANCHORS = [
+    (re.compile(r"^\s*CLASS\s+(\w+)\s+IMPLEMENTATION", re.M), "CLASS {0} IMPLEMENTATION"),
+    (re.compile(r"^\s*(?:INTERFACE)\s+(\w+)", re.M), "INTERFACE {0}"),
+    (re.compile(r"^\s*CLASS\s+(\w+)", re.M), "CLASS {0}"),
+    (re.compile(r"^\s*METHODS?\s+(\w+)", re.M), "METHOD {0}"),
+    (re.compile(r"^\s*FORM\s+(\w+)", re.M), "FORM {0}"),
+    (re.compile(r"^\s*FUNCTION\s+(\w+)", re.M), "FUNCTION {0}"),
+    (re.compile(r"^\s*MODULE\s+(\w+)\s+(INPUT|OUTPUT)", re.M), "MODULE {0} {1}"),
+    (re.compile(r"^\s*DEFINE\s+(\w+)", re.M), "DEFINE {0}"),
+    (re.compile(r"^\s*PROCEDURE\s+(\w+)", re.M), "PROCEDURE {0}"),
+]
+NODE = re.compile(r"(\[\s*|\(\s*|\{\s*)([^\]\)\}\n]*?)([\]\)\}])")
+
+
+def mermaid_labels(block):
+    """(label_text, offset_in_block) for every bracketed Mermaid node label.
+
+    Single definition, used by both check and fix. They previously carried
+    separate patterns: check used ``[^\\]]*`` and fix excluded ``)`` and ``}`` as
+    well, so a label holding a bare ``>`` after a bracket was reported by one
+    and silently skipped by the other. Same defect as the ln split, one layer up.
+    """
+    out = []
+    for m in NODE.finditer(block):
+        out.append((m.group(2), m.start(2)))
+    for m in re.finditer(r"participant\s+\S+\s+as\s+(.+)$", block, re.M):
+        out.append((m.group(1), m.start(1)))
+    return out
+
+
+def blank_fences(s):
+    """Same length as s, with code fence bodies blanked."""
+    return FENCE.sub(lambda m: "\x00" * len(m.group(0)), s)
+
+
+def label_spans(s):
+    """Backticked spans outside fences: where location labels live."""
+    return [m.group(1) for m in TICK.finditer(blank_fences(s))]
+
+
+def anchors_of(src):
+    marks = []
+    for i, ln in enumerate(src.split("\n"), 1):
+        for rx, tmpl in ANCHORS:
+            m = rx.match(ln)
+            if m:
+                marks.append((i, tmpl.format(*m.groups())))
+                break
+    marks.sort()
+    return marks
+
+
+def anchor_for(marks, line):
+    best = None
+    for ln, name in marks:
+        if ln <= line:
+            best = name
+        else:
+            break
+    return best
+
+
+def in_risk_layer(head):
+    ir = head.rfind("风险与改进")
+    if ir < 0:
+        return False
+    return ir > head.rfind("做什么") and ir > head.rfind("为什么")
+
+
+def source_blocks(s):
+    """Yield (block_start, block_end, gap_text) for fences quoting source.
+
+    A snippet inside the 风险与改进 layer illustrates a proposed fix rather than
+    quoting source, so it needs no layers of its own. Counting those was a false
+    positive that made the A8 rate read four times worse than it is.
+    """
+    pos = [m.start() for m in re.finditer(r"```abap\n", s)]
+    for k, st in enumerate(pos):
+        end = s.find("```", st + 8)
+        if end < 0:
+            continue
+        nxt = pos[k + 1] if k + 1 < len(pos) else len(s)
+        head = s[:st]
+        h = max(head.rfind("\n#### "), head.rfind("\n### "))
+        if h >= 0:
+            head = head[h:]
+        if in_risk_layer(head):
+            continue
+        yield st, end + 3, s[end + 3:nxt]
+
+
+def line_of(s, off):
+    return s.count("\n", 0, off) + 1
+
+
+# ------------------------------------------------------------------- checking
+
+def check(s):
+    """Return a list of (kind, line, detail). Empty means clean."""
+    bad = []
+
+    present = sum(1 for h in SEC if h in s)
+    if present < 6:
+        missing = [h[3:] for h in SEC if h not in s]
+        bad.append(("sec", 0, f"missing section(s): {', '.join(missing)}"))
+
+    for st, end, gap in source_blocks(s):
+        miss = [l for l in LAYERS if l not in gap]
+        if not miss:
+            continue
+        ln = line_of(s, st)
+        kind = "A8-cc" if len(gap.strip()) <= 20 else "A8-pt"
+        bad.append((kind, ln,
+                    "no prose at all before the next block" if kind == "A8-cc"
+                    else "prose present, missing label(s): " + " ".join(miss)))
+
+    for m in re.finditer(r"```mermaid\n(.*?)```", s, re.S):
+        base = line_of(s, m.start())
+        blk = m.group(1)
+        for lab, off in mermaid_labels(blk):
+            clean = TAG.sub("", lab)
+            if re.search(r"[<>#]", clean):
+                bad.append(("mm", base + blk[:off].count("\n"),
+                            "Mermaid label holds a bare < > or #: "
+                            + repr(clean.strip()[:40])))
+
+    for sp in label_spans(s):
+        if LINE_NUM.search(sp):
+            bad.append(("ln", 0, f"location label cites a line number: {sp[:40]!r}"))
+
+    i, j = s.find("## 五"), s.find("## 六")
+    sec5 = s[i:j] if (i >= 0 and j > i) else ""
+    prows = len(ROW.findall(sec5))
+    if prows == 0:
+        tbl = [l for l in sec5.split("\n") if l.startswith("|")
+               and not set(l) <= set("|- ")]
+        prows = max(0, len(tbl) - 1)
+    if prows == 0:
+        prows = len(re.findall(r"^\s*\d+\.\s+\*\*", sec5, re.M))
+    if prows == 0:
+        bad.append(("prow", line_of(s, i) if i >= 0 else 0,
+                    "section 五 has no problem rows"))
+    miss_b = [b for b in BUCKETS if b not in sec5]
+    if miss_b:
+        bad.append(("buck", line_of(s, i) if i >= 0 else 0,
+                    "section 五 missing priority bucket(s): " + " ".join(miss_b)))
+    return bad
+
+
+# --------------------------------------------------------------------- fixing
+
+def fix_ln(s, src):
+    """Rewrite a line-number citation as the nearest preceding construct.
+
+    Edits are applied to the original string by offset. blank_fences preserves
+    offsets, so this can find labels in fence-free text and still write back
+    into the untouched original; returning the blanked text instead silently
+    deletes every code block in the report.
+    """
+    marks = anchors_of(src)
+    if not marks:
+        return s, 0, ["source has no recognisable construct to anchor to"]
+    masked = blank_fences(s)
+    edits = []
+    skipped = []
+    for m in TICK.finditer(masked):
+        inner = m.group(1)
+        if not LINE_NUM.search(inner):
+            continue
+        cm = CITE_NUM.match(inner)
+        if not cm:
+            skipped.append(inner)
+            continue
+        a = anchor_for(marks, int(cm.group(1)))
+        if not a:
+            skipped.append(inner)
+            continue
+        edits.append((m.start(), m.end(), "`" + a + "`"))
+    if not edits:
+        return s, 0, skipped
+    out = s
+    for a, b, rep in reversed(edits):
+        out = out[:a] + rep + out[b:]
+    return out, len(edits), skipped
+
+
+FULLWIDTH = {"<": "＜", ">": "＞", "#": "＃"}
+
+
+def fix_mm(s):
+    """Convert bare < > # in Mermaid display text to their full-width forms.
+
+    The skill prescribes full-width conversion, not quoting, and states the ban
+    without exception -- there is no "already quoted, so exempt" allowance. An
+    earlier version had such a guard, which made it skip exactly the labels that
+    began with a quote and still held a bare '>' inside: the checker flagged
+    those and the fixer declined them. Third drift between the two halves of
+    this file, all from the same cause.
+    """
+    lines = s.split("\n")
+    n = 0
+    inside = False
+    for i, ln in enumerate(lines):
+        st = ln.strip()
+        if st.startswith("```mermaid"):
+            inside = True
+            continue
+        if st.startswith("```"):
+            inside = False
+            continue
+        if not inside or not re.search(r"[<>#]", ln):
+            continue
+        edits = []
+        for lab, off in mermaid_labels(ln):
+            if not re.search(r"[<>#]", lab):
+                continue
+            edits.append((off, off + len(lab),
+                          "".join(FULLWIDTH.get(c, c) for c in lab)))
+        if not edits:
+            continue
+        n += len(edits)
+        for a, b, rep in reversed(edits):
+            ln = ln[:a] + rep + ln[b:]
+        lines[i] = ln
+    return "\n".join(lines), n
+
+
+def fix(s, src):
+    """Apply only repairs that cannot change meaning. Returns (text, n, notes)."""
+    notes = []
+    s, n, sk = fix_ln(s, src)
+    if sk:
+        notes.append(f"ln: {len(sk)} citation(s) had no usable anchor, left alone")
+    s, m = fix_mm(s)
+    return s, n + m, notes
+
+
+# ----------------------------------------------------------------------- main
+
+def report(path):
+    s = io.open(path, encoding="utf-8").read()
+    bad = check(s)
+    name = os.path.basename(path)
+    if not bad:
+        print(f"PASS  {name}")
+        return 0
+    order = {"sec": 0, "prow": 1, "buck": 2, "ln": 3, "mm": 4, "A8-cc": 5, "A8-pt": 6}
+    for kind, ln, detail in sorted(bad, key=lambda x: (order.get(x[0], 9), x[1])):
+        where = f"line {ln}" if ln else "document"
+        print(f"  {kind:6} {where:>10}  {detail}")
+    print(f"FAIL  {name}  ({len(bad)} defect(s))")
+    return len(bad)
+
+
+def main(argv):
+    args = argv[1:]
+    if not args:
+        print(__doc__)
+        return 2
+    if args[0] == "--fix":
+        rest = [a for a in args[1:] if a != "-o"]
+        if "-o" in args:
+            out = args[args.index("-o") + 1]
+        else:
+            out = None
+        if len(rest) < 2:
+            print("--fix needs REPORT and SOURCE")
+            return 2
+        rep, src = rest[0], rest[1]
+        s = io.open(rep, encoding="utf-8").read()
+        fixed, n, notes = fix(s, io.open(src, encoding="utf-8", errors="replace").read())
+        for nt in notes:
+            print("note:", nt)
+        dest = out or rep
+        io.open(dest, "w", encoding="utf-8").write(fixed)
+        print(f"repaired {n} mechanical defect(s) -> {dest}")
+        left = check(fixed)
+        if left:
+            print(f"{len(left)} defect(s) need the model, listed above/below:")
+            for kind, ln, detail in left:
+                where = f"line {ln}" if ln else "document"
+                print(f"  {kind:6} {where:>10}  {detail}")
+        else:
+            print("all checks now pass")
+        return 0
+
+    rc = 0
+    for p in args:
+        rc += report(p) and 1
+    return 0 if rc == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
