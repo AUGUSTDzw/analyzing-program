@@ -16,7 +16,10 @@ PROBES = {
     "  └ USING clause": r"BY\s+DATABASE\s+PROCEDURE[^.]{0,200}?\bUSING\b",
     "CDS view entity":  r"define\s+view\s+entity",
     "RAP side effect":  r"\bside\s+effects?\b",
-    "BADI impl class":  r"^\s*CLASS\s+\w+\s+IMPLEMENTATION\s*$",
+    # NB: the trailing "." matters -- `CLASS x IMPLEMENTATION.` is the real form,
+    # so a probe anchored with \s*$ silently reported zero for every file.
+    "class IMPLEMENTATION": r"^\s*CLASS\s+\w+\s+IMPLEMENTATION\s*\.?\s*$",
+    "BADI-ish (IF_ impl)": r"^\s*INTERFACES\s+if_\w+",
     "CLASS-POOL":       r"CLASS-POOL",
     "FUNCTION module":  r"^\s*FUNCTION\s+\w+\s*\.",
     "dynamic SQL":      r"EXECUTE\s+IMMEDIATE|EXECUTE\s+STATEMENT",
@@ -45,7 +48,7 @@ PROBES = {
     "MESSAGE class":    r"MESSAGE\s+ID\s+'",
     "lock object":      r"\bDEQUEUE_\w+",
     "ASSERT":           r"^\s*ASSERT\b",
-    "obsolete RANGES":  r"^\s*RANGES\s+\w+",
+    "RANGES (live stmt)": r"^\s*RANGES\s+\w+",
 }
 
 files = [f for f in os.listdir(d) if f.endswith((".abap", ".asddls", ".asbdef"))]
