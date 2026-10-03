@@ -90,6 +90,49 @@ def mermaid_labels(block):
     return out
 
 
+def inventory(src):
+    """Subprogram names declared in the source, in order of first appearance."""
+    out = []
+    for rx, _ in ANCHORS[:5]:
+        for m in rx.finditer(src):
+            n = m.group(1)
+            if n and n not in out:
+                out.append(n)
+    return out
+
+
+def density_note(s, src):
+    """Advisory: quoted blocks per declared subprogram.
+
+    Naming every subprogram is cheap. The v1 AVE report names 435 of 439 and
+    passes every structural check in this file -- six sections, four priority
+    buckets, no bare Mermaid characters, no line-number locations -- while
+    quoting 68 blocks for 439 subprograms. It is an inventory wearing an
+    analysis-shaped wrapper, and nothing else here can see that.
+
+    Reported rather than enforced. Six sections and four buckets are rules the
+    skill states without exception, so they can fail a report. A density floor
+    cannot: 0.50 blocks per subprogram is what 19 samples happened to separate
+    at, with only four below it, and a source of many one-line helpers does not
+    owe one block each. A wrong floor here would fail correct reports, which is
+    worse than missing a soft signal.
+    """
+    if not src:
+        return None
+    inv = inventory(src)
+    if not inv:
+        return None          # classic screen flow: MODULE / INCLUDE, not methods
+    blocks = len(list(source_blocks(s)))
+    d = blocks / len(inv)
+    named = sum(1 for n in inv if n.lower() in s.lower())
+    if d >= 0.5:
+        return None
+    return (f"low density: {blocks} quoted block(s) for {len(inv)} declared "
+            f"subprogram(s) = {d:.2f} each ({named} of them named in the text). "
+            f"If the text reads as a list rather than a walkthrough, it is an "
+            f"inventory, not an analysis.")
+
+
 def blank_fences(s):
     """Same length as s, with code fence bodies blanked."""
     return FENCE.sub(lambda m: "\x00" * len(m.group(0)), s)
@@ -299,19 +342,30 @@ def fix(s, src):
 
 # ----------------------------------------------------------------------- main
 
-def report(path):
+def report(path, src=None):
     s = io.open(path, encoding="utf-8").read()
     bad = check(s)
     name = os.path.basename(path)
+    note = density_note(s, src)
     if not bad:
         print(f"PASS  {name}")
+        if note:
+            print(f"  note  {note}")
         return 0
     order = {"sec": 0, "prow": 1, "buck": 2, "ln": 3, "mm": 4, "A8-cc": 5, "A8-pt": 6}
     for kind, ln, detail in sorted(bad, key=lambda x: (order.get(x[0], 9), x[1])):
         where = f"line {ln}" if ln else "document"
         print(f"  {kind:6} {where:>10}  {detail}")
     print(f"FAIL  {name}  ({len(bad)} defect(s))")
+    if note:
+        print(f"  note  {note}")
     return len(bad)
+
+
+def read_src(path):
+    if not path or not os.path.exists(path):
+        return None
+    return io.open(path, encoding="utf-8", errors="replace").read()
 
 
 def main(argv):
@@ -344,11 +398,17 @@ def main(argv):
                 print(f"  {kind:6} {where:>10}  {detail}")
         else:
             print("all checks now pass")
+        note = density_note(fixed, src)
+        if note:
+            print("note:", note)
         return 0
 
+    src = read_src(args[1]) if len(args) > 1 and args[1].lower().endswith(".abap") else None
     rc = 0
     for p in args:
-        rc += report(p) and 1
+        if p.lower().endswith(".abap"):
+            continue
+        rc += report(p, src) and 1
     return 0 if rc == 0 else 1
 
 
