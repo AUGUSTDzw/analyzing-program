@@ -133,6 +133,37 @@ def main():
     r = run(QC, p)
     check("mm" in r.stdout, "a bare > in a Mermaid label is caught")
 
+    # the two source-aware advisories: density and fidelity
+    # the source must actually contain what the brief report quotes, otherwise
+    # the "faithful" case is not faithful and the check is right to complain
+    src = os.path.join(tmp, "src.abap")
+    io.open(src, "w", encoding="utf-8").write(
+        "FUNCTION z_foo.\n"
+        "  DATA ls_foo TYPE i.\n"
+        "  SELECT foo FROM bar INTO @DATA(ls_foo).\n"
+        "ENDFUNCTION.\n")
+    r = run(QC, good, src)
+    check("low density" not in r.stdout,
+          "no density note for a report with no declared subprograms")
+    check("do not occur in the source" not in r.stdout,
+          "no fidelity note when every quoted line is faithful")
+
+    p = os.path.join(tmp, "altered.md")
+    io.open(p, "w", encoding="utf-8").write(
+        brief_report().replace("SELECT foo FROM bar", "SELECT foo FROM baz"))
+    r = run(QC, p, src)
+    check("do not occur in the source" in r.stdout,
+          "a fidelity note fires when an identifier is rewritten")
+
+    # a report may quote two source lines merged, which must NOT be reported
+    p = os.path.join(tmp, "merged.md")
+    io.open(p, "w", encoding="utf-8").write(
+        brief_report().replace("SELECT foo FROM bar INTO @DATA(ls_foo).",
+                               "SELECT foo FROM bar INTO @DATA(ls_foo). WRITE 2."))
+    r = run(QC, p, src)
+    check("do not occur in the source" in r.stdout,
+          "a statement the source does not contain is reported")
+
     if os.path.exists(EXEMPLAR):
         r = run(QC, EXEMPLAR)
         check(r.stdout.startswith("PASS"),

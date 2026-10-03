@@ -291,6 +291,76 @@ def fix_ln(s, src):
 
 FULLWIDTH = {"<": "＜", ">": "＞", "#": "＃"}
 
+# Lines that assert nothing about the source, so a fidelity pass must skip them.
+ELIDE = re.compile(r"\.\.\.|\u2026")
+PAREN_NOTE = re.compile(r"^[\s|*]*[\uff08(].*[\uff09)]\s*$")
+CJK = re.compile(r"[\u4e00-\u9fff]")
+# The source writes "t_documents ," with a space before the comma; the report
+# writes "t_documents,". Punctuation spacing, not a rewritten statement.
+PUNCT = re.compile(r"\s+([,;:)])")
+
+
+def _flat(s):
+    s = re.sub(r"\s+", " ", s).strip().lower()
+    s = PUNCT.sub(r"\1", s)
+    return re.sub(r"([(])\s+", r"\1", s)
+
+
+def _claims(body):
+    out = []
+    for raw in body.split("\n"):
+        if ELIDE.search(raw):
+            continue                    # skill-permitted boilerplate elision
+        l = re.sub(r'^\s*[*"\'"]', "", raw).rstrip()
+        if len(l.strip()) < 3 or PAREN_NOTE.match(l):
+            continue
+        if CJK.search(l) and "|" not in l:
+            continue                    # the report's own commentary
+        if l.count('"') % 2:
+            continue                    # unbalanced quote: layout debris
+        out.append(l)
+    return out
+
+
+def fidelity_note(s, src):
+    """Advisory: quoted statements that do not occur in the source.
+
+    The skill requires pasted code to be character-for-character faithful and
+    forbids altering statements to read better. Nothing structural can see this:
+    a fabricated block still has six sections, three layers per block and four
+    priority buckets.
+
+    Measured over 1444 quoted statements in ten reports, 16 did not occur in the
+    source and 11 of those 16 were substantive. The worst was not a rename: a
+    report quoted two calls that load a prior and a latest version and gave both
+    the same argument, so the code it described no longer did what it does.
+
+    Reported, not enforced. Three of the sixteen are punctuation or a merged
+    TYPES header, and 69% precision is not good enough to fail a report -- the
+    same reason density is advisory. It is good enough to be worth reading.
+    """
+    if not src:
+        return None
+    sf = _flat(src)
+    bad = []
+    n = 0
+    for m in re.finditer(r"```abap\n(.*?)```", s, re.S):
+        if in_risk_layer(s[:m.start()]):
+            continue
+        base = s[:m.start()].count("\n") + 1
+        for i, l in enumerate(_claims(m.group(1))):
+            n += 1
+            probe = l.strip().rstrip(".")
+            if probe and _flat(probe) not in sf:
+                bad.append((base + 1 + i, l.strip()))
+    if not bad:
+        return None
+    head = bad[0]
+    more = f" (+{len(bad)-1} more)" if len(bad) > 1 else ""
+    return (f"{len(bad)} quoted statement(s) of {n} do not occur in the source. "
+            f"First at line {head[0]}: {head[1][:60]!r}{more}. "
+            f"Check whether the report rewrote the source.")
+
 
 def fix_mm(s):
     """Convert bare < > # in Mermaid display text to their full-width forms.
@@ -346,19 +416,19 @@ def report(path, src=None):
     s = io.open(path, encoding="utf-8").read()
     bad = check(s)
     name = os.path.basename(path)
-    note = density_note(s, src)
+    notes = [n for n in (density_note(s, src), fidelity_note(s, src)) if n]
     if not bad:
         print(f"PASS  {name}")
-        if note:
-            print(f"  note  {note}")
+        for n in notes:
+            print(f"  note  {n}")
         return 0
     order = {"sec": 0, "prow": 1, "buck": 2, "ln": 3, "mm": 4, "A8-cc": 5, "A8-pt": 6}
     for kind, ln, detail in sorted(bad, key=lambda x: (order.get(x[0], 9), x[1])):
         where = f"line {ln}" if ln else "document"
         print(f"  {kind:6} {where:>10}  {detail}")
     print(f"FAIL  {name}  ({len(bad)} defect(s))")
-    if note:
-        print(f"  note  {note}")
+    for n in notes:
+        print(f"  note  {n}")
     return len(bad)
 
 
