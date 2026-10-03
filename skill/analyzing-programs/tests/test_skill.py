@@ -1,0 +1,207 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Self-contained checks for the shipped scripts. No project data required.
+
+    python tests/test_skill.py
+
+A gate that has never been seen to refuse is not known to work. That is not a
+general worry here, it is this project's record: three merge scripts failed
+silently, and one was caught only because somebody recomputed the total by hand.
+So the tests below are mostly about the failure paths, not the happy one.
+
+Everything is built in a temp directory. Nothing outside this skill folder is
+read or written.
+"""
+import io
+import json
+import os
+import subprocess
+import sys
+import tempfile
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+SKILL = os.path.dirname(HERE)
+QC = os.path.join(SKILL, "scripts", "report_qc.py")
+EVAL = os.path.join(SKILL, "scripts", "evaluate.py")
+EXEMPLAR = os.path.join(SKILL, "references", "example-report.md")
+
+FAILS = []
+
+
+def check(cond, label, detail=""):
+    print(f"  {'ok  ' if cond else 'FAIL'}  {label}" + (f"   {detail}" if detail else ""))
+    if not cond:
+        FAILS.append(label)
+
+
+def run(*args):
+    return subprocess.run([sys.executable] + list(args), capture_output=True,
+                          text=True, encoding="utf-8")
+
+
+def brief_report():
+    """A minimal report the gate should accept."""
+    return """# T 分析报告
+
+## 一、概述
+
+解决什么问题。
+
+## 二、执行流程
+
+### 责任链表
+
+| 子程序 | 触发者 |
+|---|---|
+| `Z_FOO` | 事务 |
+
+## 三、分组分析
+
+### 3.1 步骤① 取数（函数模块 `Z_FOO`）
+
+```abap
+SELECT foo FROM bar INTO @DATA(ls_foo).
+```
+
+**做什么** — 取一行。
+**为什么** — 索引命中。
+**风险与改进** — 未判空。
+
+## 四、流程图
+
+```mermaid
+flowchart TD
+  A["Z_FOO"] --> B["输出"]
+```
+
+## 五、问题清单
+
+### 🔴 P0 业务正确性
+
+| # | 所在子程序 | 问题 | 建议 |
+|---|---|---|---|
+| P0-1 | `Z_FOO` | 未判空 | 补 `CHECK` |
+
+### 🟠 P1 健壮性
+
+### 🟡 P2 性能
+
+### 🟢 P3 扩展
+
+## 六、整体评价
+
+一句结论。
+"""
+
+
+def main():
+    tmp = tempfile.mkdtemp()
+    print("shipped scripts")
+    print("-" * 72)
+    check(os.path.exists(QC), "scripts/report_qc.py present")
+    check(os.path.exists(EVAL), "scripts/evaluate.py present")
+    check(os.path.exists(EXEMPLAR), "references/example-report.md present")
+
+    print()
+    print("report_qc.py")
+    print("-" * 72)
+    good = os.path.join(tmp, "good.md")
+    io.open(good, "w", encoding="utf-8").write(brief_report())
+    r = run(QC, good)
+    check(r.stdout.startswith("PASS"), "a well-formed brief report passes",
+          r.stdout.strip().split("\n")[0][:44] if r.stdout.strip() else "")
+
+    # drop one of the three layers -> must be caught and located
+    bad = brief_report().replace("**为什么** — 索引命中。\n", "")
+    p = os.path.join(tmp, "nolayer.md")
+    io.open(p, "w", encoding="utf-8").write(bad)
+    r = run(QC, p)
+    check("A8" in r.stdout and not r.stdout.startswith("PASS"),
+          "a missing three-layer label is caught", "A8 reported")
+    check("line " in r.stdout, "the A8 defect carries a line number")
+
+    # remove section six -> must be caught
+    p = os.path.join(tmp, "nosix.md")
+    io.open(p, "w", encoding="utf-8").write(brief_report().split("## 六")[0])
+    r = run(QC, p)
+    check("sec" in r.stdout, "a missing section is caught")
+
+    # bare '>' inside a Mermaid label -> must be caught
+    p = os.path.join(tmp, "mermaid.md")
+    io.open(p, "w", encoding="utf-8").write(
+        brief_report().replace('A["Z_FOO"]', 'A["Z_FOO->bar"]'))
+    r = run(QC, p)
+    check("mm" in r.stdout, "a bare > in a Mermaid label is caught")
+
+    if os.path.exists(EXEMPLAR):
+        r = run(QC, EXEMPLAR)
+        check(r.stdout.startswith("PASS"),
+              "the shipped example report still passes",
+              r.stdout.strip().split("\n")[0][:44] if r.stdout.strip() else "")
+
+    print()
+    print("evaluate.py")
+    print("-" * 72)
+    defs = os.path.join(tmp, "d.json")
+    io.open(defs, "w", encoding="utf-8").write(json.dumps({
+        "source": "z_foo.abap",
+        "defects": [
+            {"id": "D1", "area": "a", "question": "报告是否指出未判空？",
+             "anchor": "SELECT foo FROM bar"},
+            {"id": "D2", "area": "b", "question": "报告是否指出缺少 sy-subrc 检查？",
+             "anchor": "IF sy-subrc = 0."},
+        ]}, ensure_ascii=False))
+
+    def vfile(name, mutate=None):
+        v = {"report": good,
+             "verdicts": {"D1": "yes", "D2": "partial"},
+             "false_claims": []}
+        if mutate:
+            mutate(v)
+        p = os.path.join(tmp, name + ".json")
+        io.open(p, "w", encoding="utf-8").write(json.dumps(v, ensure_ascii=False))
+        return p
+
+    r = run(EVAL, "score", "--defects", defs, "--verdicts", vfile("ok"))
+    check(r.returncode == 0, "a complete verdict file scores")
+    check("0.750" in r.stdout, "weighted recall is (1 + 0.5) / 2 = 0.750",
+          r.stdout.strip().split("\n")[4][:52] if len(r.stdout.split("\n")) > 4 else "")
+
+    def drop(v):
+        v["verdicts"].pop("D2")
+
+    def wrong(v):
+        v["verdicts"]["D2"] = "maybe"
+
+    def unknown(v):
+        v["verdicts"]["D9"] = "no"
+
+    def fc_int(v):
+        v["false_claims"] = 3
+
+    def fc_bad(v):
+        v["false_claims"] = [{"claim": "x"}]
+
+    for name, mut, label in [
+        ("missing", drop, "an unjudged defect is rejected"),
+        ("wrongval", wrong, "a verdict outside the vocabulary is rejected"),
+        ("unknown", unknown, "a verdict for an unknown defect is rejected"),
+        ("fcint", fc_int, "a bare count in false_claims is rejected"),
+        ("fcbad", fc_bad, "a false claim missing why_wrong is rejected"),
+    ]:
+        r = run(EVAL, "score", "--defects", defs, "--verdicts", vfile(name, mut))
+        check(r.returncode != 0 and "REJECTED" in r.stdout, label)
+
+    print()
+    print("-" * 72)
+    if FAILS:
+        print(f"{len(FAILS)} check(s) failed:")
+        for f in FAILS:
+            print("  -", f)
+        return 1
+    print("all checks passed")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
