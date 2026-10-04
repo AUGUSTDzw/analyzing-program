@@ -61,16 +61,22 @@ python scripts/evaluate.py compare --defects evals/D.json --a V1.json --b V2.jso
 
 ## 自带参考
 
-94 条缺陷 / 6 个真实源码：
+112 条缺陷 / 6 个真实源码：
 
 | 文件 | 缺陷数 | 源码 |
 |---|---|---|
-| `zcl_fi_toolkit.defects.json` | 20 | ZCL_FI_TOOLKIT（Keremkoseoglu，1702 行，CLASS） |
+| `zcl_fi_toolkit.defects.json` | 38 | ZCL_FI_TOOLKIT（Keremkoseoglu，1702 行，CLASS） |
 | `z_ave_standalone.defects.json` | 22 | z_ave_standalone（ysichov，29.5k 行，CLASS-POOL） |
 | `zvend.defects.json` | 21 | zvend.abap |
+| `dialog_zmsa_r_chapter4_8.defects.json` | 11 | PROCESS BEFORE/AFTER INPUT（经典 PBO/PAI） |
 | `zbc_show_error_log.defects.json` | 10 | 函数组 / EXCEPTIONS |
 | `screen_manager_o01.defects.json` | 10 | SALV 屏幕管理器（OO 继承） |
-| `dialog_zmsa_r_chapter4_8.defects.json` | 11 | PROCESS BEFORE/AFTER INPUT（经典 PBO/PAI） |
+
+`zcl_fi_toolkit` 从 20 条长到 38 条，所以 `Test-result/judge-v1two*.json` 这类
+只判了 D1–D20 的历史判定文件**不能**直接对当前清单评分 —— `score` 会拒绝并列出
+未判的 id，这是正确行为。要复算那批历史数字，取 D1–D20 的子集。
+`noise-reduction-failed.md` 记录了那次扩清单的结论：分母翻倍而绝对分歧也翻倍，
+相对噪声原地不动。
 
 另有 `evals/judge-defects.json`：13 个 eval 的**植入缺陷**共 77 条，属性于测试源码而非报告。
 

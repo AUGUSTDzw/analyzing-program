@@ -1,0 +1,22 @@
+{
+  "_comment": [
+    "The two SKILL.md versions iteration-9 compares. Both digests are",
+    "asserted against their source by pin_skill_versions.py, so a round",
+    "cannot report a number for a skill file that has since changed.",
+    "The baseline arm is intentionally absent: it loads no skill file."
+  ],
+  "old": {
+    "label": "b8f84e8",
+    "commit": "2cced57",
+    "path": "analyzing-programs-workspace/skill-versions/b8f84e8/SKILL.md",
+    "sha256": "b8f84e805a2a2aec6ecff58f35ac7e6c55874308b4559a73efdb068fc5f00a1b",
+    "source": "git show 2cced57:skill/analyzing-programs/SKILL.md"
+  },
+  "new": {
+    "label": "718f598",
+    "commit": "HEAD",
+    "path": "skill/analyzing-programs/SKILL.md",
+    "sha256": "718f598878c549d08f882bd18f9b2698daa1d840b2f3e242b0134ee0f766592b",
+    "source": "the live tree; this is the version that ships"
+  }
+}

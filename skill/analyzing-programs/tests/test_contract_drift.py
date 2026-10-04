@@ -28,11 +28,22 @@ per rule, so the prose cannot drift away from what is enforced either.
 A rule with no anchor in SKILL.md is enforced but not taught. An anchor with no
 rule is taught but not enforced. Both are failures, and neither is visible by
 running the checker.
+
+stdout is reconfigured because the labels printed below are the contract's own
+anchors, and the bucket anchor is the emoji U+1F534. Printing it to a Windows
+console defaulting to cp936 raised UnicodeEncodeError and killed the run at the
+fifth check, so this test had never been seen to finish there.
 """
 import io
 import json
 import os
 import sys
+
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SKILL = os.path.dirname(HERE)
@@ -129,8 +140,10 @@ def main():
     for k in ("deterministic_checks_establish", "requires_a_named_reviewer_for",
               "reviewer_mechanism"):
         check(bool(cs.get(k)), f"claim_separation.{k} is populated")
-    check("never implies" in " ".join(cs.get("_comment", [])) or
-          "never implies" in cs.get("_comment", [""])[0] if cs.get("_comment") else False,
+    comment = cs.get("_comment") or []
+    if isinstance(comment, str):
+        comment = [comment]
+    check("never implies" in " ".join(comment),
           "the contract says one pass never implies the others",
           "borrowed from archify's delivery contract")
 

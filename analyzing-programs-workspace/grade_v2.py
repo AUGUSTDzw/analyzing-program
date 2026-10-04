@@ -294,9 +294,52 @@ def mcnemar(a, b):
 
 
 runs = {}
+# Arms are DISCOVERED, not hardcoded. iteration-9 compares two versions of the
+# skill, which means a third arm directory (with_skill_<digest>), and a list of
+# two literals in six places is the kind of second copy that silently disagrees
+# with the layout. Discovery keeps every existing round working unchanged --
+# with one skill arm and one baseline arm the discovered list is exactly the old
+# tuple, so iteration-8 still reproduces byte for byte.
+BASE_CFG = "without_skill"
+DEFAULT_SKILL_CFG = "with_skill"
+
+
+def discover_cfgs():
+    found = set()
+    try:
+        entries = os.listdir(WS)
+    except OSError:
+        return [DEFAULT_SKILL_CFG, BASE_CFG]
+    for name in entries:
+        d = os.path.join(WS, name)
+        if not name.startswith("eval-") or not os.path.isdir(d):
+            continue
+        for cfg in os.listdir(d):
+            if os.path.isdir(os.path.join(d, cfg)):
+                found.add(cfg)
+    if not found:
+        return [DEFAULT_SKILL_CFG, BASE_CFG]
+    # baseline first, then skill arms, each alphabetically: deterministic order so
+    # two runs of the grader emit keys in the same sequence
+    return sorted(found, key=lambda c: (c != BASE_CFG, c))
+
+
+CFGS = discover_cfgs()
+SKILL_CFGS = [c for c in CFGS if c != BASE_CFG]
+if "--arms" in sys.argv:
+    want = sys.argv[sys.argv.index("--arms") + 1].split(",")
+    CFGS = [c for c in CFGS if c in want]
+    SKILL_CFGS = [c for c in CFGS if c != BASE_CFG]
+if len(CFGS) != len(set(CFGS)):
+    sys.exit("duplicate arm requested")
+# the arm the headline numbers describe; with two skill arms this stays the
+# canonical one and the other is reported alongside it
+HEADLINE_SKILL = DEFAULT_SKILL_CFG if DEFAULT_SKILL_CFG in SKILL_CFGS else (
+    SKILL_CFGS[0] if SKILL_CFGS else DEFAULT_SKILL_CFG)
+
 for ev in EVALS:
     d = f"eval-{ev['id']}-{ev['name']}"
-    for cfg in ("with_skill", "without_skill"):
+    for cfg in CFGS:
         for k in range(1, RUNS + 1):
             p = os.path.join(WS, d, cfg, f"run-{k}", "outputs", "report.md")
             if os.path.exists(p):
@@ -330,7 +373,7 @@ for (eid, cfg, k), text in sorted(runs.items()):
 # ------------------------------------------------------------ per-cell agg
 percell = {}
 for ev in EVALS:
-    for cfg in ("with_skill", "without_skill"):
+    for cfg in CFGS:
         rr = [v for v in summary.values()
               if v["eval_id"] == ev["id"] and v["config"] == cfg]
         if not rr:
@@ -361,32 +404,49 @@ for a, cells in matrix.items():
                      "ci95": wilson(k, len(applicable))})
     if not rows:
         continue
-    w = [x for x in rows if x["config"] == "with_skill"]
-    b = [x for x in rows if x["config"] == "without_skill"]
+    w = [x for x in rows if x["config"] == HEADLINE_SKILL]
+    b = [x for x in rows if x["config"] == BASE_CFG]
     assertion_stats[a] = {
         "aid": a, "kind": kind, "cells": rows,
         "with_rate": round(statistics.mean(x["rate"] for x in w), 3) if w else None,
         "without_rate": round(statistics.mean(x["rate"] for x in b), 3) if b else None,
         "applicable_cells": len(rows),
         "n_discriminating": sum(1 for x in rows
-                                if x["config"] == "with_skill" and x["rate"] == 1
+                                if x["config"] == HEADLINE_SKILL and x["rate"] == 1
                                 and x["rate"] < 1),
+        # every arm's mean, so a round with more than one skill arm is readable
+        # without re-running this
+        "rate_by_config": {c: round(statistics.mean(
+            [x["rate"] for x in rows if x["config"] == c]), 3)
+            for c in CFGS if any(x["config"] == c for x in rows)},
     }
 
 # ------------------------------------------------------------- McNemar sum
 # Unit of analysis: (eval, config, run, assertion) discordance. A12 is excluded
 # because A17 is its generalisation and the two are highly correlated on eval-1.
+# PAIRED_EXCLUDE = {"A12"}
 PAIRED_EXCLUDE = {"A12"}
+# which two arms the paired test compares. Defaults to the canonical pair so
+# every earlier round is unaffected; iteration-9 compares its two skill versions.
+PAIRED = [HEADLINE_SKILL, BASE_CFG]
+if "--compare" in sys.argv:
+    PAIRED = sys.argv[sys.argv.index("--compare") + 1].split(",")
+    if len(PAIRED) != 2:
+        sys.exit("--compare needs exactly two arms")
+    for c in PAIRED:
+        if c not in CFGS:
+            sys.exit(f"--compare names an arm that was not found: {c}")
 w_only = b_only = 0
 paired_cells = 0
 for (eid, cfg, k), _t in runs.items():
-    rid = f"eval-{eid}-{cfg}-run{k}"
-    ws = {x["aid"]: x["passed"] for x in summary[rid]["expectations"]}
-    bs = {x["aid"]: x["passed"]
-          for x in summary[f"eval-{eid}-{'without_skill'}-run{k}"]["expectations"]} \
-        if f"eval-{eid}-without_skill-run{k}" in summary else {}
-    if not bs:
+    if cfg != PAIRED[0]:
         continue
+    rid = f"eval-{eid}-{cfg}-run{k}"
+    other = f"eval-{eid}-{PAIRED[1]}-run{k}"
+    if rid not in summary or other not in summary:
+        continue
+    ws = {x["aid"]: x["passed"] for x in summary[rid]["expectations"]}
+    bs = {x["aid"]: x["passed"] for x in summary[other]["expectations"]}
     for a in ws:
         if a in PAIRED_EXCLUDE or ws[a] is None or bs.get(a) is None:
             continue
@@ -397,8 +457,13 @@ for (eid, cfg, k), _t in runs.items():
             b_only += 1
 p_mcnemar = mcnemar(w_only, b_only)
 
-w_means = [v["pass_rate_mean"] for k, v in percell.items() if v["config"] == "with_skill"]
-b_means = [v["pass_rate_mean"] for k, v in percell.items() if v["config"] == "without_skill"]
+w_means = [v["pass_rate_mean"] for k, v in percell.items()
+           if v["config"] == HEADLINE_SKILL]
+b_means = [v["pass_rate_mean"] for k, v in percell.items()
+           if v["config"] == BASE_CFG]
+per_config = {c: round(statistics.mean(
+    [v["pass_rate_mean"] for v in percell.values() if v["config"] == c]), 3)
+    for c in CFGS if any(v["config"] == c for v in percell.values())}
 
 out = {
     "metadata": {
@@ -407,6 +472,12 @@ out = {
         "evals": [{"id": e["id"], "name": e["name"], "files": e["files"],
                    "subprograms": e["subs"], "triggers": e["trg"]} for e in EVALS],
         "paired_cells": paired_cells, "paired_excluded": sorted(PAIRED_EXCLUDE),
+        # recorded so a reader can tell a one-skill-arm round from a two-version
+        # one without inferring it from directory names
+        "arms": CFGS,
+        "headline_skill_arm": HEADLINE_SKILL,
+        "baseline_arm": BASE_CFG,
+        "paired_arms": PAIRED,
     },
     "runs": list(summary.values()),
     "per_cell": percell,
@@ -423,6 +494,7 @@ out = {
         "without_skill_mean": round(statistics.mean(b_means), 3) if b_means else 0,
         "delta_pp": round((statistics.mean(w_means) - statistics.mean(b_means)) * 100, 1)
         if w_means and b_means else 0,
+        "per_config": per_config,
     },
 }
 json.dump(out, open(os.path.join(WS, "grading_summary.json"), "w", encoding="utf-8"),
@@ -441,7 +513,8 @@ for k, v in percell.items():
     rng = f"[{v['pass_rate_min']}, {v['pass_rate_max']}]"
     print(f"  {k:28} mean {v['pass_rate_mean']:>5}  median {v['pass_rate_median']:>5}"
           f"  range {rng:>12}  runs {v['per_run']}")
-print(f"\npaired McNemar (A12 excluded as superseded by A17):")
+print(f"\npaired McNemar (A12 excluded as superseded by A17), "
+      f"{PAIRED[0]} vs {PAIRED[1]}:")
 print(f"  cells={paired_cells}  with_only={w_only}  without_only={b_only}  "
       f"concordant={paired_cells - w_only - b_only}")
 print(f"  exact two-sided p = {p_mcnemar:.3e}")
@@ -449,6 +522,12 @@ print(f"\nsummary: with_skill {out['summary']['with_skill_mean']:.3f} vs "
       f"without_skill {out['summary']['without_skill_mean']:.3f} "
       f"(delta {out['summary']['delta_pp']}pp)  [NOTE: paired p above is the "
       f"significance test; the delta is descriptive]")
+if len(CFGS) > 2:
+    print(f"\n{len(CFGS)} arms found, so the headline pair above is only one of them:")
+    for c, m in sorted(per_config.items()):
+        mark = "  <- headline skill arm" if c == HEADLINE_SKILL else (
+               "  <- baseline" if c == BASE_CFG else "")
+        print(f"  {c:34} mean {m:.3f}{mark}")
 print("\nper-assertion (rate over applicable cells; CI = Wilson 95%):")
 print(f"{'aid':5} {'kind':9} {'with':>7} {'base':>7} {'cells':>6}")
 for a in sorted(assertion_stats, key=lambda x: int(x[1:])):

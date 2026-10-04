@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>analyzing-programs · iteration-8</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<style>
+:root{--bg:#08090d;--card:rgba(255,255,255,.035);--ch:rgba(255,255,255,.06);
+--line:rgba(255,255,255,.09);--tx:#e9edf4;--tx2:#9aa4bb;--tx3:#5f6880;
+--ok:#2ee6a8;--bad:#ff4d6a;--warn:#ffb020;--base:#5b7cfa;--acc:#c084fc;
+--mono:'IBM Plex Mono',ui-monospace,monospace;--r:14px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font-family:'Space Grotesk','Noto Sans SC',system-ui,sans-serif;line-height:1.65;-webkit-font-smoothing:antialiased}
+body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
+background:radial-gradient(900px 480px at 10% -6%,rgba(255,77,106,.13),transparent 60%),
+radial-gradient(880px 500px at 90% -4%,rgba(46,230,168,.11),transparent 62%),
+repeating-linear-gradient(0deg,rgba(255,255,255,.013) 0 1px,transparent 1px 3px)}
+.wrap{max-width:1300px;margin:0 auto;padding:0 2rem 5rem}
+.rpt-header{display:flex;justify-content:space-between;align-items:flex-end;gap:2rem;
+padding:3.2rem 0 1.8rem;border-bottom:1px solid var(--line);margin-bottom:2.2rem;flex-wrap:wrap}
+.rpt-header h1{font-size:2rem;font-weight:700;letter-spacing:-.02em;line-height:1.2}
+.rpt-header h1 em{font-style:normal;color:var(--bad)}
+.rpt-sub{color:var(--tx2);font-size:.88rem;margin-top:.55rem}
+.rpt-sub code{font-family:var(--mono);color:var(--ok);font-size:.85em}
+.rpt-meta{text-align:right;font-family:var(--mono);font-size:.73rem;color:var(--tx3);line-height:1.9}
+.rpt-meta b{color:var(--tx2);font-weight:500}
+.sec{margin:3rem 0 0}
+.sec-h{display:flex;align-items:baseline;gap:.8rem;margin-bottom:1.2rem;flex-wrap:wrap}
+.sec-h .n{font-family:var(--mono);font-size:.7rem;color:var(--acc);border:1px solid rgba(192,132,252,.35);border-radius:5px;padding:.14rem .42rem}
+.sec-h h2{font-size:1.22rem;font-weight:600}
+.sec-h .hint{font-size:.79rem;color:var(--tx3);margin-left:auto}
+/* verdict banner: the whole point is that the two layers disagree */
+.verdicts{display:grid;gap:1rem;grid-template-columns:1fr 1fr}
+@media(max-width:900px){.verdicts{grid-template-columns:1fr}}
+.vd{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:var(--r);
+padding:1.4rem 1.5rem;background:var(--card)}
+.vd::before{content:'';position:absolute;inset:0 0 auto 0;height:3px}
+.vd.f::before{background:linear-gradient(90deg,var(--ok),#5b7cfa)}
+.vd.j::before{background:linear-gradient(90deg,var(--warn),var(--bad))}
+.vd .t{font-size:.76rem;text-transform:uppercase;letter-spacing:.1em;color:var(--tx3);font-weight:600}
+.vd .rows{margin-top:1rem;display:flex;flex-direction:column;gap:.6rem}
+.vd .r{display:flex;align-items:baseline;gap:.7rem}
+.vd .r .who{font-family:var(--mono);font-size:.72rem;color:var(--tx3);width:104px;flex-shrink:0}
+.vd .r .num{font-family:var(--mono);font-size:1.5rem;font-weight:500}
+.vd .r .bars{flex:1;display:flex;flex-direction:column;gap:.22rem;padding-left:.3rem}
+.vd .bar{height:7px;background:rgba(255,255,255,.07);border-radius:4px;overflow:hidden}
+.vd .bar i{display:block;height:100%;border-radius:4px}
+.vd .bar.w i{background:linear-gradient(90deg,var(--acc),#7c5cff)}
+.vd .bar.b i{background:linear-gradient(90deg,var(--base),#3d5cd6)}
+/* lower bar = worst single run in that arm */
+.vd .bar.lo i{opacity:.34}
+.vd .concl{margin-top:1.15rem;padding-top:.95rem;border-top:1px solid var(--line);
+font-size:.83rem;color:var(--tx2)}
+.vd .concl b{color:var(--tx)}
+.vd .pv{font-family:var(--mono);font-size:.76rem;padding:.16rem .5rem;border-radius:5px;
+display:inline-block;margin-top:.55rem}
+.pv.sig{background:rgba(46,230,168,.14);color:var(--ok)}
+.pv.nsig{background:rgba(255,176,32,.14);color:var(--warn)}
+.kpis{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(178px,1fr))}
+.kpi{position:relative;overflow:hidden;background:var(--card);border:1px solid var(--line);
+border-radius:var(--r);padding:1.05rem 1.15rem;transition:.25s}
+.kpi::before{content:'';position:absolute;inset:0 0 auto 0;height:2px;background:linear-gradient(90deg,var(--acc),var(--ok))}
+.kpi:hover{transform:translateY(-3px);background:var(--ch)}
+.kpi .lb{font-size:.69rem;color:var(--tx3);text-transform:uppercase;letter-spacing:.09em;font-weight:500}
+.kpi .v{font-family:var(--mono);font-size:1.85rem;font-weight:500;margin:.3rem 0 .08rem;letter-spacing:-.02em}
+.kpi .d{font-size:.73rem;color:var(--tx2)}
+.charts{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(370px,1fr))}
+.chart{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:1.05rem 1.2rem 1.2rem}
+.chart h3{font-size:.9rem;font-weight:600}
+.chart .cs{font-size:.75rem;color:var(--tx3);margin-bottom:.45rem}
+.cv{width:100%;height:340px}
+.cv.tall{height:470px}
+.cv.short{height:290px}
+.tbl{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:.83rem}
+th{text-align:left;font-weight:600;font-size:.69rem;text-transform:uppercase;letter-spacing:.08em;
+color:var(--tx3);padding:.72rem .85rem;background:rgba(255,255,255,.03);border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:.62rem .85rem;border-bottom:1px solid rgba(255,255,255,.05);vertical-align:top}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:rgba(255,255,255,.028)}
+td.mono,.mono{font-family:var(--mono);font-size:.81em}
+.pill{display:inline-block;padding:.1rem .48rem;border-radius:999px;font-size:.69rem;font-family:var(--mono);font-weight:500}
+.pill.ok{background:rgba(46,230,168,.14);color:var(--ok)}
+.pill.bad{background:rgba(255,77,106,.14);color:var(--bad)}
+.pill.warn{background:rgba(255,176,32,.14);color:var(--warn)}
+.pill.mute{background:rgba(255,255,255,.07);color:var(--tx2)}
+.pill.acc{background:rgba(192,132,252,.14);color:var(--acc)}
+.pos{color:var(--ok)} .neg{color:var(--bad)} .zero{color:var(--tx3)}
+.blk{background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+padding:1.25rem 1.4rem;margin-bottom:.9rem;border-left:3px solid transparent}
+.blk.r{border-left-color:var(--bad)} .blk.g{border-left-color:var(--ok)}
+.blk.w{border-left-color:var(--warn)} .blk.a{border-left-color:var(--acc)}
+.blk h3{font-size:.96rem;font-weight:600;margin-bottom:.65rem}
+.blk p{font-size:.87rem;color:var(--tx2);margin-bottom:.5rem}
+.blk p:last-child{margin-bottom:0}
+.blk strong{color:var(--tx)}
+.blk code{font-family:var(--mono);font-size:.85em;color:var(--acc)}
+ol.find{list-style:none;counter-reset:f}
+ol.find li{counter-increment:f;position:relative;padding:.85rem 0 .85rem 2.8rem;border-bottom:1px solid rgba(255,255,255,.05)}
+ol.find li:last-child{border-bottom:none}
+ol.find li::before{content:'F' counter(f);position:absolute;left:0;top:.92rem;font-family:var(--mono);
+font-size:.67rem;color:var(--acc);border:1px solid rgba(192,132,252,.4);border-radius:5px;padding:.09rem .36rem}
+ol.find p{font-size:.87rem;color:var(--tx2)}
+.rec{position:relative;padding-left:1.4rem;border-left:2px solid var(--line);margin-top:.4rem}
+.rec-i{position:relative;margin-bottom:1rem}
+.rec-i::before{content:'';position:absolute;left:-1.82rem;top:.48rem;width:10px;height:10px;border-radius:50%;border:2px solid;background:var(--bg)}
+.rec-s::before{border-color:var(--ok)} .rec-m::before{border-color:var(--base)} .rec-l::before{border-color:var(--acc)}
+.rec-i .rl{font-family:var(--mono);font-size:.69rem;letter-spacing:.06em;text-transform:uppercase;margin-bottom:.28rem}
+.rec-s .rl{color:var(--ok)} .rec-m .rl{color:var(--base)} .rec-l .rl{color:var(--acc)}
+.rec-i ul{list-style:none} .rec-i li{font-size:.85rem;color:var(--tx2);padding-left:1rem;position:relative;margin-bottom:.22rem}
+.rec-i li::before{content:'→';position:absolute;left:0;color:var(--tx3)}
+footer{margin-top:3.6rem;padding-top:1.4rem;border-top:1px solid var(--line);
+font-family:var(--mono);font-size:.71rem;color:var(--tx3);display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.nogs{font-family:var(--mono);font-size:.79rem;color:var(--warn);padding:.9rem;background:rgba(255,176,32,.08);border:1px solid rgba(255,176,32,.25);border-radius:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="rpt-header">
+  <div>
+    <h1><em>analyzing-programs</em><br>iteration-8 · 两个判定层</h1>
+    <p class="rpt-sub">格式合规 vs 技术正确性 —— 评分器 <code>grade_v2.py</code> ·
+      <code>13</code> 个程序类型 × 2 配置 × 2 次运行 ·
+      LLM judge 逐缺陷三值判定</p>
+  </div>
+  <div class="rpt-meta">
+    <div>格式断言 <b>23</b> 项 × 适用格</div>
+    <div>预埋缺陷 <b>77</b> 项</div>
+    <div>judge 报告 <b>52</b> 份</div>
+    <div>配对格 <b>780</b> 个</div>
+  </div>
+</header>
+
+<section class="sec">
+  <div class="sec-h"><span class="n">00</span><h2>两个结论互相矛盾</h2>
+    <span class="hint">不要把这两层平均成一个数字</span></div>
+  <div class="verdicts" id="verdicts"></div>
+</section>
+
+<section class="sec">
+  <div class="sec-h"><span class="n">01</span><h2>关键指标</h2></div>
+  <div class="kpis" id="kpis"></div>
+</section>
+
+<section class="sec">
+  <div class="sec-h"><span class="n">02</span><h2>可视化</h2>
+    <span class="hint">两层分列 · 每程序类型 · 每缺陷</span></div>
+  <div class="charts">
+    <div class="chart"><h3>两层通过率并列</h3>
+      <p class="cs">格式层与 judge 层各自计算，不合并</p>
+      <div class="cv" id="c-layers"></div></div>
+    <div class="chart"><h3>逐缺陷召回：with_skill vs baseline</h3>
+      <p class="cs">77 个预埋缺陷，正值表示 skill 更强</p>
+      <div class="cv tall" id="c-defect"></div></div>
+    <div class="chart"><h3>每份报告的 judge 分数</h3>
+      <p class="cs">20 份报告，2 轮 × 5 eval × 2 配置</p>
+      <div class="cv short" id="c-runs"></div></div>
+    <div class="chart"><h3>23 项格式断言的区分度</h3>
+      <p class="cs">两侧都 100% 的项对区分无贡献</p>
+      <div class="cv" id="c-assert"></div></div>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="sec-h"><span class="n">03</span><h2>详细数据</h2></div>
+  <div class="charts">
+    <div class="chart" style="grid-column:1/-1"><h3>逐 eval × 配置：两层分数</h3>
+      <div class="tbl" id="t-cells"></div></div>
+    <div class="chart" style="grid-column:1/-1"><h3>逐缺陷判定明细</h3>
+      <p class="cs">yes = 1.0，partial = 0.5，no = 0；分数为该配置下 2 次运行的加权命中率</p>
+      <div class="tbl" id="t-defect"></div></div>
+    <div class="chart" style="grid-column:1/-1"><h3>23 项格式断言</h3>
+      <div class="tbl" id="t-assert"></div></div>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="sec-h"><span class="n">04</span><h2>核心发现</h2></div>
+  <ol class="find" id="findings"></ol>
+</section>
+
+<section class="sec">
+  <div class="sec-h"><span class="n">05</span><h2>方法学与建议</h2></div>
+  <div class="blk w"><h3>方法学限制（必须先读）</h3><div id="caveats"></div></div>
+  <div class="blk a"><h3>建议</h3><div class="rec" id="recs"></div></div>
+</section>
+
+<footer><span>analyzing-programs · iteration-8 benchmark</span><span id="foot"></span></footer>
+</div>
+<script id="payload" type="application/json">{"evalNames": {"1": "alv-editable-total-poc", "2": "procedural-vendor-report", "3": "global-class-alv-weight", "4": "function-group-rfc-price", "5": "report-bapi-rfc-upload", "6": "salv-table-events", "7": "abstract-inheritance-polymorphism", "8": "dialog-screen-modules", "9": "cds-consume-http-synch", "13": "modern-syntax-table-expr", "10": "batch-price-recalc", "11": "class-events-publisher", "12": "vendor-maintain-lock-msgs"}, "format": {"cells": [{"key": "eval-1-with_skill", "eval": 1, "config": "with_skill", "mean": 1.0, "runs": [1.0, 1.0], "min": 1.0, "max": 1.0}, {"key": "eval-1-without_skill", "eval": 1, "config": "without_skill", "mean": 0.433, "runs": [0.4, 0.467], "min": 0.4, "max": 0.467}, {"key": "eval-2-with_skill", "eval": 2, "config": "with_skill", "mean": 1.0, "runs": [1.0, 1.0], "min": 1.0, "max": 1.0}, {"key": "eval-2-without_skill", "eval": 2, "config": "without_skill", "mean": 0.423, "runs": [0.385, 0.462], "min": 0.385, "max": 0.462}, {"key": "eval-3-with_skill", "eval": 3, "config": "with_skill", "mean": 0.972, "runs": [1.0, 0.944], "min": 0.944, "max": 1.0}, {"key": "eval-3-without_skill", "eval": 3, "config": "without_skill", "mean": 0.639, "runs": [0.611, 0.667], "min": 0.611, "max": 0.667}, {"key": "eval-4-with_skill", "eval": 4, "config": "with_skill", "mean": 1.0, "runs": [1.0, 1.0], "min": 1.0, "max": 1.0}, {"key": "eval-4-without_skill", "eval": 4, "config": "without_skill", "mean": 0.617, "runs": [0.529, 0.706], "min": 0.529, "max": 0.706}, {"key": "eval-5-with_skill", "eval": 5, "config": "with_skill", "mean": 1.0, "runs": [1.0, 1.0], "min": 1.0, "max": 1.0}, {"key": "eval-5-without_skill", "eval": 5, "config": "without_skill", "mean": 0.656, "runs": [0.562, 0.75], "min": 0.562, "max": 0.75}, {"key": "eval-6-with_skill", "eval": 6, "config": "with_skill", "mean": 1.0, "runs": [1.0, 1.0], "min": 1.0, "max": 1.0}, {"key": "eval-6-without_skill", "eval": 6, "config": "without_skill", "mean": 0.533, "runs": [0.533, 0.533], "min": 0.533, "max": 0.533}, {"key": "eval-7-with_skill", "eval": 7, "config": "with_skill", "mean": 0.965, "runs": [1.0, 0.929], "min": 0.929, "max": 1.0}, {"key": "eval-7-without_skill", "eval": 7, "config": "without_skill", "mean": 0.428, "runs": [0.5, 0.357], "min": 0.357, "max": 0.5}, {"key": "eval-8-with_skill", "eval": 8, "config": "with_skill", "mean": 1.0, "runs": [1.0, 1.0], "min": 1.0, "max": 1.0}, {"key": "eval-8-without_skill", "eval": 8, "config": "without_skill", "mean": 0.594, "runs": [0.5, 0.688], "min": 0.5, "max": 0.688}, {"key": "eval-9-with_skill", "eval": 9, "config": "with_skill", "mean": 0.906, "runs": [0.875, 0.938], "min": 0.875, "max": 0.938}, {"key": "eval-9-without_skill", "eval": 9, "config": "without_skill", "mean": 0.656, "runs": [0.625, 0.688], "min": 0.625, "max": 0.688}, {"key": "eval-13-with_skill", "eval": 13, "config": "with_skill", "mean": 0.965, "runs": [1.0, 0.929], "min": 0.929, "max": 1.0}, {"key": "eval-13-without_skill", "eval": 13, "config": "without_skill", "mean": 0.535, "runs": [0.571, 0.5], "min": 0.5, "max": 0.571}, {"key": "eval-10-with_skill", "eval": 10, "config": "with_skill", "mean": 0.938, "runs": [0.938, 0.938], "min": 0.938, "max": 0.938}, {"key": "eval-10-without_skill", "eval": 10, "config": "without_skill", "mean": 0.594, "runs": [0.688, 0.5], "min": 0.5, "max": 0.688}, {"key": "eval-11-with_skill", "eval": 11, "config": "with_skill", "mean": 1.0, "runs": [1.0, 1.0], "min": 1.0, "max": 1.0}, {"key": "eval-11-without_skill", "eval": 11, "config": "without_skill", "mean": 0.393, "runs": [0.429, 0.357], "min": 0.357, "max": 0.429}, {"key": "eval-12-with_skill", "eval": 12, "config": "with_skill", "mean": 1.0, "runs": [1.0, 1.0], "min": 1.0, "max": 1.0}, {"key": "eval-12-without_skill", "eval": 12, "config": "without_skill", "mean": 0.7, "runs": [0.733, 0.667], "min": 0.667, "max": 0.733}], "with": 0.98, "without": 0.554, "delta": 42.7, "paired": {"with_only_pass": 170, "without_only_pass": 5, "concordant_pass": 605, "mcnemar_exact_two_sided_p": 5.553488622610475e-44}, "p": 5.553488622610475e-44}, "judge": {"cells": [{"key": "eval-1-with_skill", "eval": 1, "config": "with_skill", "mean": 0.75, "runs": [0.75, 0.75], "min": 0.75, "max": 0.75}, {"key": "eval-1-without_skill", "eval": 1, "config": "without_skill", "mean": 0.5, "runs": [0.25, 0.75], "min": 0.25, "max": 0.75}, {"key": "eval-2-with_skill", "eval": 2, "config": "with_skill", "mean": 0.75, "runs": [0.75, 0.75], "min": 0.75, "max": 0.75}, {"key": "eval-2-without_skill", "eval": 2, "config": "without_skill", "mean": 0.688, "runs": [0.875, 0.5], "min": 0.5, "max": 0.875}, {"key": "eval-3-with_skill", "eval": 3, "config": "with_skill", "mean": 0.916, "runs": [1.0, 0.833], "min": 0.833, "max": 1.0}, {"key": "eval-3-without_skill", "eval": 3, "config": "without_skill", "mean": 0.709, "runs": [0.75, 0.667], "min": 0.667, "max": 0.75}, {"key": "eval-4-with_skill", "eval": 4, "config": "with_skill", "mean": 0.7, "runs": [0.7, 0.7], "min": 0.7, "max": 0.7}, {"key": "eval-4-without_skill", "eval": 4, "config": "without_skill", "mean": 0.85, "runs": [0.8, 0.9], "min": 0.8, "max": 0.9}, {"key": "eval-5-with_skill", "eval": 5, "config": "with_skill", "mean": 0.95, "runs": [1.0, 0.9], "min": 0.9, "max": 1.0}, {"key": "eval-5-without_skill", "eval": 5, "config": "without_skill", "mean": 0.9, "runs": [1.0, 0.8], "min": 0.8, "max": 1.0}, {"key": "eval-6-with_skill", "eval": 6, "config": "with_skill", "mean": 1.0, "runs": [1.0, 1.0], "min": 1.0, "max": 1.0}, {"key": "eval-6-without_skill", "eval": 6, "config": "without_skill", "mean": 1.0, "runs": [1.0, 1.0], "min": 1.0, "max": 1.0}, {"key": "eval-7-with_skill", "eval": 7, "config": "with_skill", "mean": 0.925, "runs": [0.95, 0.9], "min": 0.9, "max": 0.95}, {"key": "eval-7-without_skill", "eval": 7, "config": "without_skill", "mean": 0.8, "runs": [0.85, 0.75], "min": 0.75, "max": 0.85}, {"key": "eval-8-with_skill", "eval": 8, "config": "with_skill", "mean": 0.95, "runs": [0.9, 1.0], "min": 0.9, "max": 1.0}, {"key": "eval-8-without_skill", "eval": 8, "config": "without_skill", "mean": 1.0, "runs": [1.0, 1.0], "min": 1.0, "max": 1.0}, {"key": "eval-9-with_skill", "eval": 9, "config": "with_skill", "mean": 0.75, "runs": [0.786, 0.714], "min": 0.714, "max": 0.786}, {"key": "eval-9-without_skill", "eval": 9, "config": "without_skill", "mean": 0.893, "runs": [0.857, 0.929], "min": 0.857, "max": 0.929}, {"key": "eval-10-with_skill", "eval": 10, "config": "with_skill", "mean": 0.709, "runs": [0.75, 0.667], "min": 0.667, "max": 0.75}, {"key": "eval-10-without_skill", "eval": 10, "config": "without_skill", "mean": 0.709, "runs": [0.75, 0.667], "min": 0.667, "max": 0.75}, {"key": "eval-11-with_skill", "eval": 11, "config": "with_skill", "mean": 0.834, "runs": [0.75, 0.917], "min": 0.75, "max": 0.917}, {"key": "eval-11-without_skill", "eval": 11, "config": "without_skill", "mean": 0.875, "runs": [0.917, 0.833], "min": 0.833, "max": 0.917}, {"key": "eval-12-with_skill", "eval": 12, "config": "with_skill", "mean": 0.959, "runs": [0.917, 1.0], "min": 0.917, "max": 1.0}, {"key": "eval-12-without_skill", "eval": 12, "config": "without_skill", "mean": 1.0, "runs": [1.0, 1.0], "min": 1.0, "max": 1.0}, {"key": "eval-13-with_skill", "eval": 13, "config": "with_skill", "mean": 0.844, "runs": [0.875, 0.812], "min": 0.812, "max": 0.875}, {"key": "eval-13-without_skill", "eval": 13, "config": "without_skill", "mean": 0.812, "runs": [0.875, 0.75], "min": 0.75, "max": 0.875}], "with": 0.849, "without": 0.826, "delta": 2.3, "sign": {"n_paired": 26, "with_higher": 9, "baseline_higher": 8, "ties": 9, "exact_two_sided_p": 1.0}, "perDefect": [{"key": "eval-1-D1", "eval": 1, "defect": "D1", "area": "数据流", "question": "报告是否指出 `SELECT ... INTO TABLE _mara` 的目标内表 `_mara` 从未声明，且与 `REUSE_ALV_GRID_DISPLAY` 的 `t_outtab = gt_mara` 不是同一张表，导致 ALV 永远显示空数据？", "with": 1.0, "base": 0.5}, {"key": "eval-1-D2", "eval": 1, "defect": "D2", "area": "语义校核", "question": "报告是否指出 `REDUCE #( INIT lv_i TYPE ntgew_15 ... NEXT lv_i = lv_i + brgew )` 用净重数据元素 NTGEW 累加毛重字段 BRGEW，并把小计写回净重变量，属口径错配？", "with": 1.0, "base": 0.5}, {"key": "eval-1-D3", "eval": 1, "defect": "D3", "area": "健壮性", "question": "报告是否指出 `gr_data->*` 未判 IS BOUND 就 ASSIGN，且 `READ TABLE ... INDEX 1` 假设总计行一定在第 1 行，多行小计或空收集时会越界或取错行？", "with": 0.5, "base": 0.25}, {"key": "eval-1-D4", "eval": 1, "defect": "D4", "area": "错误处理", "question": "报告是否指出 `refresh_table_display` 的 `finished = 1`（显示因导出而结束）被与其它异常一起静默忽略，用户导出 ALV 时得不到任何反馈？", "with": 0.5, "base": 0.75}, {"key": "eval-2-D1", "eval": 2, "defect": "D1", "area": "可维护性", "question": "报告是否指出 `MESSAGE '无符合条件的供应商'` 与 `MESSAGE '字段目录生成失败'` 把提示文本硬编码在程序里、没用消息类，无法通过 SE63 翻译，违反 SAP 规范？", "with": 1.0, "base": 0.75}, {"key": "eval-2-D2", "eval": 2, "defect": "D2", "area": "统计口径", "question": "报告是否指出 `COUNT( DISTINCT ebeln )` 只按 `BSTYP = 'F'` 过滤，没有排除已删除（MEMHO）或已被凭证块（BUKO）锁定的采购订单，采购订单计数可能偏高？", "with": 0.5, "base": 0.5}, {"key": "eval-2-D3", "eval": 2, "defect": "D3", "area": "规范", "question": "报告是否指出 `TABLES: lfa1, ekko` 的过时表工作区声明与选择屏 host variable、内联 `@` 宿主变量语法混用，属于新旧两代写法并存？", "with": 0.5, "base": 0.5}, {"key": "eval-2-D4", "eval": 2, "defect": "D4", "area": "用户体验", "question": "报告是否指出无结果时 `MESSAGE TYPE 'I'` 后接无条件 `STOP` 会直接终止程序，用户无法返回选择屏幕修改条件重跑？", "with": 1.0, "base": 1.0}, {"key": "eval-3-D1", "eval": 3, "defect": "D1", "area": "性能", "question": "报告是否指出 `enrich_text` 里的 `FOR ALL ENTRIES IN ct_stock` 缺少空内表保护，驱动表为空时存在退化为全表扫描或短 dump 的风险？", "with": 1.0, "base": 1.0}, {"key": "eval-3-D2", "eval": 3, "defect": "D2", "area": "正确性", "question": "报告是否指出同一方法里 `READ TABLE lt_text INTO ls_text` 没有判断 sy-subrc，`ls_text` 会保留上一行残留，导致描述跨行串数据？", "with": 0.5, "base": 0.5}, {"key": "eval-3-D3", "eval": 3, "defect": "D3", "area": "语义校核", "question": "报告是否指出 `build_fieldcat` 把 `MARA-NTGEW`（净重）这一列的标题写成 `Gross Weight (kg)`，净重被标成毛重，且单位并不保证是 KG？", "with": 1.0, "base": 0.25}, {"key": "eval-3-D4", "eval": 3, "defect": "D4", "area": "正确性", "question": "报告是否指出 `collect_stock` 里拼接的动态 SQL 字符串 `lv_sql` 从未被执行（死代码），而真正执行的 SELECT 把不属于 MARD 的 EINA / NTGEW 取进 RT_STOCK，属字段来源错误？", "with": 1.0, "base": 1.0}, {"key": "eval-3-D5", "eval": 3, "defect": "D5", "area": "语义校核", "question": "报告是否指出 `calc_unit_weight` 用 `NTGEW / EINA` 求单位重量，但 EINA 的语义是辅单位换算分母而不是包装单位数，分母口径选错？", "with": 1.0, "base": 0.5}, {"key": "eval-3-D6", "eval": 3, "defect": "D6", "area": "错误处理", "question": "报告是否指出 `display_alv` 把从未被填充的空内表 `lt_stock` 交给 Grid，且 `set_table_for_first_display` 的异常被吞进随后再也没被使用的 `lv_ok` 变量？", "with": 1.0, "base": 1.0}, {"key": "eval-4-D1", "eval": 4, "defect": "D1", "area": "事务处理", "question": "报告是否指出 `z_update_net_price` 里 `MODIFY marc` 与 `UPDATE mard` 之后既没有 `COMMIT WORK` 也没有失败路径的 `ROLLBACK`，数据库修改既不提交也无法回滚？", "with": 1.0, "base": 1.0}, {"key": "eval-4-D2", "eval": 4, "defect": "D2", "area": "可编译性", "question": "报告是否指出 `RAISE EXCEPTION TYPE cx_sy_no_data` 里的 CX_SY_NO_DATA 不是有效的异常类（它是数据对象），代码无法通过语法检查？", "with": 0.0, "base": 0.75}, {"key": "eval-4-D3", "eval": 4, "defect": "D3", "area": "语义校核", "question": "报告是否指出 `lv_weight = ls_row-brgew / ls_row-eina` 用毛重除以辅单位换算分母来得到单位重量，与 `z_read_price_rows` 输出的净重口径不一致？", "with": 0.5, "base": 0.5}, {"key": "eval-4-D4", "eval": 4, "defect": "D4", "area": "语义校核", "question": "报告是否指出 `lcl_helper=>normalise_uom( is_row = ls_row-waers )` 把币种字段 WAERS 当作计量单位参数传给名为 normalise_uom 的方法，参数语义错位？", "with": 1.0, "base": 1.0}, {"key": "eval-4-D5", "eval": 4, "defect": "D5", "area": "函数组风险", "question": "报告是否指出函数组特性带来的风险：`APPEND LINES OF it_rows TO gt_cache` 污染跨调用共享的全局内存且无失效机制，以及 `TABLES` 参数按引用传入后又被 `lines( it_rows )` 读取、修改了调用方的内表？", "with": 1.0, "base": 1.0}, {"key": "eval-5-D1", "eval": 5, "defect": "D1", "area": "BAPI 错误处理", "question": "报告是否指出 `post_via_bapi` 里 `BAPI_MATERIAL_MAINTAIN` 的 `return` 表只是被 LOOP 出来 `WRITE` 了一遍，程序从不检查 TYPE='E'/'A'，BAPI 业务错误被完全忽略？", "with": 1.0, "base": 1.0}, {"key": "eval-5-D2", "eval": 5, "defect": "D2", "area": "事务处理", "question": "报告是否指出整个程序没有调用 `BAPI_TRANSACTION_COMMIT` 或 `BAPI_TRANSACTION_ROLLBACK`，BAPI 写入既不提交也不回滚？", "with": 1.0, "base": 1.0}, {"key": "eval-5-D3", "eval": 5, "defect": "D3", "area": "语义校核", "question": "报告是否指出 `read_changes` 里 `ls_chg-netpr = ls_chg-netpr * ls_w-brgew` 把单价（币种/每件）与毛重（每件/kg）相乘，结果是量纲错误的价格数值？", "with": 1.0, "base": 1.0}, {"key": "eval-5-D4", "eval": 5, "defect": "D4", "area": "性能", "question": "报告是否指出 `read_changes` 里 `FOR ALL ENTRIES IN gt_change` 没有空内表保护？", "with": 1.0, "base": 0.5}, {"key": "eval-5-D5", "eval": 5, "defect": "D5", "area": "错误处理", "question": "报告是否指出两处忽略返回值：`READ TABLE gr_weight` 未判 sy-subrc，以及 `replicate_remote` 中 RFC 调用声明了 EXCEPTIONS 却从不检查 sy-subrc？", "with": 0.75, "base": 1.0}, {"key": "eval-6-D1", "eval": 6, "defect": "D1", "area": "死代码", "question": "报告是否指出 `get_data` 查询两次分别装进 `mt_data` 和 `gt_po`，而 `ebeln_t` 标签的 LOOP 与 `MODIFY` 全部作用在 `mt_data` 上，但 `display_alv` 显示的是 `gt_po`——标签根本到不了 ALV，整段是死代码？", "with": 1.0, "base": 1.0}, {"key": "eval-6-D2", "eval": 6, "defect": "D2", "area": "硬编码", "question": "报告是否指出第二次 SELECT 里 `waers = 'EUR'` 硬编码币种字面量、不接受用户输入，并会静默丢弃其它币种的采购订单，同时还与第一次查询重复？", "with": 1.0, "base": 1.0}, {"key": "eval-6-D3", "eval": 6, "defect": "D3", "area": "错误处理", "question": "报告是否指出 `on_double_click` 里 `CATCH cx_salv_msg.` 是空处理，工厂失败时 `lo_popup` 保持初始引用，紧随其后的 `lo_popup->display( )` 会短 dump？", "with": 1.0, "base": 1.0}, {"key": "eval-6-D4", "eval": 6, "defect": "D4", "area": "死代码", "question": "报告是否指出事件处理器的属性 `mv_show` 在 `display_alv` 里被赋值却在整个类中从未被读取，属无用属性？", "with": 1.0, "base": 1.0}, {"key": "eval-6-D5", "eval": 6, "defect": "D5", "area": "事件配置", "question": "报告是否指出 `on_link_click` 永远不会被触发，因为没有任何一列被设置为 `if_salv_c_cell_type=>link`，`link_click` 事件不会产生？", "with": 1.0, "base": 1.0}, {"key": "eval-7-D1", "eval": 7, "defect": "D1", "area": "校验逻辑", "question": "报告是否指出 `validate` 里的条件 `IF lv_score IS INITIAL OR lv_score IS INITIAL` 两个分支完全相同（疑似本意是 `LV_ZERO`），导致合法的 0 分被当成校验错误拒绝？", "with": 0.5, "base": 0.75}, {"key": "eval-7-D2", "eval": 7, "defect": "D2", "area": "多态缺陷", "question": "报告是否指出 `zcl_grade_strict->calculate` 调用 `derive_grade( iv_ratio = rs_result-points )` 把「得分」(0–100 量纲) 当成「比率」(0–1) 传入，而该方法用 `CASE iv_ratio. WHEN 0.9 / WHEN 0.8` 比较，因此永远落入 OTHERS 判为 'F'？", "with": 1.0, "base": 1.0}, {"key": "eval-7-D3", "eval": 7, "defect": "D3", "area": "接口设计", "question": "报告是否指出 `threshold( iv_ratio = ... )` 的入参在基类与子类实现里都完全未被使用，是一个无意义的形参？", "with": 1.0, "base": 0.5}, {"key": "eval-7-D4", "eval": 7, "defect": "D4", "area": "状态管理", "question": "报告是否指出计数器 `mv_errors` 只在构造函数里初始化一次，`validate` 中只累加不清零，重复调用时会累积上次的错误数，导致第二次调用即使输入合法也失败？", "with": 1.0, "base": 1.0}, {"key": "eval-7-D5", "eval": 7, "defect": "D5", "area": "异常类", "question": "报告是否指出 `cx_grade_error` 的构造函数声明了 `IMPORTING iv_text TYPE string`，实现里却直接 `super->constructor( )` 把这个文本参数丢掉了？", "with": 1.0, "base": 1.0}, {"key": "eval-7-D6", "eval": 7, "defect": "D6", "area": "一致性", "question": "报告是否指出 `get_scale` 返回硬编码字符串 'A+ A F'，但基类实际产出 'B'/'C'、宽松子类产出 'C'/'D'，描述与真实评级刻度不一致？", "with": 1.0, "base": 1.0}, {"key": "eval-7-D7", "eval": 7, "defect": "D7", "area": "币种口径", "question": "报告是否指出 `calculate_fee` 先把 `rs_bill-waers = is_fee-waers`（费用币种）赋上，紧接着又用 `rs_bill-waers = is_fee-waerk`（费用凭证类型）覆盖掉——两个字段语义完全不同（币种 vs 凭证类型），第一次赋值被抹掉，结果金额挂在了错误的币种上？", "with": 1.0, "base": 1.0}, {"key": "eval-7-D8", "eval": 7, "defect": "D8", "area": "金额计算", "question": "报告是否指出 `lv_amount = is_result-points * is_fee-netpr` 把「分数」(0–100，无量纲) 与「单价」(金额/币种) 相乘，缺一个「每分单价」这一中间量纲，且结果未做任何量纲换算就直接写入 NETWR？", "with": 1.0, "base": 0.25}, {"key": "eval-7-D9", "eval": 7, "defect": "D9", "area": "编号范围", "question": "报告是否指出 `reserve_seat` 用 `NUMBER_GET` 在 `DO 5 TIMES` 循环里反复取号：首次取号成功后号码已被消耗，失败重试会跳号留洞洞，而且没有用 `NUMBER_GET_INFORMATION` 的 `subnumber` 做区间并发保护？", "with": 0.75, "base": 0.5}, {"key": "eval-7-D10", "eval": 7, "defect": "D10", "area": "锁", "question": "报告是否指出 `lock_enrolment` 声明了 `conflict_lock = 1` 异常却从不检查 `sy-subrc`，锁冲突时照样把初始值当作结果返回给调用方，且没有配套的 DEQUEUE 释放逻辑？", "with": 1.0, "base": 1.0}, {"key": "eval-8-D1", "eval": 8, "defect": "D1", "area": "数据完整性", "question": "报告是否指出 `save_order` 里 `SELECT SINGLE * FROM vbak INTO ls_order` 未判断 sy-subrc 就 `INSERT INTO vbak VALUES ls_order`，未找到时会把一条全初始值的记录插进销售订单表？", "with": 0.75, "base": 1.0}, {"key": "eval-8-D2", "eval": 8, "defect": "D2", "area": "屏幕流", "question": "报告是否指出屏幕 0100 的输入字段与程序变量之间没有任何 `MOVE`/`GET FIELD`/PBO 模块的传值，并且 `user_command_0100` 里 `WHEN 'SAVE'` 只是 `SET SCREEN 0100` 而没有按 sy-msgid/sy-msgno 分派，`save_order` 永远收不到触发？", "with": 1.0, "base": 1.0}, {"key": "eval-8-D3", "eval": 8, "defect": "D3", "area": "权限检查", "question": "报告是否指出 `AUTHORITY-CHECK` 声明了 `OTHERS = 2` 异常却只判断 `sy-subrc = 1`，异常 2 被静默忽略，权限检查异常时程序照常往下插入数据？", "with": 1.0, "base": 1.0}, {"key": "eval-8-D4", "eval": 8, "defect": "D4", "area": "事务处理", "question": "报告是否指出 PAI 模块里 `COMMIT WORK` 之后没有任何 `ROLLBACK` 路径，一旦后续步骤失败数据库修改既不能撤销，且在对话框模块内提交工作单元使整个屏幕流无法重启？", "with": 1.0, "base": 1.0}, {"key": "eval-8-D5", "eval": 8, "defect": "D5", "area": "F4 搜索帮助", "question": "报告是否指出 `AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_vbeln` 里只 `READ TABLE` 了一下然后无条件 `MESSAGE TYPE 'S'`，从不给字段赋 F4 值、也不调用搜索帮助函数，F4 功能是空的？", "with": 1.0, "base": 1.0}, {"key": "eval-9-D1", "eval": 9, "defect": "D1", "area": "币种口径", "question": "报告是否指出 `read_from_cds` 从 CDS 视图 `z_i_vbak_open` 取数时硬编码 `waerk = 'USD'`，与选择屏参数无关；而且 CDS 视图 `zi_vbak_open.asddls` 的 WHERE 里同样写死了 `waerk = 'USD'` 和 `wrdat >= '20240101'`，过滤条件在视图与消费程序两处重复且都不可配置？", "with": 1.0, "base": 1.0}, {"key": "eval-9-D2", "eval": 9, "defect": "D2", "area": "CDS 语义", "question": "报告是否指出 CDS 视图里 `cast( sy-datum as abap.dats ) as run_date` 用了 `sy-datum` 这个**ABAP 运行时系统字段**：CDS 视图是数据库层的构件，`sy-datum` 在 DDL 里不成立，应使用 `@Environment.systemField: #SYSTEM_DATE` 或 `session_date` 之类的参数/系统字段写法？", "with": 0.5, "base": 1.0}, {"key": "eval-9-D3", "eval": 9, "defect": "D3", "area": "CDS 关联", "question": "报告是否指出 CDS 视图里 `association [0..1] to ZI_KNA1_NAME as _Customer` 是**未公开（未发布）的关联**，`_Customer` 虽然出现在字段列表里，但外部 CDS 视图与 ABAP SQL 都不能沿它取字段（消耗方只能拿到 `_Customer` 这个空结构引用），关联设计无效？", "with": 0.25, "base": 0.25}, {"key": "eval-9-D4", "eval": 9, "defect": "D4", "area": "JSON 转义", "question": "报告是否指出 `build_payload` 用字符串模板与 `&&` 手工拼 JSON，字段值未经任何 JSON 转义（`CONDENSE SPACE` 也只压掉了首尾空格），描述里出现双引号或反斜杠就会产出非法 JSON；`lv_row` 的续行 `&&` 还把 `|...|，` 与 `|...|` 的边界拆在字符串内部，格式脆弱？", "with": 1.0, "base": 1.0}, {"key": "eval-9-D5", "eval": 9, "defect": "D5", "area": "HTTP 错误处理", "question": "报告是否指出 `push_to_service` 里 `lo_client->send(...)` 与 `receive(...)` 之后**从不检查各自的 `sy-subrc`**，只在 `IF sy-subrc = 0` 时读取状态码，通信失败会被当成「状态码未赋值」继续往下走；且 `timeout = 3` 是 3 秒还是 3 毫秒的量级问题需要确认？", "with": 1.0, "base": 1.0}, {"key": "eval-9-D6", "eval": 9, "defect": "D6", "area": "HTTP 资源", "question": "报告是否指出 `push_to_service` 在多处 `RETURN` / 早退分支上都没有调用 `lo_client->close( )`，客户端对象泄漏，连接不会归还池中？", "with": 0.5, "base": 1.0}, {"key": "eval-9-D7", "eval": 9, "defect": "D7", "area": "dry-run 语义", "question": "报告是否指出 `p_dryrun` 参数只在 `log_result` 里用来决定**是否打印日志**，而 `push_to_service` 根本不看它——勾选「试运行」仍然会真的把数据 POST 给外部服务，试运行开关形同虚设？", "with": 1.0, "base": 1.0}, {"key": "eval-10-D1", "eval": 10, "defect": "D1", "area": "后台分支", "question": "报告是否指出 `recalculate` 里 `lv_factor = COND #( WHEN sy-batch = 'X' THEN 1.02 ELSE 1.05 )` 让**同一段调价逻辑在前台和后台跑出不同的价格**（后台涨 2%、前台涨 5%），且没有任何注释或消息说明这一差异，用户无法察觉自己看到的数字取决于运行方式？", "with": 1.0, "base": 1.0}, {"key": "eval-10-D2", "eval": 10, "defect": "D2", "area": "事务处理", "question": "报告是否指出 `finalize` 里提交是有条件的（`IF p_commit EQ 'X'` 才 `COMMIT WORK`），意味着后台作业跑完若没人勾选 p_commit，`recalculate` 里那一整轮 `MODIFY marc` 全部随工作单元结束被回滚，作业显示成功但一条数据都没落库？", "with": 0.0, "base": 0.0}, {"key": "eval-10-D3", "eval": 10, "defect": "D3", "area": "错误计数", "question": "报告是否指出 `gv_ok` / `gv_failed` 的统计逻辑是反的：`p_test IS INITIAL`（**真实写库**）时 `gv_ok` 加一，而 `p_test` 非空（**试运行不写**）时 `gv_failed` 加一——把「成功写入」和「测试跳过」记成成功与失败，成功率完全失真？", "with": 1.0, "base": 1.0}, {"key": "eval-10-D4", "eval": 10, "defect": "D4", "area": "未用变量", "question": "报告是否指出 `gv_run` 在 `INITIALIZATION` 里被初始化为 1，又在 `recalculate` 的循环里逐行自增，用途不明——既没有作为行号使用，也没有任何输出引用它，属残留计数器？", "with": 0.5, "base": 0.5}, {"key": "eval-10-D5", "eval": 10, "defect": "D5", "area": "空结果退出", "question": "报告是否指出 `read_prices` 在无数据时用 `MESSAGE 'No price records found' TYPE 'S'` 紧跟 `LEAVE TO CURRENT TRANSACTION`，消息类型是 S（成功）却用 LEAVE 退出，后台作业里这会留下「成功结束但无输出」的记录，SM37 上看不出异常？", "with": 1.0, "base": 1.0}, {"key": "eval-10-D6", "eval": 10, "defect": "D6", "area": "并发", "question": "报告是否指出后台作业对 `MARC` 逐行 `MODIFY` 且没有任何表锁（`ENQUEUE`）或 `SELECT ... FOR UPDATE` 保护，多个夜间作业或用户前台同时改价会产生丢失更新？", "with": 0.75, "base": 0.75}, {"key": "eval-11-D1", "eval": 11, "defect": "D1", "area": "事件订阅", "question": "报告是否指出 `SET HANDLER lcl_alert=>on_price_dropped` 与 `SET HANDLER lcl_audit=>on_price_dropped` 直接引用了**类名而非实例**，两个订阅者因此由 ABAP 系统共享同一个全局处理器条目，任一个类被增强或被删除都会影响所有 `zcl_price_watch` 实例，且写法上应当 `CREATE OBJECT` 后 `SET HANDLER lo_obj->...`？", "with": 0.75, "base": 0.5}, {"key": "eval-11-D2", "eval": 11, "defect": "D2", "area": "接口定义顺序", "question": "报告是否指出 `lcl_alert` / `lcl_audit` 在 `INTERFACE if_price_listener` **定义之前**就声明 `INTERFACES if_price_listener`，而 `if_price_listener` 的 `FOR EVENT price_dropped OF zcl_price_watch` 又反向依赖类池类——接口与实现类的相互前置依赖顺序脆弱，重排代码或分文件拆分时会编译失败？", "with": 0.5, "base": 1.0}, {"key": "eval-11-D3", "eval": 11, "defect": "D3", "area": "注册时机", "question": "报告是否指出事件订阅写在 `constructor` 里，导致**每次 `CREATE OBJECT` 都会重复注册一次**处理器，而 ABAP 的 `SET HANDLER` 对同一事件同一处理器是幂等的（后注册覆盖前者），因此这个位置的订阅语义含混、且构造函数被多次调用时行为难以预期？", "with": 0.75, "base": 0.75}, {"key": "eval-11-D4", "eval": 11, "defect": "D4", "area": "重复监控", "question": "报告是否指出 `watch` 方法直接 `APPEND iv_matnr TO mt_watched` 而没有先查重，同一物料被 watch 两次会在表里出现两条记录，之后 `forget` 的 `DELETE ... WHERE table_line =` 只能删到其一，监控列表出现幽灵条目？", "with": 1.0, "base": 1.0}, {"key": "eval-11-D5", "eval": 11, "defect": "D5", "area": "内存表类型", "question": "报告是否指出 `mt_watched` 声明为 `TYPE STANDARD TABLE OF mara-matnr WITH EMPTY KEY`（空键表），而代码却用 `READ TABLE ... WITH TABLE KEY table_line = iv_matnr` 和 `DELETE ... WHERE table_line =` 两种写法——标准表按线性查找、且 `DELETE WHERE` 会全表扫描，监控项一多就是 O(n²)；这类「键表」用法本应用 `SORTED TABLE ... WITH UNIQUE KEY table_line` 或 `HASHED`？", "with": 1.0, "base": 1.0}, {"key": "eval-11-D6", "eval": 11, "defect": "D6", "area": "事件粒度", "question": "报告是否指出 `check` 里价格低于阈值时才 `RAISE EVENT`，但事件参数只带 `iv_matnr` 与 `iv_netwr`，没有携带阈值本身或降幅，订阅者无法判断这次下跌是轻微波动还是严重偏离？", "with": 1.0, "base": 1.0}, {"key": "eval-12-D1", "eval": 12, "defect": "D1", "area": "锁释放", "question": "报告是否指出 `lock_records` 里对每个 `s_lifnr` 段都调用了 `ENQUEUE`，但 `release_lock` 只遍历 `s_lifnr` 释放——若中途 `read_vendors` 或 `notify_by_email` 发生 `MESSAGE TYPE 'E'` 直接退出，`release_lock` 不会被执行，锁一直挂到工作单元结束；另外多个区间的 `ENQUEUE` 是自增锁（accumulated lock），应当用 `ENQUEUE ... IN MODE 'E'` 或先统计再一次性加锁？", "with": 1.0, "base": 1.0}, {"key": "eval-12-D2", "eval": 12, "defect": "D2", "area": "F4 事件", "question": "报告是否指出 `INITIALIZATION` 里的 `SET HANDLER 'ON_HELP_REQUEST'` 试图注册选择屏幕 F1 帮助，但 `ON_HELP_REQUEST` 是事件块**不是方法名**，没有对应的事件处理器类，`SET HANDLER` 无法成立，该行不生效；而且 `AT SELECTION-SCREEN ON HELP-REQUEST` 里发的是 TYPE 'I' 消息而非真正填写 HELP-TEXT，本身也不是 F1 帮助的正确实现？", "with": 0.75, "base": 1.0}, {"key": "eval-12-D3", "eval": 12, "defect": "D3", "area": "死代码", "question": "报告是否指出 `notify_by_email` 里 `CONCATENATE LINES OF lt_recipients INTO lv_body` 中 `lt_recipients` 是一个**从未被填充的空内表**（程序里没有任何地方往里放数据），因此收件人列表恒为空、`IF lv_body IS INITIAL` 恒成立、通知功能实际上从不发送？", "with": 1.0, "base": 1.0}, {"key": "eval-12-D4", "eval": 12, "defect": "D4", "area": "残留变量", "question": "报告是否指出 `gv_dummy = 1` 与 `AT SELECTION-SCREEN ON HELP-REQUEST` 里的消息都是无意义的占位代码，`gv_dummy` 声明为全局变量、赋值后从未被读取？", "with": 1.0, "base": 1.0}, {"key": "eval-12-D5", "eval": 12, "defect": "D5", "area": "状态位", "question": "报告是否指出 `notify_by_email` 里对 `gt_vendor` 逐行 `ls_vendor-status = 'X'` 后 `MODIFY`，但 `ty_vendor` 的 `status` 字段除了被写、从未被读、也从未写回数据库（没有 `MODIFY lfa1`），这个「状态更新」没有任何实际作用？", "with": 1.0, "base": 1.0}, {"key": "eval-12-D6", "eval": 12, "defect": "D6", "area": "锁粒度", "question": "报告是否指出锁加在**整个供应商区间**上并保持到程序结束，而 `read_vendors` 只是只读查询——为了只读报表长时间持有主数据锁，会阻塞其他用户对该供应商的正常维护？", "with": 1.0, "base": 1.0}, {"key": "eval-13-D1", "eval": 13, "defect": "D1", "area": "作用域", "question": "报告是否指出 `report_output` 里使用了 `gv_min`（全局声明）而 `lv_header`、`lt_good`、`lv_total` 是 FORM 内的内联声明——`lv_total` 实际定义在 `filter_and_aggregate` 里却被 `report_output` 的字符串模板引用，这是跨 FORM 引用一个只在另一个 FORM 内可见的内联变量，编译不通过；顺序还被拆成了两个 FORM 才暴露？", "with": 1.0, "base": 1.0}, {"key": "eval-13-D2", "eval": 13, "defect": "D2", "area": "语义校核", "question": "报告是否指出 `FILTER ty_stock_tab( gt_stock WHERE ntgew > brgew )` 用**净重 > 毛重**作为筛选条件——毛重恒大于等于净重，这个条件永远筛不出任何行，整个报表输出恒为空？", "with": 0.75, "base": 0.5}, {"key": "eval-13-D3", "eval": 13, "defect": "D3", "area": "死变量", "question": "报告是否指出 `lv_first` 用 `CONV i( REDUCE i( INIT m = 0 FOR row IN gt_stock NEXT m = m + 1 ) )` 只是数行数，而同一个 FORM 末尾的 `lv_rows`（`lines( gt_stock )`）做的是同一件事，`lv_first` 赋值后从未被使用？", "with": 1.0, "base": 1.0}, {"key": "eval-13-D4", "eval": 13, "defect": "D4", "area": "REDUCE 误用", "question": "报告是否指出 `lv_missing` 用 `REDUCE i( INIT sum = 0 ... )` 统计「库存为空的行数」——统计计数用 `COND i( WHEN ... THEN 1 ELSE 0 )` 累加虽然能跑，但 `lv_missing` 定义在 `filter_and_aggregate` 里、而筛选已在同 FORM 内先于它执行（顺序颠倒），被过滤掉行的「库存为空」从未被计入，统计口径与实际看到的行不一致？", "with": 1.0, "base": 1.0}, {"key": "eval-13-D5", "eval": 13, "defect": "D5", "area": "VALUE # 映射", "question": "报告是否指出 `VALUE ty_stock_tab( FOR row IN gt_stock WHERE ( mstock > 0 ) ( matnr = ... maktx = ... mstock = ... waers = ... ) )` 只映射了 4 个字段，而 `ty_stock` 有 8 个（含 werks / lgort / ntgew / brgew），未列出的字段在新行里为初始值——这个「补币种」的构造把重量和库位信息全丢了？", "with": 1.0, "base": 1.0}, {"key": "eval-13-D6", "eval": 13, "defect": "D6", "area": "单位格式", "question": "报告是否指出字符串模板里 `lv_total W = 12` 对**数值型** `lv_total` 使用了 ABAP 编辑掩码 `W`（`W = <n>` 是字符串/字符型的带零填充格式），而 `lv_header` 里对同一个数量字段混用了内插与 W 格式；且模板输出的是硬编码表头文字而非可翻译文本元素？", "with": 0.0, "base": 0.0}, {"key": "eval-13-D7", "eval": 13, "defect": "D7", "area": "最小值判断", "question": "报告是否指出 `IF ls_row-mstock > 0 AND ls_row-mstock <> gv_min` 里 `gv_min` 从未被赋任何值（保持初始 0），所以第二个条件恒为真，`mstock > 0` 之后再多一次无效比较，掩盖了「到底拿什么跟下限比」的业务意图？", "with": 1.0, "base": 1.0}, {"key": "eval-13-D8", "eval": 13, "defect": "D8", "area": "内联声明可见性", "question": "报告是否指出 `DATA(lv_missing)`、`DATA(lv_total)` 在 `filter_and_aggregate` 内声明，而它们被 `WRITE` 的位置在同一 FORM 内没问题，但 `lv_header` 却在另一个 FORM 用到——内联声明的可见范围仅限所在 FORM 这一限制，是否有被指出？", "with": 1.0, "base": 1.0}], "runs": [{"key": "eval-1-with_skill-run1", "eval": 1, "config": "with_skill", "run": 1, "score": 0.75, "found": 2, "partial": 2, "missed": 0, "total": 4}, {"key": "eval-1-with_skill-run2", "eval": 1, "config": "with_skill", "run": 2, "score": 0.75, "found": 2, "partial": 2, "missed": 0, "total": 4}, {"key": "eval-1-without_skill-run1", "eval": 1, "config": "without_skill", "run": 1, "score": 0.25, "found": 0, "partial": 2, "missed": 2, "total": 4}, {"key": "eval-1-without_skill-run2", "eval": 1, "config": "without_skill", "run": 2, "score": 0.75, "found": 2, "partial": 2, "missed": 0, "total": 4}, {"key": "eval-2-with_skill-run1", "eval": 2, "config": "with_skill", "run": 1, "score": 0.75, "found": 2, "partial": 2, "missed": 0, "total": 4}, {"key": "eval-2-with_skill-run2", "eval": 2, "config": "with_skill", "run": 2, "score": 0.75, "found": 2, "partial": 2, "missed": 0, "total": 4}, {"key": "eval-2-without_skill-run1", "eval": 2, "config": "without_skill", "run": 1, "score": 0.875, "found": 3, "partial": 1, "missed": 0, "total": 4}, {"key": "eval-2-without_skill-run2", "eval": 2, "config": "without_skill", "run": 2, "score": 0.5, "found": 1, "partial": 2, "missed": 1, "total": 4}, {"key": "eval-3-with_skill-run1", "eval": 3, "config": "with_skill", "run": 1, "score": 1.0, "found": 6, "partial": 0, "missed": 0, "total": 6}, {"key": "eval-3-with_skill-run2", "eval": 3, "config": "with_skill", "run": 2, "score": 0.833, "found": 5, "partial": 0, "missed": 1, "total": 6}, {"key": "eval-3-without_skill-run1", "eval": 3, "config": "without_skill", "run": 1, "score": 0.75, "found": 4, "partial": 1, "missed": 1, "total": 6}, {"key": "eval-3-without_skill-run2", "eval": 3, "config": "without_skill", "run": 2, "score": 0.667, "found": 3, "partial": 2, "missed": 1, "total": 6}, {"key": "eval-4-with_skill-run1", "eval": 4, "config": "with_skill", "run": 1, "score": 0.7, "found": 3, "partial": 1, "missed": 1, "total": 5}, {"key": "eval-4-with_skill-run2", "eval": 4, "config": "with_skill", "run": 2, "score": 0.7, "found": 3, "partial": 1, "missed": 1, "total": 5}, {"key": "eval-4-without_skill-run1", "eval": 4, "config": "without_skill", "run": 1, "score": 0.8, "found": 3, "partial": 2, "missed": 0, "total": 5}, {"key": "eval-4-without_skill-run2", "eval": 4, "config": "without_skill", "run": 2, "score": 0.9, "found": 4, "partial": 1, "missed": 0, "total": 5}, {"key": "eval-5-with_skill-run1", "eval": 5, "config": "with_skill", "run": 1, "score": 1.0, "found": 5, "partial": 0, "missed": 0, "total": 5}, {"key": "eval-5-with_skill-run2", "eval": 5, "config": "with_skill", "run": 2, "score": 0.9, "found": 4, "partial": 1, "missed": 0, "total": 5}, {"key": "eval-5-without_skill-run1", "eval": 5, "config": "without_skill", "run": 1, "score": 1.0, "found": 5, "partial": 0, "missed": 0, "total": 5}, {"key": "eval-5-without_skill-run2", "eval": 5, "config": "without_skill", "run": 2, "score": 0.8, "found": 4, "partial": 0, "missed": 1, "total": 5}, {"key": "eval-6-with_skill-run1", "eval": 6, "config": "with_skill", "run": 1, "score": 1.0, "found": 5, "partial": 0, "missed": 0, "total": 5}, {"key": "eval-6-with_skill-run2", "eval": 6, "config": "with_skill", "run": 2, "score": 1.0, "found": 5, "partial": 0, "missed": 0, "total": 5}, {"key": "eval-6-without_skill-run1", "eval": 6, "config": "without_skill", "run": 1, "score": 1.0, "found": 5, "partial": 0, "missed": 0, "total": 5}, {"key": "eval-6-without_skill-run2", "eval": 6, "config": "without_skill", "run": 2, "score": 1.0, "found": 5, "partial": 0, "missed": 0, "total": 5}, {"key": "eval-7-with_skill-run1", "eval": 7, "config": "with_skill", "run": 1, "score": 0.95, "found": 9, "partial": 1, "missed": 0, "total": 10}, {"key": "eval-7-with_skill-run2", "eval": 7, "config": "with_skill", "run": 2, "score": 0.9, "found": 9, "partial": 0, "missed": 1, "total": 10}, {"key": "eval-7-without_skill-run1", "eval": 7, "config": "without_skill", "run": 1, "score": 0.85, "found": 7, "partial": 3, "missed": 0, "total": 10}, {"key": "eval-7-without_skill-run2", "eval": 7, "config": "without_skill", "run": 2, "score": 0.75, "found": 7, "partial": 1, "missed": 2, "total": 10}, {"key": "eval-8-with_skill-run1", "eval": 8, "config": "with_skill", "run": 1, "score": 0.9, "found": 4, "partial": 1, "missed": 0, "total": 5}, {"key": "eval-8-with_skill-run2", "eval": 8, "config": "with_skill", "run": 2, "score": 1.0, "found": 5, "partial": 0, "missed": 0, "total": 5}, {"key": "eval-8-without_skill-run1", "eval": 8, "config": "without_skill", "run": 1, "score": 1.0, "found": 5, "partial": 0, "missed": 0, "total": 5}, {"key": "eval-8-without_skill-run2", "eval": 8, "config": "without_skill", "run": 2, "score": 1.0, "found": 5, "partial": 0, "missed": 0, "total": 5}, {"key": "eval-9-with_skill-run1", "eval": 9, "config": "with_skill", "run": 1, "score": 0.786, "found": 4, "partial": 3, "missed": 0, "total": 7}, {"key": "eval-9-with_skill-run2", "eval": 9, "config": "with_skill", "run": 2, "score": 0.714, "found": 4, "partial": 2, "missed": 1, "total": 7}, {"key": "eval-9-without_skill-run1", "eval": 9, "config": "without_skill", "run": 1, "score": 0.857, "found": 6, "partial": 0, "missed": 1, "total": 7}, {"key": "eval-9-without_skill-run2", "eval": 9, "config": "without_skill", "run": 2, "score": 0.929, "found": 6, "partial": 1, "missed": 0, "total": 7}, {"key": "eval-10-with_skill-run1", "eval": 10, "config": "with_skill", "run": 1, "score": 0.75, "found": 4, "partial": 1, "missed": 1, "total": 6}, {"key": "eval-10-with_skill-run2", "eval": 10, "config": "with_skill", "run": 2, "score": 0.667, "found": 3, "partial": 2, "missed": 1, "total": 6}, {"key": "eval-10-without_skill-run1", "eval": 10, "config": "without_skill", "run": 1, "score": 0.75, "found": 4, "partial": 1, "missed": 1, "total": 6}, {"key": "eval-10-without_skill-run2", "eval": 10, "config": "without_skill", "run": 2, "score": 0.667, "found": 3, "partial": 2, "missed": 1, "total": 6}, {"key": "eval-11-with_skill-run1", "eval": 11, "config": "with_skill", "run": 1, "score": 0.75, "found": 4, "partial": 1, "missed": 1, "total": 6}, {"key": "eval-11-with_skill-run2", "eval": 11, "config": "with_skill", "run": 2, "score": 0.917, "found": 5, "partial": 1, "missed": 0, "total": 6}, {"key": "eval-11-without_skill-run1", "eval": 11, "config": "without_skill", "run": 1, "score": 0.917, "found": 5, "partial": 1, "missed": 0, "total": 6}, {"key": "eval-11-without_skill-run2", "eval": 11, "config": "without_skill", "run": 2, "score": 0.833, "found": 4, "partial": 2, "missed": 0, "total": 6}, {"key": "eval-12-with_skill-run1", "eval": 12, "config": "with_skill", "run": 1, "score": 0.917, "found": 5, "partial": 1, "missed": 0, "total": 6}, {"key": "eval-12-with_skill-run2", "eval": 12, "config": "with_skill", "run": 2, "score": 1.0, "found": 6, "partial": 0, "missed": 0, "total": 6}, {"key": "eval-12-without_skill-run1", "eval": 12, "config": "without_skill", "run": 1, "score": 1.0, "found": 6, "partial": 0, "missed": 0, "total": 6}, {"key": "eval-12-without_skill-run2", "eval": 12, "config": "without_skill", "run": 2, "score": 1.0, "found": 6, "partial": 0, "missed": 0, "total": 6}, {"key": "eval-13-with_skill-run1", "eval": 13, "config": "with_skill", "run": 1, "score": 0.875, "found": 7, "partial": 0, "missed": 1, "total": 8}, {"key": "eval-13-with_skill-run2", "eval": 13, "config": "with_skill", "run": 2, "score": 0.812, "found": 6, "partial": 1, "missed": 1, "total": 8}, {"key": "eval-13-without_skill-run1", "eval": 13, "config": "without_skill", "run": 1, "score": 0.875, "found": 7, "partial": 0, "missed": 1, "total": 8}, {"key": "eval-13-without_skill-run2", "eval": 13, "config": "without_skill", "run": 2, "score": 0.75, "found": 6, "partial": 0, "missed": 2, "total": 8}]}, "assertions": [{"aid": "A1", "kind": "format", "with": 1.0, "base": 0.308, "cells": 26}, {"aid": "A2", "kind": "format", "with": 0.923, "base": 0.0, "cells": 26}, {"aid": "A3", "kind": "format", "with": 1.0, "base": 0.038, "cells": 26}, {"aid": "A4", "kind": "format", "with": 1.0, "base": 0.0, "cells": 26}, {"aid": "A5", "kind": "format", "with": 1.0, "base": 0.577, "cells": 26}, {"aid": "A6", "kind": "format", "with": 1.0, "base": 1.0, "cells": 26}, {"aid": "A7", "kind": "format", "with": 1.0, "base": 0.346, "cells": 26}, {"aid": "A8", "kind": "format", "with": 1.0, "base": 0.038, "cells": 26}, {"aid": "A9", "kind": "format", "with": 1.0, "base": 1.0, "cells": 26}, {"aid": "A10", "kind": "format", "with": 1.0, "base": 0.538, "cells": 26}, {"aid": "A11", "kind": "format", "with": 1.0, "base": 0.538, "cells": 26}, {"aid": "A12", "kind": "content", "with": 0.9, "base": 0.625, "cells": 9}, {"aid": "A13", "kind": "coverage", "with": 1.0, "base": 1.0, "cells": 26}, {"aid": "A14", "kind": "content", "with": 1.0, "base": 1.0, "cells": 12}, {"aid": "A15", "kind": "content", "with": 1.0, "base": 1.0, "cells": 6}, {"aid": "A16", "kind": "content", "with": 1.0, "base": 1.0, "cells": 8}, {"aid": "A17", "kind": "content", "with": 1.0, "base": 1.0, "cells": 24}, {"aid": "A18", "kind": "content", "with": 1.0, "base": 1.0, "cells": 8}, {"aid": "A19", "kind": "content", "with": 0.5, "base": 1.0, "cells": 10}, {"aid": "A20", "kind": "content", "with": 1.0, "base": 1.0, "cells": 2}, {"aid": "A21", "kind": "content", "with": 1.0, "base": 1.0, "cells": 2}, {"aid": "A22", "kind": "content", "with": 1.0, "base": 1.0, "cells": 4}, {"aid": "A23", "kind": "content", "with": 1.0, "base": 1.0, "cells": 2}], "findings": ["FORMAT COMPLIANCE: with_skill 0.980 vs baseline 0.554 across 13 program types. Paired McNemar on 780 cells: 170 with-only vs 5 baseline-only, exact p = 5.55e-44. The skill's structural value is real and large, and it holds on the widened eval set.", "TECHNICAL CORRECTNESS: judged defect recall with_skill 0.849 vs baseline 0.826 (delta +2.3pp). Paired sign test 9 better / 8 worse / 9 ties over 26 pairs, exact p = 1.0. NO significant difference.", "THE JUDGE LAYER HAS CEILINGED: 46/77 planted defects (60%) are scored full marks by BOTH arms. With both arms at ~0.85/0.83 there is almost no headroom, so the aggregate judge mean can no longer separate the configurations even in principle. The next round must raise defect difficulty, not sample size.", "WHERE THE SKILL STILL WINS: eval-3-D3 (语义校核) +75pp; eval-7-D8 (金额计算) +75pp; eval-1-D1 (数据流) +50pp; eval-1-D2 (语义校核) +50pp; eval-3-D5 (语义校核) +50pp.", "WHERE THE SKILL LOSES: eval-4-D2 (可编译性) -75pp; eval-9-D2 (CDS 语义) -50pp; eval-9-D6 (HTTP 资源) -50pp; eval-11-D2 (接口定义顺序) -50pp; eval-1-D4 (错误处理) -25pp. These are net-negative, i.e. the skill actively misleads on them — the highest-value targets for skill revision.", "MOST SEVERE MISSES, kept apart because they mean opposite things. One arm scored zero: eval-4-D2 (可编译性) with=0.00/base=0.75 -- these are the skill's own regressions, not method gaps. Both arms scored zero: eval-10-D2 (事务处理); eval-13-D6 (单位格式) -- skill-independent gaps in the analysis method, which no revision to this skill can close. A further 8 are scored identically and below full marks by both arms.", "KEYWORD ASSERTIONS A14-A23 REMAIN DEAD: every applicable cell scored 100% on both arms except A19 and A20. They measure token presence, not understanding, and cannot stand in for the LLM judge."], "meta": {"grader": "grade_v2.py", "runs": 2, "nEvals": 13, "measurement": {"time_seconds": "NOT COLLECTED — the task tool does not report generation wall-clock. Report mtimes are stored per run as generated_at_utc but are NOT a duration.", "tokens": "REMOVED — not observable; previous rounds emitted 0 which was indistinguishable from a real zero."}, "stats": {"headline": "McNemar exact two-sided on paired (eval, run, assertion) cells", "format_p": 5.553488622610475e-44, "judge_sign_test_p": 1.0, "note": "stddev deliberately omitted: n=2 per cell cannot estimate variance."}}}</script>
+<script>
+const D=JSON.parse(document.getElementById('payload').textContent);
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pct=x=>x==null?'—':(x*100).toFixed(1)+'%';
+const bar=v=>`<div class="bar"><i style="width:${(v*100).toFixed(1)}%"></i></div>`;
+const sci=p=>p==null?'—':(p===0?'0':(p<1e-4?p.toExponential(2):p.toFixed(4)));
+
+/* ---- 00 the two verdicts, deliberately not averaged ---- */
+const F=D.format,J=D.judge;
+function vd(cls,title,rows,p,concl,sig){
+  return `<div class="vd ${cls}"><div class="t">${title}</div><div class="rows">`+
+   rows.map(r=>`<div class="r"><div class="who">${r.who}</div>
+     <div class="num">${pct(r.v)}</div>
+     <div class="bars"><div class="bar ${r.k}"><i style="width:${(r.v*100).toFixed(1)}%"></i></div>
+     <div class="bar ${r.k2}"><i style="width:${(r.v2*100).toFixed(1)}%"></i></div></div></div>`).join('')+
+   `</div><div class="concl">${concl}<br><span class="pv ${sig?'sig':'nsig'}">配对检验 p = ${sci(p)}${sig?'':' — 不显著'}</span></div></div>`;
+}
+// Each card shows two stacked bars per arm: solid = the headline mean,
+// faded = the same arm's per-eval spread midpoint. Keeps one number per arm
+// (no undefined aggregates) while still showing run-to-run variation.
+function vd(cls,title,arms,p,concl,sig){
+ return `<div class="vd ${cls}"><div class="t">${title}</div><div class="rows">`+
+  arms.map(a=>`<div class="r"><div class="who">${a.who}</div>
+    <div class="num">${pct(a.v)}</div>
+    <div class="bars">
+      <div class="bar ${a.k}"><i style="width:${(a.v*100).toFixed(1)}%"></i></div>
+      <div class="bar ${a.k} lo"><i style="width:${(a.lo*100).toFixed(1)}%"></i></div>
+    </div></div>`).join('')+
+  `</div><div class="concl">${concl}<br><span class="pv ${sig?'sig':'nsig'}">配对检验 p = ${sci(p)}${sig?'':' — 不显著'}</span></div></div>`;
+}
+const loOf=(cells,cfg)=>{const v=cells.filter(c=>c.config===cfg).map(c=>c.min);
+ return v.length?Math.min(...v):0;};
+$('#verdicts').innerHTML =
+ vd('f','① 格式合规性（23 项结构断言）',[
+   {who:'with_skill',k:'w',v:F.with,lo:loOf(D.format.cells,'with_skill')},
+   {who:'baseline',k:'b',v:F.without,lo:loOf(D.format.cells,'without_skill')}],
+  F.p,
+  `with_skill 在 <strong>${F.paired.with_only_pass}</strong> 个配对格上单独通过，baseline 只在
+   <strong>${F.paired.without_only_pass}</strong> 个格上单独通过（${F.paired.concordant_pass} 格一致）。
+   结构性收益<strong>真实且显著</strong>。`,true)+
+ vd('j','② 技术正确性（${D.judge.perDefect.length} 个预埋缺陷 · LLM judge）',[
+   {who:'with_skill',k:'w',v:J.with,lo:loOf(J.cells,'with_skill')},
+   {who:'baseline',k:'b',v:J.without,lo:loOf(J.cells,'without_skill')}],
+  J.sign.exact_two_sided_p,
+  `with_skill 高于 baseline <strong>${J.sign.with_higher}</strong> 次、低于 <strong>${J.sign.baseline_higher}</strong> 次、
+   持平 <strong>${J.sign.ties}</strong> 次。差值 ${J.delta>0?'+':''}${J.delta}pp，
+   <strong>统计上无差异</strong>。`,false);
+
+/* ---- 01 KPIs ---- */
+const kp=[
+ {lb:'格式层 with_skill',v:pct(F.with),d:`baseline ${pct(F.without)} · Δ ${F.delta}pp`,c:'v-ok'},
+ {lb:'技术层 with_skill',v:pct(J.with),d:`baseline ${pct(J.without)} · Δ ${J.delta}pp`,c:'v-warn'},
+ {lb:'程序类型覆盖',v:D.meta.nEvals,d:'ALV / 报表 / 函数组 / BAPI+RFC / 继承多态 / 对话框 / CDS+HTTP / 批处理 / 发布订阅 / 现代语法',c:''},
+ {lb:'每配置运行次数',v:D.meta.runs,d:'配对设计，可做符号检验',c:''},
+ {lb:'预埋缺陷',v:D.judge.perDefect.length,d:'每缺陷 judge 三值判定',c:''},
+ {lb:'格式断言',v:D.assertions.length,d:'11 format + 11 content + 1 coverage',c:''},
+ {lb:'死断言（无区分度）',v:D.assertions.filter(a=>a.with===1&&a.base===1).length,
+  d:'两侧都 100%，需降权',c:'v-bad'},
+ {lb:'有效断言',v:D.assertions.filter(a=>(a.with??0)>(a.base??0)).length,
+  d:'with_skill 严格优于 baseline',c:'v-acc'},
+];
+$('#kpis').innerHTML=kp.map(k=>`<div class="kpi ${k.c}"><div class="lb">${esc(k.lb)}</div>
+ <div class="v">${esc(k.v)}</div><div class="d">${esc(k.d)}</div></div>`).join('');
+
+/* ---- 02 charts ---- */
+if(typeof echarts==='undefined'){
+ document.querySelectorAll('.cv').forEach(e=>e.innerHTML=
+  '<div class="nogs">ECharts CDN 未加载（表格数据不受影响）</div>');
+}else{
+ const TX={color:'#9aa4bb'},LN={color:'rgba(255,255,255,.10)'};
+ const TT={backgroundColor:'#10131c',borderColor:'rgba(255,255,255,.14)',borderWidth:1,
+  textStyle:{color:'#e9edf4',fontSize:12}};
+ const evs=[...new Set(D.format.cells.map(c=>c.eval))].sort();
+ const g=(k,cfg)=>D.format.cells.find(c=>c.key===k);
+ const wv=evs.map(e=>g(`eval-${e}-with_skill`)?.mean??null);
+ const bv=evs.map(e=>g(`eval-${e}-without_skill`)?.mean??null);
+ const jw=evs.map(e=>J.cells.find(c=>c.key===`eval-${e}-with_skill`)?.mean??null);
+ const jb=evs.map(e=>J.cells.find(c=>c.key===`eval-${e}-without_skill`)?.mean??null);
+ const en=x=>x==null?'':evs[x];
+
+ echarts.init($('#c-layers')).setOption({backgroundColor:'transparent',
+  tooltip:{trigger:'axis',...TT,axisPointer:{type:'shadow'}},legend:{textStyle:TX,icon:'roundRect',itemWidth:12},
+  grid:{left:42,right:18,top:40,bottom:34},
+  xAxis:{type:'category',data:evs.map(en),axisLine:LN,axisLabel:TX,axisTick:{show:false}},
+  yAxis:{type:'value',min:0,max:1,axisLine:{show:false},axisLabel:{...TX,formatter:v=>(v*100).toFixed(0)+'%'},
+   splitLine:{lineStyle:{color:'rgba(255,255,255,.06)'}}},
+  series:[
+   {name:'格式 with_skill',type:'bar',data:wv,barMaxWidth:16,itemStyle:{color:'#c084fc',borderRadius:[4,4,0,0]}},
+   {name:'格式 baseline',type:'bar',data:bv,barMaxWidth:16,itemStyle:{color:'#5b7cfa',borderRadius:[4,4,0,0]}},
+   {name:'技术 with_skill',type:'bar',data:jw,barMaxWidth:16,itemStyle:{color:'#2ee6a8',borderRadius:[4,4,0,0]}},
+   {name:'技术 baseline',type:'bar',data:jb,barMaxWidth:16,itemStyle:{color:'#ffb020',borderRadius:[4,4,0,0]}},
+  ]});
+
+ const dds=J.perDefect.slice().sort((a,b)=>(a.with??0)-(b.with??0));
+ echarts.init($('#c-defect')).setOption({backgroundColor:'transparent',
+  tooltip:{trigger:'axis',...TT,axisPointer:{type:'shadow'},valueFormatter:v=>(v*100).toFixed(0)+'%'},
+  legend:{textStyle:TX,icon:'roundRect',itemWidth:12},
+  grid:{left:110,right:22,top:40,bottom:40},
+  xAxis:{type:'value',min:0,max:1,axisLine:{show:false},axisLabel:{...TX,formatter:'{value}'},
+   splitLine:{lineStyle:{color:'rgba(255,255,255,.06)'}}},
+  yAxis:{type:'category',data:dds.map(d=>`${d.key} ${d.area}`),axisLine:LN,axisLabel:{...TX,fontSize:10}},
+  series:[
+   {name:'with_skill',type:'bar',data:dds.map(d=>d.with),barMaxWidth:9,
+    itemStyle:{color:'#c084fc',borderRadius:[0,4,4,0]}},
+   {name:'baseline',type:'bar',data:dds.map(d=>d.base),barMaxWidth:9,
+    itemStyle:{color:'#5b7cfa',borderRadius:[0,4,4,0]}},
+  ]});
+
+ echarts.init($('#c-runs')).setOption({backgroundColor:'transparent',
+  tooltip:{trigger:'axis',...TT,valueFormatter:v=>(v*100).toFixed(0)+'%'},
+  legend:{textStyle:TX,icon:'roundRect',itemWidth:12},
+  grid:{left:40,right:18,top:40,bottom:62},
+  xAxis:{type:'category',data:J.runs.map(r=>`e${r.eval}·${r.config==='with_skill'?'W':'B'}·r${r.run}`),
+   axisLine:LN,axisLabel:{...TX,fontSize:9,rotate:52},axisTick:{show:false}},
+  yAxis:{type:'value',min:0,max:1,axisLine:{show:false},axisLabel:{...TX,formatter:v=>(v*100).toFixed(0)+'%'},
+   splitLine:{lineStyle:{color:'rgba(255,255,255,.06)'}}},
+  series:[
+   {name:'judge 分数',type:'bar',barMaxWidth:18,data:J.runs.map(r=>r.score),
+    itemStyle:{color:p=>p.value>=0.85?'#2ee6a8':p.value>=0.6?'#c084fc':'#ff4d6a',borderRadius:[4,4,0,0]}},
+  ]});
+
+ echarts.init($('#c-assert')).setOption({backgroundColor:'transparent',
+  tooltip:{trigger:'axis',...TT,axisPointer:{type:'shadow'},valueFormatter:v=>(v*100).toFixed(0)+'%'},
+  legend:{textStyle:TX,icon:'roundRect',itemWidth:12},
+  grid:{left:40,right:18,top:40,bottom:40},
+  xAxis:{type:'category',data:D.assertions.map(a=>a.aid),axisLine:LN,axisLabel:TX,axisTick:{show:false}},
+  yAxis:{type:'value',min:0,max:1,axisLine:{show:false},axisLabel:{...TX,formatter:v=>(v*100).toFixed(0)+'%'},
+   splitLine:{lineStyle:{color:'rgba(255,255,255,.06)'}}},
+  series:[
+   {name:'with_skill',type:'bar',barMaxWidth:11,data:D.assertions.map(a=>a.with),
+    itemStyle:{color:'#c084fc',borderRadius:[3,3,0,0]}},
+   {name:'baseline',type:'bar',barMaxWidth:11,data:D.assertions.map(a=>a.base),
+    itemStyle:{color:'#5b7cfa',borderRadius:[3,3,0,0]}},
+  ]});
+}
+
+/* ---- 03 tables ---- */
+$('#t-cells').innerHTML=`<table><thead><tr><th>eval</th><th>名称</th><th>配置</th>
+ <th>格式层</th><th>2 次运行</th><th>技术层</th><th>2 次运行</th></tr></thead><tbody>`+
+ D.format.cells.map(f=>{
+  const j=J.cells.find(c=>c.key===f.key);
+  return `<tr><td class="mono">eval-${f.eval}</td><td>${esc(D.evalNames[f.eval])}</td>
+   <td>${f.config==='with_skill'?'<span class="pill acc">with_skill</span>':'<span class="pill base">baseline</span>'}</td>
+   <td class="mono">${pct(f.mean)}</td><td class="mono">${f.runs.map(x=>(x*100).toFixed(0)+'%').join(' / ')}</td>
+   <td class="mono">${j?pct(j.mean):'—'}</td><td class="mono">${j?j.runs.map(x=>(x*100).toFixed(0)+'%').join(' / '):'—'}</td></tr>`;
+ }).join('')+`</tbody></table>`;
+
+$('#t-defect').innerHTML=`<table><thead><tr><th>缺陷</th><th>领域</th><th>with_skill</th>
+ <th>baseline</th><th>Δ</th><th>判据</th></tr></thead><tbody>`+
+ J.perDefect.map(d=>{
+  const dl=(d.with??0)-(d.base??0),cls=dl>0.05?'pos':dl<-0.05?'neg':'zero';
+  return `<tr><td class="mono">${esc(d.key)}</td><td>${esc(d.area)}</td>
+   <td class="mono">${pct(d.with)}</td><td class="mono">${pct(d.base)}</td>
+   <td class="mono ${cls}">${dl>0?'+':''}${(dl*100).toFixed(0)}pp</td>
+   <td style="color:var(--tx2)">${esc(d.question)}</td></tr>`;
+ }).join('')+`</tbody></table>`;
+
+$('#t-assert').innerHTML=`<table><thead><tr><th>断言</th><th>类别</th><th>with_skill</th>
+ <th>baseline</th><th>适用格</th><th>区分度</th></tr></thead><tbody>`+
+ D.assertions.map(a=>{
+  const dead=(a.with===1&&a.base===1);
+  return `<tr><td class="mono">${a.aid}</td><td>${esc(a.kind)}</td>
+   <td class="mono">${pct(a.with)}</td><td class="mono">${pct(a.base)}</td>
+   <td class="mono">${a.cells}</td>
+   <td>${dead?'<span class="pill bad">无区分度</span>'
+     :(a.with>a.base?'<span class="pill ok">有效</span>':'<span class="pill warn">反向</span>')}</td></tr>`;
+ }).join('')+`</tbody></table>`;
+
+/* ---- 04 findings ---- */
+$('#findings').innerHTML=D.findings.map(f=>`<li><p>${esc(f)}</p></li>`).join('');
+
+/* ---- 05 caveats + recs ---- */
+$('#caveats').innerHTML=`
+ <p><strong>两层不可合并。</strong>格式层 p = ${sci(F.p)}（显著），技术层 p = ${sci(J.sign.exact_two_sided_p)}（不显著）。
+ 合并成单一分数会同时掩盖"结构收益真实"和"技术无增益"这两个相反事实。</p>
+ <p><strong>judge 是单点评审。</strong>每个 eval 的 2 份报告由同一个 judge 一次性判定，
+ 无 judge 间一致性数据；judge 自身可能与出题者共享盲点。77 个缺陷的判据用关键词辅助，
+ 但最终是语义判断，优于正则。</p>
+ <p><strong>缺陷是预埋的。</strong>真实代码的缺陷分布未必如此集中（每个 fixture 4–10 个刻意缺陷），
+ 因此技术层的绝对值不可外推，只可用于 with/baseline 的<strong>相对</strong>比较。</p>
+ <p><strong>n = 2。</strong>每格 2 次运行足以做符号检验，但不足以估计方差。
+ 这正是上一轮「2 个样本算不出标准差」问题的诚实答案：<strong>放弃方差，改用配对检验</strong>。</p>
+ <p><strong>耗时与 token 未采集。</strong>${esc(D.meta.measurement.time_seconds)}
+  ${esc(D.meta.measurement.tokens)}</p>`;
+
+$('#recs').innerHTML=[['rec-s','短期',[
+  `删掉或降权两侧都 100% 的断言（本轮 ${D.assertions.filter(a=>a.with===1&&a.base===1).length}/${D.assertions.length} 条）—— 它们不产生任何信号，只让分数好看`,
+  `关键词断言（A14–A23）已由 judge 取代，从评分器中移除，避免再次误导`,
+  `judge 子代理产出的 evidence 文本必须 JSON 转义：本轮 6 份文件因裸双引号无法解析，需在派发模板里给出转义要求或加一道解析校验`,
+]],
+['rec-m','中期',[
+  `把 runs_per_configuration 提到 3，配合符号检验做 power 分析——但先修判分层饱和，否则加样本只是把噪声估得更准`,
+  `给 judge 加 2 名独立评审，报告 Cohen kappa，验证判定本身可靠`,
+  `把 skill 净失分的缺陷逐条做成 SKILL.md 的反例清单（当前 9）`,
+]],
+['rec-l','长期',[
+  `SKILL.md 的定位应显式收敛为「结构与完整性保障」，而不是「更准的代码评审」—— 两轮数据都支持这个定位`,
+  `为每个程序类型维护缺陷清单，随 fixture 演进而非一次性预埋，避免 fixture 与断言同时腐化`,
+  `判分层需要难度阶梯：当前 46/77 个缺陷双组满分，基准已无区分度，必须加入更隐蔽的缺陷才能继续度量`,
+]]].map(([c,t,its])=>`<div class="rec-i ${c}"><div class="rl">${t}</div><ul>${
+ its.map(i=>`<li>${esc(i)}</li>`).join('')}</ul></div>`).join('');
+
+$('#foot').textContent=`格式 ${pct(F.with)} vs ${pct(F.without)} (p=${sci(F.p)}) · 技术 ${pct(J.with)} vs ${pct(J.without)} (p=${sci(J.sign.exact_two_sided_p)}) · grader ${D.meta.grader}`;
+window.addEventListener('resize',()=>{if(typeof echarts==='undefined')return;
+ ['c-layers','c-defect','c-runs','c-assert'].forEach(id=>{
+  const i=echarts.getInstanceByDom(document.getElementById(id)); if(i)i.resize();});});
+</script>
+</body>
+</html>

@@ -21,23 +21,32 @@ ROOT = sys.argv[3]
 REL = "Test-result/real/abapgit_flow_logic.skill.md"
 WANT = os.path.basename(REL)
 
+# check_code_fidelity.py does sys.path.insert(0, argv[1]) and imports report_qc
+# from there, so it wants the script's DIRECTORY. It was being handed the
+# report_qc.py file path instead, which is why this control only ever ran with
+# PYTHONPATH exported by hand -- and why an unattended run printed "?" for every
+# row and then reported FAILED, a failure of the harness rather than the check.
+SCRIPTDIR = os.path.dirname(os.path.abspath(QC))
+
 live = os.path.join(ROOT, REL)
 orig = io.open(live, encoding="utf-8").read()
 
 
+def scan():
+    return subprocess.run([sys.executable, SCRIPT, SCRIPTDIR, ROOT],
+                          capture_output=True, text=True, encoding="utf-8",
+                          errors="replace").stdout
+
+
 def row():
-    out = subprocess.run([sys.executable, SCRIPT, QC, ROOT],
-                         capture_output=True, text=True, encoding="utf-8").stdout
-    for l in out.split("\n"):
+    for l in scan().split("\n"):
         if WANT[:30] in l:
             return " ".join(l.split()[-4:]) if "absent" not in l else l.strip()[:70]
     return "?"
 
 
 def absent():
-    out = subprocess.run([sys.executable, SCRIPT, QC, ROOT],
-                         capture_output=True, text=True, encoding="utf-8").stdout
-    for l in out.split("\n"):
+    for l in scan().split("\n"):
         if WANT[:30] in l:
             f = l.split()
             return f[1] + " absent " + f[2]
@@ -46,9 +55,17 @@ def absent():
 
 before = absent()
 print("clean       :", before)
+if "?" in before:
+    print("control ERRORED -- check_code_fidelity.py produced no row for this")
+    print("               report, so the control measured nothing. Fix the call")
+    print("               above before reading anything into the result.")
+    sys.exit(2)
 
 # rename inside a block that is a quote, not a risk-layer remediation snippet
-sys.path.insert(0, sys.argv[1])
+# argv[1] is report_qc.py's own FILE path, so it cannot go on sys.path; the
+# import needs its directory. Without this the control could not run at all and
+# the "PASSED" it prints had to be obtained by exporting PYTHONPATH by hand.
+sys.path.insert(0, SCRIPTDIR)
 import report_qc
 m = None
 for cand in re.finditer(r"```abap\n(.*?)```", orig, re.S):
@@ -81,5 +98,8 @@ ok = before != after
 print()
 print("control", "PASSED -- fires on a real alteration, clears when reverted"
       if ok else "FAILED -- blind to the alteration")
+# A control that cannot fail the build is not a control. This one used to print
+# PASSED or FAILED and always exited 0.
+sys.exit(0 if ok else 1)
 
 

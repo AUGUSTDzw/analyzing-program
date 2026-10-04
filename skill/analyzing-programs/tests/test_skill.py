@@ -11,6 +11,12 @@ So the tests below are mostly about the failure paths, not the happy one.
 
 Everything is built in a temp directory. Nothing outside this skill folder is
 read or written.
+
+Encoding is forced in two places because the default Windows console breaks this
+file in two distinct ways. Reading a child that encoded its output as cp936 with
+encoding="utf-8" raised UnicodeDecodeError and killed the run at check 5; printing
+the contract's bucket emoji to a cp936 stdout raised UnicodeEncodeError. So the
+child is given PYTHONIOENCODING and this process reconfigures its own streams.
 """
 import io
 import json
@@ -18,6 +24,12 @@ import os
 import subprocess
 import sys
 import tempfile
+
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SKILL = os.path.dirname(HERE)
@@ -35,8 +47,9 @@ def check(cond, label, detail=""):
 
 
 def run(*args):
+    env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
     return subprocess.run([sys.executable] + list(args), capture_output=True,
-                          text=True, encoding="utf-8")
+                          text=True, encoding="utf-8", env=env)
 
 
 def brief_report():
@@ -110,15 +123,17 @@ def main():
     r = run(QC, good)
     check(r.stdout.startswith("PASS"), "a well-formed brief report passes",
           r.stdout.strip().split("\n")[0][:44] if r.stdout.strip() else "")
+    check(r.returncode == 0, "a passing report exits 0")
 
     # drop one of the three layers -> must be caught and located
     bad = brief_report().replace("**为什么** — 索引命中。\n", "")
-    p = os.path.join(tmp, "nolayer.md")
-    io.open(p, "w", encoding="utf-8").write(bad)
-    r = run(QC, p)
+    nolayer = os.path.join(tmp, "nolayer.md")
+    io.open(nolayer, "w", encoding="utf-8").write(bad)
+    r = run(QC, nolayer)
     check("A8" in r.stdout and not r.stdout.startswith("PASS"),
           "a missing three-layer label is caught", "A8 reported")
     check("line " in r.stdout, "the A8 defect carries a line number")
+    check(r.returncode == 1, "a failing report exits nonzero")
 
     # remove section six -> must be caught
     p = os.path.join(tmp, "nosix.md")
@@ -169,6 +184,46 @@ def main():
         check(r.stdout.startswith("PASS"),
               "the shipped example report still passes",
               r.stdout.strip().split("\n")[0][:44] if r.stdout.strip() else "")
+
+    # SKILL.md step 6 tells the model to re-run the fidelity pass until it is
+    # clean. That loop can only terminate if the exit status carries the verdict.
+    # Both branches below returned 0 while printing FAIL, so an agent that polled
+    # the exit code -- the natural way to run "until clean" -- finished on the
+    # first iteration with an unrepaired transcription error still in the report.
+    print()
+    print("exit status carries the verdict (step 6 depends on it)")
+    print("-" * 72)
+    fo = run(QC, "--fidelity-only", good, src)
+    check(fo.stdout.startswith("PASS") and fo.returncode == 0,
+          "--fidelity-only exits 0 when every quotation is faithful")
+    fo = run(QC, "--fidelity-only", p, src)
+    check(fo.stdout.startswith("FAIL") and fo.returncode == 1,
+          "--fidelity-only exits nonzero when a quotation is not in the source")
+    fx = run(QC, "--fix", nolayer, src, "-o", os.path.join(tmp, "fixed.md"))
+    check(fx.returncode == 1,
+          "--fix exits nonzero while defects still need the model",
+          "A8 is not mechanically repairable")
+    fx = run(QC, "--fix", good, src, "-o", os.path.join(tmp, "fixed2.md"))
+    check(fx.returncode == 0, "--fix exits 0 once nothing is left")
+    r = run(QC, os.path.join(tmp, "no-such-file.md"))
+    check(r.returncode != 0, "a missing report file exits nonzero")
+
+    # the contract's own bucket markers are emoji, and printing one to a cp936
+    # console used to raise UnicodeEncodeError from inside the defect loop, which
+    # replaced the diagnosis with a traceback and made the bucket check
+    # unreachable on Windows.
+    print()
+    print("the gate survives a console that cannot encode its own output")
+    print("-" * 72)
+    nb = os.path.join(tmp, "nobucket.md")
+    io.open(nb, "w", encoding="utf-8").write(
+        brief_report().replace("### 🟠 P1 健壮性", "### 其他问题"))
+    env = dict(os.environ, PYTHONIOENCODING="ascii", PYTHONUTF8="")
+    r = subprocess.run([sys.executable, QC, nb], capture_output=True, text=True,
+                       encoding="utf-8", errors="replace", env=env)
+    check("UnicodeEncodeError" not in r.stderr and "buck" in r.stdout,
+          "a missing priority bucket is reported, not crashed on",
+          r.stdout.strip().split("\n")[0][:44] if r.stdout.strip() else "")
 
     print()
     print("evaluate.py")

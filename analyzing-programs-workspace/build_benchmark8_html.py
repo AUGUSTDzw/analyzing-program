@@ -4,12 +4,14 @@
 
 The point of this page is that it must NOT average the two layers into one
 number. Format compliance and technical correctness are different questions and
-the results disagree sharply:
+the results disagree sharply. For iteration-8 those are:
 
-    format      with_skill 0.987 vs baseline 0.546   p = 2.4e-19  SIGNIFICANT
-    correctness with_skill 0.766 vs baseline 0.729   p = 1.00     NOT significant
+    format      with_skill 0.980 vs baseline 0.554   p = 5.55e-44  SIGNIFICANT
+    correctness with_skill 0.849 vs baseline 0.826   p = 1.00      NOT significant
 
-Averaging would hide the second result, which is the one worth acting on.
+Averaging would hide the second result, which is the one worth acting on. The
+figures below are read from benchmark.json rather than written here, so they
+cannot drift from the round being rendered; this paragraph is orientation only.
 """
 import json, os, sys
 

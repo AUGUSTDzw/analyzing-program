@@ -26,12 +26,30 @@ line numbers and left to the model.
 Detectors live in this one file and are shared by both modes on purpose. An
 earlier version kept the checker and the fixer in separate scripts with separate
 regexes; they drifted, and the fixer silently missed a form the checker caught.
+
+Exit codes are the contract with the caller, and SKILL.md step 6 tells the model
+to re-run this script until it is clean. So every mode must report the verdict
+in the exit status as well as in stdout: 0 only when nothing is left to fix. A
+mode that returns 0 after printing FAIL gives the caller a termination signal
+that is always green.
+
+stdout is forced to UTF-8 because the contract's own bucket markers are emoji
+(U+1F534 and friends). On a Windows console defaulting to cp936, printing one
+raises UnicodeEncodeError -- and it raised it from inside the defect loop, so the
+crash replaced the diagnosis with a traceback and the bucket check, one of the
+four things this gate exists to do, was unreachable on that platform.
 """
 import io
 import json
 import os
 import re
 import sys
+
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
 
 # ---------------------------------------------------------------- shared rules
 
@@ -475,15 +493,17 @@ def main(argv):
         if not src:
             die_note("fidelity needs a source path: "
                      "--fidelity-only REPORT SOURCE.abap")
+        rc = 0
         for p in [x for x in args[1:] if not x.lower().endswith(".abap")]:
             s = io.open(p, encoding="utf-8").read()
             n = fidelity_note(s, src)
             if n:
                 print(f"FAIL  {os.path.basename(p)}")
                 print(f"  note  {n}")
+                rc = 1
             else:
                 print(f"PASS  {os.path.basename(p)}")
-        return 0
+        return rc
     if args[0] == "--fix":
         rest = [a for a in args[1:] if a != "-o"]
         if "-o" in args:
@@ -512,7 +532,10 @@ def main(argv):
         note = density_note(fixed, src)
         if note:
             print("note:", note)
-        return 0
+        # Repaired what could be repaired; whatever is left needs the model, and
+        # the caller has to be able to see that. Returning 0 here made a partial
+        # repair indistinguishable from a finished one.
+        return 1 if left else 0
 
     src = read_src(args[1]) if len(args) > 1 and args[1].lower().endswith(".abap") else None
     rc = 0

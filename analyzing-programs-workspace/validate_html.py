@@ -15,8 +15,8 @@ WANT_REVIEW = os.path.isfile(os.path.join(WS, "review.html")) or \
 fail = []
 
 
-def check(cond, msg):
-    print(("  OK   " if cond else "  FAIL ") + msg)
+def check(cond, msg, detail=""):
+    print(("  OK   " if cond else "  FAIL ") + msg + (f"   {detail}" if detail else ""))
     if not cond:
         fail.append(msg)
 
@@ -86,23 +86,114 @@ if data and not LEGACY_DASHBOARD:
     # 6'. cross-check the two verdict means against benchmark.json instead
     B = json.load(open(os.path.join(WS, "benchmark.json"), encoding="utf-8"))
     import statistics as _st
-    wf = _st.mean(c["mean"] for c in data["format"]["cells"] if c["config"] == "with_skill")
-    bf = _st.mean(c["mean"] for c in data["format"]["cells"] if c["config"] == "without_skill")
-    check(abs(round(wf, 3) - B["summary"]["with_skill_mean"]) < 1e-9,
-          f"format with_skill mean matches benchmark.json ({round(wf, 3)})")
-    check(abs(round(bf, 3) - B["summary"]["without_skill_mean"]) < 1e-9,
-          f"format baseline mean matches benchmark.json ({round(bf, 3)})")
-    # the judge sign test must be one pair per (eval, run) — never one per report
-    sp = data["judge"]["sign"]
-    check(sp["n_paired"] == data["meta"]["nEvals"] * data["meta"]["runs"],
-          f"judge sign test pairs == evals x runs ({sp['n_paired']} == "
-          f"{data['meta']['nEvals']} x {data['meta']['runs']})")
-    check(len(data["judge"]["perDefect"]) == len(B["judge"]["per_defect"]),
-          f"every judged defect reaches the page "
-          f"({len(data['judge']['perDefect'])} == {len(B['judge']['per_defect'])})")
-    check(len(data["assertions"]) == len(B["assertion_stats"]),
-          f"every assertion reaches the page "
-          f"({len(data['assertions'])} == {len(B['assertion_stats'])})")
+    # The arm names are carried by the payload, not hardcoded: a round whose arms
+    # are named after their skill digest (with_skill_b8f84e8) has no cell under
+    # "with_skill", and a hardcoded filter raised instead of reporting anything.
+    _md0 = B.get("metadata", {})
+    _warm = _md0.get("with_skill_arm") or _md0.get("headline_skill_arm") or "with_skill"
+    _barm = _md0.get("without_skill_arm") or _md0.get("baseline_arm") or "without_skill"
+    _wc = [c["mean"] for c in data["format"]["cells"] if c["config"] == _warm]
+    _bc = [c["mean"] for c in data["format"]["cells"] if c["config"] == _barm]
+    if _wc and _bc:
+        wf = _st.mean(_wc)
+        bf = _st.mean(_bc)
+        check(abs(round(wf, 3) - B["summary"]["with_skill_mean"]) < 1e-9,
+              f"format {_warm} mean matches benchmark.json ({round(wf, 3)})")
+        check(abs(round(bf, 3) - B["summary"]["without_skill_mean"]) < 1e-9,
+              f"format baseline mean matches benchmark.json ({round(bf, 3)})")
+    else:
+        check(False, f"format means could not be cross-checked: no cells for "
+                     f"headline arm {_warm} ({len(_wc)}) or baseline {_barm} ({len(_bc)})")
+    # The judge sign test must be one pair per (eval, run) — never one per report.
+    # Absent on a round whose judge pass has not run for its arms; that is a gap
+    # to be reported, not a validator crash.
+    if data.get("judge") and isinstance(data["judge"].get("sign"), dict):
+        sp = data["judge"]["sign"]
+        check(sp["n_paired"] == data["meta"]["nEvals"] * data["meta"]["runs"],
+              f"judge sign test pairs == evals x runs ({sp['n_paired']} == "
+              f"{data['meta']['nEvals']} x {data['meta']['runs']})")
+        check(len(data["judge"]["perDefect"]) == len(B["judge"]["per_defect"]),
+              f"every judged defect reaches the page "
+              f"({len(data['judge']['perDefect'])} == {len(B['judge']['per_defect'])})")
+        check(len(data["assertions"]) == len(B["assertion_stats"]),
+              f"every assertion reaches the page "
+              f"({len(data['assertions'])} == {len(B['assertion_stats'])})")
+    else:
+        print("  INFO  judge layer not present in payload; judge cross-checks skipped")
+
+    # 7'. A result that cannot name the skill version that produced it cannot be
+    # compared with any other result. Rounds 5 and 6 recorded skill_sha256;
+    # rounds 7 and 8 did not, so their headline numbers were unattributable and
+    # the digest had to be recovered from a git commit message. Absence is now a
+    # failure, because the default is to build without saying which skill you ran.
+    md = B.get("metadata", {})
+    sha = md.get("skill_sha256")
+    check(bool(sha) and re.fullmatch(r"[0-9a-f]{64}", sha or ""),
+          "benchmark.json records the sha256 of the SKILL.md that produced it",
+          sha[:16] + "..." if sha else md.get("skill_sha256_source", "absent"))
+
+    # 7'b. Every skill arm needs its own digest. iteration-9 compares two versions
+    # of the skill, and one digest cannot describe two of them -- the ambiguity
+    # that left iteration-7 and iteration-8 unattributable in the first place.
+    versions = md.get("skill_versions") or {}
+    arms = md.get("arms") or ["with_skill", "without_skill"]
+    baseline = md.get("baseline_arm", "without_skill")
+    want = [a for a in arms if a != baseline]
+    missing = [a for a in want if not re.fullmatch(r"[0-9a-f]{64}",
+                                                   versions.get(a) or "")]
+    check(not missing,
+          f"every skill arm names the SKILL.md that produced it "
+          f"({len(want)} arm(s))",
+          ", ".join(f"{a}={versions.get(a, 'absent')[:12]}"
+                    for a in want) if want else "no skill arm recorded")
+    check(set(versions) <= set(arms),
+          "skill_versions names only arms that exist",
+          f"{sorted(versions)} vs {sorted(arms)}")
+
+    # 7'c. If an arm was named after a digest-shaped token, the digest recorded for
+    # it must actually be that one. iteration-9 stores two versions side by side,
+    # and a transposed pair would pass every structural check while labelling each
+    # result with the wrong SKILL.md -- the exact unattributable-round failure this
+    # whole block exists to prevent.
+    for arm, sha_v in sorted(versions.items()):
+        # the digest-shaped token is the arm's trailing segment: with_skill_b8f84e8
+        m = re.search(r"_([0-9a-f]{6,40})$", arm)
+        tok = m.group(1) if m else None
+        if tok and re.fullmatch(r"[0-9a-f]{64}", sha_v or "") \
+                and not sha_v.startswith(tok):
+            check(False, f"arm {arm} names {tok} but records {sha_v[:8]}...",
+                  "digest does not match the arm name")
+
+    # 7''. The discrimination buckets must partition the defect set. They did not:
+    # the floor test was `a < 0.5` while a separate test fed the discriminating
+    # bucket, so four defects sat in both and the three counts summed to 74 of 77.
+    disc = B.get("discrimination")
+    if isinstance(disc, dict) and "at_floor_one_arm" in disc:
+        disjoint = [k for k in ("saturated_both_arms", "discriminating",
+                                "missed_by_both_arms", "tied_mid_range") if k in disc]
+        n_sum = sum(disc[k]["n"] for k in disjoint)
+        check(n_sum == disc["total_defects"],
+              f"discrimination buckets partition the defect set "
+              f"({n_sum} == {disc['total_defects']})")
+        names = {k: {d["defect"] if isinstance(d, dict) else d
+                     for d in disc[k].get("defects", [])} for k in disjoint}
+        # `discriminating` itemises its members as skill_wins + skill_loses, not as
+        # a flat list, so the subset check needs the union of both.
+        for side in ("skill_wins", "skill_loses"):
+            names["discriminating"] |= {
+                r["defect"] for r in disc["discriminating"].get(side, [])}
+        for i, a in enumerate(disjoint):
+            for b in disjoint[i + 1:]:
+                check(not (names[a] & names[b]),
+                      f"  {a} and {b} do not overlap")
+        subset = disc["at_floor_one_arm"]
+        if subset.get("is_subset_of"):
+            host = names.get(subset["is_subset_of"], set())
+            got = {d["defect"] if isinstance(d, dict) else d
+                   for d in subset.get("defects", [])}
+            check(got <= host,
+                  f"at_floor_one_arm is inside {subset['is_subset_of']} "
+                  f"({len(got)} of {len(host)})")
 
 elif data and LEGACY_DASHBOARD:
     # 6. cross-check dashboard numbers against grading_summary.json

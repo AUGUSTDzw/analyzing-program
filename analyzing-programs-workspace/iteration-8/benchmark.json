@@ -2,6 +2,17 @@
   "metadata": {
     "skill_name": "analyzing-programs",
     "iteration": "iteration-8",
+    "skill_sha256": "b8f84e805a2a2aec6ecff58f35ac7e6c55874308b4559a73efdb068fc5f00a1b",
+    "skill_sha256_source": "passed as argv[4] to build_benchmark8.py",
+    "skill_versions": {
+      "with_skill": "b8f84e805a2a2aec6ecff58f35ac7e6c55874308b4559a73efdb068fc5f00a1b"
+    },
+    "arms": [
+      "without_skill",
+      "with_skill"
+    ],
+    "baseline_arm": "without_skill",
+    "headline_skill_arm": "with_skill",
     "grader": "grade_v2.py",
     "judge": "LLM judge, per planted defect, 3-way (yes/partial/no)",
     "runs_per_configuration": 2,
@@ -9735,20 +9746,6 @@
     }
   ],
   "per_cell": {
-    "eval-1-with_skill": {
-      "eval_id": 1,
-      "eval_name": "alv-editable-total-poc",
-      "config": "with_skill",
-      "runs": 2,
-      "pass_rate_mean": 1.0,
-      "pass_rate_median": 1.0,
-      "pass_rate_min": 1.0,
-      "pass_rate_max": 1.0,
-      "per_run": [
-        1.0,
-        1.0
-      ]
-    },
     "eval-1-without_skill": {
       "eval_id": 1,
       "eval_name": "alv-editable-total-poc",
@@ -9763,9 +9760,9 @@
         0.467
       ]
     },
-    "eval-2-with_skill": {
-      "eval_id": 2,
-      "eval_name": "procedural-vendor-report",
+    "eval-1-with_skill": {
+      "eval_id": 1,
+      "eval_name": "alv-editable-total-poc",
       "config": "with_skill",
       "runs": 2,
       "pass_rate_mean": 1.0,
@@ -9791,18 +9788,18 @@
         0.462
       ]
     },
-    "eval-3-with_skill": {
-      "eval_id": 3,
-      "eval_name": "global-class-alv-weight",
+    "eval-2-with_skill": {
+      "eval_id": 2,
+      "eval_name": "procedural-vendor-report",
       "config": "with_skill",
       "runs": 2,
-      "pass_rate_mean": 0.972,
-      "pass_rate_median": 0.972,
-      "pass_rate_min": 0.944,
+      "pass_rate_mean": 1.0,
+      "pass_rate_median": 1.0,
+      "pass_rate_min": 1.0,
       "pass_rate_max": 1.0,
       "per_run": [
         1.0,
-        0.944
+        1.0
       ]
     },
     "eval-3-without_skill": {
@@ -9819,18 +9816,18 @@
         0.667
       ]
     },
-    "eval-4-with_skill": {
-      "eval_id": 4,
-      "eval_name": "function-group-rfc-price",
+    "eval-3-with_skill": {
+      "eval_id": 3,
+      "eval_name": "global-class-alv-weight",
       "config": "with_skill",
       "runs": 2,
-      "pass_rate_mean": 1.0,
-      "pass_rate_median": 1.0,
-      "pass_rate_min": 1.0,
+      "pass_rate_mean": 0.972,
+      "pass_rate_median": 0.972,
+      "pass_rate_min": 0.944,
       "pass_rate_max": 1.0,
       "per_run": [
         1.0,
-        1.0
+        0.944
       ]
     },
     "eval-4-without_skill": {
@@ -9847,9 +9844,9 @@
         0.706
       ]
     },
-    "eval-5-with_skill": {
-      "eval_id": 5,
-      "eval_name": "report-bapi-rfc-upload",
+    "eval-4-with_skill": {
+      "eval_id": 4,
+      "eval_name": "function-group-rfc-price",
       "config": "with_skill",
       "runs": 2,
       "pass_rate_mean": 1.0,
@@ -9875,9 +9872,9 @@
         0.75
       ]
     },
-    "eval-6-with_skill": {
-      "eval_id": 6,
-      "eval_name": "salv-table-events",
+    "eval-5-with_skill": {
+      "eval_id": 5,
+      "eval_name": "report-bapi-rfc-upload",
       "config": "with_skill",
       "runs": 2,
       "pass_rate_mean": 1.0,
@@ -9903,18 +9900,18 @@
         0.533
       ]
     },
-    "eval-7-with_skill": {
-      "eval_id": 7,
-      "eval_name": "abstract-inheritance-polymorphism",
+    "eval-6-with_skill": {
+      "eval_id": 6,
+      "eval_name": "salv-table-events",
       "config": "with_skill",
       "runs": 2,
-      "pass_rate_mean": 0.965,
-      "pass_rate_median": 0.965,
-      "pass_rate_min": 0.929,
+      "pass_rate_mean": 1.0,
+      "pass_rate_median": 1.0,
+      "pass_rate_min": 1.0,
       "pass_rate_max": 1.0,
       "per_run": [
         1.0,
-        0.929
+        1.0
       ]
     },
     "eval-7-without_skill": {
@@ -9931,6 +9928,34 @@
         0.357
       ]
     },
+    "eval-7-with_skill": {
+      "eval_id": 7,
+      "eval_name": "abstract-inheritance-polymorphism",
+      "config": "with_skill",
+      "runs": 2,
+      "pass_rate_mean": 0.965,
+      "pass_rate_median": 0.965,
+      "pass_rate_min": 0.929,
+      "pass_rate_max": 1.0,
+      "per_run": [
+        1.0,
+        0.929
+      ]
+    },
+    "eval-8-without_skill": {
+      "eval_id": 8,
+      "eval_name": "dialog-screen-modules",
+      "config": "without_skill",
+      "runs": 2,
+      "pass_rate_mean": 0.594,
+      "pass_rate_median": 0.594,
+      "pass_rate_min": 0.5,
+      "pass_rate_max": 0.688,
+      "per_run": [
+        0.5,
+        0.688
+      ]
+    },
     "eval-8-with_skill": {
       "eval_id": 8,
       "eval_name": "dialog-screen-modules",
@@ -9945,17 +9970,17 @@
         1.0
       ]
     },
-    "eval-8-without_skill": {
-      "eval_id": 8,
-      "eval_name": "dialog-screen-modules",
+    "eval-9-without_skill": {
+      "eval_id": 9,
+      "eval_name": "cds-consume-http-synch",
       "config": "without_skill",
       "runs": 2,
-      "pass_rate_mean": 0.594,
-      "pass_rate_median": 0.594,
-      "pass_rate_min": 0.5,
+      "pass_rate_mean": 0.656,
+      "pass_rate_median": 0.656,
+      "pass_rate_min": 0.625,
       "pass_rate_max": 0.688,
       "per_run": [
-        0.5,
+        0.625,
         0.688
       ]
     },
@@ -9973,18 +9998,18 @@
         0.938
       ]
     },
-    "eval-9-without_skill": {
-      "eval_id": 9,
-      "eval_name": "cds-consume-http-synch",
+    "eval-13-without_skill": {
+      "eval_id": 13,
+      "eval_name": "modern-syntax-table-expr",
       "config": "without_skill",
       "runs": 2,
-      "pass_rate_mean": 0.656,
-      "pass_rate_median": 0.656,
-      "pass_rate_min": 0.625,
-      "pass_rate_max": 0.688,
+      "pass_rate_mean": 0.535,
+      "pass_rate_median": 0.535,
+      "pass_rate_min": 0.5,
+      "pass_rate_max": 0.571,
       "per_run": [
-        0.625,
-        0.688
+        0.571,
+        0.5
       ]
     },
     "eval-13-with_skill": {
@@ -10001,17 +10026,17 @@
         0.929
       ]
     },
-    "eval-13-without_skill": {
-      "eval_id": 13,
-      "eval_name": "modern-syntax-table-expr",
+    "eval-10-without_skill": {
+      "eval_id": 10,
+      "eval_name": "batch-price-recalc",
       "config": "without_skill",
       "runs": 2,
-      "pass_rate_mean": 0.535,
-      "pass_rate_median": 0.535,
+      "pass_rate_mean": 0.594,
+      "pass_rate_median": 0.594,
       "pass_rate_min": 0.5,
-      "pass_rate_max": 0.571,
+      "pass_rate_max": 0.688,
       "per_run": [
-        0.571,
+        0.688,
         0.5
       ]
     },
@@ -10029,34 +10054,6 @@
         0.938
       ]
     },
-    "eval-10-without_skill": {
-      "eval_id": 10,
-      "eval_name": "batch-price-recalc",
-      "config": "without_skill",
-      "runs": 2,
-      "pass_rate_mean": 0.594,
-      "pass_rate_median": 0.594,
-      "pass_rate_min": 0.5,
-      "pass_rate_max": 0.688,
-      "per_run": [
-        0.688,
-        0.5
-      ]
-    },
-    "eval-11-with_skill": {
-      "eval_id": 11,
-      "eval_name": "class-events-publisher",
-      "config": "with_skill",
-      "runs": 2,
-      "pass_rate_mean": 1.0,
-      "pass_rate_median": 1.0,
-      "pass_rate_min": 1.0,
-      "pass_rate_max": 1.0,
-      "per_run": [
-        1.0,
-        1.0
-      ]
-    },
     "eval-11-without_skill": {
       "eval_id": 11,
       "eval_name": "class-events-publisher",
@@ -10071,9 +10068,9 @@
         0.357
       ]
     },
-    "eval-12-with_skill": {
-      "eval_id": 12,
-      "eval_name": "vendor-maintain-lock-msgs",
+    "eval-11-with_skill": {
+      "eval_id": 11,
+      "eval_name": "class-events-publisher",
       "config": "with_skill",
       "runs": 2,
       "pass_rate_mean": 1.0,
@@ -10097,6 +10094,20 @@
       "per_run": [
         0.733,
         0.667
+      ]
+    },
+    "eval-12-with_skill": {
+      "eval_id": 12,
+      "eval_name": "vendor-maintain-lock-msgs",
+      "config": "with_skill",
+      "runs": 2,
+      "pass_rate_mean": 1.0,
+      "pass_rate_median": 1.0,
+      "pass_rate_min": 1.0,
+      "pass_rate_max": 1.0,
+      "per_run": [
+        1.0,
+        1.0
       ]
     }
   },
@@ -10395,7 +10406,11 @@
       "with_rate": 1.0,
       "without_rate": 0.308,
       "applicable_cells": 26,
-      "n_discriminating": 0
+      "n_discriminating": 0,
+      "rate_by_config": {
+        "without_skill": 0.308,
+        "with_skill": 1.0
+      }
     },
     "A2": {
       "aid": "A2",
@@ -10691,7 +10706,11 @@
       "with_rate": 0.923,
       "without_rate": 0.0,
       "applicable_cells": 26,
-      "n_discriminating": 0
+      "n_discriminating": 0,
+      "rate_by_config": {
+        "without_skill": 0.0,
+        "with_skill": 0.923
+      }
     },
     "A3": {
       "aid": "A3",
@@ -10987,7 +11006,11 @@
       "with_rate": 1.0,
       "without_rate": 0.038,
       "applicable_cells": 26,
-      "n_discriminating": 0
+      "n_discriminating": 0,
+      "rate_by_config": {
+        "without_skill": 0.038,
+        "with_skill": 1.0
+      }
     },
     "A4": {
       "aid": "A4",
@@ -11283,7 +11306,11 @@
       "with_rate": 1.0,
       "without_rate": 0.0,
       "applicable_cells": 26,
-      "n_discriminating": 0
+      "n_discriminating": 0,
+      "rate_by_config": {
+        "without_skill": 0.0,
+        "with_skill": 1.0
+      }
     },
     "A5": {
       "aid": "A5",
@@ -11579,7 +11606,11 @@
       "with_rate": 1.0,
       "without_rate": 0.577,
       "applicable_cells": 26,
-      "n_discriminating": 0
+      "n_discriminating": 0,
+      "rate_by_config": {
+        "without_skill": 0.577,
+        "with_skill": 1.0
+      }
     },
     "A6": {
       "aid": "A6",
@@ -11875,7 +11906,11 @@
       "with_rate": 1.0,
       "without_rate": 1.0,
       "applicable_cells": 26,
-      "n_discriminating": 0
+      "n_discriminating": 0,
+      "rate_by_config": {
+        "without_skill": 1.0,
+        "with_skill": 1.0
+      }
     },
     "A7": {
       "aid": "A7",
@@ -12171,7 +12206,11 @@
       "with_rate": 1.0,
       "without_rate": 0.346,
       "applicable_cells": 26,
-      "n_discriminating": 0
+      "n_discriminating": 0,
+      "rate_by_config": {
+        "without_skill": 0.346,
+        "with_skill": 1.0
+      }
     },
     "A8": {
       "aid": "A8",
@@ -12467,7 +12506,11 @@
       "with_rate": 1.0,
       "without_rate": 0.038,
       "applicable_cells": 26,
-      "n_discriminating": 0
+      "n_discriminating": 0,
+      "rate_by_config": {
+        "without_skill": 0.038,
+        "with_skill": 1.0
+      }
     },
     "A9": {
       "aid": "A9",
@@ -12763,7 +12806,11 @@
       "with_rate": 1.0,
       "without_rate": 1.0,
       "applicable_cells": 26,
-      "n_discriminating": 0
+      "n_discriminating": 0,
+      "rate_by_config": {
+        "without_skill": 1.0,
+        "with_skill": 1.0
+      }
     },
     "A10": {
       "aid": "A10",
@@ -13059,7 +13106,11 @@
       "with_rate": 1.0,
       "without_rate": 0.538,
       "applicable_cells": 26,
-      "n_discriminating": 0
+      "n_discriminating": 0,
+      "rate_by_config": {
+        "without_skill": 0.538,
+        "with_skill": 1.0
+      }
     },
     "A11": {
       "aid": "A11",
@@ -13355,7 +13406,11 @@
       "with_rate": 1.0,
       "without_rate": 0.538,
       "applicable_cells": 26,
-      "n_discriminating": 0
+      "n_discriminating": 0,
+      "rate_by_config": {
+        "without_skill": 0.538,
+        "with_skill": 1.0
+      }
     },
     "A12": {
       "aid": "A12",
@@ -13464,7 +13519,11 @@
       "with_rate": 0.9,
       "without_rate": 0.625,
       "applicable_cells": 9,
-      "n_discriminating": 0
+      "n_discriminating": 0,
+      "rate_by_config": {
+        "without_skill": 0.625,
+        "with_skill": 0.9
+      }
     },
     "A13": {
       "aid": "A13",
@@ -13760,7 +13819,11 @@
       "with_rate": 1.0,
       "without_rate": 1.0,
       "applicable_cells": 26,
-      "n_discriminating": 0
+      "n_discriminating": 0,
+      "rate_by_config": {
+        "without_skill": 1.0,
+        "with_skill": 1.0
+      }
     },
     "A14": {
       "aid": "A14",
@@ -13902,7 +13965,11 @@
       "with_rate": 1.0,
       "without_rate": 1.0,
       "applicable_cells": 12,
-      "n_discriminating": 0
+      "n_discriminating": 0,
+      "rate_by_config": {
+        "without_skill": 1.0,
+        "with_skill": 1.0
+      }
     },
     "A15": {
       "aid": "A15",
@@ -13978,7 +14045,11 @@
       "with_rate": 1.0,
       "without_rate": 1.0,
       "applicable_cells": 6,
-      "n_discriminating": 0
+      "n_discriminating": 0,
+      "rate_by_config": {
+        "without_skill": 1.0,
+        "with_skill": 1.0
+      }
     },
     "A16": {
       "aid": "A16",
@@ -14076,7 +14147,11 @@
       "with_rate": 1.0,
       "without_rate": 1.0,
       "applicable_cells": 8,
-      "n_discriminating": 0
+      "n_discriminating": 0,
+      "rate_by_config": {
+        "without_skill": 1.0,
+        "with_skill": 1.0
+      }
     },
     "A17": {
       "aid": "A17",
@@ -14350,7 +14425,11 @@
       "with_rate": 1.0,
       "without_rate": 1.0,
       "applicable_cells": 24,
-      "n_discriminating": 0
+      "n_discriminating": 0,
+      "rate_by_config": {
+        "without_skill": 1.0,
+        "with_skill": 1.0
+      }
     },
     "A18": {
       "aid": "A18",
@@ -14448,7 +14527,11 @@
       "with_rate": 1.0,
       "without_rate": 1.0,
       "applicable_cells": 8,
-      "n_discriminating": 0
+      "n_discriminating": 0,
+      "rate_by_config": {
+        "without_skill": 1.0,
+        "with_skill": 1.0
+      }
     },
     "A19": {
       "aid": "A19",
@@ -14568,7 +14651,11 @@
       "with_rate": 0.5,
       "without_rate": 1.0,
       "applicable_cells": 10,
-      "n_discriminating": 0
+      "n_discriminating": 0,
+      "rate_by_config": {
+        "without_skill": 1.0,
+        "with_skill": 0.5
+      }
     },
     "A20": {
       "aid": "A20",
@@ -14600,7 +14687,11 @@
       "with_rate": 1.0,
       "without_rate": 1.0,
       "applicable_cells": 2,
-      "n_discriminating": 0
+      "n_discriminating": 0,
+      "rate_by_config": {
+        "without_skill": 1.0,
+        "with_skill": 1.0
+      }
     },
     "A21": {
       "aid": "A21",
@@ -14632,7 +14723,11 @@
       "with_rate": 1.0,
       "without_rate": 1.0,
       "applicable_cells": 2,
-      "n_discriminating": 0
+      "n_discriminating": 0,
+      "rate_by_config": {
+        "without_skill": 1.0,
+        "with_skill": 1.0
+      }
     },
     "A22": {
       "aid": "A22",
@@ -14686,7 +14781,11 @@
       "with_rate": 1.0,
       "without_rate": 1.0,
       "applicable_cells": 4,
-      "n_discriminating": 0
+      "n_discriminating": 0,
+      "rate_by_config": {
+        "without_skill": 1.0,
+        "with_skill": 1.0
+      }
     },
     "A23": {
       "aid": "A23",
@@ -14718,13 +14817,17 @@
       "with_rate": 1.0,
       "without_rate": 1.0,
       "applicable_cells": 2,
-      "n_discriminating": 0
+      "n_discriminating": 0,
+      "rate_by_config": {
+        "without_skill": 1.0,
+        "with_skill": 1.0
+      }
     }
   },
   "paired_format": {
     "with_only_pass": 170,
     "without_only_pass": 5,
-    "concordant_pass": 605,
+    "concordant_pass": 215,
     "mcnemar_exact_two_sided_p": 5.553488622610475e-44
   },
   "judge": {
@@ -18007,61 +18110,54 @@
     "total_defects": 77,
     "saturated_both_arms": {
       "n": 46,
-      "share": 0.597
-    },
-    "floor_either_arm": {
-      "n": 7,
-      "share": 0.091,
+      "share": 0.597,
       "defects": [
-        {
-          "defect": "eval-4-D2",
-          "area": "可编译性",
-          "with_skill": 0.0,
-          "without_skill": 0.75,
-          "delta": -75.0
-        },
-        {
-          "defect": "eval-10-D2",
-          "area": "事务处理",
-          "with_skill": 0.0,
-          "without_skill": 0.0,
-          "delta": 0.0
-        },
-        {
-          "defect": "eval-13-D6",
-          "area": "单位格式",
-          "with_skill": 0.0,
-          "without_skill": 0.0,
-          "delta": 0.0
-        },
-        {
-          "defect": "eval-9-D3",
-          "area": "CDS 关联",
-          "with_skill": 0.25,
-          "without_skill": 0.25,
-          "delta": 0.0
-        },
-        {
-          "defect": "eval-1-D3",
-          "area": "健壮性",
-          "with_skill": 0.5,
-          "without_skill": 0.25,
-          "delta": 25.0
-        },
-        {
-          "defect": "eval-3-D3",
-          "area": "语义校核",
-          "with_skill": 1.0,
-          "without_skill": 0.25,
-          "delta": 75.0
-        },
-        {
-          "defect": "eval-7-D8",
-          "area": "金额计算",
-          "with_skill": 1.0,
-          "without_skill": 0.25,
-          "delta": 75.0
-        }
+        "eval-10-D1",
+        "eval-10-D3",
+        "eval-10-D5",
+        "eval-11-D4",
+        "eval-11-D5",
+        "eval-11-D6",
+        "eval-12-D1",
+        "eval-12-D3",
+        "eval-12-D4",
+        "eval-12-D5",
+        "eval-12-D6",
+        "eval-13-D1",
+        "eval-13-D3",
+        "eval-13-D4",
+        "eval-13-D5",
+        "eval-13-D7",
+        "eval-13-D8",
+        "eval-2-D4",
+        "eval-3-D1",
+        "eval-3-D4",
+        "eval-3-D6",
+        "eval-4-D1",
+        "eval-4-D4",
+        "eval-4-D5",
+        "eval-5-D1",
+        "eval-5-D2",
+        "eval-5-D3",
+        "eval-6-D1",
+        "eval-6-D2",
+        "eval-6-D3",
+        "eval-6-D4",
+        "eval-6-D5",
+        "eval-7-D10",
+        "eval-7-D2",
+        "eval-7-D4",
+        "eval-7-D5",
+        "eval-7-D6",
+        "eval-7-D7",
+        "eval-8-D2",
+        "eval-8-D3",
+        "eval-8-D4",
+        "eval-8-D5",
+        "eval-9-D1",
+        "eval-9-D4",
+        "eval-9-D5",
+        "eval-9-D7"
       ]
     },
     "discriminating": {
@@ -18218,12 +18314,112 @@
           "delta": -25.0
         }
       ]
+    },
+    "missed_by_both_arms": {
+      "n": 2,
+      "share": 0.026,
+      "defects": [
+        {
+          "defect": "eval-10-D2",
+          "area": "事务处理",
+          "with_skill": 0.0,
+          "without_skill": 0.0,
+          "delta": 0.0
+        },
+        {
+          "defect": "eval-13-D6",
+          "area": "单位格式",
+          "with_skill": 0.0,
+          "without_skill": 0.0,
+          "delta": 0.0
+        }
+      ]
+    },
+    "tied_mid_range": {
+      "n": 8,
+      "share": 0.104,
+      "defects": [
+        {
+          "defect": "eval-10-D4",
+          "area": "未用变量",
+          "with_skill": 0.5,
+          "without_skill": 0.5,
+          "delta": 0.0
+        },
+        {
+          "defect": "eval-10-D6",
+          "area": "并发",
+          "with_skill": 0.75,
+          "without_skill": 0.75,
+          "delta": 0.0
+        },
+        {
+          "defect": "eval-11-D3",
+          "area": "注册时机",
+          "with_skill": 0.75,
+          "without_skill": 0.75,
+          "delta": 0.0
+        },
+        {
+          "defect": "eval-2-D2",
+          "area": "统计口径",
+          "with_skill": 0.5,
+          "without_skill": 0.5,
+          "delta": 0.0
+        },
+        {
+          "defect": "eval-2-D3",
+          "area": "规范",
+          "with_skill": 0.5,
+          "without_skill": 0.5,
+          "delta": 0.0
+        },
+        {
+          "defect": "eval-3-D2",
+          "area": "正确性",
+          "with_skill": 0.5,
+          "without_skill": 0.5,
+          "delta": 0.0
+        },
+        {
+          "defect": "eval-4-D3",
+          "area": "语义校核",
+          "with_skill": 0.5,
+          "without_skill": 0.5,
+          "delta": 0.0
+        },
+        {
+          "defect": "eval-9-D3",
+          "area": "CDS 关联",
+          "with_skill": 0.25,
+          "without_skill": 0.25,
+          "delta": 0.0
+        }
+      ]
+    },
+    "at_floor_one_arm": {
+      "n": 1,
+      "share": 0.013,
+      "is_subset_of": "discriminating",
+      "defects": [
+        {
+          "defect": "eval-4-D2",
+          "area": "可编译性",
+          "with_skill": 0.0,
+          "without_skill": 0.75,
+          "delta": -75.0
+        }
+      ]
     }
   },
   "summary": {
     "with_skill_mean": 0.98,
     "without_skill_mean": 0.554,
-    "delta_pp": 42.7
+    "delta_pp": 42.7,
+    "per_config": {
+      "without_skill": 0.554,
+      "with_skill": 0.98
+    }
   },
   "run_summary": {
     "with_skill": {
@@ -18237,15 +18433,22 @@
     "delta": {
       "format_pass_rate_pp": 42.6,
       "judge_pass_rate_pp": 2.3
+    },
+    "judge_layer_present": true,
+    "with_skill_arm": "with_skill",
+    "without_skill_arm": "without_skill",
+    "format_pass_rate_by_arm": {
+      "without_skill": 0.554,
+      "with_skill": 0.98
     }
   },
   "headline_findings": [
-    "FORMAT COMPLIANCE: with_skill 0.980 vs baseline 0.554 across 13 program types. Paired McNemar on 780 cells: 170 with-only vs 5 baseline-only, exact p = 5.55e-44. The skill's structural value is real and large, and it holds on the widened eval set.",
+    "FORMAT COMPLIANCE: with_skill 0.980 vs baseline without_skill 0.554 across 13 program types. Paired McNemar on 390 cells: 170 with-only vs 5 baseline-only, exact p = 5.55e-44. The skill's structural value is real and large, and it holds on the widened eval set.",
     "TECHNICAL CORRECTNESS: judged defect recall with_skill 0.849 vs baseline 0.826 (delta +2.3pp). Paired sign test 9 better / 8 worse / 9 ties over 26 pairs, exact p = 1.0. NO significant difference.",
     "THE JUDGE LAYER HAS CEILINGED: 46/77 planted defects (60%) are scored full marks by BOTH arms. With both arms at ~0.85/0.83 there is almost no headroom, so the aggregate judge mean can no longer separate the configurations even in principle. The next round must raise defect difficulty, not sample size.",
     "WHERE THE SKILL STILL WINS: eval-3-D3 (语义校核) +75pp; eval-7-D8 (金额计算) +75pp; eval-1-D1 (数据流) +50pp; eval-1-D2 (语义校核) +50pp; eval-3-D5 (语义校核) +50pp.",
     "WHERE THE SKILL LOSES: eval-4-D2 (可编译性) -75pp; eval-9-D2 (CDS 语义) -50pp; eval-9-D6 (HTTP 资源) -50pp; eval-11-D2 (接口定义顺序) -50pp; eval-1-D4 (错误处理) -25pp. These are net-negative, i.e. the skill actively misleads on them — the highest-value targets for skill revision.",
-    "MOST SEVERE MISSES (both arms): eval-10-D2 (事务处理) with=0.00/base=0.00; eval-13-D6 (单位格式) with=0.00/base=0.00; eval-9-D3 (CDS 关联) with=0.25/base=0.25; eval-4-D2 (可编译性) with=0.00/base=0.75; eval-1-D3 (健壮性) with=0.50/base=0.25. Defects both arms miss are skill-independent gaps in the analysis method.",
+    "MOST SEVERE MISSES, kept apart because they mean opposite things. One arm scored zero: eval-4-D2 (可编译性) with=0.00/base=0.75 -- these are the skill's own regressions, not method gaps. Both arms scored zero: eval-10-D2 (事务处理); eval-13-D6 (单位格式) -- skill-independent gaps in the analysis method, which no revision to this skill can close. A further 8 are scored identically and below full marks by both arms.",
     "KEYWORD ASSERTIONS A14-A23 REMAIN DEAD: every applicable cell scored 100% on both arms except A19 and A20. They measure token presence, not understanding, and cannot stand in for the LLM judge."
   ]
 }

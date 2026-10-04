@@ -97,7 +97,7 @@ root and takes its paths as `argv` — nothing hardcodes a machine-specific path
 
 | Script | Purpose |
 |---|---|
-| `qc_report.py <report.md …>` | Checks generated reports against the skill's own rules: six sections, three-layer labels after every `abap` block, Mermaid label safety, no line-number locators, priority buckets. Two A8 sub-patterns are counted separately (consecutive blocks vs group-level `风险与改进`). |
+| `skill/analyzing-programs/scripts/report_qc.py <report.md …>` | The gate the skill ships: checks reports against the skill's own rules — six sections, three-layer labels after every `abap` block, Mermaid label safety, no line-number locators, priority buckets. Two A8 sub-patterns are counted separately (consecutive blocks vs group-level `风险与改进`). Exit status carries the verdict, including for `--fidelity-only` and `--fix`, because SKILL.md step 6 loops on them. |
 | `summarise_judges.py <Test-result>` | Aggregates `judge-*.json` / `ab-judge-*.json` into one table with weighted recall and a false-claim count. |
 | `preflight.py <corpus> <file …>` | Encoding gate run **before** handing a source to an analyser: valid UTF-8, no `U+FFFD`, no NULs, ABAP keywords present, sha256 for cross-checking. Added after a UTF-16 file was stored as mojibake. |
 | `verify_corpus.py <corpus>` | Re-hashes every corpus file against `MANIFEST.json`, checks line counts, rejects non-UTF-8 and replacement characters, and flags files on disk that the manifest does not list. |
@@ -242,15 +242,34 @@ both arms**, and only 21 of 77 discriminate at all. At `with_skill` 0.849 vs bas
 0.826 there is no headroom left, so a null result here means *the benchmark ran out of
 difficulty*, not that the skill is provably neutral on code review.
 
+The remaining 10 defects split into **2 that both arms score zero** (skill-independent
+gaps in the analysis method — no revision to this skill can close them) and **8 that both
+arms score identically below full marks**. The four buckets partition all 77;
+`benchmark.json → discrimination` asserts it at build time.
+
 Consequences for how this table should be read:
 
 - The format result (`p = 5.6e-44`, 170 with-only vs 5 baseline-only cells) is solid and
   strengthened by the wider set.
 - The technical result is **not evidence of equivalence**. The correct next step is a
-  harder defect tier, not more runs; `benchmark.json → discrimination` records the
-  saturated, floor, and discriminating sets explicitly.
+  harder defect tier, not more runs.
 - Two bugs found and fixed while producing this round would each have hidden a real
   effect (see `Known limitations`).
+
+### The skill's own gate disagrees with the headline grader
+
+`grade_v2.py` scores format compliance at **0.980** for `with_skill`. Running the gate
+the skill actually ships (`report_qc.py`) over the same 52 iteration-8 reports:
+
+| | n | pass |
+|---|---|---|
+| with_skill | 26 | **20 (76.9%)** |
+| baseline | 26 | **0 (0.0%)** |
+
+Two instruments, two numbers, 21pp apart on the same files — and the baseline contrast is
+sharper under the gate (0.0% vs 0.554) than under the grader. The direction is confirmed
+twice; the magnitude is instrument-specific. Neither report was produced with SKILL.md
+step 6's repair pass, which is the mitigation for exactly these A8 lapses.
 
 
 > Rounds 3–6 are not directly comparable to 7: the grader changed, the eval set grew, and
@@ -260,15 +279,28 @@ Consequences for how this table should be read:
 
 ## Known limitations
 
+- **Nothing has been measured on the shipped SKILL.md.** Every number above was produced
+  against `skill_sha256 = b8f84e805a2a2aec…`, which is commit `2cced57`. The current
+  `SKILL.md` is `718f598878c549d0…`, eight revisions later — and those revisions are the
+  mitigation for the two failure modes the measurement *did* find (A8 lapsing on
+  remediation code, fabricated quotations). The direction is evidence-backed; the effect
+  of the fix is not. Re-run iteration-8 before quoting any of this as a property of the
+  shipped skill.
 - **The judge layer has ceilinged** (iteration-8). 46 of 77 planted defects are full marks
-  for both arms; 7 more are missed by both. A null technical result is therefore
+  for both arms; 2 more are zero for both. A null technical result is therefore
   uninterpretable until the defect tier gets harder.
-- The judge is a single pass with no inter-rater agreement data. Add a second judge and
-  report Cohen's kappa before treating the technical layer as authoritative.
+- The judge is a single pass over each (eval, config). Repeatability is evidenced only on
+  the FI-toolkit list (three gradings of one report: 15/20 per-item agreement, weighted
+  variance 0.000). Add a second judge and report Cohen's kappa before treating the
+  technical layer as authoritative.
 - Planted defects are 4–10 per fixture by construction; the absolute recall numbers do not
   extrapolate to real code. Only the with/baseline *relative* comparison is meaningful.
 - n=2 supports the sign test but not variance estimation. Raise to 3 runs and run a power
   analysis to distinguish "skill has no effect" from "not enough samples".
+- **Format compliance is not deterministic either.** Under the shipped gate, 6 of 26
+  iteration-8 `with_skill` reports fail, and three evals flip between runs (one PASS, one
+  FAIL at identical settings). The earlier "0pp spread confirms format is deterministic"
+  reading was about `grade_v2.py`'s assertion layer, not the gate.
 - **The skill is not self-validating.** On real open-source input it has produced
   fabricated code statements and asserted that genuinely broken syntax was fine. Treat it as a
   *first-pass reading checklist*, not as a defect oracle — see `Test-result/generality-audit.md`.
