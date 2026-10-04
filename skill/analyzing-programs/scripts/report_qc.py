@@ -452,11 +452,38 @@ def read_src(path):
     return io.open(path, encoding="utf-8", errors="replace").read()
 
 
+def die_note(msg):
+    print(f"  note  {msg}")
+    sys.exit(2)
+
+
 def main(argv):
     args = argv[1:]
     if not args:
         print(__doc__)
         return 2
+    if args and args[0] == "--fidelity-only":
+        # Report only the statements that are not in the source. The format gate
+        # and the structural checks are suppressed, which is what makes it
+        # possible to measure whether format enforcement is what costs recall.
+        # Added after an isolation run found -35 points of strict recall at
+        # p=0.0215 between v1 and v1-plus-gate, with the fidelity diagnostic
+        # still in both -- so the harmful half had not been separated from the
+        # useful half.
+        # argv is [prog, --fidelity-only, REPORT, SOURCE], and args drops argv[0]
+        src = read_src(args[2]) if len(args) > 2 else None
+        if not src:
+            die_note("fidelity needs a source path: "
+                     "--fidelity-only REPORT SOURCE.abap")
+        for p in [x for x in args[1:] if not x.lower().endswith(".abap")]:
+            s = io.open(p, encoding="utf-8").read()
+            n = fidelity_note(s, src)
+            if n:
+                print(f"FAIL  {os.path.basename(p)}")
+                print(f"  note  {n}")
+            else:
+                print(f"PASS  {os.path.basename(p)}")
+        return 0
     if args[0] == "--fix":
         rest = [a for a in args[1:] if a != "-o"]
         if "-o" in args:

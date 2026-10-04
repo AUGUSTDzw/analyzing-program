@@ -1,0 +1,113 @@
+{
+ "report": "D:\\Workspace\\Skills\\analyzing-programs\\Test-result\\arm\\v1fid_Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md",
+ "verdicts": {
+  "D1": "yes",
+  "D2": "partial",
+  "D3": "partial",
+  "D4": "no",
+  "D5": "partial",
+  "D6": "yes",
+  "D7": "no",
+  "D8": "no",
+  "D9": "yes",
+  "D10": "no",
+  "D11": "yes",
+  "D12": "partial",
+  "D13": "yes",
+  "D14": "yes",
+  "D15": "partial",
+  "D16": "partial",
+  "D17": "partial",
+  "D18": "no",
+  "D19": "partial",
+  "D20": "yes"
+ },
+ "evidence": {
+  "D1": {
+   "report_line": 530,
+   "quote": "②`ZZSTJAH` 取的是**当前行的 `GJAHR`**，而不是被参照凭证自己的年度；`lv_awkey` 里其实已经带着对方的年度（拆 `ZZAWKEY` 时就是这么拆的），所以本行与被参照凭证跨年时会得到错误的年度组合。应在同一条 `SELECT` 里一并取 `GJAHR`。"
+  },
+  "D2": {
+   "report_line": 530,
+   "quote": "④`##WARN_OK` 与 `#EC CI_NOORDER` 压掉了快取提示，值得警惕"
+  },
+  "D3": {
+   "report_line": 530,
+   "quote": "③`lt_vbrp` 的行结构按 `VBELN` **非唯一**排序，一个交货发票有多行时 `READ TABLE` 返回的是任意一条匹配行"
+  },
+  "D5": {
+   "report_line": 698,
+   "quote": "这个 `sy-subrc` 是上面那个 `LOOP AT lt_devir_sorted ... ENDLOOP` 留下的"
+  },
+  "D6": {
+   "report_line": 584,
+   "quote": "①**账户切换判据只看 `KONTO`，不看 `BUKRS`**"
+  },
+  "D9": {
+   "report_line": 279,
+   "quote": "`ZSDP_RFITEMAR` 的第 5 位是下划线，永远不等于 `RFITE`"
+  },
+  "D11": {
+   "report_line": 1261,
+   "quote": "①`DATA: lv_fname(5) TYPE c.` 只给了 5 个字符"
+  },
+  "D12": {
+   "report_line": 1332,
+   "quote": "⑤`lv_mode TYPE rfpdo-allgazmd VALUE 'E'` 与 `i_update = 'S'` 是过账策略的核心参数，写死在方法内部"
+  },
+  "D13": {
+   "report_line": 1332,
+   "quote": "但失败分支（`sy-subrc <> 0`）**完全没有处理**——过账失败时方法照常执行 `POSTING_INTERFACE_END` 然后返回，调用方拿不到任何异常或消息。"
+  },
+  "D14": {
+   "report_line": 1584,
+   "quote": "失败时既不抛异常也不记日志，`re_netdt` 就是初始的 `00000000`"
+  },
+  "D15": {
+   "report_line": 1465,
+   "quote": "②`WRITE` 受调用用户的 `SY-UFDYM` 字段格式屏蔽影响，不同用户调同一方法可能得到不同长度的输出串"
+  },
+  "D16": {
+   "report_line": 1465,
+   "quote": "④缓存无失效机制，长会话里会持续增长；影响很小，可接受。"
+  },
+  "D17": {
+   "report_line": 227,
+   "quote": "投影与过滤用的都是 `kna1~lifnr`，而 `KNA1` 的客户主键是 `KUNNR`"
+  },
+  "D19": {
+   "report_line": 1661,
+   "quote": "③方法名 `get_domestic_...` 与实际含义（同时内贸与外贸）不符"
+  },
+  "D20": {
+   "report_line": 913,
+   "quote": "`lv_keydt` 会下溢成 `99999999`，随后两条 `budat LE lv_keydt` 会把**全部历史未清项目**拉进来"
+  }
+ },
+ "false_claims": [
+  {
+   "claim": "ABAP 里 `WHERE lifnr IN @<初始区间表>` 是“没有可匹配值”，不是“不限制”，所以调用方若只传 `it_iban` 而不传两个伙伴区间，两条查询都返回空，`check_iban_duplicate` 于是永远判定“无重复” (line 203)",
+   "why_wrong": "D17: the three OPTIONAL range parameters are used unconditionally as ranges, so an unsupplied range means 'no restriction' - not 'no matching value'. The report inverts the default-path behaviour and builds a 🔴 priority item (line 1707) on the inverted reading."
+  },
+  {
+   "claim": "只传 IBAN 区间时两条 SQL 都返回空，校验恒通过——一个“看似在校验、实际不校验”的默认路径 (line 1707)",
+   "why_wrong": "D17: an unsupplied optional range imposes no restriction, so the default path is not 'returns empty / always passes' - the same inversion restated as a top-priority finding."
+  },
+  {
+   "claim": "`ENDLOOP` 在未进入循环体时确实置 4，逻辑成立，但中间任何一次 `READ TABLE`/`ADD` 之外的语句都可能覆盖它 (line 698)",
+   "why_wrong": "D5: the `IF sy-subrc <> 0` after `ENDLOOP` is not a loop-found test at all - it is the leftover sy-subrc of the last statement executed inside the loop body (READ TABLE / nested LOOP). The report asserts the logic holds and reduces a live defect to a fragility note."
+  },
+  {
+   "claim": "这是一个纯筛选方法，逻辑本身正确且高效（不复制、不 `DELETE`，一次 `FOR` 表达式完成过滤与投影） (line 1659)",
+   "why_wrong": "D19: the `WHERE is_foreign = abap_true AND is_domestic = abap_true` intersection returns an almost necessarily empty set under a method name that promises domestic types - a business-correctness defect, not correct logic."
+  },
+  {
+   "claim": "它复用了 SAP 自己的日期解析 FM，从而**跟随用户的日期格式设置**（`DD.MM.YYYY`、`YYYYMMDD` 等），而不是把格式写死 (line 1463)",
+   "why_wrong": "D15: `WRITE iv_datum TO lv_datxt` produces the user's display format, but `CONVERSION_EXIT_INVDT_INPUT` expects the internal format - so the chain is wrong, and the wrong result is written into the class-wide cache."
+  },
+  {
+   "claim": "缓存用得漂亮且安全。三张 `HASHED` 表 + `ASSIGN [ KEY primary_key ... ]` + `INSERT ... ASSIGNING` 的组合 (line 1739)",
+   "why_wrong": "D16: `INSERT ls_cache INTO TABLE gt_dg_cache ASSIGNING <ls_cache>` targets a UNIQUE-key table, so a duplicate key leaves the field symbol unassigned and `rv_gdatu = <ls_cache>-gdatu` dereferences it; the class-data cache is also unbounded and never invalidated. The pattern praised as safe is the defect."
+  }
+ ]
+}
