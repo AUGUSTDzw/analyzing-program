@@ -1,0 +1,211 @@
+{
+ "report": "D:\\Workspace\\Skills\\analyzing-programs\\Test-result\\arm\\v1two3_Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md",
+ "verdicts": {
+  "D1": "yes",
+  "D2": "yes",
+  "D3": "no",
+  "D4": "yes",
+  "D5": "partial",
+  "D6": "yes",
+  "D7": "yes",
+  "D8": "yes",
+  "D9": "yes",
+  "D10": "yes",
+  "D11": "partial",
+  "D12": "yes",
+  "D13": "yes",
+  "D14": "yes",
+  "D15": "partial",
+  "D16": "partial",
+  "D17": "yes",
+  "D18": "no",
+  "D19": "yes",
+  "D20": "partial",
+  "D21": "yes",
+  "D22": "partial",
+  "D23": "partial",
+  "D24": "yes",
+  "D25": "yes",
+  "D26": "yes",
+  "D27": "partial",
+  "D28": "partial",
+  "D30": "yes",
+  "D31": "yes",
+  "D32": "yes",
+  "D33": "partial",
+  "D34": "yes",
+  "D35": "partial",
+  "D36": "partial",
+  "D37": "partial",
+  "D38": "partial",
+  "D39": "no"
+ },
+ "evidence": {
+  "D1": {
+   "report_line": 500,
+   "quote": "写的是行项目自身的会计年度，不是查出来的冲销凭证的年度"
+  },
+  "D2": {
+   "report_line": 501,
+   "quote": "`SELECT SINGLE` 命中多行时 ABAP 取**任意一行**（实际是数据库返回的第一行，无序保证）"
+  },
+  "D4": {
+   "report_line": 502,
+   "quote": "只在 `IF lv_awkey IS NOT INITIAL` 前于三个分支里 `CLEAR`"
+  },
+  "D5": {
+   "report_line": 726,
+   "quote": "**`IF sy-subrc <> 0` 依赖内层 `LOOP ... INTO` 结束时的 `sy-subrc` 约定**"
+  },
+  "D6": {
+   "report_line": 727,
+   "quote": "`lv_konto_temp` 用科目单字段判断\"是否新科目\"，**忽略公司代码**"
+  },
+  "D7": {
+   "report_line": 233,
+   "quote": "内层 `DELETE ct_items WHERE ...` 是范围删除，会一次删多行"
+  },
+  "D8": {
+   "report_line": 723,
+   "quote": "**`INSERT ... INTO ct_items` 在 `LOOP AT ct_items ASSIGNING <ls_items>` 内部执行，是全类最严重的问题。**"
+  },
+  "D9": {
+   "report_line": 212,
+   "quote": "**`sy-cprog(5) = 'RFITE'` 恒为假。**"
+  },
+  "D10": {
+   "report_line": 260,
+   "quote": "若 `ASSIGN` 失败，`<lv_x_aisel>` 未分配，此处直接比较会 **short dump**"
+  },
+  "D11": {
+   "report_line": 1464,
+   "quote": "**`lv_fname(5) TYPE c` 是固定长度 5 字符**，`'BLAR'` + `KOART`（1 字符）正好 5。"
+  },
+  "D12": {
+   "report_line": 1529,
+   "quote": "`i_mode = 'E'`（测试模式）——**如果这不是有意为之，那么过账实际上不会落库**，方法就是个空转。"
+  },
+  "D13": {
+   "report_line": 1523,
+   "quote": "**`POSTING_INTERFACE_CLEARING` 的成功/失败判断反了。**"
+  },
+  "D14": {
+   "report_line": 1646,
+   "quote": "**`SELECT SINGLE` 后不判 `sy-subrc`。**"
+  },
+  "D15": {
+   "report_line": 1691,
+   "quote": "B 会命中 A 缓存下来的 `GDATU`，**这个汇率日期对 B 是错的**（月份与日被交换）"
+  },
+  "D16": {
+   "report_line": 1694,
+   "quote": "**缓存无上限且无失效。**"
+  },
+  "D17": {
+   "report_line": 1215,
+   "quote": "**客户分支的 `kna1~lifnr` 是错的字段名。** `KNA1`（客户主数据）的主键字段是 `KUNNR`，**不存在 `LIFNR`**。"
+  },
+  "D19": {
+   "report_line": 1812,
+   "quote": "方法名叫\"内销单据类型\"，但条件是**两个标志同时为真**的交集"
+  },
+  "D20": {
+   "report_line": 905,
+   "quote": "**只取 `SO_BUDAT` 的第一行 `LOW`，多行范围与上界被完全忽略。**"
+  },
+  "D21": {
+   "report_line": 1883,
+   "quote": "把系统字段 `SY-MANDT` 当接收变量"
+  },
+  "D22": {
+   "report_line": 1886,
+   "quote": "`iv_zhrtip(2) <> 'OK'` 与 `iv_zhrtip+1(2) <> 'TH'` 的偏移"
+  },
+  "D23": {
+   "report_line": 1887,
+   "quote": "`'' <> 'OK'` 为真 → 抛异常"
+  },
+  "D24": {
+   "report_line": 1262,
+   "quote": "用户一次粘贴 50 个 IBAN，若有 3 个重复，只会看到第一个被拒且无从知道另外两个"
+  },
+  "D25": {
+   "report_line": 1264,
+   "quote": "**`party` 与 `party_type` 的 `COND #()` 没有 `ELSE` 分支。**"
+  },
+  "D26": {
+   "report_line": 1217,
+   "quote": "`tiban~*` 把 `TIBAN` 的全部字段"
+  },
+  "D27": {
+   "report_line": 1219,
+   "quote": "上层 `check_iban_duplicate` 的 `CHECK lt_tiban IS NOT INITIAL` 直接放过，**IBAN 查重静默失效**"
+  },
+  "D28": {
+   "report_line": 1590,
+   "quote": "所以这段 `TRY` 是纯装饰"
+  },
+  "D30": {
+   "report_line": 1599,
+   "quote": "在**后台作业**里这会导致作业挂起直到超时，在前台则需要人工点一次"
+  },
+  "D31": {
+   "report_line": 1462,
+   "quote": "**只处理第一行的抬头，且第一行是不确定的。**"
+  },
+  "D32": {
+   "report_line": 1412,
+   "quote": "声明了但没传值（`lt_blntab`、`lt_fttax` 只传空表）"
+  },
+  "D33": {
+   "report_line": 1524,
+   "quote": "`POSTING_INTERFACE_START` 失败时的 `MESSAGE` 没有 `MESSAGE TYPE` 的受控处理"
+  },
+  "D34": {
+   "report_line": 1525,
+   "quote": "`session_not_processable` 意味着会话无法提交"
+  },
+  "D35": {
+   "report_line": 1038,
+   "quote": "`UMSKZ`（特殊总账标记）在 GL 分支里**根本没查出来**"
+  },
+  "D36": {
+   "report_line": 960,
+   "quote": "`WHERE ... AND ( lifnr = it_hesap-sube OR lifnr = it_hesap-merkez )` 这个写法有隐患"
+  },
+  "D37": {
+   "report_line": 1039,
+   "quote": "之前没有 `<lt_saknr> IS NOT INITIAL` 守卫"
+  },
+  "D38": {
+   "report_line": 233,
+   "quote": "删的是 `sy-tabix` 当前指的那一行"
+  }
+ },
+ "false_claims": [
+  {
+   "claim": "第 ⑥ 步用 `READ TABLE ... WITH TABLE KEY vbeln` 走结构键二分查找是合法的（键是次级键前缀）。这个写法正确，保留。",
+   "why_wrong": "D3: report line 504 declares `READ TABLE ... WITH TABLE KEY` on a table declared `SORTED ... WITH NON-UNIQUE KEY vbeln` (likewise tt_mseg mblnr/mjahr and tt_rbkp belnr/gjahr) to be legal and correct; the defect list holds this to be a key misuse that is an activation error or returns an arbitrary first match. The report never identifies it."
+  },
+  {
+   "claim": "ABAP 中 `LOOP` 正常结束（跑到表尾且至少有一行）是 `sy-subrc = 0`，未命中或表空是 4，方向正确",
+   "why_wrong": "D5: report line 729 asserts the `IF sy-subrc <> 0` after `ENDLOOP` correctly reflects whether the opening-balance loop found anything; the defect list holds that `sy-subrc` there is merely the leftover value of the last statement executed inside the loop body, so the 'no devir' branch is decided by unrelated code."
+  },
+  {
+   "claim": "`'BLAR'` + `KOART`（1 字符）正好 5。若将来 `KOART` 类型变化（如变成长度 2），`CONCATENATE` 会截断并抛运行时错误。",
+   "why_wrong": "D11: report line 1464 treats lv_fname(5) as exactly the right length because KOART is '1 character'. BSEG-KOART is CHAR4, so 'BLAR'+KOART needs 8 characters and the name is always truncated; the dynamic SELECT then finds no field and BLART stays initial. The report also wrongly claims CONCATENATE truncation raises a runtime error."
+  },
+  {
+   "claim": "`CONVERSION_EXIT_INVDT_INPUT` 期望的正是\"用户显示格式\"的输入，所以语义上是对的",
+   "why_wrong": "D15: report line 1691 states the WRITE-to-display-format before CONVERSION_EXIT_INVDT_INPUT is semantically correct; the defect list holds that INVDT_INPUT expects the internal format, so the conversion result is wrong and is then stored in the class-wide cache."
+  },
+  {
+   "claim": "但注意 `INSERT ... ASSIGNING <ls_cache>` 之后 `sy-subrc` 会被重置为 0，而代码已经走过了判断，无碍。",
+   "why_wrong": "D16: report line 1693 declares the INSERT ... ASSIGNING on the UNIQUE-KEY hashed cache harmless; the defect list holds that a duplicate key leaves the field symbol unassigned and the following `rv_gdatu = <ls_cache>-gdatu` dereferences it (CX_SY_REF_IS_INITIAL)."
+  },
+  {
+   "claim": "返回类型 `tt_blart` 是 `HASHED TABLE OF blart WITH UNIQUE KEY table_line`，天然去重。",
+   "why_wrong": "D18: report line 1807 claims the hashed unique-key return type deduplicates naturally; the defect list holds that `rt_blart = VALUE #( FOR ... )` builds a plain list that is then assigned to tt_blart, so a repeated document type raises CX_SY_DUPLICATE_KEY at runtime instead of being deduplicated."
+  }
+ ]
+}

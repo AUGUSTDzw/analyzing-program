@@ -1,0 +1,127 @@
+{
+  "report": "D:\\Workspace\\Skills\\analyzing-programs\\Test-result\\arm\\v1two3_Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md",
+  "verdicts": {
+    "D21": "yes",
+    "D22": "partial",
+    "D23": "partial",
+    "D24": "yes",
+    "D25": "yes",
+    "D26": "yes",
+    "D27": "partial",
+    "D28": "partial",
+    "D30": "yes",
+    "D31": "yes",
+    "D32": "yes",
+    "D33": "partial",
+    "D34": "yes",
+    "D35": "partial",
+    "D36": "partial",
+    "D37": "partial",
+    "D38": "partial",
+    "D39": "no"
+  },
+  "evidence": {
+    "D21": {
+      "report_line": 1883,
+      "quote": "把系统字段 `SY-MANDT` 当接收变量"
+    },
+    "D22": {
+      "report_line": 1886,
+      "quote": "`iv_zhrtip(2) <> 'OK'` 与 `iv_zhrtip+1(2) <> 'TH'` 的偏移"
+    },
+    "D23": {
+      "report_line": 1887,
+      "quote": "`'' <> 'OK'` 为真 → 抛异常"
+    },
+    "D24": {
+      "report_line": 1262,
+      "quote": "用户一次粘贴 50 个 IBAN，若有 3 个重复，只会看到第一个被拒且无从知道另外两个"
+    },
+    "D25": {
+      "report_line": 1264,
+      "quote": "**`party` 与 `party_type` 的 `COND #()` 没有 `ELSE` 分支。**"
+    },
+    "D26": {
+      "report_line": 1217,
+      "quote": "`tiban~*` 把 `TIBAN` 的全部字段"
+    },
+    "D27": {
+      "report_line": 1219,
+      "quote": "上层 `check_iban_duplicate` 的 `CHECK lt_tiban IS NOT INITIAL` 直接放过，**IBAN 查重静默失效**"
+    },
+    "D28": {
+      "report_line": 1590,
+      "quote": "所以这段 `TRY` 是纯装饰"
+    },
+    "D30": {
+      "report_line": 1599,
+      "quote": "在**后台作业**里这会导致作业挂起直到超时，在前台则需要人工点一次"
+    },
+    "D31": {
+      "report_line": 1462,
+      "quote": "**只处理第一行的抬头，且第一行是不确定的。**"
+    },
+    "D32": {
+      "report_line": 1412,
+      "quote": "声明了但没传值（`lt_blntab`、`lt_fttax` 只传空表）"
+    },
+    "D33": {
+      "report_line": 1524,
+      "quote": "`POSTING_INTERFACE_START` 失败时的 `MESSAGE` 没有 `MESSAGE TYPE` 的受控处理"
+    },
+    "D34": {
+      "report_line": 1525,
+      "quote": "`session_not_processable` 意味着会话无法提交"
+    },
+    "D35": {
+      "report_line": 1038,
+      "quote": "`UMSKZ`（特殊总账标记）在 GL 分支里**根本没查出来**"
+    },
+    "D36": {
+      "report_line": 960,
+      "quote": "`WHERE ... AND ( lifnr = it_hesap-sube OR lifnr = it_hesap-merkez )` 这个写法有隐患"
+    },
+    "D37": {
+      "report_line": 1039,
+      "quote": "之前没有 `<lt_saknr> IS NOT INITIAL` 守卫"
+    },
+    "D38": {
+      "report_line": 233,
+      "quote": "删的是 `sy-tabix` 当前指的那一行"
+    }
+  },
+  "false_claims": [
+    {
+      "claim": "随后 `DELETE ct_items.` 不带 `WHERE`，删的是 `sy-tabix` 当前指的那一行",
+      "why_wrong": "D38: `DELETE ct_items.` with no WHERE clause and no FROM/TO deletes every remaining row of ct_items, not the single row at sy-tabix; the report therefore describes a one-row deletion and misses the mass deletion (repeated at report lines 234 and 2065)."
+    },
+    {
+      "claim": "`'' <> 'OK'` 为真 → 抛异常",
+      "why_wrong": "D23: iv_zhrtip is substringed at a fixed offset with no length check, so an initial/short value raises a substring runtime error before any comparison; the report says the empty case cleanly raises zcx_fi_zhrtip."
+    },
+    {
+      "claim": "所以这段 `TRY` 是纯装饰",
+      "why_wrong": "D28: the whole BDC body sits in TRY...ENDTRY with no CATCH, so every failure including the submit error is swallowed and the caller is told the open items were cleared; the report instead treats the TRY as inert and, at line 1597, advises deleting it."
+    },
+    {
+      "claim": "会按 FM 设定的消息类型终止程序",
+      "why_wrong": "D33: after the failed POSTING_INTERFACE_START there is no RETURN, so execution falls through and POSTING_INTERFACE_CLEARING and POSTING_INTERFACE_END are still called without a session."
+    },
+    {
+      "claim": "在 Open SQL 里条件不成立 → 返回 0 行，行为安全",
+      "why_wrong": "D37: the RFITEMGL range is only guarded by `IF sy-subrc = 0.`, so an assigned but empty SD_SAKNR range silently omits all general-ledger opening balances; the report calls this behaviour safe."
+    },
+    {
+      "claim": "行为上恰好无害，但应显式注释",
+      "why_wrong": "D35: in the RFITEMGL branch both umskz and filkd are commented out of the bsis/bsas field lists, so they reach the COLLECT aggregation initial for every general-ledger account (the report only says the DELETE is a harmless no-op and never mentions filkd)."
+    },
+    {
+      "claim": "`WHERE ... AND ( lifnr = it_hesap-sube OR lifnr = it_hesap-merkez )` 这个写法有隐患",
+      "why_wrong": "D36: the report calls this construct 逻辑正确 and only notes an extra empty comparison per FOR ALL ENTRIES row; it never states that combining FOR ALL ENTRIES with a parenthesised OR on the driver row destroys the per-row correlation and degrades the join to a filtered cross product."
+    },
+    {
+      "claim": "<ls_items>-zzbstkd = <ls_vbrp>-bstkd.",
+      "why_wrong": "D39: the source assigns zzbstkd from zuonr inside the LOOP AT ct_items ASSIGNING loop, mutating a sort-key component mid-iteration; the report's excerpt quotes a different assignment, so it never reaches that defect (excerpt repeated at report line 801)."
+    }
+  ]
+}

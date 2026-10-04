@@ -1,0 +1,79 @@
+{
+ "report": "D:\\Workspace\\Skills\\analyzing-programs\\Test-result\\arm\\v1gate_Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md",
+ "verdicts": {
+  "D21": "yes",
+  "D22": "no",
+  "D23": "no",
+  "D24": "yes",
+  "D25": "no",
+  "D26": "no",
+  "D27": "no",
+  "D28": "partial",
+  "D30": "yes",
+  "D31": "partial",
+  "D32": "no",
+  "D33": "yes",
+  "D34": "yes",
+  "D35": "partial",
+  "D36": "no",
+  "D37": "no",
+  "D38": "partial",
+  "D39": "no"
+ },
+ "evidence": {
+  "D21": {
+   "report_line": 558,
+   "quote": "`SELECT SINGLE mandt ... INTO @sy-mandt` 把查询结果写进**系统字段** `SY-MANDT`"
+  },
+  "D24": {
+   "report_line": 278,
+   "quote": "`lt_tiban[ 1 ]` 意味着用户一次录入 10 个 IBAN、其中 3 个重复时，只会被告知第 1 个"
+  },
+  "D28": {
+   "report_line": 854,
+   "quote": "`TRY ... ENDTRY` 不带异常清单等价于什么都没写，内部抛出的异常会以未处理异常结束（short dump）"
+  },
+  "D30": {
+   "report_line": 868,
+   "quote": "`=WAIT_USER` 那个 `SAPDF05X` 屏在后台作业里会挂起，方法应显式拒绝非前台调用"
+  },
+  "D31": {
+   "report_line": 725,
+   "quote": "`BLART` 只按**第一行**的 `KOART` 查一次，然后作为整张凭证的凭证类型"
+  },
+  "D33": {
+   "report_line": 810,
+   "quote": "`POSTING_INTERFACE_START` 出错后**只发 `MESSAGE` 然后继续往下执行**"
+  },
+  "D34": {
+   "report_line": 810,
+   "quote": "`POSTING_INTERFACE_END` 的 `OTHERS = 2 ##FM_SUBRC_OK` 明明白白放弃检查"
+  },
+  "D35": {
+   "report_line": 1045,
+   "quote": "带特殊标识的总账未清项目会被当成普通项目计入期初"
+  },
+  "D38": {
+   "report_line": 1177,
+   "quote": "再删掉自己这一行 —— 效果是一对冲销凭证在明细账里整对消失，不重复计入余额"
+  }
+ },
+ "false_claims": [
+  {
+   "claim": "9 位科目要求第 2 至 3 位是 `'TH'`",
+   "why_wrong": "D22: the two branches read different offsets (`iv_zhrtip(2)` vs `iv_zhrtip+1(2)`); the report presents characters 2-3 as the requirement, but the checked positions sit where GOKART/BLART occupies 1-2, so the offset mismatch is presented as intended spec."
+  },
+  {
+   "claim": "`TRY ... ENDTRY` 不带异常清单等价于什么都没写，内部抛出的异常会以未处理异常结束（short dump）",
+   "why_wrong": "D28: the CATCH-less `TRY. ... ENDTRY.` swallows every failure of the F-32 clearing including a submit error, so the caller is told the open items were cleared instead of getting a dump."
+  },
+  {
+   "claim": "值全部来自入参 `is_bkpf`",
+   "why_wrong": "D31: all header records are appended only inside `IF sy-tabix = 1.`, so the posted header values (BUKRS taken from `ls_bseg-bukrs`, BLART from the first row's KOART lookup) come from the first BSEG row's context, not uniformly from `is_bkpf`."
+  },
+  {
+   "claim": "再删掉自己这一行 —— 效果是一对冲销凭证在明细账里整对消失，不重复计入余额",
+   "why_wrong": "D38: `DELETE ct_items.` inside the LOOP has no WHERE clause, so it removes every remaining row of the item table, not just the current clearing document."
+  }
+ ]
+}

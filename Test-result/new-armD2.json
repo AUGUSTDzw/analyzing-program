@@ -1,0 +1,123 @@
+{
+  "report": "D:\\Workspace\\Skills\\analyzing-programs\\Test-result\\arm\\v1two2_Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md",
+  "verdicts": {
+    "D21": "yes",
+    "D22": "partial",
+    "D23": "partial",
+    "D24": "yes",
+    "D25": "yes",
+    "D26": "yes",
+    "D27": "partial",
+    "D28": "partial",
+    "D30": "no",
+    "D31": "partial",
+    "D32": "partial",
+    "D33": "yes",
+    "D34": "partial",
+    "D35": "yes",
+    "D36": "partial",
+    "D37": "partial",
+    "D38": "yes",
+    "D39": "no"
+  },
+  "evidence": {
+    "D21": {
+      "report_line": 1964,
+      "quote": "把查询结果写进 `SY-MANDT` 是本类里最危险的一行代码"
+    },
+    "D22": {
+      "report_line": 1966,
+      "quote": "`iv_zhrtip(2)` 和 `iv_zhrtip+1(2)` 假定 `ZHRTIP` 是 `CHAR4` 且字符位置有固定含义（2~3 位是 `'OK'` 类、3~4 位是 `'TH'` 类）"
+    },
+    "D23": {
+      "report_line": 1968,
+      "quote": "`iv_zhrtip(2)` 在 `iv_zhrtip` 为初始值时得到 `'  '`（两个空格），`'  ' <> 'OK'` 为真 → 抛异常"
+    },
+    "D24": {
+      "report_line": 1339,
+      "quote": "若它是标准表，重复行会让 `check_iban_duplicate` 的 `lt_tiban[ 1 ]` 取到不确定的那一条"
+    },
+    "D25": {
+      "report_line": 1376,
+      "quote": "若 `kunnr` 和 `lifnr` 都为空（结构里两列都没填），`party` 与 `party_type` 都为空，异常消息会是空的 `zcx_fi_iban` 文本"
+    },
+    "D26": {
+      "report_line": 1340,
+      "quote": "`tiban~*` 取全部字段然后 `##TOO_MANY_ITAB_FIELDS` 压掉"
+    },
+    "D27": {
+      "report_line": 1337,
+      "quote": "而 `WHERE lfa1~lifnr IN @it_lifnr` 对空范围表恒为假——**这个 SELECT 会安静地返回 0 行**"
+    },
+    "D28": {
+      "report_line": 1713,
+      "quote": "`TRY` 无 `CATCH` 在 ABAP 里语法合法但语义上等价于没有 `TRY`——它唯一的作用是让读者以为有错误处理"
+    },
+    "D31": {
+      "report_line": 1849,
+      "quote": "代码会按第一行的类别取一个凭证类型，然后对所有行（`AGKOA` 各自不同）都按这个类型过账"
+    },
+    "D32": {
+      "report_line": 1803,
+      "quote": "其中 `lt_blntab` 和 `lt_fttax` 是**只传入不填数据**的空表"
+    },
+    "D33": {
+      "report_line": 1914,
+      "quote": "`POSTING_INTERFACE_START` 失败后没有 `RETURN`"
+    },
+    "D34": {
+      "report_line": 1919,
+      "quote": "可以接受（END 失败通常不影响已过账的数据），但应有注释说明为什么"
+    },
+    "D35": {
+      "report_line": 1082,
+      "quote": "`umskz`（特别科目标识）和 `filkd`（记账日期）在这个分支被注释掉了"
+    },
+    "D36": {
+      "report_line": 1026,
+      "quote": "导致 `lt_hesap` 中每一条 `(sube, merkez)` 配对都会**全量重扫一次表**——N 个科目就是 N 次 FAE 查询"
+    },
+    "D37": {
+      "report_line": 1087,
+      "quote": "用 `sy-subrc` 判断，而上一段 `ASSIGN` 的结果会覆盖——这里因为紧跟判断所以是对的"
+    },
+    "D38": {
+      "report_line": 320,
+      "quote": "`LOOP AT ct_items` 内对同一张表做无 WHERE 的 `DELETE ct_items`"
+    }
+  },
+  "false_claims": [
+    {
+      "claim": "`TRY` 无 `CATCH` 在 ABAP 里语法合法但语义上等价于没有 `TRY`——它唯一的作用是让读者以为有错误处理",
+      "why_wrong": "D28: a bare `TRY. ... ENDTRY.` without CATCH catches every catchable exception, so the opposite holds — every F-32 failure including the submit error is swallowed and the caller is told the open items were cleared; it is not 'equivalent to no TRY' and the exceptions do not 'run free'."
+    },
+    {
+      "claim": "而 `WHERE lfa1~lifnr IN @it_lifnr` 对空范围表恒为假——**这个 SELECT 会安静地返回 0 行**",
+      "why_wrong": "D27: the two SELECTs sit inside `IF iv_get_vendor IS NOT INITIAL` / `IF iv_get_client IS NOT INITIAL`, so the silent empty result (treated by `CHECK lt_tiban IS NOT INITIAL` as 'no duplicate') arises when neither flag is set; the report never examines the flag guards and mislocates the cause in the range parameters."
+    },
+    {
+      "claim": "`iv_zhrtip(2)` 和 `iv_zhrtip+1(2)` 假定 `ZHRTIP` 是 `CHAR4` 且字符位置有固定含义（2~3 位是 `'OK'` 类、3~4 位是 `'TH'` 类）",
+      "why_wrong": "D22: the two checks do not read two intended positions — `iv_zhrtip+1(2)` reads characters 2~3 (offset 1, length 2), i.e. the position where GOKART/BLART occupies 1~2, so the '9' case inspects a shifted, unrelated position; the report presents the asymmetry as a deliberate domain rule."
+    },
+    {
+      "claim": "`iv_zhrtip(2)` 在 `iv_zhrtip` 为初始值时得到 `'  '`（两个空格），`'  ' <> 'OK'` 为真 → 抛异常",
+      "why_wrong": "D23: there is no length check on the parameter, so a value shorter than the offset raises a substring runtime error instead of yielding blanks and failing the validation cleanly; the report asserts the benign blanks-and-exception outcome."
+    },
+    {
+      "claim": "用 `sy-subrc` 判断，而上一段 `ASSIGN` 的结果会覆盖——这里因为紧跟判断所以是对的",
+      "why_wrong": "D37: `IF sy-subrc = 0.` after the ASSIGN only proves the ASSIGN succeeded, not that the range has content — an assigned but empty `SD_SAKNR` matches nothing and the general-ledger opening balances are silently omitted, so the check is not 'correct' here."
+    },
+    {
+      "claim": "可以接受（END 失败通常不影响已过账的数据），但应有注释说明为什么",
+      "why_wrong": "D34: `session_not_processable` and `OTHERS` are listed on POSTING_INTERFACE_END and `sy-subrc` is never tested, so a session that cannot be committed fails silently while the caller is told the transfer succeeded; declaring it acceptable is not the defect's substance."
+    },
+    {
+      "claim": "其中 `lt_blntab` 和 `lt_fttax` 是**只传入不填数据**的空表——这是因为 FM 的 `TABLES` 参数是必需（不能省略），只能传空表",
+      "why_wrong": "D32: the clearing run receives an empty BLNTAB and an empty FTTAX, which is an unfilled interface contract for POSTING_INTERFACE_CLEARING, not merely a suppression-comment ambiguity as the report implies."
+    },
+    {
+      "claim": "代码会按第一行的类别取一个凭证类型，然后对所有行（`AGKOA` 各自不同）都按这个类型过账",
+      "why_wrong": "D31: the first-row scope is wider than KOART/BLART — every ftpost value posted (BUKRS, BLART, BLDAT, BUDAT, XBLNR, WAERS) is taken from the first BSEG row while `lt_ftclear` receives a clearing row for every row, so all header data of the batch collapses onto row 1."
+    }
+  ]
+}

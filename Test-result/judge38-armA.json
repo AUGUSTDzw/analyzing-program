@@ -1,0 +1,115 @@
+{
+ "report": "D:\\Workspace\\Skills\\analyzing-programs\\Test-source\\real\\Keremkoseoglu__ABAP-Library__functional__fi__ZCL_FI_TOOLKIT.report.md",
+ "verdicts": {
+  "D1": "yes",
+  "D2": "partial",
+  "D3": "partial",
+  "D4": "yes",
+  "D5": "partial",
+  "D6": "yes",
+  "D7": "yes",
+  "D8": "yes",
+  "D9": "yes",
+  "D10": "yes",
+  "D11": "yes",
+  "D12": "no",
+  "D13": "yes",
+  "D14": "yes",
+  "D15": "yes",
+  "D16": "partial",
+  "D17": "yes",
+  "D18": "no",
+  "D19": "yes",
+  "D20": "yes",
+  "D21": "yes",
+  "D22": "no",
+  "D23": "yes",
+  "D24": "partial",
+  "D25": "no",
+  "D26": "yes",
+  "D27": "no",
+  "D28": "yes",
+  "D30": "yes",
+  "D31": "yes",
+  "D32": "no",
+  "D33": "yes",
+  "D34": "yes",
+  "D35": "yes",
+  "D36": "yes",
+  "D37": "no",
+  "D38": "no",
+  "D39": "no"
+ },
+ "evidence": {
+  "D21": {
+   "report_line": 1503,
+   "quote": "若将来有人在同一段逻辑之后读 `sy-mandt`，拿到的是被污染过的值"
+  },
+  "D23": {
+   "report_line": 1505,
+   "quote": "`zhrtip` 长度不足时越界会短点"
+  },
+  "D24": {
+   "report_line": 1099,
+   "quote": "只报第一条重复"
+  },
+  "D26": {
+   "report_line": 1155,
+   "quote": "就是承认取的比目标结构多"
+  },
+  "D28": {
+   "report_line": 1236,
+   "quote": "`TRY ... ENDTRY` 没有任何 `CATCH`"
+  },
+  "D30": {
+   "report_line": 1238,
+   "quote": "这个 `WAIT_USER` 会挂起或直接报错"
+  },
+  "D31": {
+   "report_line": 1314,
+   "quote": "`sy-tabix = 1` 假设所有行属于同一个凭证头"
+  },
+  "D33": {
+   "report_line": 1406,
+   "quote": "会带着无效的 posting session 继续调 `CLEARING`，错误被放大且难定位"
+  },
+  "D34": {
+   "report_line": 1407,
+   "quote": "`session_not_processable` 意味着会话没能正常结束，过账结果状态未知"
+  },
+  "D35": {
+   "report_line": 805,
+   "quote": "`umskz`/`filkd` 在 GL 分支被注释掉"
+  },
+  "D36": {
+   "report_line": 803,
+   "quote": "被析取一搅和优化器基本只能按 `BUKRS + BUDAT` 走，科目一多就是大范围扫描"
+  }
+ },
+ "false_claims": [
+  {
+   "claim": "3.13 risk 4 / section 3.13: \"i_mode='E'（遇错即停）\" and \"lv_mode 是本地变量不是参数 ... 批量场景'遇错继续'往往是业务需要的\"",
+   "why_wrong": "ALLGAZMD 'E' is not 'stop on error'; in POSTING_INTERFACE_START I_MODE 'P' = post, 'E' = exercise/test run. The clearing therefore never creates the document, so the method posts nothing while messages are issued as if it succeeded."
+  },
+  {
+   "claim": "Section 4 summary: \"② 唯一被写回的是 ALV 行集合，方法本身不写数据库；③ 数据库里唯一被修改的是 BKPF-XBLNR，且只发生在另一个方法 update_xblnr 里\"",
+   "why_wrong": "denklestirerek_transfer_kaydi calls POSTING_INTERFACE_CLEARING, which creates and posts a real BKPF document (that is the method's purpose); the class writes to the database in two places, not one."
+  },
+  {
+   "claim": "3.13 risk 2 / summary #41: \"动态字段名 lv_fname(5) ... 长度 5 恰好是 'BLAR' 加一位 koart\"",
+   "why_wrong": "'BLAR' is already 4 characters and KOART is 4, so CONCATENATE produces 8 characters into a 5-character target and is truncated (T041A-BLAR is CHAR(3), so the intended name is 7 characters). The report treats 5 as sufficient and never states the truncation."
+  },
+  {
+   "claim": "3.5 risk 1: \"不带 INHERITING MESSAGES、不带 LEAVE，走默认嵌套子 LUWI\"",
+   "why_wrong": "CALL TRANSACTION without LEAVE continues in the caller's own LUW/LUW1; no nested sub-LUWI is created. The report invents a nesting mechanism (the real effect is that the caller's uncommitted changes stay invisible, which it states separately)."
+  },
+  {
+   "claim": "Header and 1.2: \"全部为 CLASS-METHODS ... 18 个方法 + 3 个类级缓存\" / \"18 个方法之间几乎无耦合\"",
+   "why_wrong": "The class declares 17 methods (16 public + the private get_sd_inv); the report's own sections 3.2-3.17 enumerate 16 methods plus the declaration section."
+  },
+  {
+   "claim": "3.2 risk 5 (step 7): \"ls_item_devir-zuonr = TEXT-dvg ... 下游和第 ⑧ 步的过滤都靠它识别行\"",
+   "why_wrong": "Step 8 filters with CHECK <ls_items>-color <> lc_yellow, i.e. on the colour constant, not on the message text; the report contradicts itself at 3.2 step 7 ('第 ⑧ 步靠黄色过滤掉所有合计行')."
+  }
+ ]
+}

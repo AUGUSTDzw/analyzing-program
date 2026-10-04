@@ -1,0 +1,195 @@
+{
+ "report": "D:\\Workspace\\Skills\\analyzing-programs\\Test-result\\arm\\v1two2_Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md",
+ "verdicts": {
+  "D1": "yes",
+  "D2": "partial",
+  "D3": "partial",
+  "D4": "partial",
+  "D5": "yes",
+  "D6": "no",
+  "D7": "yes",
+  "D8": "no",
+  "D9": "yes",
+  "D10": "yes",
+  "D11": "partial",
+  "D12": "no",
+  "D13": "yes",
+  "D14": "yes",
+  "D15": "partial",
+  "D16": "yes",
+  "D17": "yes",
+  "D18": "no",
+  "D19": "yes",
+  "D20": "partial",
+  "D21": "yes",
+  "D22": "partial",
+  "D23": "partial",
+  "D24": "yes",
+  "D25": "yes",
+  "D26": "yes",
+  "D27": "partial",
+  "D28": "partial",
+  "D30": "no",
+  "D31": "partial",
+  "D32": "partial",
+  "D33": "yes",
+  "D34": "partial",
+  "D35": "yes",
+  "D36": "partial",
+  "D37": "partial",
+  "D38": "yes",
+  "D39": "no"
+ },
+ "evidence": {
+  "D1": {
+   "report_line": 542,
+   "quote": "然后用 `IF sy-subrc = 0. <ls_items>-zzstjah = <ls_items>-gjahr.` 拿**当前行所在的会计年度**当作被找到的那张凭证的年度"
+  },
+  "D2": {
+   "report_line": 542,
+   "quote": "还有 🟠 `##WARN_OK` 压掉了 ATC 的\"SELECT 结果未完全检查\"警告"
+  },
+  "D3": {
+   "report_line": 1229,
+   "quote": "两次调用方分别用 `WITH TABLE KEY vbeln = ...`（取完整键匹配的第一条）和 `WITH KEY vbeln = ... BINARY SEARCH`（取二分找到的第一条）读取"
+  },
+  "D4": {
+   "report_line": 542,
+   "quote": "另外 `lv_awkey` 只在两个分支里被 `CLEAR`，**销售分支没清**——若某行是销售类型而上一行是物料类型，`lv_awkey` 会带着上一行的残值进入 `IF lv_awkey IS NOT INITIAL`"
+  },
+  "D5": {
+   "report_line": 708,
+   "quote": "`LOOP AT lt_devir_sorted ... ENDLOOP. IF sy-subrc <> 0.` 依赖 `sy-subrc` 在循环后仍保留最后一次 `READ`/查找结果"
+  },
+  "D7": {
+   "report_line": 320,
+   "quote": "另外 `DELETE ct_items WHERE belnr = ... AND gjahr = ...` 只用 BELLR+GJAHR，**没带 BUKRS**——跨公司代码同号凭证会被误删"
+  },
+  "D9": {
+   "report_line": 300,
+   "quote": "`sy-cprog(5)` 取的是**第 5 个字符**，而 `'RFITE'` 是 5 个字符的整串——两者**永远不可能相等**"
+  },
+  "D10": {
+   "report_line": 274,
+   "quote": "`ASSIGN` **没有检查 `sy-subrc`**，后面第 ② 步却直接 `IF <lv_vari> CS 'EKSTRE'`——如果全局变量被改名或报表升级后消失，字段符号处于未指定状态，解引用即 dump"
+  },
+  "D11": {
+   "report_line": 1847,
+   "quote": "🔴 **`DATA: lv_fname(5) TYPE c.` 只有 5 位，而 `'BLAR'`(4) + `KOART`(2) = 6 位**"
+  },
+  "D13": {
+   "report_line": 1913,
+   "quote": "之后的 `IF sy-subrc = 0` 把成功当失败处理，这是本方法的第二个致命 bug"
+  },
+  "D14": {
+   "report_line": 2075,
+   "quote": "`IF sy-subrc <> 0. ENDIF.` 是空实现；`SELECT SINGLE` 后也不检查 `sy-subrc`"
+  },
+  "D15": {
+   "report_line": 1504,
+   "quote": "`WRITE iv_datum TO lv_datxt.` 是**用非法的正式用途借用 `WRITE`**：`WRITE ... TO` 是把内部值转成**输出格式**（受用户参数 `sy-...` 与字段输出宽度影响）"
+  },
+  "D16": {
+   "report_line": 1507,
+   "quote": "但 `INSERT ... INTO TABLE ... ASSIGNING` 之后没有再次确认 `sy-subrc`——理论上 `INSERT` 可能因唯一键冲突失败而字段符号未被指定，末尾解引用就会 dump"
+  },
+  "D17": {
+   "report_line": 1339,
+   "quote": "`SELECT kna1~lifnr` 是一个明确的字段错配"
+  },
+  "D19": {
+   "report_line": 2073,
+   "quote": "实现返回的却是 `is_foreign = 'X' AND is_domestic = 'X'` 的**国内外通用**集合"
+  },
+  "D20": {
+   "report_line": 918,
+   "quote": "没有校验 `lv_keydt` 是否为有效日期，空区间或格式异常时会静默算出一个不存在的截止日"
+  },
+  "D21": {
+   "report_line": 1964,
+   "quote": "把查询结果写进 `SY-MANDT` 是本类里最危险的一行代码"
+  },
+  "D22": {
+   "report_line": 1966,
+   "quote": "`iv_zhrtip(2)` 和 `iv_zhrtip+1(2)` 假定 `ZHRTIP` 是 `CHAR4` 且字符位置有固定含义（2~3 位是 `'OK'` 类、3~4 位是 `'TH'` 类）"
+  },
+  "D23": {
+   "report_line": 1968,
+   "quote": "`iv_zhrtip(2)` 在 `iv_zhrtip` 为初始值时得到 `'  '`（两个空格），`'  ' <> 'OK'` 为真 → 抛异常"
+  },
+  "D24": {
+   "report_line": 1339,
+   "quote": "若它是标准表，重复行会让 `check_iban_duplicate` 的 `lt_tiban[ 1 ]` 取到不确定的那一条"
+  },
+  "D25": {
+   "report_line": 1376,
+   "quote": "若 `kunnr` 和 `lifnr` 都为空（结构里两列都没填），`party` 与 `party_type` 都为空，异常消息会是空的 `zcx_fi_iban` 文本"
+  },
+  "D26": {
+   "report_line": 1340,
+   "quote": "`tiban~*` 取全部字段然后 `##TOO_MANY_ITAB_FIELDS` 压掉"
+  },
+  "D27": {
+   "report_line": 1337,
+   "quote": "而 `WHERE lfa1~lifnr IN @it_lifnr` 对空范围表恒为假——**这个 SELECT 会安静地返回 0 行**"
+  },
+  "D28": {
+   "report_line": 1713,
+   "quote": "`TRY` 无 `CATCH` 在 ABAP 里语法合法但语义上等价于没有 `TRY`——它唯一的作用是让读者以为有错误处理"
+  },
+  "D31": {
+   "report_line": 1849,
+   "quote": "代码会按第一行的类别取一个凭证类型，然后对所有行（`AGKOA` 各自不同）都按这个类型过账"
+  },
+  "D32": {
+   "report_line": 1803,
+   "quote": "其中 `lt_blntab` 和 `lt_fttax` 是**只传入不填数据**的空表"
+  },
+  "D33": {
+   "report_line": 1914,
+   "quote": "`POSTING_INTERFACE_START` 失败后没有 `RETURN`"
+  },
+  "D34": {
+   "report_line": 1919,
+   "quote": "可以接受（END 失败通常不影响已过账的数据），但应有注释说明为什么"
+  },
+  "D35": {
+   "report_line": 1082,
+   "quote": "`umskz`（特别科目标识）和 `filkd`（记账日期）在这个分支被注释掉了"
+  },
+  "D36": {
+   "report_line": 1026,
+   "quote": "导致 `lt_hesap` 中每一条 `(sube, merkez)` 配对都会**全量重扫一次表**——N 个科目就是 N 次 FAE 查询"
+  },
+  "D37": {
+   "report_line": 1087,
+   "quote": "用 `sy-subrc` 判断，而上一段 `ASSIGN` 的结果会覆盖——这里因为紧跟判断所以是对的"
+  },
+  "D38": {
+   "report_line": 320,
+   "quote": "`LOOP AT ct_items` 内对同一张表做无 WHERE 的 `DELETE ct_items`"
+  }
+ },
+ "false_claims": [
+  {
+   "claim": "`lv_mode = 'E'` 表示出错即终止（`RFPDO-ALLGAZMD` 域：E=Error 立即停止）",
+   "why_wrong": "D12: `lv_mode TYPE rfpdo-allgazmd VALUE 'E'` 是 ALLGAZMD 的演练/试运行模式，不是 error-stop；因此 POSTING_INTERFACE_CLEARING 只做演练、根本不生成凭证，而方法仍用 MESSAGE 报告成功。报告把域值语义读反了。"
+  },
+  {
+   "claim": "实际后果是\"过账成功了，但弹出一条误导性的成功消息\"",
+   "why_wrong": "D12: 由于 `lv_mode` 固定为 'E'（演练模式），POSTING_INTERFACE_CLEARING 从不真正过账、不生成凭证，所以\"过账成功\"这个前提本身不成立；报告对 POSTING_INTERFACE_CLEARING 后果的分析建立在错误前提上。"
+  },
+  {
+   "claim": "`KOART = 'D'` → `'BLARD'`（碰巧正确）；`KOART = 'S'` → `'BLARS'`（碰巧正确）",
+   "why_wrong": "D11: `lv_fname(5)` 装不下 `CONCATENATE 'BLAR' ls_bseg-koart` 需要的 4+4 位，动态字段名被截断，`SELECT SINGLE (lv_fname)` 取不到字段，`lv_blart` 保持初始值；报告所谓\"碰巧正确\"的列名并不成立。"
+  },
+  {
+   "claim": "`WRITE ... TO` 是把内部值转成输出格式……当前恰好成立（日期内部格式正好 10 位）",
+   "why_wrong": "D15: WRITE ... TO 先把日期转成调用用户的显示格式，再交给期望内部格式的 `CONVERSION_EXIT_INVDT_INPUT`，转换结果错误并被写入类级缓存；\"当前恰好成立\"掩盖了显示格式依赖，不是无风险。"
+  },
+  {
+   "claim": "返回类型 `tt_blart` 是 `HASHED TABLE OF blart WITH UNIQUE KEY table_line`，天然去重",
+   "why_wrong": "D18: `rt_blart = VALUE #( FOR ... )` 生成的是普通去重前的列表，赋给 UNIQUE KEY 的 HASHED 表不会去重，`zfit_ith_blart` 里重复的凭证类型会在运行期抛 CX_SY_DUPLICATE_KEY。"
+  }
+ ]
+}

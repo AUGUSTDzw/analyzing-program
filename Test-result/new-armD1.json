@@ -1,0 +1,49 @@
+{
+ "report": "D:\\Workspace\\Skills\\analyzing-programs\\Test-result\\arm\\v1two_Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md",
+ "verdicts": {
+  "D21": "yes",
+  "D22": "partial",
+  "D23": "no",
+  "D24": "partial",
+  "D25": "no",
+  "D26": "partial",
+  "D27": "partial",
+  "D28": "partial",
+  "D30": "yes",
+  "D31": "partial",
+  "D32": "no",
+  "D33": "yes",
+  "D34": "yes",
+  "D35": "yes",
+  "D36": "partial",
+  "D37": "partial",
+  "D38": "partial",
+  "D39": "no"
+ },
+ "evidence": {
+  "D21": {"report_line": 2107, "quote": "但**这仍是一次对系统字段的写入**，用 `##write_ok` 明确压制了 ATC 警告。"},
+  "D22": {"report_line": 2109, "quote": "`iv_zhrtip(2)` 读的是**第 2-3 位**，`iv_zhrtip+1(2)` 读的是**第 3-4 位**——两个不同偏移。"},
+  "D24": {"report_line": 1948, "quote": "`check_iban_duplicate` 只取第一条（见 3.15），影响有限"},
+  "D26": {"report_line": 1941, "quote": "这是合理的宽列读取，因为目标是客户 Z 结构 `zfitt_tiban`，字段数不匹配。"},
+  "D27": {"report_line": 1992, "quote": "**传参不当 + CHECK 静默返回 = 校验假通过**，这是校验类方法最危险的失败模式。"},
+  "D28": {"report_line": 1597, "quote": "这个 `TRY` 在这里**没有任何实际作用**"},
+  "D30": {"report_line": 1599, "quote": "4. **不可后台运行**：`c_dismode_error` + `=WAIT_USER` 意味着必然有弹窗，批处理中会短转储。"},
+  "D31": {"report_line": 1786, "quote": "`IF sy-tabix = 1.` 意味着只有**第一条**分录的科目类型决定了整张凭证的 `BLART`。"},
+  "D33": {"report_line": 1789, "quote": "4. **失败后没有 `RETURN`**（P0-5）：`IF sy-subrc <> 0. MESSAGE ...` 之后**继续执行** `POSTING_INTERFACE_CLEARING`。"},
+  "D34": {"report_line": 1840, "quote": "3. **`POSTING_INTERFACE_END` 的异常被完全吞掉**（`##FM_SUBRC_OK` + 没有 `IF sy-subrc`）。"},
+  "D35": {"report_line": 1186, "quote": "**`umskz` 与 `fildk` 被注释掉**（P2-4）。这不是随手注释，而是**有实际后果**"},
+  "D36": {"report_line": 1064, "quote": "把 `lifnr = it_hesap-sube OR lifnr = it_hesap-merkez` 写在 `WHERE` 里——**保留与驱动表的连接**的正确 FAE 写法"},
+  "D37": {"report_line": 1189, "quote": "但 `ASSIGN` 之后只判了 `sy-subrc = 0` 就进入分支，没有像 AP/AR 分支那样做完整的 `IS ASSIGNED` 校验——风格不统一。"},
+  "D38": {"report_line": 2210, "quote": "`DELETE ct_items.`（删当前行）"}
+ },
+ "false_claims": [
+  {"claim": "`check_iban_duplicate` 只取第一条（见 3.15），影响有限", "why_wrong": "D24 — inspecting only lt_tiban[ 1 ] while get_iban_codes appends rows from two separate SELECTs means a duplicate in any row beyond the first is not detected at all, which is a false negative, not a limited reporting shortfall. The report doubles down at line 1993: '`ASSIGN lt_tiban[ 1 ] TO FIELD-SYMBOL(...)`：非初始内表取索引 1 是安全的（`CHECK` 已保证非初始）。写法正确。'"},
+  {"claim": "这是合理的宽列读取，因为目标是客户 Z 结构 `zfitt_tiban`，字段数不匹配。", "why_wrong": "D26 — both SELECTs select `tiban~*` with `##TOO_MANY_ITAB_FIELDS`, so the field count against the target structure is never verified and every TIBAN field is moved into the result table; the report endorses the suppression instead of flagging it."},
+  {"claim": "这个 `TRY` 在这里**没有任何实际作用**", "why_wrong": "D28 — the whole BDC body sits in `TRY. ... ENDTRY.` with no CATCH, so every F-32 failure including a submit error is swallowed and the caller is told the open items were cleared; the TRY is the mechanism, not a no-op."},
+  {"claim": "`DELETE ct_items.`（删当前行）", "why_wrong": "D38 — a WHERE-less DELETE inside the LOOP that iterates ct_items removes every remaining row of the item table, not the current row; the report states the opposite of the actual behaviour."},
+  {"claim": "把 `lifnr = it_hesap-sube OR lifnr = it_hesap-merkez` 写在 `WHERE` 里——**保留与驱动表的连接**的正确 FAE 写法", "why_wrong": "D36 — the parenthesised OR against it_hesap-sube/it_hesap-merkez combined with FOR ALL ENTRIES loses the per-row correlation with the driver row and degrades the join to a filtered cross product; the report calls it the correct FAE form."},
+  {"claim": "如果 `hkont` 范围很宽（用户不填科目 → 空范围 → 条件失效），就会退化成对 `BSIS` 的**大范围扫描**。", "why_wrong": "D37 — an assigned but empty account range matches nothing, so the RFITEMGL branch's opening balances are silently omitted, not scanned broadly; the report also reduces the sy-subrc-vs-IS-ASSIGNED difference to a style inconsistency."},
+  {"claim": "`iv_zhrtip(2)` 读的是**第 2-3 位**，`iv_zhrtip+1(2)` 读的是**第 3-4 位**", "why_wrong": "D22 — the report locates the second account-type check at characters 3-4; it in fact inspects characters 2-3, which is where GOKART/BLART sits, so the two checks are not merely 'inconsistent offsets' needing a comment but the second one reads the wrong characters."},
+  {"claim": "查询成功时 `sy-mandt` 会被赋成当前客户端号（本来就是它，值没变）", "why_wrong": "D21 — the write is a real overwrite of the session's client field as a side effect of the existence check; the report's 'value does not change' framing understates it and leaves the no-row path (target set to initial) unmentioned."}
+ ]
+}
