@@ -113,6 +113,7 @@ def load_verdicts(path, defects, title):
     if not os.path.exists(path):
         die([f"no such verdict file: {path}"], title)
     v = json.load(io.open(path, encoding="utf-8"))
+    rep = v.get("report")
     got = v.get("verdicts")
     if not isinstance(got, dict):
         die(["`verdicts` missing or not an object"], title)
@@ -128,6 +129,41 @@ def load_verdicts(path, defects, title):
         msgs.append(f"verdict for unknown defect(s): {', '.join(map(str, extra))}")
     if wrong:
         msgs.append("verdict outside {yes, partial, no}: " + ", ".join(wrong))
+    # A positive verdict must point at the report line that carries it. Borrowed
+    # from archify, which never accepts a pass without an identified reviewer and
+    # binds every receipt to the artifact it measured. Without this, "yes" is an
+    # assertion with nothing to check, and the false matches are invisible: a
+    # token probe here judged a defect present because `assigning` appeared,
+    # when the line actually said LOOP AT ... ASSIGNING.
+    ev = v.get("evidence")
+    if ev is not None and not isinstance(ev, dict):
+        msgs.append("`evidence` must be an object keyed by defect id")
+        ev = {}
+    for k, verdict in (got or {}).items():
+        if verdict not in ("yes", "partial"):
+            continue
+        e = (ev or {}).get(k)
+        if not isinstance(e, dict) or not e.get("report_line"):
+            msgs.append(f"{k} is `{verdict}` with no evidence: "
+                        f"needs evidence.{k}.report_line")
+            continue
+        try:
+            ln = int(e["report_line"])
+        except (TypeError, ValueError):
+            msgs.append(f"evidence.{k}.report_line is not a line number")
+            continue
+        if rep and os.path.exists(rep):
+            body = io.open(rep, encoding="utf-8").read().split("\n")
+            if not (1 <= ln <= len(body)):
+                msgs.append(f"evidence.{k}.report_line {ln} is outside the "
+                            f"report ({len(body)} lines)")
+                continue
+            q = e.get("quote")
+            if q:
+                norm = lambda t: re.sub(r"\s+", " ", t).strip().lower()
+                if norm(q) not in norm(body[ln - 1]):
+                    msgs.append(f"evidence.{k}.quote does not appear on "
+                                f"report line {ln}")
     fc = v.get("false_claims")
     if fc is not None and not isinstance(fc, list):
         # Some older judge files stored a count here. A count cannot be audited

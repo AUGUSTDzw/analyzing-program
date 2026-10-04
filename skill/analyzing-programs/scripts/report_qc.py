@@ -28,6 +28,7 @@ earlier version kept the checker and the fixer in separate scripts with separate
 regexes; they drifted, and the fixer silently missed a form the checker caught.
 """
 import io
+import json
 import os
 import re
 import sys
@@ -43,17 +44,32 @@ TICK = re.compile(r"`([^`\n]{2,80})`")
 TAG = re.compile(r"</?(?:br|b|i|u|em|strong|sub|sup|code|span)\s*/?>", re.I)
 ROW = re.compile(r"^\|\s*(?:P[0-3][-.]?\d+|[\U0001F534\U0001F7E0\U0001F7E1\U0001F7E2])\s*\|", re.M)
 
-# The skill bans line numbers as location labels without exception. The earlier
-# pattern matched only two spellings, so a report written as `L23` throughout
-# scored clean. Keep this the single definition -- check and fix both use it.
+# The rule set is read from schemas/report-contract.json, not hardcoded here.
+# Seven fixes in this project were a detector disagreeing with the rule it was
+# meant to enforce: LINE_NUM matched two spellings so a report written as `L23`
+# throughout scored clean, and the checking half and the fixing half of the
+# Mermaid rule carried different patterns so one reported what the other skipped.
+# A second copy of the rules inside this file is the cause of that class of bug,
+# so there is now one copy. Every rule in the contract carries a skill_anchor,
+# and test_contract_drift.py fails when that anchor is absent from SKILL.md, so
+# the contract and the prose cannot drift apart either.
+CONTRACT_PATH = os.path.join(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))), "schemas", "report-contract.json")
+with io.open(CONTRACT_PATH, encoding="utf-8") as _fh:
+    CONTRACT = json.load(_fh)
+
+SEC = ["## " + s["id"] for s in CONTRACT["sections"]]
+LAYERS = tuple(CONTRACT["layers"]["labels"])
+BUCKETS = tuple(CONTRACT["problem_section"]["buckets"])
+PSEC = CONTRACT["problem_section"]["heading"]
+# The English spellings require whitespace. Allowing \s* let `lines?\s*\d+` match
+# LINE1 and LINE2, which are identifiers, and report them as line citations.
 LINE_NUM = re.compile(
-    r"\.abap:\d+"
-    r"|第\s*\d+\s*[-–~]?\s*\d*\s*行"
-    r"|\blines?\s+\d+(?:\s*[-–~]\s*\d+)?\b"
-    r"|\bL\d{2,5}\b"
-    r"|:\d{2,5}\b",
-    re.I,
-)
+    "|".join("(?:%s)" % p["regex"]
+             for p in CONTRACT["forbidden_in_location_labels"]["patterns"]), re.I)
+FULLWIDTH = CONTRACT["mermaid"]["fullwidth"]
+DENSITY_FLOOR = next(a["floor_blocks_per_subprogram"] for a in
+                     CONTRACT["advisories"] if a["id"] == "density")
 # A bare digit range is legitimate when describing a file's size, so only the
 # explicit citation forms above count.
 CITE_NUM = re.compile(r"^\s*(?:L|line|lines|第)?\s*(\d{2,5})\s*(?:行|lines?)?\s*$", re.I)
@@ -125,7 +141,7 @@ def density_note(s, src):
     blocks = len(list(source_blocks(s)))
     d = blocks / len(inv)
     named = sum(1 for n in inv if n.lower() in s.lower())
-    if d >= 0.5:
+    if d >= DENSITY_FLOOR:
         return None
     return (f"low density: {blocks} quoted block(s) for {len(inv)} declared "
             f"subprogram(s) = {d:.2f} each ({named} of them named in the text). "
@@ -288,8 +304,6 @@ def fix_ln(s, src):
         out = out[:a] + rep + out[b:]
     return out, len(edits), skipped
 
-
-FULLWIDTH = {"<": "＜", ">": "＞", "#": "＃"}
 
 # Lines that assert nothing about the source, so a fidelity pass must skip them.
 ELIDE = re.compile(r"\.\.\.|\u2026")

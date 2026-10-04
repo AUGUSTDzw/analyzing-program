@@ -186,6 +186,10 @@ def main():
     def vfile(name, mutate=None):
         v = {"report": good,
              "verdicts": {"D1": "yes", "D2": "partial"},
+             # a positive verdict must cite the report line carrying it, so the
+             # fixture has to cite one or it is rejected before it is scored
+             "evidence": {"D1": {"report_line": 5},
+                          "D2": {"report_line": 5}},
              "false_claims": []}
         if mutate:
             mutate(v)
@@ -219,6 +223,10 @@ def main():
         ("unknown", unknown, "a verdict for an unknown defect is rejected"),
         ("fcint", fc_int, "a bare count in false_claims is rejected"),
         ("fcbad", fc_bad, "a false claim missing why_wrong is rejected"),
+        ("noevidence", lambda v: v.pop("evidence"),
+         "a positive verdict with no cited line is rejected"),
+        ("badline", lambda v: v["evidence"]["D1"].update(report_line=99999),
+         "a cited line outside the report is rejected"),
     ]:
         r = run(EVAL, "score", "--defects", defs, "--verdicts", vfile(name, mut))
         check(r.returncode != 0 and "REJECTED" in r.stdout, label)
