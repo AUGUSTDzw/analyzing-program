@@ -1,0 +1,117 @@
+{
+ "report": "D:\\Workspace\\Skills\\analyzing-programs\\Test-result\\arm\\v1gate_Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md",
+ "verdicts": {
+  "D1": "yes",
+  "D2": "no",
+  "D3": "partial",
+  "D4": "yes",
+  "D5": "yes",
+  "D6": "no",
+  "D7": "partial",
+  "D8": "yes",
+  "D9": "yes",
+  "D10": "no",
+  "D11": "partial",
+  "D12": "no",
+  "D13": "partial",
+  "D14": "partial",
+  "D15": "yes",
+  "D16": "partial",
+  "D17": "partial",
+  "D18": "no",
+  "D19": "yes",
+  "D20": "partial"
+ },
+ "evidence": {
+  "D1": {
+   "report_line": 1372,
+   "quote": "`zzstjah` 用错了字段**：`SELECT SINGLE` 只取了 `BELNR`，年度却用 `<ls_items>-gjahr`（当前行项目所在凭证的年度）"
+  },
+  "D3": {
+   "report_line": 1112,
+   "quote": "而返回表 `tt_vbrp` 是按 `VBELN` 非唯一键排序的，调用方 `READ TABLE ... WITH TABLE KEY vbeln = ...` 拿到的是**排序后的第一条**"
+  },
+  "D4": {
+   "report_line": 1372,
+   "quote": "其一，`lv_awkey` 从不在循环开头清空**：只有物料凭证与采购发票两个分支里有 `CLEAR lv_awkey.`"
+  },
+  "D5": {
+   "report_line": 1485,
+   "quote": "`LOOP ... ENDLOOP` 之后的 `SY-SUBRC` 是**循环体内最后一条语句**留下的值，ABAP 并不保证它的语义"
+  },
+  "D7": {
+   "report_line": 1181,
+   "quote": "删除后游标位置与后续行序号发生偏移，`LOOP ... WHERE` 带过滤条件的遍历会因此**跳过某些行或重复处理某些行**"
+  },
+  "D8": {
+   "report_line": 1485,
+   "quote": "插入位置在当前行**之前**，当前行及其后所有行的序号都会后移，循环游标随即落到刚插入的期初行上"
+  },
+  "D9": {
+   "report_line": 1149,
+   "quote": "支持列表里的 `ZSDP_RFITEMAR` 第 5 位起是 `ZSDPF`，于是**定制变体永远走不到主逻辑**"
+  },
+  "D11": {
+   "report_line": 725,
+   "quote": "此外 `SELECT SINGLE (lv_fname) FROM t041a` **没有检查 `sy-subrc`**：`T041A` 若缺该清算方式与科目类型的配置，`lv_blart` 保持初始"
+  },
+  "D13": {
+   "report_line": 810,
+   "quote": "其二，`POSTING_INTERFACE_CLEARING` 的判断条件是 `IF sy-subrc = 0. MESSAGE ...` —— **成功时才发消息**"
+  },
+  "D14": {
+   "report_line": 528,
+   "quote": "`account_type_not_supported` 和 `OTHERS` 两个异常被捕获后被彻底丢弃，FM 失败时 `e_faede` 保持初始，`re_netdt` 返回 `00000000`"
+  },
+  "D15": {
+   "report_line": 376,
+   "quote": "于是得到一个完全错误的日期（差几个月甚至跨年），并且被缓存下来，整个会话一直错下去"
+  },
+  "D16": {
+   "report_line": 225,
+   "quote": "进程一旦跑长（长事务、批处理、调优用的长 ALE 会话）就永远拿着启动时的快照"
+  },
+  "D17": {
+   "report_line": 334,
+   "quote": "投影与过滤都用的是 `kna1~lifnr`，而 `LIFNR` 是 `KNA1` 上的**供应商编号**字段"
+  },
+  "D19": {
+   "report_line": 625,
+   "quote": "判断条件却是 `is_foreign = abap_true AND is_domestic = abap_true`"
+  },
+  "D20": {
+   "report_line": 974,
+   "quote": "下限为初始值 `00000000`），减一天会溢出成无意义的日期，`budat LE ` 条件几乎必然返回空集"
+  }
+ },
+ "false_claims": [
+  {
+   "claim": "line 374: \"`INSERT ... ASSIGNING` 让字段符号始终是唯一的出口，缓存为空和缓存命中走同一条 `rv_gdatu =` 收尾。这是 ABAP 7.40 之后 `ASSIGN` + `sy-subrc` 惯用法的正确示范。\"",
+   "why_wrong": "D16: gt_dg_cache is a HASHED table with UNIQUE KEY, so a duplicate INSERT leaves <ls_cache> unassigned and `rv_gdatu = <ls_cache>-gdatu` dereferences an unassigned field symbol (CX_SY_REF_IS_INITIAL). The report calls the construct a correct model usage."
+  },
+  {
+   "claim": "line 1305: \"后面 `READ ... WITH TABLE KEY` 就是对数级查找\" (and line 1339: \"`WITH TABLE KEY` + 排序表键，命中即 O(log n)\")",
+   "why_wrong": "D3: tt_mseg (mblnr/mjahr), tt_rbkp (belnr/gjahr) and tt_vbrp (vbeln) are declared WITH NON-UNIQUE KEY, so READ ... WITH TABLE KEY against them is a key misuse that yields an arbitrary first match (or an activation error), not a defined table-key lookup."
+  },
+  {
+   "claim": "line 723: \"动态字段名取 `BLART` 是个很到位的做法 ... 写死了就只能支持一种科目类型，用拼接就自动适配 `D`/`K`/`S`/`A`/`P` 全部科目类型，不写死就是对的。\"",
+   "why_wrong": "D11: the target is lv_fname(5) while CONCATENATE 'BLAR' ls_bseg-koart needs 4+4 characters, so the field name is truncated and the dynamic SELECT SINGLE finds no field; the report describes the truncated result (BLARD/BLARK) as the intended correct behaviour."
+  },
+  {
+   "claim": "line 810: \"`IF sy-subrc = 0. MESSAGE ...` —— **成功时才发消息**。这其实是刻意的：FI 业务消息（如\"凭证已过账\"）需要冒泡给用户看。\"",
+   "why_wrong": "D13: the sy-subrc test after POSTING_INTERFACE_CLEARING is inverted, so the message fires only on success and all ten failure branches return silently. It is a defect, not deliberate design, and the silent failure of the ten branches is not identified."
+  },
+  {
+   "claim": "line 1397: \"`lv_konto_temp` 的游标判断是这个方法在结构上做对的关键 ... 同一科目的行是连续的，所以\"科目变了才重算\"既正确又省事\"",
+   "why_wrong": "D6: lv_konto_temp compares only konto and ignores bukrs, so a second company code reusing the same account number is treated as unchanged and gets no opening-balance block; the judgement is not correct in the multi-company-code case."
+  },
+  {
+   "claim": "line 974: \"若用户把日期范围留空（下限为初始值 `00000000`），减一天会溢出成无意义的日期，`budat LE ` 条件几乎必然返回空集，期初余额静默为零。\"",
+   "why_wrong": "D20: the underflow produces 99999999, which turns 'budat LE keydt' into 'all history' (over-inclusive, far too many rows), not an empty result set as claimed."
+  },
+  {
+   "claim": "line 806: \"把 `FTCLEAR`+`FTPOST` 交给清算接口以清算方式 `UMBUCHNG`、事务 `FB05` 过账，最后关闭会话。\" (line 645 also calls it the one method that truly \"写数据库\")",
+   "why_wrong": "D12: lv_mode is initialised to rfpdo-allgazmd 'E' (exercise/test run), so POSTING_INTERFACE_CLEARING only tests the clearing and never creates the document, while the method still reports success via MESSAGE. The report quotes lv_mode VALUE 'E' in the code block yet never notices it."
+  }
+ ]
+}

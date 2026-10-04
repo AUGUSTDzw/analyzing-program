@@ -109,7 +109,7 @@ def _anchor(x):
     return x.get("anchor", "-")
 
 
-def load_verdicts(path, defects, title):
+def load_verdicts(path, defects, title, need_evidence=True):
     if not os.path.exists(path):
         die([f"no such verdict file: {path}"], title)
     v = json.load(io.open(path, encoding="utf-8"))
@@ -143,6 +143,11 @@ def load_verdicts(path, defects, title):
         if verdict not in ("yes", "partial"):
             continue
         e = (ev or {}).get(k)
+        if not need_evidence:
+            # Historical verdict files predate the citation requirement. Their
+            # recall is comparable; their auditability is not, and --legacy says
+            # so out loud rather than quietly treating them as equivalent.
+            continue
         if not isinstance(e, dict) or not e.get("report_line"):
             msgs.append(f"{k} is `{verdict}` with no evidence: "
                         f"needs evidence.{k}.report_line")
@@ -191,7 +196,7 @@ def tally(verdicts, defects):
 
 def cmd_score(a):
     d = load_defects(a.defects)
-    v = load_verdicts(a.verdicts, d["defects"], a.verdicts)
+    v = load_verdicts(a.verdicts, d["defects"], a.verdicts, not a.legacy)
     t, w = tally(v["verdicts"], d["defects"])
     fc = v.get("false_claims") or []
     rep = v.get("report")
@@ -232,8 +237,8 @@ def sign_p(b, c):
 def cmd_compare(a):
     d = load_defects(a.defects)
     ids = [x["id"] for x in d["defects"]]
-    A = load_verdicts(a.a, d["defects"], a.a)["verdicts"]
-    B = load_verdicts(a.b, d["defects"], a.b)["verdicts"]
+    A = load_verdicts(a.a, d["defects"], a.a, not a.legacy)["verdicts"]
+    B = load_verdicts(a.b, d["defects"], a.b, not a.legacy)["verdicts"]
     ta, wa = tally(A, d["defects"])
     tb, wb = tally(B, d["defects"])
     up = [i for i in ids if SCORE[B[i]] > SCORE[A[i]]]
@@ -280,10 +285,15 @@ def _ap(argv):
     s.add_argument("--defects", required=True)
     s.add_argument("--verdicts", required=True)
     s.add_argument("--report")
+    s.add_argument("--legacy", action="store_true",
+                   help="waive the citation requirement; historical verdict files "
+                        "predate it. Their recall is comparable, their auditability "
+                        "is not.")
     c = sub.add_parser("compare")
     c.add_argument("--defects", required=True)
     c.add_argument("--a", required=True)
     c.add_argument("--b", required=True)
+    c.add_argument("--legacy", action="store_true")
     return p
 
 
