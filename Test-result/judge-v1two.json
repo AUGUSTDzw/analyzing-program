@@ -1,0 +1,101 @@
+{
+ "report": "D:\\Workspace\\Skills\\analyzing-programs\\Test-result\\arm\\v1two_Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md",
+ "verdicts": {
+  "D1": "yes",
+  "D2": "yes",
+  "D3": "partial",
+  "D4": "yes",
+  "D5": "no",
+  "D6": "yes",
+  "D7": "yes",
+  "D8": "no",
+  "D9": "yes",
+  "D10": "no",
+  "D11": "partial",
+  "D12": "no",
+  "D13": "yes",
+  "D14": "yes",
+  "D15": "partial",
+  "D16": "partial",
+  "D17": "yes",
+  "D18": "yes",
+  "D19": "yes",
+  "D20": "partial"
+ },
+ "evidence": {
+  "D1": {
+   "report_line": 611,
+   "quote": "随后代码用 `IF sy-subrc = 0. <ls_items>-zzstjah = <ls_items>-gjahr.` ——赋的是**当前明细行自己的年度**，而不是被查到的那张 `BKPF` 记录的年度。"
+  },
+  "D2": {
+   "report_line": 612,
+   "quote": "`AWTYP+AWKEY` **不是唯一键**——同一张参考凭证在不同公司代码下完全可能同时存在。`SELECT SINGLE` 在这种情况下取到哪一行是未定义行为，可能跨公司代码取到一张无关的凭证。"
+  },
+  "D3": {
+   "report_line": 1287,
+   "quote": "`rt_vbrp TYPE SORTED TABLE OF ty_vbrp WITH NON-UNIQUE KEY vbeln` 声明为非唯一键排序表，调用方用 `READ TABLE ... WITH TABLE KEY vbeln = ...`（`ekstre_fblxn` 第 ⑦ 步）或 `WITH KEY vbeln = ... BINARY SEARCH`（`ELSE` 分支）取**第一条命中**。"
+  },
+  "D4": {
+   "report_line": 614,
+   "quote": "`lv_awkey` 在 `LOOP` 内**只在进入 `IF lv_awkey IS NOT INITIAL` 分支前被 `CLEAR`（且仅在 MKPF/RMRP 分支内 `CLEAR`）**。一旦某行走的是 `c_satis_faturasi` 分支（不 `CLEAR lv_awkey`），上一行残留的 `lv_awkey` 就会被误用，把上一行的冲销凭证号写到这一行上。"
+  },
+  "D6": {
+   "report_line": 771,
+   "quote": "**`lv_konto_temp` 只比较 `KONTO`，不比较 `BUKRS`**：`IF lv_konto_temp IS INITIAL OR lv_konto_temp <> <ls_items>-konto`。同一个科目号在两个公司代码下是合法的（F.05 会同时显示），排序键又是 `konto budat`（不含 `bukrs`），所以不同公司代码的同名科目可能**交错出现**"
+  },
+  "D7": {
+   "report_line": 317,
+   "quote": "**`DELETE` 在 `LOOP ... ASSIGNING` 内部混用，且被删的行未必是当前行**：`DELETE ct_items WHERE belnr = ... AND gjahr = ...` 是\"带 `WHERE` 的整表删除\"，它删的行可能不是循环变量当前指向的行"
+  },
+  "D9": {
+   "report_line": 896,
+   "quote": "更重要的是逻辑矛盾：`ZSDP_RFITEMAR` 因为 `sy-cprog(5) = 'RFITE'` 为假（实际是 `ZSDP_`）而落到 `ELSE`，可它在第 ① 步专门写了 `CASE` 分支、在第 ④ 步和第 ⑧ 步也专门判断了它——三处都够不着，等于死代码。"
+  },
+  "D11": {
+   "report_line": 1787,
+   "quote": "`lv_fname(5) TYPE c` 恰好 5 位（`BLAR` + 1 位科目类型），长度卡得很紧；若将来 `KOART` 域扩展到 2 位，`lv_fname(5)` 会**截断**并给出错误的字段名"
+  },
+  "D13": {
+   "report_line": 1835,
+   "quote": "**成功/失败的判断完全反了**。`POSTING_INTERFACE_CLEARING` 的 `EXCEPTIONS` 覆盖了 10 种失败。正确逻辑应是 `IF sy-subrc <> 0 → 报错处理`。而代码写的是 `IF sy-subrc = 0 . MESSAGE ...` —— **只在成功时显示消息，失败时什么都不做**。"
+  },
+  "D14": {
+   "report_line": 1884,
+   "quote": "**异常处理是空实现**（P0-7，本方法的核心缺陷）。`IF sy-subrc <> 0 ##NEEDED. * Implement suitable error handling here ENDIF.` —— `##NEEDED` 是为了消掉\"空 IF\"警告，但错误被**彻底吞掉**：`e_faede` 保持初始值，`re_netdt` 返回 `00000000` 或空。"
+  },
+  "D15": {
+   "report_line": 1401,
+   "quote": "`WRITE iv_datum TO lv_datxt`（无 addition、无空格）把日期写成**内部格式** `YYYYMMDD`，这一点是对的；一旦有人日后加上 `WRITE ... TO lv_datxt SPACE-PADDING` 或改成 `CONV #( iv_datum )` 之外的形式，就会受 `sy-ufdir` 影响。"
+  },
+  "D16": {
+   "report_line": 1398,
+   "quote": "缓存表用了 `HASHED ... UNIQUE KEY datum`，天然防重复行——**这个缓存的设计是正确的**。"
+  },
+  "D17": {
+   "report_line": 1945,
+   "quote": "**`WHERE kna1~lifnr IN @it_kunnr` 的字段名错误**（P0-5）。`KNA1` 是**客户**主数据表，其主键字段是 `KUNNR`，**根本不存在 `LIFNR` 字段**。"
+  },
+  "D18": {
+   "report_line": 2026,
+   "quote": "**`HASHED TABLE ... UNIQUE KEY` 天然去重**，即使配置表里有重复的 `BLART`，返回值也不会有重复行——这正是下拉列表需要的语义。"
+  },
+  "D19": {
+   "report_line": 2058,
+   "quote": "方法名 `get_domestic_import_doc_types`（**国内**进口）对应的应该是 `is_domestic = abap_true`，而代码筛的是 `is_foreign = abap_true AND is_domestic = abap_true`（**国内外都算**）。"
+  },
+  "D20": {
+   "report_line": 2212,
+   "quote": "关键日只取选择屏 `INDEX 1` 的 `LOW`，**忽略 `HIGH`**，多行区间时取到错误的期初日"
+  }
+ },
+ "false_claims": [
+  {
+   "claim": "缓存表用了 `HASHED ... UNIQUE KEY datum`，天然防重复行——**这个缓存的设计是正确的**。",
+   "why_wrong": "D16: `INSERT ls_cache INTO TABLE gt_dg_cache ASSIGNING <ls_cache>` writes into a table whose key is UNIQUE, so a duplicate key leaves <ls_cache> unassigned and the following `rv_gdatu = <ls_cache>-gdatu` dereferences an unassigned field symbol (CX_SY_REF_IS_INITIAL). Hashed + UNIQUE does not silently drop the duplicate row as the report assumes. The report also never notes that this class-data cache is unbounded and never invalidated."
+  },
+  {
+   "claim": "`lv_fname(5) TYPE c` 恰好 5 位（`BLAR` + 1 位科目类型），长度卡得很紧；若将来 `KOART` 域扩展到 2 位，`lv_fname(5)` 会**截断**并给出错误的字段名",
+   "why_wrong": "D11: the truncation is not hypothetical, it already happens — `CONCATENATE 'BLAR' ls_bseg-koart` needs 4+4 = 8 characters into a target of `lv_fname(5)`, so the name is silently cut today, `SELECT SINGLE (lv_fname)` reads no field, and `BLART` stays initial because its sy-subrc is never checked. The report presents a current correctness defect as a future-only risk and asserts the length is 'exactly tight'."
+  }
+ ]
+}
