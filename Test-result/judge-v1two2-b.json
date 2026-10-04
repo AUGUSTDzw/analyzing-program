@@ -1,0 +1,101 @@
+{
+  "report": "D:\\Workspace\\Skills\\analyzing-programs\\Test-result\\arm\\v1two2_Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md",
+  "verdicts": {
+    "D1": "yes",
+    "D2": "partial",
+    "D3": "partial",
+    "D4": "yes",
+    "D5": "yes",
+    "D6": "no",
+    "D7": "yes",
+    "D8": "no",
+    "D9": "yes",
+    "D10": "partial",
+    "D11": "partial",
+    "D12": "no",
+    "D13": "yes",
+    "D14": "yes",
+    "D15": "yes",
+    "D16": "yes",
+    "D17": "yes",
+    "D18": "no",
+    "D19": "yes",
+    "D20": "no"
+  },
+  "evidence": {
+    "D1": {
+      "report_line": 542,
+      "quote": "只取了 `BELNR`，没取 `GJAHR`"
+    },
+    "D2": {
+      "report_line": 542,
+      "quote": "`##WARN_OK` 压掉了 ATC 的"
+    },
+    "D3": {
+      "report_line": 1229,
+      "quote": "两次调用方分别用 `WITH TABLE KEY vbeln = ...`（取完整键匹配的第一条）"
+    },
+    "D4": {
+      "report_line": 542,
+      "quote": "`lv_awkey` 只在两个分支里被 `CLEAR`，**销售分支没清**"
+    },
+    "D5": {
+      "report_line": 708,
+      "quote": "`LOOP AT lt_devir_sorted ... ENDLOOP. IF sy-subrc <> 0.` 依赖 `sy-subrc` 在循环后仍保留最后一次 `READ`/查找结果"
+    },
+    "D7": {
+      "report_line": 320,
+      "quote": "只用 BELLR+GJAHR，**没带 BUKRS**——跨公司代码同号凭证会被误删"
+    },
+    "D9": {
+      "report_line": 300,
+      "quote": "**`sy-cprog(5) = 'RFITE'` 是致命笔误**"
+    },
+    "D10": {
+      "report_line": 274,
+      "quote": "字段符号处于未指定状态，解引用即 dump"
+    },
+    "D11": {
+      "report_line": 1847,
+      "quote": "`DATA: lv_fname(5) TYPE c.` 只有 5 位，而 `'BLAR'`(4) + `KOART`(2) = 6 位"
+    },
+    "D13": {
+      "report_line": 1913,
+      "quote": "`POSTING_INTERFACE_CLEARING` 之后的 `IF sy-subrc = 0` 把成功当失败处理"
+    },
+    "D14": {
+      "report_line": 1622,
+      "quote": "两种情况下 `e_faede-netdt` 都是初始值，方法**照样返回 00000000**"
+    },
+    "D15": {
+      "report_line": 1504,
+      "quote": "`WRITE iv_datum TO lv_datxt.` 是**用非法的正式用途借用 `WRITE`**"
+    },
+    "D16": {
+      "report_line": 1507,
+      "quote": "理论上 `INSERT` 可能因唯一键冲突失败而字段符号未被指定，末尾解引用就会 dump"
+    },
+    "D17": {
+      "report_line": 1339,
+      "quote": "`SELECT kna1~lifnr` 是一个明确的字段错配"
+    },
+    "D19": {
+      "report_line": 2073,
+      "quote": "实现返回的却是 `is_foreign = 'X' AND is_domestic = 'X'` 的**国内外通用**集合"
+    }
+  },
+  "false_claims": [
+    {
+      "claim": "`lv_mode = 'E'` 表示出错即终止（`RFPDO-ALLGAZMD` 域：E=Error 立即停止）",
+      "why_wrong": "D12: `lv_mode` is initialised to 'E', which in POSTING_INTERFACE_START is the exercise/test run mode (ALLGAZMD = 'E'), not 'abort on error'. The report states the opposite meaning, so it misses that POSTING_INTERFACE_CLEARING only tests the clearing and never creates the document while the method still reports success via MESSAGE."
+    },
+    {
+      "claim": "缺少 `LV_KEYDT` 相关：更稳妥的是遍历整个 `SO_BUDAT` 取**所有行的 `LOW` 的最小值**",
+      "why_wrong": "D20: the report treats the empty-low-bound case as merely a style issue and never states that `lv_keydt = <ls_budat>-low - 1` underflows to 99999999 when the range's low bound is empty, turning `budat LE lv_keydt` into \"all history\"; it also treats `INDEX 1` as fine, whereas only INDEX 1 is considered."
+    },
+    {
+      "claim": "返回类型 `tt_blart` 是 `HASHED TABLE OF blart WITH UNIQUE KEY table_line`，天然去重。",
+      "why_wrong": "D18: `rt_blart = VALUE #( FOR ... )` builds a plain standard table, so a document type appearing more than once in zfit_ith_blart raises CX_SY_DUPLICATE_KEY at runtime instead of being deduplicated. The report's 'naturally deduplicated' claim is wrong."
+    }
+  ]
+}

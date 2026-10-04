@@ -1,0 +1,113 @@
+{
+  "report": "D:\\Workspace\\Skills\\analyzing-programs\\Test-result\\arm\\v1two2_Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md",
+  "verdicts": {
+    "D1": "yes",
+    "D2": "partial",
+    "D3": "partial",
+    "D4": "yes",
+    "D5": "yes",
+    "D6": "no",
+    "D7": "yes",
+    "D8": "no",
+    "D9": "yes",
+    "D10": "yes",
+    "D11": "partial",
+    "D12": "no",
+    "D13": "yes",
+    "D14": "yes",
+    "D15": "partial",
+    "D16": "yes",
+    "D17": "partial",
+    "D18": "no",
+    "D19": "yes",
+    "D20": "partial"
+  },
+  "evidence": {
+    "D1": {
+      "report_line": 2056,
+      "quote": "用**当前行的会计年度**充当被查到凭证的年度"
+    },
+    "D2": {
+      "report_line": 542,
+      "quote": "`##WARN_OK` 压掉了 ATC 的"
+    },
+    "D3": {
+      "report_line": 1229,
+      "quote": "两次调用方分别用 `WITH TABLE KEY vbeln = ...`（取完整键匹配的第一条）"
+    },
+    "D4": {
+      "report_line": 542,
+      "quote": "另外 `lv_awkey` 只在两个分支里被 `CLEAR`，**销售分支没清**"
+    },
+    "D5": {
+      "report_line": 708,
+      "quote": "依赖 `sy-subrc` 在循环后仍保留最后一次 `READ`/查找结果"
+    },
+    "D7": {
+      "report_line": 320,
+      "quote": "`DELETE` 之后 `<ls_items>` 这个 `ASSIGNING` 字段符号仍指向已被释放的行内存"
+    },
+    "D9": {
+      "report_line": 300,
+      "quote": "而 `'RFITE'` 是 5 个字符的整串——两者**永远不可能相等**"
+    },
+    "D10": {
+      "report_line": 274,
+      "quote": "字段符号处于未指定状态，解引用即 dump"
+    },
+    "D11": {
+      "report_line": 1847,
+      "quote": "只有 5 位，而 `'BLAR'`(4) + `KOART`(2) = 6 位"
+    },
+    "D13": {
+      "report_line": 1913,
+      "quote": "之后的 `IF sy-subrc = 0` 把成功当失败处理"
+    },
+    "D14": {
+      "report_line": 2075,
+      "quote": "是空实现；`SELECT SINGLE` 后也不检查 `sy-subrc`"
+    },
+    "D15": {
+      "report_line": 1504,
+      "quote": "是把内部值转成**输出格式**"
+    },
+    "D16": {
+      "report_line": 1507,
+      "quote": "可能因唯一键冲突失败而字段符号未被指定，末尾解引用就会 dump"
+    },
+    "D17": {
+      "report_line": 1339,
+      "quote": "是一个明确的字段错配"
+    },
+    "D19": {
+      "report_line": 2073,
+      "quote": "实现返回的却是 `is_foreign = 'X' AND is_domestic = 'X'` 的**国内外通用**集合"
+    },
+    "D20": {
+      "report_line": 918,
+      "quote": "空区间或格式异常时会静默算出一个不存在的截止日"
+    }
+  },
+  "false_claims": [
+    {
+      "claim": "`lv_mode = 'E'` 表示出错即终止（`RFPDO-ALLGAZMD` 域：E=Error 立即停止）",
+      "why_wrong": "D12: `lv_mode` is initialised to 'E', which is the ALLGAZMD exercise/test-run value, so POSTING_INTERFACE_CLEARING only performs the clearing exercise and never creates the FI document; it is not 'stop on error'."
+    },
+    {
+      "claim": "返回类型 `tt_blart` 是 `HASHED TABLE OF blart WITH UNIQUE KEY table_line`，天然去重",
+      "why_wrong": "D18: `rt_blart = VALUE #( FOR ... )` builds a plain list that is then assigned to `tt_blart` (HASHED with UNIQUE KEY table_line), so a BLART occurring more than once in ZFIT_ITH_BLART raises CX_SY_DUPLICATE_KEY at runtime instead of being deduplicated."
+    },
+    {
+      "claim": "而 `WHERE lfa1~lifnr IN @it_lifnr` 对空范围表恒为假——**这个 SELECT 会安静地返回 0 行**",
+      "why_wrong": "D17: the OPTIONAL range parameters are used unconditionally as ranges, so an unsupplied/empty range means 'no restriction', not an always-false condition returning zero rows."
+    },
+    {
+      "claim": "`it_iban` 也不是 `OPTIONAL`（是必传），所以整个语句恒假",
+      "why_wrong": "D17: it_iban is one of the three OPTIONAL range parameters; the defect list states all three are OPTIONAL."
+    },
+    {
+      "claim": "也就是说：`KOART = 'D'` → `'BLARD'`（碰巧正确）；`KOART = 'S'` → `'BLARS'`（碰巧正确）",
+      "why_wrong": "D11: the 5-character target truncates the concatenated field name, so `SELECT SINGLE (lv_fname)` finds no field and `lv_blart` stays initial (which is then posted because sy-subrc is never checked); the report instead calls the truncated name accidentally correct."
+    }
+  ]
+}
