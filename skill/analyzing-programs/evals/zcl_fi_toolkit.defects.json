@@ -13,7 +13,8 @@
   "                     defects carry `anchors` (a list) instead",
   "",
   "Score a report with:  python scripts/evaluate.py score --defects THIS.json \\",
-  "                                                --verdicts YOURVERDICTS.json"
+  "                                                --verdicts YOURVERDICTS.json",
+  "D21 onward added by reading the source: the list was too small for the measurement. Relative noise is absolute disagreement divided by defect count, so at 20 defects two reports differing by three items is 15 percent, which is the size of every effect this project has claimed. Judge variance was measured at zero over three independent judgements of one report, so the noise is generation and the only lever is the denominator."
  ],
  "source": "ZCL_FI_TOOLKIT.abap",
  "defects": [
@@ -136,6 +137,60 @@
    "area": "业务正确性",
    "question": "Does the report identify that lv_keydt = <ls_budat>-low - 1 underflows to 99999999 when the selection range's low bound is empty (turning 'budat LE keydt' into 'all history') and that only INDEX 1 of the range is considered?",
    "anchor": "lv_keydt = <ls_budat>-low - 1."
+  },
+  {
+   "id": "D21",
+   "area": "健壮性",
+   "question": "Does the report identify that validate_zhrtip writes the selected mandt into the system field sy-mandt via `INTO @sy-mandt`, overwriting the session's client field as a side effect of a validation check?",
+   "anchor": "INTO @sy-mandt"
+  },
+  {
+   "id": "D22",
+   "area": "业务正确性",
+   "question": "Does the report identify that the two account-type checks in validate_zhrtip read different offsets of iv_zhrtip -- `iv_zhrtip(2)` for the '5' case but `iv_zhrtip+1(2)` for the '9' case -- so the second check inspects characters 2-3 where GOKART/BLART occupies 1-2?",
+   "anchor": "iv_zhrtip+1(2) <> 'TH'"
+  },
+  {
+   "id": "D23",
+   "area": "健壮性",
+   "question": "Does the report identify that validate_zhrtip substrings iv_zhrtip at a fixed offset with no length check on the parameter, so a value shorter than the offset raises a substring runtime error instead of failing the validation cleanly?",
+   "anchor": "iv_zhrtip(2) <> 'OK'"
+  },
+  {
+   "id": "D24",
+   "area": "健壮性",
+   "question": "Does the report identify that check_iban_duplicate inspects only `lt_tiban[ 1 ]` while get_iban_codes APPENDINGs rows from up to two separate SELECTs, so a duplicate in any row beyond the first is not detected?",
+   "anchor": "ASSIGN lt_tiban[ 1 ] TO FIELD-SYMBOL(<ls_tiban>)."
+  },
+  {
+   "id": "D25",
+   "area": "健壮性",
+   "question": "Does the report identify that the COND expressions building `party` and `party_type` for zcx_fi_iban have no ELSE branch, so a matched TIBAN row with neither KUNNR nor LIFNR filled raises the duplicate exception with an empty party and empty party_type?",
+   "anchor": "WHEN <ls_tiban>-lifnr IS NOT INITIAL THEN TEXT-111"
+  },
+  {
+   "id": "D26",
+   "area": "性能与规范",
+   "question": "Does the report identify that both SELECTs in get_iban_codes suppress the ATC check with `##TOO_MANY_ITAB_FIELDS` while selecting `tiban~*`, so the field count against the target structure is never verified and every TIBAN field is moved into the result table?",
+   "anchor": "##TOO_MANY_ITAB_FIELDS"
+  },
+  {
+   "id": "D27",
+   "area": "接口契约",
+   "question": "Does the report identify that get_iban_codes searches only inside `IF iv_get_vendor IS NOT INITIAL` and `IF iv_get_client IS NOT INITIAL`, so when neither flag is set it returns an empty table without raising, and check_iban_duplicate then treats 'never searched' as 'no duplicate'?",
+   "anchor": "IF iv_get_client IS NOT INITIAL."
+  },
+  {
+   "id": "D28",
+   "area": "健壮性",
+   "question": "Does the report identify that clear_customer_open_items wraps its whole BDC body in `TRY. ... ENDTRY.` with no CATCH, so every failure from the F-32 clearing -- including a submit error -- is swallowed and the caller is told the open items were cleared?",
+   "anchor": "lo_bdc->submit("
+  },
+  {
+   "id": "D30",
+   "area": "健壮性",
+   "question": "Does the report identify that clear_customer_open_items ends the BDC with `=WAIT_USER`, which blocks on an interactive popup and is not permitted in background or BAPI/BOI mode, so the method cannot run unattended?",
+   "anchor": "iv_nam = 'BDC_OKCODE' iv_val = '=WAIT_USER'"
   }
  ]
 }
