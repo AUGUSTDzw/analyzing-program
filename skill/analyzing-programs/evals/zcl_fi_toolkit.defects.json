@@ -191,6 +191,60 @@
    "area": "健壮性",
    "question": "Does the report identify that clear_customer_open_items ends the BDC with `=WAIT_USER`, which blocks on an interactive popup and is not permitted in background or BAPI/BOI mode, so the method cannot run unattended?",
    "anchor": "iv_nam = 'BDC_OKCODE' iv_val = '=WAIT_USER'"
+  },
+  {
+   "id": "D31",
+   "area": "业务正确性",
+   "question": "Does the report identify that in denklestirerek_transfer_kaydi the BKPF header values are collected with ftpost only while `IF sy-tabix = 1.`, so every field value posted -- BUKRS, BLART, BLDAT, BUDAT, XBLNR, WAERS -- comes from the first BSEG row while lt_ftclear receives a clearing row for every row?",
+   "anchor": "IF sy-tabix = 1."
+  },
+  {
+   "id": "D32",
+   "area": "接口契约",
+   "question": "Does the report identify that denklestirerek_transfer_kaydi declares lt_blntab and lt_fttax and passes both into POSTING_INTERFACE_CLEARING but never fills either, so the clearing run receives an empty BLNTAB and an empty FTTAX?",
+   "anchor": "lt_blntab  TYPE STANDARD TABLE OF blntab ##NEEDED,"
+  },
+  {
+   "id": "D33",
+   "area": "健壮性",
+   "question": "Does the report identify that after a failed POSTING_INTERFACE_START denklestirerek_transfer_kaydi raises MESSAGE but does not RETURN, so execution falls through and still calls POSTING_INTERFACE_CLEARING and POSTING_INTERFACE_END without a session?",
+   "anchor": "MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno"
+  },
+  {
+   "id": "D34",
+   "area": "健壮性",
+   "question": "Does the report identify that denklestirerek_transfer_kaydi lists EXCEPTIONS session_not_processable and OTHERS on POSTING_INTERFACE_END and then never tests sy-subrc, so a session that cannot be committed fails silently and the caller is told the transfer succeeded?",
+   "anchor": "session_not_processable = 1"
+  },
+  {
+   "id": "D35",
+   "area": "业务正确性",
+   "question": "Does the report identify that in the RFITEMGL branch of devir_fblxn the umskz and filkd columns are commented out of the bsis and bsas field lists, while the RFITEMAP branch selects both, so umskz and filkd reach the aggregation initial for every general-ledger account?",
+   "anchor": "*                 umskz"
+  },
+  {
+   "id": "D37",
+   "area": "健壮性",
+   "question": "Does the report identify that devir_fblxn guards every field symbol in the first CASE with IS ASSIGNED but for the RFITEMGL account range checks only `IF sy-subrc = 0.`, so an assigned yet empty range matches nothing and the general-ledger opening balances are silently omitted?",
+   "anchor": "ASSIGN ('(RFITEMGL)SD_SAKNR[]') TO <lt_saknr>."
+  },
+  {
+   "id": "D38",
+   "area": "健壮性",
+   "question": "Does the report identify that the second statement in ekstre_fblxn's reversal block is `DELETE ct_items.` with no WHERE clause, inside the LOOP that iterates ct_items, so it removes every remaining row of the item table rather than only the current document?",
+   "anchor": "DELETE ct_items."
+  },
+  {
+   "id": "D39",
+   "area": "健壮性",
+   "question": "Does the report identify that ekstre_fblxn writes zzbstkd from zuonr inside a LOOP AT ct_items ASSIGNING FIELD-SYMBOL, so a component that participates in the table's sort order is changed while the loop is walking that order?",
+   "anchor": "<ls_items>-zzbstkd = <ls_items>-zuonr."
+  },
+  {
+   "id": "D36",
+   "area": "性能与规范",
+   "question": "Does the report identify that the BSIK, BSAK, BSID and BSAD selects in devir_fblxn combine FOR ALL ENTRIES with a parenthesised OR comparing lifnr against it_hesap-sube or it_hesap-merkez, so the per-row correlation with the driver row is lost and the join degrades to a filtered cross product?",
+   "anchor": "( lifnr = it_hesap-sube OR lifnr = it_hesap-merkez )"
   }
  ]
 }
