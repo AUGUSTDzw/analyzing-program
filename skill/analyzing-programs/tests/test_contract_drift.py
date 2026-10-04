@@ -108,6 +108,21 @@ def main():
               f"skill={in_skill} contract[{where}]={in_contract}")
 
     print()
+    print("the loop position rule is in both places")
+    print("-" * 74)
+    lp = contract.get("loop_position", {})
+    for k in ("inside_generation_cost_weighted_recall",
+              "outside_generation_cost_weighted_recall",
+              "checks_make_no_difference_p", "repair_pass_may_change"):
+        check(k in lp, f"loop_position.{k} is recorded")
+    check(bool(lp.get("repair_pass_must_not_change")),
+          "loop_position states what a repair pass must not change")
+    check("这一轮不许改分析" in skill,
+          "the prohibition is stated in SKILL.md, not only in the contract")
+    check("分析在这一步已经是终稿" in skill,
+          "SKILL.md says the analysis is final before the repair pass")
+
+    print()
     print("claim separation is stated, not implied")
     print("-" * 74)
     cs = contract.get("claim_separation", {})

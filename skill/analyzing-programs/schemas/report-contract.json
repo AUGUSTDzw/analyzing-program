@@ -80,6 +80,31 @@
     }
   ],
 
+  "loop_position": {
+    "_comment": [
+      "Where the checker runs is itself a measured rule, not a style preference.",
+      "",
+      "Run inside generation, the gate costs 22 points of defect recall: -0.250 at",
+      "twenty defects with an exact sign test p=0.0215, and -0.224 at thirty-eight,",
+      "the same sign at two resolutions. Run as a separate pass after the analysis",
+      "is final, recall returns to a level indistinguishable from no checker at all",
+      "(0.035 apart) while transcription accuracy is still gained -- one run found",
+      "and corrected eight of its own transcription errors.",
+      "",
+      "What the loop checks makes no difference. An arm that checked only",
+      "quotations and an arm that checked everything scored identically, p=1.0. The",
+      "cost is the loop occupying writing budget, which section 3 needs. So the",
+      "rule is not 'check less' -- it is 'check at a different moment', and a repair",
+      "pass may not touch the analysis."
+    ],
+    "inside_generation_cost_weighted_recall": -0.224,
+    "outside_generation_cost_weighted_recall": -0.035,
+    "checks_make_no_difference_p": 1.0,
+    "repair_pass_may_change": "quoted ABAP only",
+    "repair_pass_must_not_change": ["analysis", "structure", "risk text", "conclusions", "priority"],
+    "skill_anchor": "这一轮不许改分析"
+  },
+
   "claim_separation": {
     "_comment": [
       "Passing a deterministic check licenses only the claim that the shape is",
