@@ -1,0 +1,64 @@
+{
+  "_comment": [
+    "iteration-9 pilot: harness validation, not a verdict.",
+    "Full plan is 96 reports (13 synthetic x 2 versions x 3 runs = 78, plus",
+    "3 real files x 2 versions x 3 runs = 18) against the shared iteration-8",
+    "baseline. This pilot ran 3 real files x 2 versions x 1 run = 6 cells.",
+    "n=3 pairs makes the pre-registered bar arithmetically unreachable: the best",
+    "possible outcome is 3 wins / 0 losses, which is p = 0.25, above 0.05.",
+    "So the sign-test result below is not evidence either way. What the pilot",
+    "establishes is that the generation -> gate -> pair -> test chain runs, and",
+    "that the attempt log below is a real hazard.",
+    "n_attempts is recorded per the plan's rule that only completed reports must",
+    "never be reported: a completion rate that rose while quality fell would be",
+    "survivorship bias."
+  ],
+  "scope": {
+    "arm_a": "with_skill_b8f84e8",
+    "arm_b": "with_skill_718f5988",
+    "runs_per_cell": 1,
+    "baseline": "not re-run; iteration-8's 26 baseline reports are version-independent",
+    "prompt": "identical across versions; version is selected only by the skill load path"
+  },
+  "sources": [
+    {"cell": "real-objects_program", "file": "abapGit__abapGit__zcl_abapgit_objects_program.clas.abap", "lines": 1598, "sha256_prefix": "bf5661698e3d"},
+    {"cell": "real-object_fugr",     "file": "abapGit__abapGit__zcl_abapgit_object_fugr.clas.abap",    "lines": 1530, "sha256_prefix": "dd237caf0c89"},
+    {"cell": "real-flow_logic",      "file": "abapGit__abapGit__zcl_abapgit_flow_logic.clas.abap",     "lines": 1115, "sha256_prefix": "5766bd3e7c2c"}
+  ],
+  "preflight": "all 3 clean: valid UTF-8, no BOM, no U+FFFD, no NUL, ABAP keywords present",
+  "attempts": [
+    {"cell": "real-objects_program", "arm": "with_skill_b8f84e8",  "attempts": 1, "completed": true,  "prompt_variant": "standard", "note": null},
+    {"cell": "real-objects_program", "arm": "with_skill_718f5988", "attempts": 3, "completed": true,  "prompt_variant": "CONTAMINATED", "note": "attempts 1 and 2 produced zero output with the standard prompt. attempt 3 succeeded but with an added line telling the agent to limit scope to 8-12 methods. That report is therefore not comparable to the other five and must be read as unmeasured for the primary endpoint."},
+    {"cell": "real-object_fugr",     "arm": "with_skill_b8f84e8",  "attempts": 2, "completed": true,  "prompt_variant": "standard", "note": "attempt 1 produced zero output; attempt 2 used the standard prompt plus a reminder to actually write the file."},
+    {"cell": "real-object_fugr",     "arm": "with_skill_718f5988", "attempts": 1, "completed": true,  "prompt_variant": "standard", "note": null},
+    {"cell": "real-flow_logic",      "arm": "with_skill_b8f84e8",  "attempts": 1, "completed": true,  "prompt_variant": "standard", "note": null},
+    {"cell": "real-flow_logic",      "arm": "with_skill_718f5988", "attempts": 1, "completed": true,  "prompt_variant": "standard", "note": null}
+  ],
+  "attempt_totals": {
+    "cells": 6,
+    "total_attempts": 9,
+    "first_pass_completions": "4 of 6 (67%)",
+    "zero_output_attempts": 3,
+    "zero_output_by_arm": {"with_skill_b8f84e8": 1, "with_skill_718f5988": 2},
+    "note": "both arms hit zero-output failures; the split is 1 vs 2 across 3 cells each, which is not informative. The failure mode is silence, not a partial file, so it is not a truncation problem."
+  },
+  "primary_endpoint": {
+    "gate": "analyzing-programs-workspace/gate_ab.py",
+    "reports_per_arm": 3,
+    "arm_a": {"pass": 1, "pass_rate": 0.333, "defect_instances": 3, "by_kind": {"A8-cc": 2, "prow": 1}, "per_report_counts": "0 x1, 1 x1, 2 x1"},
+    "arm_b": {"pass": 3, "pass_rate": 1.0, "defect_instances": 0, "by_kind": {}, "per_report_counts": "0 x3"},
+    "paired": {"pairs": 3, "after_truncation_exclusion": 3, "arm_b_better": 2, "arm_b_worse": 0, "tied": 1},
+    "discordant": [
+      {"cell": "real-object_fugr", "run": "run-1", "from": 2, "to": 0},
+      {"cell": "real-objects_program", "run": "run-1", "from": 1, "to": 0}
+    ],
+    "defect_delta": -3,
+    "exact_two_sided_sign_test_p": 0.5,
+    "pre_registered_criterion": "NOT MET (p = 0.5 >= 0.05); fewer defects overall but not on enough pairs",
+    "base_rate_note": "on this real corpus the arm_a gate failure rate is 2 of 3 reports (67%) carrying a defect, against 23% on the synthetic set of iteration-8. The real corpus is a harder gate, which is the opposite of the assumption the pre-registered ceiling was built on."
+  },
+  "secondary_endpoints": {
+    "truncation": "0 of 6 truncated. All six have 6/6 sections. The coverage signal cannot fire here: its threshold is sources above 2000 lines and the largest source in this pilot is 1598, so only the section signal was active.",
+    "citation_fidelity": "not measured by the harness in this pilot. Three of the six agents reported running --fidelity-only to PASS themselves; that is self-report and is not a harness measurement."
+  }
+}
