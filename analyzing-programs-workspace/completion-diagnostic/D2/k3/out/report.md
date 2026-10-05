@@ -1,0 +1,28 @@
+- `add_tpool` (283-298): Converts a textpool table to the ABAPGit tpool table, splitting `S` (short) entries into a split+entry pair.
+- `auto_correct_cua_adm` (301-338): Automatically repairs a lost/incomplete CUA `ADM` record by scanning ACT/MEN/PFK entries for a numeric-only code.
+- `create_vari` (341-374): Creates a variant through `RS_CREATE_VARIANT_255` followed by `RS_CHANGE_CREATED_VARIANT_255` to also persist objects.
+- `delete_vari` (377-403): Deletes a variant via `RS_VARIANT_DELETE`, retrying without newer-only parameters on older releases.
+- `deserialize_cua` (406-475): Writes the CUA back through `RS_CUA_INTERNAL_WRITE` (with `sy-tcode='SE41'` hack and ADM auto-correction) and queues activation.
+- `deserialize_dynpros` (478-634): Recreates Dynpros via `RPY_DYNPRO_INSERT[_NATIVE]`, uncondenses flow logic, fixes field flags, and deletes screens no longer present.
+- `deserialize_exit_include` (637-665): Inserts or updates an exit include program (state `''`) by branching on whether an active version already exists.
+- `deserialize_program` (668-717): Main deserialize entry — dispatches exit includes separately, otherwise creates a transport entry, then inserts or updates the program and writes progdir/activation.
+- `deserialize_textpool` (720-768): Inserts or deletes the textpool per language, choosing active/inactive state based on main-language vs. include rules.
+- `deserialize_varis` (771-854): Rebuilds variants (unlock, delete-if-present, recreate, re-lock) and removes any local variants missing from the source list.
+- `get_program_title` (857-875): Extracts the program title from the `R` textpool entry and clears a shared `SAPLSIFP`/`TTAB` buffer to work around an `RPY_PROGRAM_UPDATE` bug.
+- `get_varis_for_report` (878-906): Lists all variants of a report via `RS_ALL_VARIANTS_4_1_REPORT`, keeping only `SAP&*`/`CUS&*` names.
+- `get_vari_data` (909-975): Reads variant technical data, contents, objects, and texts via `RS_VARIANT_VALUES_TECH_DAT_255` and `RS_VARIANT_CONTENTS_255`, sorted for reproducibility.
+- `get_vari_screens` (978-997): Fetches the screen list referenced by a variant via `RS_GET_SCREENS_4_1_VARIANT`.
+- `insert_program` (1000-1063): Creates a new program via `RPY_PROGRAM_INSERT` (with old-release fallback); on `name_not_allowed` falls back to `zcl_abapgit_sap_report->insert_report` for both active and inactive copies.
+- `is_any_dynpro_locked` (1066-1087): Serializes all Dynpros and returns true if any has an `ESCRP` lock entry.
+- `is_cua_locked` (1090-1101): Checks for an `ESCUAPAINT` lock on the program's CUA.
+- `is_exit_include` (1104-1108): Returns true if the program name matches exit-include patterns (`LX*`, `SAPLX*`, `/LX*`, `/SAPLX*`).
+- `is_text_locked` (1111-1120): Checks for an `EABAPTEXTE` lock on the program's text pool.
+- `read_tpool` (1123-1139): Reverses `add_tpool`, concatenating `split` back onto `entry` for `S` textpool entries.
+- `serialize_cua` (1142-1171): Fetches all CUA tables (ADM, STA, FUN, MEN, MTX, ACT, BUT, PFK, SET, DOC, TIT, BIV) via `RS_CUA_INTERNAL_FETCH`.
+- `serialize_dynpros` (1174-1308): Reads each Dynpro via `RPY_DYNPRO_READ[_NATIVE]`, normalizes field flags (foreignkey, modific, text, outputstyle, resize), and stores flow logic as separate ABAP files.
+- `serialize_program` (1311-1418): Main serialize entry — reads progdir/source/textpool, optionally emits Dynpros/CUA/Variants XML for executable programs, adds textpool XML, and stores the stripped source as an ABAP file.
+- `serialize_varis` (1421-1454): For each variant, collects varid/values/objects/texts via `get_vari_data` and referenced screens via `get_vari_screens`.
+- `set_vari_protection` (1457-1480): Locks the `VARID` row `FOR UPDATE` and toggles its `protected` flag, returning the previous value.
+- `strip_generation_comments` (1483-1536): Removes SAP-generated comment headers from FUGR source (main FM regenerated header and TOP/inclusion generation banner).
+- `uncondense_flow` (1539-1557): Re-expands compressed flow-logic lines by shifting each line right by its corresponding entry in the spaces table.
+- `update_program` (1560-1596): Updates an existing program via `RPY_INCLUDE_UPDATE`, with special handling for `EU510` (user is editing) and `EU522` (author mismatch on generated FMGs).

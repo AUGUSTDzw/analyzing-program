@@ -1,0 +1,28 @@
+- add_tpool (283-298): converts SAP textpool entries into abapGit's internal TPOOL structure, splitting the entry field for 'S' (string) rows.
+- auto_correct_cua_adm (301-338): repairs CUA-ADM codes missing from older XML exports by scanning act/men/pfk tables for pure-numeric codes.
+- create_vari (341-374): creates an ABAP selection variant via RS_CREATE_VARIANT_255 followed by RS_CHANGE_CREATED_VARIANT_255 to attach objects and texts.
+- delete_vari (377-403): deletes a variant through RS_VARIANT_DELETE, retrying without optional parameters if the release does not support them.
+- deserialize_cua (406-475): writes a CUA definition back to SAP via RS_CUA_INTERNAL_WRITE, applying ADM auto-correction and registering activation.
+- deserialize_dynpros (478-634): restores screens by inserting provided dynpros (native or classic) and deleting any existing screens not present in the payload.
+- deserialize_exit_include (637-665): inserts or updates an SAP exit include (LX/SAPLX) using the active-state flow required by RS_INSERT_INTO_WORKING_AREA.
+- deserialize_program (668-717): main entry point for restoring a program—routes exit includes specially, otherwise inserts/updates progdir, source, and registers activation.
+- deserialize_textpool (720-768): inserts, updates, or deletes a program's textpool in the target language, with special handling for includes and main-language activation.
+- deserialize_varis (771-854): syncs variants for a program—deletes stale local ones, recreates each variant from the payload, and preserves protection flags.
+- get_program_title (857-875): reads the 'R' row from the textpool as the program title and clears the SAPLSIFP TTAB static to avoid inheriting stale lengths.
+- get_varis_for_report (878-906): lists SAP and CUS variants of a report via RS_ALL_VARIANTS_4_1_REPORT, filtered to SAP&* and CUS&* patterns.
+- get_vari_data (909-975): retrieves a variant's technical descriptor, values, objects, and multi-language texts from RS_VARIANT_* FMs and varit.
+- get_vari_screens (978-997): fetches the screen assignments of a variant via RS_GET_SCREENS_4_1_VARIANT and returns them sorted.
+- insert_program (1000-1063): inserts a program through RPY_PROGRAM_INSERT, falling back to direct repo inserts for program types the FM refuses (e.g. FUGR).
+- is_any_dynpro_locked (1066-1087): checks the ESCRP lock object for any dynpro screen of a program to detect concurrent edits.
+- is_cua_locked (1090-1101): checks the ESCUAPAINT lock object to see whether the CUA of a program is locked by another user.
+- is_exit_include (1104-1108): returns true if the program name matches SAP exit-include naming conventions (LX*, SAPLX*, /LX*, /SAPLX*).
+- is_text_locked (1111-1120): checks the EABAPTEXTE lock object to detect whether a program's text elements are currently locked.
+- read_tpool (1123-1139): inverse of add_tpool—restores textpool rows by concatenating split back into entry for 'S' rows.
+- serialize_cua (1142-1171): fetches a program's active CUA definition via RS_CUA_INTERNAL_FETCH and packs it into ty_cua.
+- serialize_dynpros (1174-1308): reads every non-generated dynpro via RPY_DYNPRO_READ/RPY_DYNPRO_READ_NATIVE, cleans up output style and foreign-key flags, and stores flow logic as separate ABAP files.
+- serialize_program (1311-1418): top-level export—reads progdir, source, textpool, and (for reports/modules) dynpros, CUA, and variants, emitting XML and ABAP files.
+- serialize_varis (1421-1454): collects each variant's data, screens, and cleared object texts into the ty_vari table for XML output.
+- set_vari_protection (1457-1480): updates the protected flag in varid for a variant, returning the previous protection state.
+- strip_generation_comments (1483-1536): removes generator header lines (dates/versions) from FUGR source to avoid churn in version control.
+- uncondense_flow (1539-1557): re-expands compressed flow logic by shifting each line right by the number of spaces recorded in the companion spaces table.
+- update_program (1560-1596): updates an existing program via RPY_INCLUDE_UPDATE, converting common SAP errors (EU510 editing, EU522 FUGR author) into actionable exceptions.
