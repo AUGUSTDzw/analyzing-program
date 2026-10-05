@@ -1,0 +1,107 @@
+{
+  "iteration": "9b",
+  "plan": "analyzing-programs-workspace/iteration-9b-plan.md",
+  "status": "INCONCLUSIVE - completion, not quality, is the result of this run",
+
+  "design_as_pre_registered": {
+    "cells": 12,
+    "structure": "3 real files x 2 skill versions x 2 runs",
+    "paired_units": 6,
+    "attempts_per_cell": 1,
+    "primary_bar": "fewer total defects AND exact two-sided sign test p < 0.05; at n=6 the only reachable cell is 6 wins / 0 losses = p 0.03125"
+  },
+
+  "primary_endpoint": {
+    "gate": "analyzing-programs-workspace/gate_ab.py",
+    "gate_exit_code": 1,
+    "complete_pairs": "1 of 6",
+    "incomplete_pairs": 5,
+    "paired_result": "flow_logic/run-2: b8f84e8 0 defects vs 718f5988 0 defects - TIED",
+    "discordant_pairs": {"arm_b_better": 0, "arm_b_worse": 0, "tied": 1},
+    "exact_sign_test_p": 1.0,
+    "verdict": "NOT MET, and not for lack of signal - 5 of 6 pairs never got both reports",
+    "unpaired_report_count": 3,
+    "gate_own_wording": "INCOMPLETE: 3 report(s) unpaired. A pair count that does not cover both arms is a survivorship artefact, not a comparison."
+  },
+
+  "defect_instances_unpaired_not_comparable": {
+    "warning": "These two columns come from different cells, so they cannot be read as a comparison. Recorded because they are the only quality data this run produced.",
+    "with_skill_b8f84e8": {"reports": 3, "pass": 1, "pass_rate": 0.333, "defect_instances": 7, "by_kind": {"A8-cc": 1, "A8-pt": 5, "prow": 1}, "per_report_counts": "0 x1, 2 x1, 5 x1"},
+    "with_skill_718f5988": {"reports": 2, "pass": 2, "pass_rate": 1.0, "defect_instances": 0, "by_kind": {}, "per_report_counts": "0 x2"}
+  },
+
+  "secondary_completion_rate": {
+    "this_is_the_finding_of_the_run": true,
+    "cells": 12,
+    "dispatches_that_ran": 12,
+    "infra_aborts_not_counted": 2,
+    "completed": 5,
+    "failed_with_zero_output": 7,
+    "completion_rate": 0.417,
+    "by_arm": {
+      "with_skill_b8f84e8": {"complete": 3, "failed": 3, "rate": 0.5},
+      "with_skill_718f5988": {"complete": 2, "failed": 4, "rate": 0.333}
+    },
+    "pilot_comparison": "iteration-9's pilot ran 6 cells with 9 dispatches (4 completed first pass, 67%) and retried everything to completion. This run used exactly 1 attempt per cell and got 41.7%. The two numbers measure different things; this one is the honest one.",
+    "failure_mode": "silence. No partial file, no error message, just no output. Truncation cannot detect it because there is nothing to truncate.",
+    "no_file_size_pattern": "flow_logic (1115 lines) completed 3 of 4 times. objects_program (1598) completed 1 of 4. object_fugr (1530) completed 1 of 4. Larger files fail more, but flow_logic fails too."
+  },
+
+  "secondary_truncation": {
+    "completed": 5,
+    "truncated": 0,
+    "all_sections_present": "5 of 5 have 6/6 sections",
+    "coverage_signal": "CANNOT FIRE. Its threshold is sources above 2000 lines; the largest source here is 1598. Only the section signal was active, so '0 truncated' is a weaker statement than it reads."
+  },
+
+  "secondary_fidelity": {
+    "method": "report_qc.py --fidelity-only <report> <source>, run by this harness, not by the agents",
+    "completed": 5,
+    "pass": 5,
+    "fail": 0,
+    "note": "Every completed report quotes ABAP that exists character-for-character in the source. This holds for both skill versions."
+  },
+
+  "per_cell_log": [
+    {"cell": "real-objects_program", "run": "run-1", "arm": "with_skill_b8f84e8",  "attempts": 1, "completed": false},
+    {"cell": "real-objects_program", "run": "run-1", "arm": "with_skill_718f5988", "attempts": 1, "completed": true,  "report_lines": 1243},
+    {"cell": "real-object_fugr",     "run": "run-1", "arm": "with_skill_b8f84e8",  "attempts": 1, "completed": true,  "report_lines": 1462},
+    {"cell": "real-object_fugr",     "run": "run-1", "arm": "with_skill_718f5988", "attempts": 1, "completed": false},
+    {"cell": "real-flow_logic",      "run": "run-1", "arm": "with_skill_b8f84e8",  "attempts": 1, "completed": true,  "report_lines": 1246},
+    {"cell": "real-flow_logic",      "run": "run-1", "arm": "with_skill_718f5988", "attempts": 1, "completed": false, "note": "first dispatch aborted by the tool, not counted as an attempt; the dispatch that did run produced no output"},
+    {"cell": "real-objects_program", "run": "run-2", "arm": "with_skill_b8f84e8",  "attempts": 1, "completed": false},
+    {"cell": "real-objects_program", "run": "run-2", "arm": "with_skill_718f5988", "attempts": 1, "completed": false},
+    {"cell": "real-object_fugr",     "run": "run-2", "arm": "with_skill_b8f84e8",  "attempts": 1, "completed": false},
+    {"cell": "real-object_fugr",     "run": "run-2", "arm": "with_skill_718f5988", "attempts": 1, "completed": false, "note": "first dispatch aborted by the tool, not counted as an attempt"},
+    {"cell": "real-flow_logic",      "run": "run-2", "arm": "with_skill_b8f84e8",  "attempts": 1, "completed": true,  "report_lines": 1170},
+    {"cell": "real-flow_logic",      "run": "run-2", "arm": "with_skill_718f5988", "attempts": 1, "completed": true,  "report_lines": 1193}
+  ],
+
+  "reading_under_plan_section_4": {
+    "applicable_read": "两臂排除数不同 -> 不可判定",
+    "detail": "run-1 exclusions split 1 (b8f84e8) vs 2 (718f5988); run-2 split 2 vs 2. Either way the exclusion counts differ by arm, so the plan says the comparison is reported as undetermined and only the direction is stated.",
+    "direction": "On the completed-but-unpaired reports the newer version carried 0 defect instances across 2 reports and the older carried 7 across 3. Direction favours the newer version. It is not evidence.",
+    "what_not_to_write": "Do not write 'the fix works' or 'the fix does not work'. Neither is supported by 1 tied pair."
+  },
+
+  "what_this_run_actually_established": [
+    "On 1100-1600-line real ABAP sources, a single undirected dispatch produces a usable report about 42% of the time. That is the headline, and it is about the delivery mechanism, not about either skill version.",
+    "When a report does get produced, it is structurally complete (6/6 sections) and its ABAP quotations are all verbatim-faithful. Neither version, of the 5 reports that exist.",
+    "A skill version difference cannot be measured through a completion funnel this leaky. The primary endpoint needs retries to exist at all, and retries are what would invalidate it.",
+    "The gate, the pairing, and the sign test all worked correctly on a design that could not reach their bar. The harness is not the problem."
+  ],
+
+  "what_it_did_not_do": [
+    "Compare the two skill versions. 1 tied pair is not a comparison.",
+    "Establish a base rate for b8f84e8 on real code. Only 3 of its 6 reports exist.",
+    "Measure the truncation coverage signal. All sources are under its 2000-line threshold.",
+    "Measure recall. Real sources have no defect reference list."
+  ],
+
+  "provenance_hazards_hit_this_session": [
+    "b8f84e8 had never been installed as a loadable skill; the pilot's whole 'old' arm silently ran 718f5988. Fixed by installing the pinned copy and adding a pre-dispatch digest check to the plan.",
+    "The three source sha256 values I typed into the first wave of prompts were invented - all three diverged from the real digest at position 13. Agents read the file by path, so no report is affected, but one agent caught the mismatch and reported it.",
+    "I added a scope-limiting sentence to one pilot prompt, contaminating that cell. Logged in iteration-9/pilot-metadata.json.",
+    "Two tool-level aborts during run-2 were not measured attempts and were re-dispatched; one of those cells was also never dispatched at all because of a malformed tool call on my side."
+  ]
+}
