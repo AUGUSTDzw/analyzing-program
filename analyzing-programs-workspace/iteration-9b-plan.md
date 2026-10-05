@@ -19,16 +19,55 @@ iteration-9 的试点只改了一件事，但那件事足以推翻原计划的�
 7 个缺陷实例、6 份失败，23% 的报告带缺陷，所以 39 组配对里"只有约 9 份带缺陷"，
 胜出数不可能超过 9，判据因此定在 6 胜。
 
-**真实语料上的基率是 67%。** 试点 3 份 b8f84e8 报告：1 份 0 缺陷、1 份 1 个、
-1 份 2 个——2/3 的报告带缺陷，3 个缺陷实例。合成集 23%，真实集 67%，差近 3 倍。
+### 试点其实只测了一个版本（派发完才发现，判据已随之修正）
 
-方向对预注册判据**有利**：带缺陷的报告越多，可胜出的对越多，不是越少。
-原计划的天花板是 9 胜；真实语料上 6 组配对就可能有 6 个全部可胜。
+**b8f84e8 从未被安装成可加载的 skill。** `C:\Users\DzwU\.agents\skills\` 下只有
+`analyzing-programs`（718f5988）。pilot 里三个"b8f84e8"格被指去加载
+`analyzing-programs-b8f84e8\SKILL.md`——那个路径不存在。
 
-所以 iteration-9b 缩到真实语料不是减少证据，是**把样本放到缺陷真正存在的地方**。
+代理没有报错，它们**静默回退去读了 718f5988**。object_fugr 那一格自己在结果里
+承认了：
 
-第二个理由是试点暴露的完成率问题（§5），它只在大文件上发生，
-多加 run 数不能改善它，只会加重。
+> "does not exist; the only installed copy is `analyzing-programs\SKILL.md`,
+> which I loaded and followed (including the post-write fidelity-only pass)"
+
+"fidelity-only pass" 是第 6 步，只有 718f5988 有。所以 pilot 的 6 份报告
+**全部**是 718f5988 生成的。那次比较是 **718f5988 对 718f5988**。
+
+**因此这句话要撤回：**
+
+> ~~真实语料上的基率是 67%，b8f84e8 的 3 份报告 2 份带缺陷，3 个缺陷实例。~~
+
+真实的情况是：
+
+| | 同一轮的 A 组 | 同一轮的 B 组 |
+|---|---|---|
+| 实际加载的 skill | 718f5988 | 718f5988 |
+| 缺陷实例 | 3（0×1, 1×1, 2×1） | 0（0×3） |
+
+**同一个版本，同一个源文件，一轮出 3 个缺陷、一轮出 0 个。**
+
+那 67% 不是 b8f84e8 的基率——是 718f5988 的单轮结果，而且它自己都不稳定。
+我们对 b8f84e8 在真实语料上的表现**仍然一无所知**。
+
+这双向影响本轮的意义：
+
+- **对"修复有效"不利**：pilot 看到的方向（3 vs 0）是同版本噪声，不能当修复证据。
+  iteration-9b 必须在真的两版对比里重看它。
+- **对设计本身有利，而且解释了 iteration-9 为什么够不着**：
+  同版本轮间噪声的量级至少是"一轮 0 个、一轮 3 个"。n=3 根本分不开
+  "版本差异"和"轮间噪声"。这不是"样本太小"那种抽象说法——
+  是同版本噪声吃掉了全部信号。6 组配对是能把这两件事分开的最小设计。
+
+**已修**：b8f84e8 已作为真实目录安装，字节级等于 pinned 副本
+（`B8F84E80…`，9815 字节，源与目标 SHA-256 一致），
+且确认自包含——它零引用 `scripts/` `references/` `schemas/`，
+单个 SKILL.md 即可运行。718f5988 只引用自己的捆绑文件，
+两个版本互不引用对方的文件，混装不会串。
+
+pilot 的 6 份报告**全部作废，不复用**。iteration-9b 从零生成 12 份。
+
+第二个设计理由仍是完成率（§5）：它只在大文件上发生，多加 run 数不改善。
 
 ## 2. 设计
 
@@ -150,6 +189,11 @@ iteration-9 试点里 3/6 的代理自称 `--fidelity-only` PASS。
 5. **只报完成格不报完成率。**
 6. **把"覆盖率信号没触发"读成"没有残篇"。** 见 §3 SECONDARY。
 7. **两臂排除数不同时仍然报 p。**
+8. **让代理静默回退到另一个 skill 版本。** 这在 pilot 里已经发生过：
+   b8f84e8 路径不存在，代理没有报错，改读了 718f5988，整轮变成同版本对比。
+   派发前必须用 `Get-FileHash` 核两臂的 digest（见 §8 第 0 步）。
+9. **把"代理说它跑了 QC"当成测量。** iteration-9 试点里 3/6 的代理自称
+   `--fidelity-only` PASS。自报不是闸门结果，本轮由 harness 统一跑。
 
 ## 6. 已知局限
 
@@ -168,11 +212,16 @@ iteration-9 试点里 3/6 的代理自称 `--fidelity-only` PASS。
 ## 8. 执行顺序
 
 1. 提交本文件（判据先行）
-2. `preflight.py` 复核 3 个源文件
-3. `pin_skill_versions.py` 确认两版仍为 b8f84e8 / 718f5988
-4. 派发 12 份报告，**prompt 完全一致，版本只通过 skill 路径区分**，
+2. **核两臂 skill digest。** `with_skill_b8f84e8` 臂读的
+   `C:\Users\DzwU\.agents\skills\analyzing-programs-b8f84e8\SKILL.md`
+   必须是 `B8F84E80…`（9815 字节），`with_skill_718f5988` 臂读的
+   `C:\Users\DzwU\.agents\skills\analyzing-programs\SKILL.md` 必须是 `718F5988…`。
+   任何一个不是就停，不要派发。**这是 §5 第 8 条的防护。**
+3. `preflight.py` 复核 3 个源文件
+4. `pin_skill_versions.py` 确认两版仍为 b8f84e8 / 718f5988
+5. 派发 12 份报告，**prompt 完全一致，版本只通过 skill 路径区分**，
    不给任何额外提示，每格 1 次
-5. `gate_ab.py` → PRIMARY
-6. `truncation.classify` 逐份 → 排除
-7. `report_qc.py --fidelity-only` 逐份 → 忠实度
-8. 按 §4 读结果
+6. `gate_ab.py` → PRIMARY
+7. `truncation.classify` 逐份 → 排除
+8. `report_qc.py --fidelity-only` 逐份 → 忠实度
+9. 按 §4 读结果
