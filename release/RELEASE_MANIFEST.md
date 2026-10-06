@@ -1,8 +1,8 @@
 # analyzing-programs v1.0.0 — release manifest
 
-Build time: 2026-10-06 16:03:48
-Source commit: `0c829f1aca3138ea1ee428ca9e6d9f89f4383ead` (0c829f1)
-Commit subject: release: add v1.0.0 archive (82273 B, sha256 1c47332edd76)
+Build time: 2026-10-06 16:03:51
+Source commit: `ba49094e9668b22b2f09224003d6a8a6b3e949f4` (ba49094)
+Commit subject: release: archive analyzing-programs v1.0.0 cut from 0c829f1
 
 ## Contents
 
@@ -28,7 +28,7 @@ Commit subject: release: add v1.0.0 archive (82273 B, sha256 1c47332edd76)
 | `analyzing-programs-1.0.0/tests/test_contract_drift.py` | 6342 | `b4c53172c2050661` |
 | `analyzing-programs-1.0.0/tests/test_skill.py` | 14832 | `d65a1cc8d5aaf8e2` |
 
-`analyzing-programs-1.0.0.zip` — 82273 B compressed, 185232 B uncompressed, SHA256 `3e8901fdec579dc0db82c4b77b7233d4aa40efea7b01e5107f40cd29b342568b`,
+`analyzing-programs-1.0.0.zip` — 82273 B compressed, 185232 B uncompressed, SHA256 `d8298f885bb39f8933a2932fd6ee39094b89e0d2401783e9a764126e003fbdc2`,
 17 entries, `testzip` clean, no build artifacts.
 
 ## Provenance
