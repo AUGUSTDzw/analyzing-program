@@ -28,7 +28,11 @@
   "layers": {
     "labels": ["做什么", "为什么", "风险与改进"],
     "applies_to": "every ```abap fence that quotes source",
-    "exempt": "a fence inside the 风险与改进 layer illustrates a proposed fix and needs no layers",
+    "fence_languages": {
+      "quotes_source": "abap",
+      "illustrates_a_fix": "abap-fix"
+    },
+    "exempt": "fence language only -- an abap-fix fence illustrates a proposed fix and needs no layers",
     "skill_anchor": "每个代码块后三层都必须出现",
     "violation_kinds": {
       "A8-cc": "nothing at all between two quoted blocks",
@@ -77,6 +81,12 @@
       "enforcement": "note",
       "why": "a fabricated block keeps six sections, three layers and four buckets; nothing structural sees it",
       "skill_anchor": "逐字符忠实"
+    },
+    {
+      "id": "fix-lang",
+      "enforcement": "note",
+      "why": "fence language is the only admission test, but a proposed fix left in an abap fence is probed against the source and reads as fabricated; the exemption used to be positional and skipped the next sub-step's real quote as well -- 12 of 138 quoted statements uninspected on one report",
+      "skill_anchor": "用 abap-fix 围栏"
     }
   ],
 

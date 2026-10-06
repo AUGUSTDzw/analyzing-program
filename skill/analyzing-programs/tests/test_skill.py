@@ -170,6 +170,78 @@ def main():
     check("do not occur in the source" in r.stdout,
           "a fidelity note fires when an identifier is rewritten")
 
+    # regression: fidelity_note scoped its exemption to the whole document prefix
+    # rather than the current heading, so once a report had written a single
+    # 风险与改进 layer every later block was skipped. Real reports carry many
+    # blocks; this fixture has one, placed before any layer, which is why the bug
+    # survived and why this case had to be written by hand.
+    two = brief_report().replace(
+        "## 四、流程图",
+        "### 3.2 步骤② 声明（函数模块 `Z_FOO`）\n"
+        "\n```abap\n"
+        "  DATA ls_foo TYPE i.\n"
+        "```\n"
+        "\n**做什么** — 声明。\n**为什么** — 定长。\n**风险与改进** — 可改用 c。\n"
+        "\n## 四、流程图")
+    p = os.path.join(tmp, "second.md")
+    io.open(p, "w", encoding="utf-8").write(two)
+    r = run(QC, p, src)
+    check("do not occur in the source" not in (r.stdout or ""),
+          "a faithful second block raises no fidelity note")
+    p = os.path.join(tmp, "altered2.md")
+    io.open(p, "w", encoding="utf-8").write(
+        two.replace("DATA ls_foo TYPE i.", "DATA ls_foo TYPE c."))
+    r = run(QC, p, src)
+    check("do not occur in the source" in (r.stdout or ""),
+          "a rewritten second block raises a fidelity note")
+
+    # Fence language decides what is probed; position exempts nothing. A fix
+    # nested in the risk layer used to be skipped by position, which skipped the
+    # next sub-step's real quote as well. Label it abap-fix and neither gate
+    # touches it; leave it abap and both do.
+    tail = ("**风险与改进** — 可改用 c（示意，源码中不存在）：\n"
+            "   ```abap-fix\n"
+            "     DATA ls_foo TYPE c.\n"
+            "   ```\n")
+    p = os.path.join(tmp, "fixlabelled.md")
+    io.open(p, "w", encoding="utf-8").write(
+        two.replace("**风险与改进** — 可改用 c。", tail))
+    r = run(QC, p, src)
+    check(r.stdout.startswith("PASS") and r.returncode == 0,
+          "a labelled fix needs no layers and breaks nothing",
+          r.stdout.strip().split("\n")[0][:44] if r.stdout.strip() else "")
+    check("do not occur in the source" not in r.stdout,
+          "a labelled fix is not probed against the source")
+    check("fence(s) sit inside" not in r.stdout,
+          "a correctly labelled fix raises no fix-lang note")
+
+    p = os.path.join(tmp, "fixunlabelled.md")
+    io.open(p, "w", encoding="utf-8").write(two.replace(
+        "**风险与改进** — 可改用 c。",
+        tail.replace("```abap-fix", "```abap").replace("（示意，源码中不存在）", "")))
+    r = run(QC, p, src)
+    check("do not occur in the source" in r.stdout,
+          "an unlabelled fix is probed and reads as fabricated")
+    check("fence(s) sit inside" in r.stdout,
+          "an unlabelled fix raises a fix-lang note")
+
+    # the same nesting with a third block in the heading: the third block is a
+    # real quote followed by its own layers, so it must not be flagged either
+    triple = two.replace(
+        "## 四、流程图",
+        "```abap\n"
+        "  ENDIF.\n"
+        "```\n"
+        "\n**做什么** — 收尾。\n**为什么** — 对称。\n**风险与改进** — 无。\n"
+        "\n## 四、流程图")
+    p = os.path.join(tmp, "third.md")
+    io.open(p, "w", encoding="utf-8").write(
+        triple.replace("**风险与改进** — 可改用 c。", tail))
+    r = run(QC, p, src)
+    check("fence(s) sit inside" not in r.stdout,
+          "a later quoted block in the same heading is not flagged",
+          r.stdout.strip()[:120] if r.stdout else "")
+
     # a report may quote two source lines merged, which must NOT be reported
     p = os.path.join(tmp, "merged.md")
     io.open(p, "w", encoding="utf-8").write(

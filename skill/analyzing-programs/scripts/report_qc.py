@@ -57,6 +57,15 @@ SEC = ["## 一", "## 二", "## 三", "## 四", "## 五", "## 六"]
 LAYERS = ("做什么", "为什么", "风险与改进")
 BUCKETS = ("\U0001F534", "\U0001F7E0", "\U0001F7E1", "\U0001F7E2")
 
+# Fence language decides whether a fence quotes source or illustrates a proposed
+# fix. Position exempts nothing: a block after a 风险与改进 label is indistinguishable
+# from the next sub-step's real quote, and the positional exemption used to skip
+# genuine quotes wholesale (12 of 138 statements inspected on a report carrying
+# 20 blocks). A mislabeled fix is caught by fix_lang_note instead of being
+# silently trusted.
+QUOTE_LANG = "abap"
+FIX_LANG = "abap-fix"
+
 FENCE = re.compile(r"```.*?```", re.S)
 TICK = re.compile(r"`([^`\n]{2,80})`")
 TAG = re.compile(r"</?(?:br|b|i|u|em|strong|sub|sup|code|span)\s*/?>", re.I)
@@ -199,6 +208,21 @@ def anchor_for(marks, line):
     return best
 
 
+def block_head(s, off):
+    """Text from the nearest sub-program heading up to ``off``.
+
+    Used only by fix_lang_note, to say whether a fence sits inside the
+    风险与改进 layer. Position is advisory there and exempts nothing: an unlabelled
+    proposed fix and the next sub-step's real quote occupy the same position and
+    are identical to inspect. Two gates used to need this same answer and computed
+    it two different ways -- heading-scoped in one, whole-document in the other --
+    and the drift let a fabricated statement score clean.
+    """
+    head = s[:off]
+    h = max(head.rfind("\n#### "), head.rfind("\n### "))
+    return head[h:] if h >= 0 else head
+
+
 def in_risk_layer(head):
     ir = head.rfind("风险与改进")
     if ir < 0:
@@ -209,22 +233,18 @@ def in_risk_layer(head):
 def source_blocks(s):
     """Yield (block_start, block_end, gap_text) for fences quoting source.
 
-    A snippet inside the 风险与改进 layer illustrates a proposed fix rather than
-    quoting source, so it needs no layers of its own. Counting those was a false
-    positive that made the A8 rate read four times worse than it is.
+    Fence language is the only admission test. An earlier version also exempted
+    any block sitting in the 风险与改进 layer, which is where a proposed fix lives
+    -- but so does the next sub-step's real quote, and the exemption skipped that
+    one too. Nothing structural can tell the two apart, so the report says which
+    it is in the language of the fence.
     """
-    pos = [m.start() for m in re.finditer(r"```abap\n", s)]
+    pos = [m.start() for m in re.finditer(r"```%s\n" % QUOTE_LANG, s)]
     for k, st in enumerate(pos):
         end = s.find("```", st + 8)
         if end < 0:
             continue
         nxt = pos[k + 1] if k + 1 < len(pos) else len(s)
-        head = s[:st]
-        h = max(head.rfind("\n#### "), head.rfind("\n### "))
-        if h >= 0:
-            head = head[h:]
-        if in_risk_layer(head):
-            continue
         yield st, end + 3, s[end + 3:nxt]
 
 
@@ -376,9 +396,7 @@ def fidelity_note(s, src):
     sf = _flat(src)
     bad = []
     n = 0
-    for m in re.finditer(r"```abap\n(.*?)```", s, re.S):
-        if in_risk_layer(s[:m.start()]):
-            continue
+    for m in re.finditer(r"```%s\n(.*?)```" % QUOTE_LANG, s, re.S):
         base = s[:m.start()].count("\n") + 1
         for i, l in enumerate(_claims(m.group(1))):
             n += 1
@@ -392,6 +410,38 @@ def fidelity_note(s, src):
     return (f"{len(bad)} quoted statement(s) of {n} do not occur in the source. "
             f"First at line {head[0]}: {head[1][:60]!r}{more}. "
             f"Check whether the report rewrote the source.")
+
+
+def fix_lang_note(s):
+    """Advisory: a source-quoting fence sitting inside the 风险与改进 layer.
+
+    Language decides what gets checked, but only if the author relabels. A proposed
+    fix left in an abap fence is indistinguishable from a faithful quote, so it is
+    probed against the source and reads as fabricated -- precisely the false
+    negative this gate exists to remove. Flagging the fence costs one line;
+    explaining why a correct fix looks like a lie costs a debugging session.
+
+    Position alone cannot decide, and this advisory would flag the second quoted
+    block of a heading that carries two. A8 already requires every quote to be
+    followed by its own three layers, so a tail lacking them is a fix, not a quote.
+    """
+    hits = []
+    for m in re.finditer(r"```%s\n" % QUOTE_LANG, s):
+        if not in_risk_layer(block_head(s, m.start())):
+            continue
+        nxt = s.find("\n#", m.end())
+        tail = s[m.end():nxt] if nxt > 0 else s[m.end():]
+        if all(l in tail for l in LAYERS):
+            continue
+        hits.append(m.start())
+    if not hits:
+        return None
+    ln = line_of(s, hits[0])
+    more = f" (+{len(hits)-1} more)" if len(hits) > 1 else ""
+    return (f"{len(hits)} {QUOTE_LANG} fence(s) sit inside a 风险与改进 layer{more}, "
+            f"first at line {ln}. If one illustrates a proposed fix, tag it "
+            f"{FIX_LANG}: unlabelled, it is probed against the source and reads "
+            f"as fabricated.")
 
 
 def fix_mm(s):
@@ -448,7 +498,8 @@ def report(path, src=None):
     s = io.open(path, encoding="utf-8").read()
     bad = check(s)
     name = os.path.basename(path)
-    notes = [n for n in (density_note(s, src), fidelity_note(s, src)) if n]
+    notes = [n for n in (density_note(s, src), fidelity_note(s, src),
+                         fix_lang_note(s)) if n]
     if not bad:
         print(f"PASS  {name}")
         for n in notes:
