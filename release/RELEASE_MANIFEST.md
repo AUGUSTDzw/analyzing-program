@@ -1,12 +1,12 @@
 # analyzing-programs v1.0.0 — release manifest
 
-Build time: 2026-10-06 15:55:47
-Source commit: `e3f3c429ffb682d3260370dbf227ea178e8564b9` (e3f3c42)
-Commit subject: Docs point at shipped files: five references named scripts lost in the deletion incident, plus four stale counts
+Build time: 2026-10-06 16:03:48
+Source commit: `0c829f1aca3138ea1ee428ca9e6d9f89f4383ead` (0c829f1)
+Commit subject: release: add v1.0.0 archive (82273 B, sha256 1c47332edd76)
 
 ## Contents
 
-17 files, 185232 bytes, packed into one 82279-byte archive.
+17 files, 185232 bytes, packed into one 82273-byte archive.
 
 | Path | Bytes | SHA256 (first 16) |
 |---|---|---|
@@ -28,15 +28,14 @@ Commit subject: Docs point at shipped files: five references named scripts lost 
 | `analyzing-programs-1.0.0/tests/test_contract_drift.py` | 6342 | `b4c53172c2050661` |
 | `analyzing-programs-1.0.0/tests/test_skill.py` | 14832 | `d65a1cc8d5aaf8e2` |
 
-``analyzing-programs-1.0.0.zip` — 82273 B compressed, 185232 B uncompressed, SHA256 `78013fc9379f1c9bbe811f219d556cac3fbd8b3d74949a5c07a899c27c9529d1`,
+`analyzing-programs-1.0.0.zip` — 82273 B compressed, 185232 B uncompressed, SHA256 `3e8901fdec579dc0db82c4b77b7233d4aa40efea7b01e5107f40cd29b342568b`,
 17 entries, `testzip` clean, no build artifacts.
 
-## How the archive was produced
+## Provenance
 
-Git is the only durable store on this host. The release was built by reading the
-blobs of the commit directly (`git ls-tree -r` + `git cat-file blob`) and writing
-them out rather than copying the working tree, which is repeatedly emptied by an
-external process and can lose a file within seconds of it being written.
+Git is the only durable store inside the repository, so the files were read from
+the commit's blobs directly (`git ls-tree -r` + `git cat-file blob`) rather than
+copied from the working tree.
 
 Each extracted file was read back and hashed against its source blob, and each
 archive entry was hashed against the same blob.
@@ -59,8 +58,7 @@ archive entry was hashed against the same blob.
 
 ## Feature audit
 
-Markers from the fidelity-gate work of the preceding session: 8/8
-present in this release.
+Fidelity-gate markers from the preceding session: 8/8 present.
 
 | File | Marker | |
 |---|---|---|
@@ -82,12 +80,12 @@ Included: `SKILL.md`, `README.md`, `schemas/report-contract.json`,
 Deliberately excluded:
 
 - `__pycache__/` and any `.pyc`. Bytecode is a build artifact; it is committed in
-  this repository and has been stripped from the release.
+  one revision of the repository and has been stripped from the release.
 - The development harness scripts named in the documentation
   (`check_evaluate_validation.py`, `check_skill_selfconsistent.py`,
   `build_isolation_variant.py`, `truncation_audit.py`, `evals/judge-defects.json`).
-  They were destroyed in a deletion incident, are not rebuilt, and the
-  documentation no longer points at them.
+  Destroyed in a deletion incident, not rebuilt, and the documentation no longer
+  points at them.
 - `iteration-8/` workspace data. Upstream development evidence, not part of the
   skill.
 
@@ -99,11 +97,11 @@ Deliberately excluded:
 2. The `iteration-8` figures in `README.md` were measured against commit
    `b8f84e8`. The shipped skill has never been run end-to-end against that
    harness. Also stated in `README.md`.
-3. Repository state on this host is not stable. Two different commit histories
-   have been observed at `HEAD`, and revisions created during the preceding
-   session disappeared from the object database entirely. This manifest records
-   the commit the release was cut from so provenance can be checked
-   independently.
+3. Repository state on the build host is not stable. Two different commit
+   histories were observed at `HEAD`, the object database was replaced wholesale
+   and destroyed commits created during the build, and the working tree is
+   emptied repeatedly. This release was therefore also written to a location
+   outside the repository.
 
 ## Checksums
 

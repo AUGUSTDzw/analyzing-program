@@ -1,9 +1,9 @@
 {
   "version": "1.0.0",
-  "head": "e3f3c429ffb682d3260370dbf227ea178e8564b9",
-  "headshort": "e3f3c42",
-  "subject": "Docs point at shipped files: five references named scripts lost in the deletion incident, plus four stale counts",
-  "built": "2026-10-06 15:55:47",
+  "head": "0c829f1aca3138ea1ee428ca9e6d9f89f4383ead",
+  "headshort": "0c829f1",
+  "subject": "release: add v1.0.0 archive (82273 B, sha256 1c47332edd76)",
+  "built": "2026-10-06 16:03:48",
   "files": [
     [
       "README.md",
@@ -94,7 +94,7 @@
   "zip": [
     "analyzing-programs-1.0.0.zip",
     82273,
-    "78013fc9379f1c9bbe811f219d556cac3fbd8b3d74949a5c07a899c27c9529d1"
+    "3e8901fdec579dc0db82c4b77b7233d4aa40efea7b01e5107f40cd29b342568b"
   ],
   "runs": [
     [
@@ -156,6 +156,5 @@
       true
     ]
   ],
-  "excluded": [],
-  "zip_source": "rebuilt in memory from the committed skill blobs"
+  "excluded": []
 }
