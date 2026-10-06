@@ -57,7 +57,8 @@ python scripts/evaluate.py compare --defects evals/D.json --a V1.json --b V2.jso
 | `false_claims` 条目缺 `claim` 或 `why_wrong` | 拒绝 |
 | `false_claims` 是整数而非列表 | 拒绝（无法审计，且静默当成空会把错误论断率报低） |
 
-`analyzing-programs-workspace/check_evaluate_validation.py` 逐条验证这六种情况。
+`tests/test_skill.py` 里这六种情况各有负向用例，改坏了会 fail。它只读本目录内容，
+不需要语料源码。
 
 ## 自带参考
 
@@ -72,13 +73,14 @@ python scripts/evaluate.py compare --defects evals/D.json --a V1.json --b V2.jso
 | `zbc_show_error_log.defects.json` | 10 | 函数组 / EXCEPTIONS |
 | `screen_manager_o01.defects.json` | 10 | SALV 屏幕管理器（OO 继承） |
 
-`zcl_fi_toolkit` 从 20 条长到 38 条，所以 `Test-result/judge-v1two*.json` 这类
-只判了 D1–D20 的历史判定文件**不能**直接对当前清单评分 —— `score` 会拒绝并列出
+`zcl_fi_toolkit` 从 20 条长到 38 条，所以只判了 D1–D20 的历史判定文件
+**不能**直接对当前清单评分 —— `score` 会拒绝并列出
 未判的 id，这是正确行为。要复算那批历史数字，取 D1–D20 的子集。
-`noise-reduction-failed.md` 记录了那次扩清单的结论：分母翻倍而绝对分歧也翻倍，
-相对噪声原地不动。
+那次扩清单的结论是：分母翻倍而绝对分歧也翻倍，相对噪声原地不动。（记录它的那个
+文件已随删除事故丢失，此处只余结论。）
 
-另有 `evals/judge-defects.json`：13 个 eval 的**植入缺陷**共 77 条，属性于测试源码而非报告。
+本目录只收**读自真实源码**的清单。eval 夹具的**植入缺陷**（属性于测试源码而非报告）
+不在此处：那批合成夹具已在删除事故中丢失，未重建。
 
 ## 已知边界
 

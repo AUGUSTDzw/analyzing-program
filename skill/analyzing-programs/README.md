@@ -35,8 +35,8 @@ schemas/report-contract.json   闸门规则与 skill 教学锚点的唯一来源
 ## 跑一遍
 
 ```bash
-python tests/test_skill.py                # 30 项，自足
-python tests/test_contract_drift.py       # 34 项，契约 <-> SKILL.md 双向对齐
+python tests/test_skill.py                # 38 项，自足
+python tests/test_contract_drift.py       # 35 项，契约 <-> SKILL.md 双向对齐
 python scripts/report_qc.py REPORT [SOURCE]                    # 格式
 python scripts/report_qc.py --fix REPORT SOURCE -o OUT         # 格式 + 自动修两类
 python scripts/evaluate.py tasks  --defects evals/zcl_fi_toolkit.defects.json
@@ -66,7 +66,7 @@ Mermaid 标签里的裸 `<` `>` `#` → 改成全角。三层缺失**只报位�
 ## 能声明什么，不能声明什么
 
 这一节限定交付范围，不是免责声明。原始数据在
-`analyzing-programs-workspace/iteration-8/`。
+`analyzing-programs-workspace/iteration-8/`（上游仓库，不随 skill 发布）。
 
 ### 先说版本：下面的数字不是出货版本的数字
 
@@ -85,9 +85,8 @@ iteration-8 的全部数字都是在 **`b8f84e8`**（162 行）上测出来的�
 **很可能**仍然成立；但严格说它属于前一个版本。
 
 `b8f84e8` → `718f5988` 的对比（迭代 9）回答的正是"形状缺陷有没有减少"，
-判据已在生成之前写死、尚未执行，见
-`analyzing-programs-workspace/iteration-9-plan.md`。它**不**回答
-"分析是否更准确"。
+判据已在生成之前写死、尚未执行；那份预注册计划（iteration-9-plan.md）已随
+删除事故丢失，未重建。它**不**回答"分析是否更准确"。
 
 ### 能声明：报告结构一致性（b8f84e8）
 
@@ -143,7 +142,7 @@ eval-10-D2（条件提交 `IF p_commit EQ 'X'` 导致后台作业整轮 `MODIFY 
 后者没有正向证据，还有 3 处稳定的反向证据。
 
 要支撑后者，得把评委清单的难度提到能区分两臂（46/77 饱和是根因）——
-那不是采集更多数据能解决的，`noise-reduction-failed.md` 已证明在当前取样下
-加缺陷条目无效。
+那不是采集更多数据能解决的：加缺陷条目无效已在当前取样下证明，
+记录该次尝试的文件已随删除事故丢失，未重建。
 
 

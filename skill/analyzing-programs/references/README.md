@@ -35,5 +35,5 @@
 
 ## 保持有效
 
-`analyzing-programs-workspace/check_skill_selfconsistent.py` 会跑一遍闸门确认
-本文件仍然零缺陷，改坏了会 `exit=1`。已做负向对照：改掉一个桶标题即失败。
+`tests/test_skill.py` 里有一项专门跑闸门确认本文件仍然零缺陷，改坏了会 fail
+（用例名 `the shipped example report still passes`）。已做负向对照：改掉一个桶标题即失败。
