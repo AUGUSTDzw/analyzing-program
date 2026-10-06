@@ -1,0 +1,160 @@
+{
+  "version": "1.0.0",
+  "head": "e3f3c429ffb682d3260370dbf227ea178e8564b9",
+  "headshort": "e3f3c42",
+  "subject": "Docs point at shipped files: five references named scripts lost in the deletion incident, plus four stale counts",
+  "built": "2026-10-06 15:55:47",
+  "files": [
+    [
+      "README.md",
+      7892,
+      "f75a156d01496ec64626e569d5ba93676e97c3d47506f3c77d27147f821b3c52"
+    ],
+    [
+      "SKILL.md",
+      14499,
+      "0dc9f17eb7ce7a90faa6fe61f5029adaaa66f4feee7c644886ea3b713d0cddd3"
+    ],
+    [
+      "evals/README.md",
+      4250,
+      "153f7682e808caf9f6ae99d693400ca37c9c56d1de3a080ff36ab727ae9d034b"
+    ],
+    [
+      "evals/dialog_zmsa_r_chapter4_8.defects.json",
+      4244,
+      "8165da33645e983bdcd930877c337ce7cd7cecb1dd07b7320cabe4d749eafd1a"
+    ],
+    [
+      "evals/screen_manager_o01.defects.json",
+      3723,
+      "ca4ff914c9a10459270b1ea69618b5bba56c7d266cbcc26fc679a6bea3e1d976"
+    ],
+    [
+      "evals/z_ave_standalone.defects.json",
+      13721,
+      "539c5ac36a2cc2770d9868269d53c9697d03122689db0aab387c6d8fadafee4b"
+    ],
+    [
+      "evals/zbc_show_error_log.defects.json",
+      3338,
+      "8119df7096876e267f1833f60842b08fdc4a435aabc65e8cf55f49d3ebc05070"
+    ],
+    [
+      "evals/zcl_fi_toolkit.defects.json",
+      15626,
+      "387a6f90d6e6ea950c223ae3d5d6d61ca16c9ed7b7c18a2536e803f46588f274"
+    ],
+    [
+      "evals/zvend.defects.json",
+      9653,
+      "6ff35bca18f6d70a47935f78dd7e594b9ed2cffa422c30b1db068b137f618f5d"
+    ],
+    [
+      "references/README.md",
+      1868,
+      "ad18ab72e1d880a9d2d76f15d73b7b0bc31663e6ef2915fe2254f9f1d4d9152c"
+    ],
+    [
+      "references/example-report.md",
+      35027,
+      "3bc277a591051b9a685dafab5ef534d0367c9a6bc08e68287a20d5e8595181b2"
+    ],
+    [
+      "references/large-inputs.md",
+      7387,
+      "dd6d22c0c12c9ebe55ff66d3963c5d5ed6a9d23341fd0232cc344a9166b88324"
+    ],
+    [
+      "schemas/report-contract.json",
+      6247,
+      "2d1e308624b22f1ba77ce899e5ccdfd8773a8b8901c88cc51795cb488a26326f"
+    ],
+    [
+      "scripts/evaluate.py",
+      12359,
+      "d42d36230158bdc23247d154a2618e676feb467c53aeee6e2919e0b10db26ec8"
+    ],
+    [
+      "scripts/report_qc.py",
+      24224,
+      "d91d3a5657863520ed1b566d1a7556a892d966dd9e19c7c41d78217d74e34257"
+    ],
+    [
+      "tests/test_contract_drift.py",
+      6342,
+      "b4c53172c20506611e1abee7efdb82eaab013aad86e66bc11d072d45de02b77e"
+    ],
+    [
+      "tests/test_skill.py",
+      14832,
+      "d65a1cc8d5aaf8e272e68580b68fd52a155640c572a4fd63168884f33a29e6de"
+    ]
+  ],
+  "zip": [
+    "analyzing-programs-1.0.0.zip",
+    82279,
+    "5255cdc91f1688bd131545aba59e71e7f0781f98ad8b253bd90fee24da1f10bd"
+  ],
+  "runs": [
+    [
+      "tests/test_skill.py",
+      0
+    ],
+    [
+      "tests/test_contract_drift.py",
+      0
+    ],
+    [
+      "report_qc.py references/example-report.md",
+      0
+    ],
+    [
+      "evaluate.py tasks --defects zcl_fi_toolkit.defects.json",
+      0
+    ]
+  ],
+  "markers": [
+    [
+      "SKILL.md",
+      "abap-fix",
+      true
+    ],
+    [
+      "references/example-report.md",
+      "abap-fix",
+      true
+    ],
+    [
+      "schemas/report-contract.json",
+      "fix-lang",
+      true
+    ],
+    [
+      "scripts/report_qc.py",
+      "def fix_lang_note",
+      true
+    ],
+    [
+      "scripts/report_qc.py",
+      "QUOTE_LANG",
+      true
+    ],
+    [
+      "scripts/report_qc.py",
+      "FIX_LANG",
+      true
+    ],
+    [
+      "scripts/report_qc.py",
+      "def block_head",
+      true
+    ],
+    [
+      "tests/test_skill.py",
+      "fence(s) sit inside",
+      true
+    ]
+  ],
+  "excluded": []
+}
