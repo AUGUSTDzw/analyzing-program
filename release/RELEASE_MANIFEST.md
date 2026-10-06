@@ -28,7 +28,7 @@ Commit subject: Docs point at shipped files: five references named scripts lost 
 | `analyzing-programs-1.0.0/tests/test_contract_drift.py` | 6342 | `b4c53172c2050661` |
 | `analyzing-programs-1.0.0/tests/test_skill.py` | 14832 | `d65a1cc8d5aaf8e2` |
 
-`analyzing-programs-1.0.0.zip` — 82279 B compressed, 185232 B uncompressed, SHA256 `5255cdc91f1688bd131545aba59e71e7f0781f98ad8b253bd90fee24da1f10bd`,
+``analyzing-programs-1.0.0.zip` — 82273 B compressed, 185232 B uncompressed, SHA256 `78013fc9379f1c9bbe811f219d556cac3fbd8b3d74949a5c07a899c27c9529d1`,
 17 entries, `testzip` clean, no build artifacts.
 
 ## How the archive was produced
