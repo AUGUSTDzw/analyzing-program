@@ -1,0 +1,9429 @@
+*&---------------------------------------------------------------------*
+*& Program : ZTOAD
+*& Author  : S. Hermann
+*& Date    : 25.02.2022
+*& Version : 5.0.1 " x-release-please-version
+*& Required: Table ZTOAD
+*&---------------------------------------------------------------------*
+*& This program allow you to execute query directly on the server
+*& 1/ Write your query in the editor window (ABAP SQL)
+*& 2/ View the result in ALV window (in case of SELECT query)
+*&
+*3 Features :
+*& The top center pane allow you to write your query in ABAP SQL format.
+*= Query can be complex with JOIN, UNION and subqueries. You can write
+*= query on several lines. You could also add spaces.
+*= To add comment, start the line by * or prefix your comment by "
+*&
+*& You could write several queries in the query editor, separated by
+*= dot ".". To execute one of them, highlight all the wanted query,
+*= or just put the cursor anywhere inside the wanted query.
+*= By default, the last query is executed.
+*&
+*& In case of error, you can display generated code to help you to
+*= correct your query (only if you have S_DEVELOP access)
+*&
+*& F1 Help is managed to help you on ABAP SQL Syntax
+*& Code completion is also available :
+*& - TAB to autocomplete with tooltip word
+*& - CTRL + ESPACE to display list of available words
+*& Be carefull to not use with INSERT statement (see below)
+*&
+*& The top left pane allow you to store your query :
+*& - You could save your query to reuse it later
+*& - You could share your query : define users, usergroup, all
+*& - You could export query into file to reuse it on another server
+*&
+*& The top right pane display ddic object that is currently used to help
+*= you to write the proper query
+*& Synergy with ZSPRO program : display tables defined in ZSPRO in the
+*= ddic tree
+*& Tips : You can search a table in the tree using header clic
+*&
+*3 Managed queries
+*& SELECT, INSERT, UPDATE, DELETE
+*&
+*3 About New SQL Query Syntax
+*& You could use new syntax (if your SAP system manage it)
+*& ZTOAD autmatically detect if you are using new sytax when:
+*& - You separated your selected fields with comma
+*& - You prefixed your variable with @ in the INTO TABLE statement
+*&
+*3 Select Clause managed
+*& SELECT [DISTINCT / SINGLE] select clause
+*& FROM from clause
+*& [UP TO x ROWS]
+*& [WHERE cond1]
+*& [GROUP BY fields1]
+*& [HAVING cond2]
+*& [ORDER BY fields2]
+*& [UNION SELECT...]
+*&
+*& UP TO (Default max rows) ROWS added at end of query if omitted
+*& Every SELECT is limited to 1-10000 rows; zero is rejected
+*&
+*& COUNT, AVG, MAX, MIN, SUM are managed
+*& DO NOT FORGET SPACE in ( ) of aggregat
+*&
+*3 Insert special syntax
+*& In ABAP, insert query is always used with given structure
+*& In this SQL editor, you have 2 ways to do an INSERT :
+*& - By passing each value, 1 by 1
+*E INSERT SEOCLASSTX VALUES ( 'ZZMACLASS', ' ', 'Test claSS' )
+*&
+*& - By passing value of used fields only
+*E INSERT SEOCLASSTX SET CLSNAME = 'ZZMACLASS' DESCRIPT = 'TeSt class'
+*&
+*3 Native SQL
+*& Native SQL is intentionally rejected. Use audited database
+*& administration tooling for database-specific statements.
+*&
+*3 Sample of query :
+*&
+*E SELECT SINGLE * FROM VBAP WHERE VBELN = '00412345678'
+*&
+*E SELECT COUNT( * ) SUBC MAX( PROG ) FROM TRDIR GROUP BY SUBC
+*&
+*E SELECT VBAK~* from VBAK UP TO 3 ROWS ORDER BY VKORG.
+*&
+*E SELECT T1~VBELN T2~POSNR FROM VBAk AS T1
+*E        JOIN VBAP AS T2 ON T1~VBELN = T2~VBELN
+*&
+*E INSERT SEOCLASSTX VALUES ( 'ZZMACLASS', ' ', 'Test claSS' )
+*&
+*E INSERT SEOCLASSTX SET CLSNAME = 'ZZMACLASS' DESCRIPT = 'TeSt class'
+*&
+*E UPDATE SEOCLASSTX SET DESCRIPT = 'txt' WHERE CLSNAME = 'ZZMACLASS'
+*&
+*E DELETE SEOCLASSTX WHERE CLSNAME = 'ZZMACLASS'
+*&
+*& Please send comment & improvements to http://quelquepart.biz
+*&---------------------------------------------------------------------*
+*& History :
+*& 2017.12.31 v4.0.4:Add add authorization object 'ZTOAD_AUTH'
+*& 2017.12.31 v4.0.3:Fix increase saving queries to 1000
+*& 2017.12.31 v4.0.2:Fix dump in case of multiple aggregations
+*&                       Thanks to Sabrina Villa for the fix
+*& 2017.04.01 v4.0.1:Fix new Tab dump
+*& 2016.12.17 v4.0  :Add Tab management. You can have up to 30 tabs
+*&                   Fix Status corruption
+*&                   Add Import/Export function for saved queries
+*&                   Mod Code cleaning
+*& 2016.09.10 v3.6  :Add New syntax management of "case"
+*& 2016.07.06 v3.5.1:Fix Auth issue
+*&                   Fix Dump on select with no empty selection part
+*& 2016.03.28 v3.5  :Add Value Help on DDIC field. Select a value to
+*&                       paste in editor
+*&                   Add Button Execute into file to download results
+*&                       instead of display it in ALV
+*&                   Mod Use class CL_RSAWB_SPLITTER_FOR_TOOLBAR for
+*&                       creation of DDIC toolbar
+*&                   Add Refresh the DDIC tree when executing a query
+*&                       even if error found
+*& Thanks to Patrick Prime Reinoso for the following changes :
+*&                   Fix Remove confirmation popup on display code for
+*&                       no select statement
+*&                   Add Option to display technical name in ALV
+*&                   Mod Move option button to main toolbar
+*&                   Mod Rename subroutines (code cleaning)
+*&                   Mod Allow save on exit popup
+*&                   Add New query button
+*&                   Mod New query template changed
+*& 2015.11.07 v3.4.3:Fix dump if cursor on first position
+*&                   Fix prevent dump on too many sql run
+*& 2015.11.07 v3.4.2:Fix cancel of save query popup
+*&                   Fix Allow usage of " and . inside ''
+*& 2015.11.01 v3.4.1:Fix issue with delete all history context menu
+*& 2015.09.19 v3.4  :Add Code completion on SQL editor
+*&                   Thanks to Benjamin Krencker for his code
+*&                   Add Remove useless APPENDING TABLE statement in qry
+*& 2015.09.13 v3.3  :Add New Options panel to save user preferences
+*&                   Add Delete all history entries context menu
+*&                   Add option to add linebreak after paste field from
+*&                       ddic tree
+*&                   Add Count column in alv grid display
+*&                   Thanks again to Shai Sinai for his suggestions
+*& 2015.09.06 v3.2.1:Mod Default limit to 100 rows is now optional
+*& 2015.08.30 v3.2  :Add Manage new SQL Syntax introduced by NW7.40 SP5
+*&                   Add Remove useless INTO TABLE statement in query
+*&                   Add All NATIVE Sql commands
+*&                   Mod Auth object use now the sap standard way
+*&                   Fix Dump in case of up to xx rows in unioned query
+*&                   Fix Dump at activation if ZSPRO does not exist
+*&                   Fix Compatibility issues with older sap system
+*& 2015.08.05 v3.1  :Add Manage drag&drop from DDIC tree to SQL Editor
+*&                   Mod Double clic on field in DDIC tree paste field
+*&                       in editor instead of filling clipboard
+*&                   Thanks to Shai Sinai for his suggestions
+*& 2015.06.13 v3.0  :Add INSERT, UPDATE, DELETE command
+*&                   Add Authorization management
+*&                   Add History tree display first query line if it
+*&                       is a comment line
+*&                   Mod Code cleaning
+*& 2015.03.05 v2.1.1:Mod grid size is no more changed before display
+*&                       query result
+*& 2015.01.11 v2.1  :Add UNION instruction managed to merge 2 queries
+*&                   Mod Do not refresh result grid for count(*)
+*&                   Mod Back close the grid instead of leave program if
+*&                       result grid is displayed
+*&                   Add Display program header as default help
+*&                   Add Run highlighted query
+*&                   Mod Documentation rewritten
+*& 2014.10.23 v2.0.2:Add Display number of entries found
+*&                   Add Confirmation before exit for unsaved queries
+*& 2014.10.19 v2.0.1:Fix bug on search ddic function
+*& 2014.08.03 v2.0 : Completely rewritten version
+*&                   - Save and share queries with colaborators
+*&                   - Queries are now saved in database
+*&                   - Display tables (+ fields) of the where clause
+*&                   - Display ZSPRO entries in ddic tree
+*&                   - Allow direct change in query after execution
+*&                   - Count( * ) allowed
+*&                   - Can display generated code
+*&                   - Display query execution time
+*&                   - Allow write of several queries (but 1 executed)
+*& 2013.12.03 v1.3 : Allow case sensitive constant in where clause
+*& 2012.08.30 v1.2 : Rewrite data definition to avoid dump on too long
+*&                   fieldname
+*& 2012.04.01 v1.1 : Updated to work also on BW system
+*& 2009.10.26 v1.0 : Initial release
+*&---------------------------------------------------------------------*
+
+REPORT ztoad.
+TYPE-POOLS abap.
+
+*######################################################################*
+*
+*                        CUSTOMIZATION SECTION
+*
+*######################################################################*
+DATA : BEGIN OF s_customize,                                "#EC NEEDED
+* Default number of lines to return for SELECT if no "up to xxx rows"
+* defined in the query.
+* Zero or a negative saved value restores the safe default of 100.
+         default_rows    TYPE i VALUE 100,
+
+* When you dblclic on a field in the ddic tree, field is pasted to
+* editor at the cursor position
+* You could choose to add a linebreak after the field pasted
+         paste_break(1)  TYPE c VALUE space, "abap_true to break
+
+* In ALV grid result, display technical name instead of column label
+         techname(1)     TYPE c VALUE space, "abap_true for technical
+
+* You could define your authorization object to restrict
+* function usage by user
+* If you dont define auth object, all users will have same access as
+* defined bellow
+* The auth object have 2 fields TABLE and ACTVT
+* ACTVT can take 4 values that you could define here. By default :
+* 01 for INSERT command
+* 02 for UPDATE command
+* 03 for SELECT command
+* 06 for DELETE command
+* TABLE contain allowed table name pattern
+* '*' to allow all table, 'Z*' to allow all specific tables...
+         auth_object(20) TYPE c VALUE 'ZTOAD_AUTH',
+         actvt_select    TYPE tactt-actvt VALUE '03',
+         actvt_insert    TYPE tactt-actvt VALUE '01',
+         actvt_update    TYPE tactt-actvt VALUE '02',
+         actvt_delete    TYPE tactt-actvt VALUE '06',
+* Deprecated and ignored; retained to avoid changing the legacy layout
+         actvt_native    TYPE tactt-actvt VALUE '16',
+
+* Bellow is default AUTH used if no auth_object is defined
+* Allow SELECT query on SAP table (restricted by given pattern)
+         auth_select     TYPE string VALUE '*',
+* Allow INSERT query on SAP table (restricted by given pattern)
+         auth_insert     TYPE string VALUE space, "'*',
+* Allow UPDATE query on SAP table (restricted by given pattern)
+         auth_update     TYPE string VALUE space, "'*',
+* Allow DELETE query on SAP table (restricted by given pattern)
+         auth_delete     TYPE string VALUE space, "'*',
+* Deprecated and ignored; Native SQL cannot be enabled
+         auth_native(1)  TYPE c VALUE space, "abap_true,
+
+       END OF s_customize.
+
+
+*######################################################################*
+*
+*                             DATA SECTION
+*
+*######################################################################*
+* Objects
+CLASS lcl_application DEFINITION DEFERRED.
+CLASS lcl_editor DEFINITION DEFERRED.
+
+* Screen objects
+DATA : o_handle_event         TYPE REF TO lcl_application,
+       o_container            TYPE REF TO cl_gui_custom_container,
+       o_splitter             TYPE REF TO cl_gui_splitter_container,
+       o_splitter_top         TYPE REF TO cl_gui_splitter_container,
+       o_splitter_top_right   TYPE REF TO cl_rsawb_splitter_for_toolbar,
+       o_container_top        TYPE REF TO cl_gui_container,
+       o_container_top_right  TYPE REF TO cl_gui_container,
+       o_container_repository TYPE REF TO cl_gui_container,
+       o_container_options    TYPE REF TO cl_gui_custom_container,
+       o_container_query      TYPE REF TO cl_gui_container,
+       o_container_ddic       TYPE REF TO cl_gui_container,
+       o_container_result     TYPE REF TO cl_gui_container,
+
+* Tabs objects (editor, ddic, alv)
+       BEGIN OF s_tab_active,
+         o_textedit             TYPE REF TO lcl_editor,
+         o_tree_ddic            TYPE REF TO cl_gui_column_tree,
+         t_node_ddic            TYPE treev_ntab,
+         t_item_ddic            TYPE TABLE OF mtreeitm,
+         o_alv_result           TYPE REF TO cl_gui_alv_grid,
+         row_height             TYPE i,
+       END OF s_tab_active,
+       t_tabs LIKE TABLE OF s_tab_active,
+
+* Repository data
+       o_tree_repository      TYPE REF TO cl_gui_simple_tree,
+       BEGIN OF s_node_repository.
+        INCLUDE TYPE treev_node. "mtreesnode.
+DATA :  text(100) TYPE c,
+        edit(1)   TYPE c,
+        queryid   TYPE ztoad-queryid,
+        END OF s_node_repository,
+        t_node_repository      LIKE TABLE OF s_node_repository,
+
+* DDIC data
+        w_dragdrop_handle_tree TYPE i,
+* DDIC toolbar
+        o_toolbar              TYPE REF TO cl_gui_toolbar,
+* Option panel
+        o_options              TYPE REF TO cl_wdy_wb_property_box,
+* ZSPRO data
+        t_node_zspro           LIKE s_tab_active-t_node_ddic,
+        t_item_zspro           LIKE s_tab_active-t_item_ddic,
+
+* Save option
+        BEGIN OF s_options,
+          name          TYPE ztoad-text,
+          visibility    TYPE ztoad-visibility,
+          visibilitygrp TYPE usr02-class,
+        END OF s_options,
+
+* Keep last loaded id
+        w_last_loaded_query TYPE ztoad-queryid,
+
+* Count successfully generated temporary subroutine pools
+        w_run               TYPE i.
+
+DATA : w_okcode LIKE sy-ucomm,
+       BEGIN OF s_tab,
+         title1 TYPE string VALUE 'Tab 1',                  "#EC NOTEXT
+         title2 TYPE string VALUE 'Tab 2',                  "#EC NOTEXT
+         title3 TYPE string VALUE 'Tab 3',                  "#EC NOTEXT
+         title4 TYPE string VALUE 'Tab 4',                  "#EC NOTEXT
+         title5 TYPE string VALUE 'Tab 5',                  "#EC NOTEXT
+         title6 TYPE string VALUE 'Tab 6',                  "#EC NOTEXT
+         title7 TYPE string VALUE 'Tab 7',                  "#EC NOTEXT
+         title8 TYPE string VALUE 'Tab 8',                  "#EC NOTEXT
+         title9 TYPE string VALUE 'Tab 9',                  "#EC NOTEXT
+         title10 TYPE string VALUE 'Tab 10',                "#EC NOTEXT
+         title11 TYPE string VALUE 'Tab 11',                "#EC NOTEXT
+         title12 TYPE string VALUE 'Tab 12',                "#EC NOTEXT
+         title13 TYPE string VALUE 'Tab 13',                "#EC NOTEXT
+         title14 TYPE string VALUE 'Tab 14',                "#EC NOTEXT
+         title15 TYPE string VALUE 'Tab 15',                "#EC NOTEXT
+         title16 TYPE string VALUE 'Tab 16',                "#EC NOTEXT
+         title17 TYPE string VALUE 'Tab 17',                "#EC NOTEXT
+         title18 TYPE string VALUE 'Tab 18',                "#EC NOTEXT
+         title19 TYPE string VALUE 'Tab 19',                "#EC NOTEXT
+         title20 TYPE string VALUE 'Tab 20',                "#EC NOTEXT
+         title21 TYPE string VALUE 'Tab 21',                "#EC NOTEXT
+         title22 TYPE string VALUE 'Tab 22',                "#EC NOTEXT
+         title23 TYPE string VALUE 'Tab 23',                "#EC NOTEXT
+         title24 TYPE string VALUE 'Tab 24',                "#EC NOTEXT
+         title25 TYPE string VALUE 'Tab 25',                "#EC NOTEXT
+         title26 TYPE string VALUE 'Tab 26',                "#EC NOTEXT
+         title27 TYPE string VALUE 'Tab 27',                "#EC NOTEXT
+         title28 TYPE string VALUE 'Tab 28',                "#EC NOTEXT
+         title29 TYPE string VALUE 'Tab 29',                "#EC NOTEXT
+         title30 TYPE string VALUE 'Tab 30',                "#EC NOTEXT
+       END OF s_tab.
+CONTROLS w_tabstrip TYPE TABSTRIP.
+
+* Global types
+TYPES : BEGIN OF ty_fieldlist,
+          field     TYPE string,
+          ref_table TYPE string,
+          ref_field TYPE string,
+        END OF ty_fieldlist,
+        ty_fieldlist_table TYPE STANDARD TABLE OF ty_fieldlist,
+        ty_table_names TYPE SORTED TABLE OF tabname
+                       WITH UNIQUE KEY table_line.
+
+* Constants
+CONSTANTS : c_ddic_col1            TYPE mtreeitm-item_name
+                        VALUE 'col1',                       "#EC NOTEXT
+            c_ddic_col2            TYPE mtreeitm-item_name
+                        VALUE 'col2',                       "#EC NOTEXT
+            c_visibility_all       TYPE ztoad-visibility VALUE '2',
+            c_visibility_shared    TYPE ztoad-visibility VALUE '1',
+            c_visibility_my        TYPE ztoad-visibility VALUE '0',
+            c_nodekey_repo_my      TYPE mtreesnode-node_key VALUE 'MY',
+            c_nodekey_repo_shared  TYPE mtreesnode-node_key
+                                  VALUE 'SHARED',
+            c_nodekey_repo_history TYPE mtreesnode-node_key
+                                   VALUE 'HISTO',
+            c_line_max             TYPE i VALUE 255,
+            c_msg_success          TYPE c VALUE 'S',
+            c_msg_error            TYPE c VALUE 'E',
+            c_vers_active          TYPE as4local VALUE 'A',
+            c_ddic_dtelm           TYPE comptype VALUE 'E',
+            c_native_command       TYPE string VALUE 'NATIVE',
+
+            c_xmlnode_root TYPE string VALUE 'root',        "#EC NOTEXT
+            c_xmlnode_file TYPE string VALUE 'query',       "#EC NOTEXT
+            c_xmlattr_visibility TYPE string VALUE 'visibility', "#EC NOTEXT
+            c_xmlattr_text TYPE string VALUE 'description'. "#EC NOTEXT
+
+*######################################################################*
+*
+*                             CLASS SECTION
+*
+*######################################################################*
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_drag_object DEFINITION
+*----------------------------------------------------------------------*
+*       Class to store object on drag & drop from DDIC to sql editor
+*----------------------------------------------------------------------*
+CLASS lcl_drag_object DEFINITION FINAL.
+  PUBLIC SECTION.
+    DATA field TYPE string.
+ENDCLASS."lcl_drag_object DEFINITION
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_editor_configuration DEFINITION
+*----------------------------------------------------------------------*
+*       Select editor behavior without depending on a live frontend
+*----------------------------------------------------------------------*
+CLASS lcl_editor_configuration DEFINITION FINAL.
+  PUBLIC SECTION.
+    TYPES:
+      BEGIN OF ty_capabilities,
+        full_workspace    TYPE abap_bool,
+        preload_editor    TYPE abap_bool,
+        selected_statement TYPE abap_bool,
+        stream_input      TYPE abap_bool,
+        resize_result     TYPE abap_bool,
+        persist_history   TYPE abap_bool,
+      END OF ty_capabilities.
+
+    CLASS-METHODS get_editor_type
+      IMPORTING i_webgui             TYPE abap_bool
+      RETURNING VALUE(r_editor_type) TYPE string.
+    CLASS-METHODS get_capabilities
+      IMPORTING i_webgui              TYPE abap_bool
+      RETURNING VALUE(r_capabilities) TYPE ty_capabilities.
+    CLASS-METHODS get_runtime_capabilities
+      RETURNING VALUE(r_capabilities) TYPE ty_capabilities.
+ENDCLASS.
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_query_error_contract DEFINITION
+*----------------------------------------------------------------------*
+*       Convert technical query failures into a user-facing message
+*----------------------------------------------------------------------*
+CLASS lcl_query_error_contract DEFINITION FINAL.
+  PUBLIC SECTION.
+    CLASS-METHODS to_user_message
+      IMPORTING technical_detail TYPE string
+      RETURNING VALUE(user_message) TYPE string.
+ENDCLASS.
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_query_row_policy DEFINITION
+*----------------------------------------------------------------------*
+*       Resolve every SELECT to a positive, bounded result size
+*----------------------------------------------------------------------*
+CLASS lcl_query_row_policy DEFINITION FINAL.
+  PUBLIC SECTION.
+    CONSTANTS c_fallback_rows TYPE i VALUE 100.
+    CONSTANTS c_max_rows TYPE i VALUE 10000.
+
+    CLASS-METHODS resolve
+      IMPORTING requested      TYPE string
+                explicit_limit TYPE abap_bool
+      EXPORTING rows           TYPE i
+                invalid        TYPE abap_bool.
+ENDCLASS.
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_subroutine_pool_budget DEFINITION
+*----------------------------------------------------------------------*
+*       Keep ZTOAD below SAP's finite internal-session pool limit
+*----------------------------------------------------------------------*
+CLASS lcl_subroutine_pool_budget DEFINITION FINAL.
+  PUBLIC SECTION.
+    CONSTANTS c_system_limit TYPE i VALUE 36.
+    CONSTANTS c_reserved_slots TYPE i VALUE 6.
+    CONSTANTS c_ztoad_limit TYPE i VALUE 30.
+
+    CLASS-METHODS can_generate
+      IMPORTING generated_count      TYPE i
+      RETURNING VALUE(allowed)       TYPE abap_bool.
+    CLASS-METHODS record_success
+      IMPORTING is_display            TYPE c
+                generated_program     TYPE progname
+      CHANGING  generated_count       TYPE i.
+ENDCLASS.
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_query_input_validator DEFINITION
+*----------------------------------------------------------------------*
+*       Keep external SQL fragments inside generated SQL statements
+*----------------------------------------------------------------------*
+CLASS lcl_query_input_validator DEFINITION FINAL.
+  PUBLIC SECTION.
+    CLASS-METHODS is_safe
+      IMPORTING fragment TYPE string
+      RETURNING VALUE(safe) TYPE abap_bool.
+
+  PRIVATE SECTION.
+    CLASS-METHODS is_digit
+      IMPORTING character TYPE c
+      RETURNING VALUE(result) TYPE abap_bool.
+    CLASS-METHODS is_whitespace
+      IMPORTING character TYPE c
+      RETURNING VALUE(result) TYPE abap_bool.
+ENDCLASS.
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_select_list_scanner DEFINITION
+*----------------------------------------------------------------------*
+*       Preserve nested SQL expressions while inferring result fields
+*----------------------------------------------------------------------*
+CLASS lcl_select_list_scanner DEFINITION FINAL.
+  PUBLIC SECTION.
+    CLASS-METHODS normalize_for_inference
+      IMPORTING select_list TYPE string
+      EXPORTING normalized  TYPE string
+                invalid     TYPE abap_bool.
+    CLASS-METHODS contains_v750_function
+      IMPORTING select_list   TYPE string
+      RETURNING VALUE(result) TYPE abap_bool.
+    CLASS-METHODS get_function_result_type
+      IMPORTING expression         TYPE string
+      RETURNING VALUE(result_type) TYPE string.
+    CLASS-METHODS get_expression_state
+      IMPORTING expression TYPE string
+      EXPORTING complete   TYPE abap_bool
+                invalid    TYPE abap_bool.
+ENDCLASS.
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_select_expression_analyzer DEFINITION
+*----------------------------------------------------------------------*
+*       Resolve safe type references for supported SQL expressions
+*----------------------------------------------------------------------*
+CLASS lcl_select_expression_analyzer DEFINITION FINAL.
+  PUBLIC SECTION.
+    CLASS-METHODS find_case_result_reference
+      IMPORTING expression TYPE string
+      RETURNING VALUE(reference) TYPE string.
+
+  PRIVATE SECTION.
+    CLASS-METHODS mask_literals
+      IMPORTING expression TYPE string
+      EXPORTING masked_expression TYPE string
+                valid TYPE abap_bool.
+    CLASS-METHODS is_column_reference
+      IMPORTING token TYPE string
+      RETURNING VALUE(result) TYPE abap_bool.
+ENDCLASS.
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_sql_clause_scanner DEFINITION
+*----------------------------------------------------------------------*
+*       Expose only top-level SQL text while preserving source offsets
+*----------------------------------------------------------------------*
+CLASS lcl_sql_clause_scanner DEFINITION FINAL.
+  PUBLIC SECTION.
+    CLASS-METHODS mask_top_level
+      IMPORTING query TYPE string
+      EXPORTING top_level TYPE string
+                invalid TYPE abap_bool.
+    CLASS-METHODS skip_whitespace
+      IMPORTING query TYPE string
+                offset TYPE i
+      RETURNING VALUE(result_offset) TYPE i.
+    CLASS-METHODS separator_start
+      IMPORTING query TYPE string
+                keyword_offset TYPE i
+      RETURNING VALUE(result_offset) TYPE i.
+
+  PRIVATE SECTION.
+    CLASS-METHODS is_whitespace
+      IMPORTING character TYPE c
+      RETURNING VALUE(result) TYPE abap_bool.
+ENDCLASS.
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_sql_set_expression DEFINITION
+*----------------------------------------------------------------------*
+*       Keep set parsing and execution representations synchronized
+*----------------------------------------------------------------------*
+CLASS lcl_sql_set_expression DEFINITION FINAL.
+  PUBLIC SECTION.
+    CONSTANTS union_pattern TYPE string VALUE
+      '(^| +)(UNION)( +(ALL|DISTINCT))? +(SELECT) +'.
+    CLASS-METHODS attach_suffix
+      IMPORTING branch_tail TYPE string
+                set_suffix TYPE string
+      RETURNING VALUE(query_tail) TYPE string.
+    CLASS-METHODS join_sources
+      IMPORTING sources TYPE ty_table_names
+      RETURNING VALUE(from_clause) TYPE string.
+    CLASS-METHODS contains_union
+      IMPORTING top_level_query TYPE string
+      RETURNING VALUE(result) TYPE abap_bool.
+ENDCLASS.
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_generated_line_splitter DEFINITION
+*----------------------------------------------------------------------*
+*       Preserve source semantics while enforcing the 255-char limit
+*----------------------------------------------------------------------*
+CLASS lcl_generated_line_splitter DEFINITION FINAL.
+  PUBLIC SECTION.
+    CLASS-METHODS append
+      IMPORTING line TYPE string
+      CHANGING lines TYPE string_table
+               safe TYPE abap_bool.
+
+  PRIVATE SECTION.
+    CLASS-METHODS find_split_offset
+      IMPORTING line TYPE string
+                offset TYPE i
+      RETURNING VALUE(split_offset) TYPE i.
+    CLASS-METHODS starts_column_one_comment
+      IMPORTING line TYPE string
+                split_offset TYPE i
+      RETURNING VALUE(result) TYPE abap_bool.
+    CLASS-METHODS is_whitespace
+      IMPORTING character TYPE c
+      RETURNING VALUE(result) TYPE abap_bool.
+ENDCLASS.
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_sql_source_scanner DEFINITION
+*----------------------------------------------------------------------*
+*       Find physical SELECT sources outside literals and comments
+*----------------------------------------------------------------------*
+CLASS lcl_sql_source_scanner DEFINITION FINAL.
+  PUBLIC SECTION.
+    CLASS-METHODS scan
+      IMPORTING query TYPE string
+      EXPORTING sources TYPE ty_table_names
+                invalid TYPE abap_bool.
+
+  PRIVATE SECTION.
+    CLASS-METHODS process_token
+      IMPORTING token TYPE string
+      CHANGING sources TYPE ty_table_names
+               invalid TYPE abap_bool
+               expect_source TYPE abap_bool
+               source_parenthesized TYPE abap_bool
+               first_token TYPE abap_bool.
+ENDCLASS.
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_editor DEFINITION
+*----------------------------------------------------------------------*
+*       Common API for the desktop source editor and WebGUI text editor
+*----------------------------------------------------------------------*
+CLASS lcl_editor DEFINITION FINAL.
+  PUBLIC SECTION.
+    METHODS constructor
+      IMPORTING i_parent TYPE REF TO cl_gui_container
+                i_webgui TYPE abap_bool.
+    METHODS is_ready
+      RETURNING VALUE(r_ready) TYPE abap_bool.
+    METHODS get_abap_editor
+      RETURNING VALUE(r_editor) TYPE REF TO cl_gui_abapedit.
+    METHODS get_selection_pos
+      EXPORTING e_from_line TYPE i
+                e_from_pos  TYPE i
+                e_to_line   TYPE i
+                e_to_pos    TYPE i
+      EXCEPTIONS operation_failed.
+    METHODS get_selected_text_as_table
+      EXPORTING e_table TYPE STANDARD TABLE.
+    METHODS get_text
+      EXPORTING e_table TYPE STANDARD TABLE
+      EXCEPTIONS operation_failed.
+    METHODS delete_text
+      IMPORTING i_from_line TYPE i
+                i_from_pos  TYPE i
+                i_to_line   TYPE i
+                i_to_pos    TYPE i.
+    METHODS set_text
+      IMPORTING i_table TYPE STANDARD TABLE.
+    METHODS set_visible
+      IMPORTING i_visible TYPE abap_bool.
+    METHODS set_textmodified_status.
+    METHODS get_textmodified_status
+      RETURNING VALUE(r_status) TYPE i.
+    METHODS insert_block_at_position
+      IMPORTING i_line     TYPE i
+                i_pos      TYPE i
+                i_text_tab TYPE STANDARD TABLE.
+    METHODS set_selection_pos_in_line
+      IMPORTING i_line TYPE i
+                i_pos  TYPE i.
+    METHODS set_focus.
+
+  PRIVATE SECTION.
+    DATA abap_editor TYPE REF TO cl_gui_abapedit.
+    DATA text_editor TYPE REF TO cl_gui_textedit.
+ENDCLASS.
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_application DEFINITION
+*----------------------------------------------------------------------*
+*       Class to handle application events
+*----------------------------------------------------------------------*
+CLASS lcl_application DEFINITION FINAL.
+  PUBLIC SECTION.
+    METHODS :
+* Handle F1 call on ABAP editor
+      hnd_editor_f1
+         FOR EVENT f1 OF cl_gui_abapedit,
+* Handle Node double clic on ddic tree
+      hnd_ddic_item_dblclick
+                    FOR EVENT item_double_click OF cl_gui_column_tree
+        IMPORTING node_key,
+* Handle context menu display on repository tree
+      hnd_repo_context_menu
+      FOR EVENT node_context_menu_request
+                    OF cl_gui_simple_tree
+        IMPORTING menu,
+* Handle context menu clic on repository tree
+      hnd_repo_context_menu_sel
+      FOR EVENT node_context_menu_select
+                    OF cl_gui_simple_tree
+        IMPORTING fcode,
+* Handle Node double clic on repository tree
+      hnd_repo_dblclick
+                    FOR EVENT node_double_click OF cl_gui_simple_tree
+        IMPORTING node_key,
+* Handle toolbar display on ALV result
+      hnd_result_toolbar
+                    FOR EVENT toolbar OF cl_gui_alv_grid
+        IMPORTING e_object,
+* Handle toolbar clic on ALV result
+      hnd_result_user_command
+                    FOR EVENT user_command OF cl_gui_alv_grid
+        IMPORTING e_ucomm,
+* Handle DDIC tree drag
+      hnd_ddic_drag
+                    FOR EVENT on_drag OF cl_gui_column_tree
+        IMPORTING node_key drag_drop_object,
+* Handle editor drop
+      hnd_editor_drop
+                    FOR EVENT on_drop OF cl_gui_abapedit
+        IMPORTING line pos dragdrop_object,
+* Handle ddic toolbar clic
+      hnd_ddic_toolbar_clic
+                    FOR EVENT function_selected OF cl_gui_toolbar
+        IMPORTING fcode.
+ENDCLASS.                    "lcl_application DEFINITION
+
+CLASS lcl_editor_configuration IMPLEMENTATION.
+  METHOD get_editor_type.
+    IF i_webgui = abap_true.
+      r_editor_type = 'TEXT'.
+    ELSE.
+      r_editor_type = 'ABAP'.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD get_capabilities.
+    IF i_webgui = abap_true.
+      r_capabilities-stream_input = abap_true.
+      RETURN.
+    ENDIF.
+
+    r_capabilities-full_workspace = abap_true.
+    r_capabilities-preload_editor = abap_true.
+    r_capabilities-selected_statement = abap_true.
+    r_capabilities-resize_result = abap_true.
+    r_capabilities-persist_history = abap_true.
+  ENDMETHOD.
+
+  METHOD get_runtime_capabilities.
+    r_capabilities = get_capabilities(
+      i_webgui = xsdbool( cl_gui_control=>www_active IS NOT INITIAL ) ).
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_query_error_contract IMPLEMENTATION.
+  METHOD to_user_message.
+* The technical detail is deliberately accepted but never exposed.
+    user_message = 'Cannot parse the query'(m07).
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_query_row_policy IMPLEMENTATION.
+  METHOD resolve.
+    DATA row_text TYPE string.
+    DATA max_text TYPE string.
+    DATA row_value TYPE i.
+
+    CLEAR: rows, invalid.
+    row_text = requested.
+    CONDENSE row_text NO-GAPS.
+
+    IF row_text IS INITIAL OR row_text CN '0123456789'.
+      IF explicit_limit = abap_true.
+        invalid = abap_true.
+      ELSE.
+        rows = c_fallback_rows.
+      ENDIF.
+      RETURN.
+    ENDIF.
+
+    SHIFT row_text LEFT DELETING LEADING '0'.
+    IF row_text IS INITIAL.
+      IF explicit_limit = abap_true.
+        invalid = abap_true.
+      ELSE.
+        rows = c_fallback_rows.
+      ENDIF.
+      RETURN.
+    ENDIF.
+
+    max_text = c_max_rows.
+    CONDENSE max_text NO-GAPS.
+    IF strlen( row_text ) > strlen( max_text ).
+      IF explicit_limit = abap_true.
+        invalid = abap_true.
+      ELSE.
+        rows = c_max_rows.
+      ENDIF.
+      RETURN.
+    ENDIF.
+
+    row_value = row_text.
+    IF row_value > c_max_rows.
+      IF explicit_limit = abap_true.
+        invalid = abap_true.
+      ELSE.
+        rows = c_max_rows.
+      ENDIF.
+      RETURN.
+    ENDIF.
+
+    rows = row_value.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_subroutine_pool_budget IMPLEMENTATION.
+  METHOD can_generate.
+    allowed = abap_false.
+    IF generated_count < c_ztoad_limit.
+      allowed = abap_true.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD record_success.
+    IF is_display IS INITIAL
+      AND generated_program IS NOT INITIAL
+      AND can_generate( generated_count ) = abap_true.
+      generated_count = generated_count + 1.
+    ENDIF.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_query_input_validator IMPLEMENTATION.
+  METHOD is_safe.
+    DATA index TYPE i.
+    DATA fragment_length TYPE i.
+    DATA previous_index TYPE i.
+    DATA next_index TYPE i.
+    DATA character TYPE c LENGTH 1.
+    DATA previous_character TYPE c LENGTH 1.
+    DATA next_character TYPE c LENGTH 1.
+    DATA in_literal TYPE abap_bool.
+
+    safe = abap_false.
+    fragment_length = strlen( fragment ).
+    IF fragment_length = 0.
+      RETURN.
+    ENDIF.
+
+    WHILE index < fragment_length.
+      character = fragment+index(1).
+
+      IF in_literal = abap_true.
+        IF character = ''''.
+          next_index = index + 1.
+          IF next_index < fragment_length.
+            next_character = fragment+next_index(1).
+            IF next_character = ''''.
+              index = index + 2.
+              CONTINUE.
+            ENDIF.
+          ENDIF.
+          CLEAR in_literal.
+        ENDIF.
+        index = index + 1.
+        CONTINUE.
+      ENDIF.
+
+      IF character = ''''.
+        in_literal = abap_true.
+        index = index + 1.
+        CONTINUE.
+      ENDIF.
+
+      IF is_whitespace( character ) = abap_true
+      OR character CO 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_ /~(),=<>+*%&!$'.
+        index = index + 1.
+        CONTINUE.
+      ENDIF.
+
+      IF character = '.'.
+        previous_index = index - 1.
+        next_index = index + 1.
+        IF previous_index >= 0 AND next_index < fragment_length.
+          previous_character = fragment+previous_index(1).
+          next_character = fragment+next_index(1).
+          IF is_digit( previous_character ) = abap_true
+          AND is_digit( next_character ) = abap_true.
+            index = index + 1.
+            CONTINUE.
+          ENDIF.
+        ENDIF.
+        RETURN.
+      ENDIF.
+
+      IF character = '-'.
+        next_index = index + 1.
+        IF next_index >= fragment_length.
+          RETURN.
+        ENDIF.
+        next_character = fragment+next_index(1).
+        IF index > 0.
+          previous_index = index - 1.
+          previous_character = fragment+previous_index(1).
+          IF is_whitespace( previous_character ) = abap_true
+          AND is_whitespace( next_character ) = abap_true.
+            index = index + 1.
+            CONTINUE.
+          ENDIF.
+        ENDIF.
+        IF is_digit( next_character ) = abap_false.
+          RETURN.
+        ENDIF.
+        IF index > 0.
+          previous_index = index - 1.
+          previous_character = fragment+previous_index(1).
+          IF is_whitespace( previous_character ) = abap_false
+          AND previous_character NA '(,=<>+-*/'.
+            RETURN.
+          ENDIF.
+        ENDIF.
+        index = index + 1.
+        CONTINUE.
+      ENDIF.
+
+      RETURN.
+    ENDWHILE.
+
+    safe = xsdbool( in_literal = abap_false ).
+  ENDMETHOD.
+
+  METHOD is_digit.
+    result = xsdbool( character CO '0123456789' ).
+  ENDMETHOD.
+
+  METHOD is_whitespace.
+    result = xsdbool(
+      character = space
+      OR character = cl_abap_char_utilities=>horizontal_tab
+      OR character = cl_abap_char_utilities=>newline
+      OR character = cl_abap_char_utilities=>cr_lf(1) ).
+  ENDMETHOD.
+
+ENDCLASS.
+
+CLASS lcl_select_list_scanner IMPLEMENTATION.
+  METHOD normalize_for_inference.
+    DATA index TYPE i.
+    DATA(next_index) = 0.
+    DATA depth TYPE i.
+    DATA(character) = space.
+    DATA(next_character) = space.
+    DATA in_literal TYPE abap_bool.
+    DATA last_was_space TYPE abap_bool.
+
+    CLEAR normalized.
+    CLEAR invalid.
+    DATA(select_length) = strlen( select_list ).
+
+    WHILE index < select_length.
+      character = select_list+index(1).
+
+      IF in_literal = abap_true.
+        CONCATENATE normalized character INTO normalized
+                    RESPECTING BLANKS.
+        IF character = ''''.
+          next_index = index + 1.
+          IF next_index < select_length.
+            next_character = select_list+next_index(1).
+            IF next_character = ''''.
+              CONCATENATE normalized next_character INTO normalized
+                          RESPECTING BLANKS.
+              index = index + 2.
+              CONTINUE.
+            ENDIF.
+          ENDIF.
+          CLEAR in_literal.
+        ENDIF.
+        index = index + 1.
+        CONTINUE.
+      ENDIF.
+
+      CASE character.
+        WHEN ''''.
+          in_literal = abap_true.
+          CLEAR last_was_space.
+          CONCATENATE normalized character INTO normalized
+                      RESPECTING BLANKS.
+        WHEN '('.
+          depth = depth + 1.
+          CLEAR last_was_space.
+          CONCATENATE normalized character INTO normalized
+                      RESPECTING BLANKS.
+        WHEN ')'.
+          IF depth = 0.
+            invalid = abap_true.
+            RETURN.
+          ENDIF.
+          depth = depth - 1.
+          CLEAR last_was_space.
+          CONCATENATE normalized character INTO normalized
+                      RESPECTING BLANKS.
+        WHEN ','.
+          IF depth = 0.
+            IF last_was_space = abap_false.
+              CONCATENATE normalized space INTO normalized
+                          RESPECTING BLANKS.
+              last_was_space = abap_true.
+            ENDIF.
+          ELSE.
+            CLEAR last_was_space.
+            CONCATENATE normalized character INTO normalized
+                        RESPECTING BLANKS.
+          ENDIF.
+        WHEN space.
+          IF last_was_space = abap_false.
+            CONCATENATE normalized space INTO normalized
+                        RESPECTING BLANKS.
+            last_was_space = abap_true.
+          ENDIF.
+        WHEN OTHERS.
+          CLEAR last_was_space.
+          CONCATENATE normalized character INTO normalized
+                      RESPECTING BLANKS.
+      ENDCASE.
+
+      index = index + 1.
+    ENDWHILE.
+
+    IF in_literal = abap_true OR depth <> 0.
+      invalid = abap_true.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD contains_v750_function.
+    DATA index TYPE i.
+    DATA(next_index) = 0.
+    DATA(character) = space.
+    DATA(next_character) = space.
+    DATA token TYPE string.
+    DATA in_literal TYPE abap_bool.
+
+    result = abap_false.
+    DATA(select_length) = strlen( select_list ).
+
+    WHILE index < select_length.
+      character = select_list+index(1).
+      IF in_literal = abap_true.
+        IF character = ''''.
+          next_index = index + 1.
+          IF next_index < select_length.
+            next_character = select_list+next_index(1).
+            IF next_character = ''''.
+              index = index + 2.
+              CONTINUE.
+            ENDIF.
+          ENDIF.
+          CLEAR in_literal.
+        ENDIF.
+        index = index + 1.
+        CONTINUE.
+      ENDIF.
+
+      IF character = ''''.
+        CLEAR token.
+        in_literal = abap_true.
+      ELSEIF character CO 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_'.
+        CONCATENATE token character INTO token IN CHARACTER MODE.
+      ELSEIF character = '('.
+        CONCATENATE token character INTO token IN CHARACTER MODE.
+        IF get_function_result_type( token ) IS NOT INITIAL.
+          result = abap_true.
+          RETURN.
+        ENDIF.
+        CLEAR token.
+      ELSE.
+        CLEAR token.
+      ENDIF.
+      index = index + 1.
+    ENDWHILE.
+  ENDMETHOD.
+
+  METHOD get_function_result_type.
+    DATA(opening_offset) = find(
+      val = expression
+      sub = '(' ).
+    IF opening_offset <= 0.
+      RETURN.
+    ENDIF.
+
+    DATA(function_name) = expression(opening_offset).
+    CONDENSE function_name NO-GAPS.
+    TRANSLATE function_name TO UPPER CASE.
+
+    CASE function_name.
+      WHEN 'CONCAT' OR 'LPAD' OR 'LTRIM' OR 'REPLACE'
+          OR 'RIGHT' OR 'RTRIM' OR 'SUBSTRING'.
+        result_type = 'string'.
+      WHEN 'LENGTH'.
+        result_type = 'i'.
+    ENDCASE.
+  ENDMETHOD.
+
+  METHOD get_expression_state.
+    DATA index TYPE i.
+    DATA(next_index) = 0.
+    DATA depth TYPE i.
+    DATA(character) = space.
+    DATA(next_character) = space.
+    DATA in_literal TYPE abap_bool.
+    DATA(saw_opening) = abap_false.
+    DATA root_closed TYPE abap_bool.
+
+    CLEAR complete.
+    CLEAR invalid.
+    DATA(expression_length) = strlen( expression ).
+
+    WHILE index < expression_length.
+      character = expression+index(1).
+      IF root_closed = abap_true.
+        IF character <> space.
+          invalid = abap_true.
+          RETURN.
+        ENDIF.
+        index = index + 1.
+        CONTINUE.
+      ENDIF.
+
+      IF in_literal = abap_true.
+        IF character = ''''.
+          next_index = index + 1.
+          IF next_index < expression_length.
+            next_character = expression+next_index(1).
+            IF next_character = ''''.
+              index = index + 2.
+              CONTINUE.
+            ENDIF.
+          ENDIF.
+          CLEAR in_literal.
+        ENDIF.
+        index = index + 1.
+        CONTINUE.
+      ENDIF.
+
+      CASE character.
+        WHEN ''''.
+          in_literal = abap_true.
+        WHEN '('.
+          depth = depth + 1.
+          saw_opening = abap_true.
+        WHEN ')'.
+          IF depth = 0.
+            invalid = abap_true.
+            RETURN.
+          ENDIF.
+          depth = depth - 1.
+          IF depth = 0.
+            root_closed = abap_true.
+          ENDIF.
+      ENDCASE.
+      index = index + 1.
+    ENDWHILE.
+
+    complete = xsdbool(
+      saw_opening = abap_true
+      AND root_closed = abap_true
+      AND in_literal = abap_false ).
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_select_expression_analyzer IMPLEMENTATION.
+  METHOD find_case_result_reference.
+    DATA tokens TYPE string_table.
+    DATA token TYPE string.
+    DATA candidate TYPE string.
+    DATA case_seen TYPE abap_bool.
+    DATA literals_valid TYPE abap_bool.
+
+    DATA normalized_expression TYPE string.
+    mask_literals(
+      EXPORTING expression = expression
+      IMPORTING masked_expression = normalized_expression
+                valid = literals_valid ).
+    IF literals_valid = abap_false.
+      RETURN.
+    ENDIF.
+    TRANSLATE normalized_expression TO UPPER CASE.
+    SPLIT normalized_expression AT space INTO TABLE tokens.
+
+    LOOP AT tokens INTO token.
+      IF token = 'CASE'.
+        case_seen = abap_true.
+        CONTINUE.
+      ENDIF.
+      IF case_seen = abap_false OR token <> 'THEN'.
+        CONTINUE.
+      ENDIF.
+
+      DATA(next_index) = sy-tabix + 1.
+      READ TABLE tokens INTO candidate INDEX next_index.
+      IF sy-subrc = 0
+      AND is_column_reference( candidate ) = abap_true.
+        reference = candidate.
+      ENDIF.
+      RETURN.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD mask_literals.
+    DATA index TYPE i.
+    DATA next_index TYPE i.
+    DATA expression_length TYPE i.
+    DATA character TYPE c LENGTH 1.
+    DATA next_character TYPE c LENGTH 1.
+    DATA in_literal TYPE abap_bool.
+
+    CLEAR masked_expression.
+    expression_length = strlen( expression ).
+
+    WHILE index < expression_length.
+      character = expression+index(1).
+      IF in_literal = abap_true.
+        CONCATENATE masked_expression space INTO masked_expression
+                    RESPECTING BLANKS.
+        IF character = ''''.
+          next_index = index + 1.
+          IF next_index < expression_length.
+            next_character = expression+next_index(1).
+            IF next_character = ''''.
+              CONCATENATE masked_expression space INTO masked_expression
+                          RESPECTING BLANKS.
+              index = index + 2.
+              CONTINUE.
+            ENDIF.
+          ENDIF.
+          CLEAR in_literal.
+        ENDIF.
+      ELSEIF character = ''''.
+        in_literal = abap_true.
+        CONCATENATE masked_expression space INTO masked_expression
+                    RESPECTING BLANKS.
+      ELSE.
+        CONCATENATE masked_expression character INTO masked_expression
+                    RESPECTING BLANKS.
+      ENDIF.
+      index = index + 1.
+    ENDWHILE.
+
+    valid = xsdbool( in_literal = abap_false ).
+  ENDMETHOD.
+
+  METHOD is_column_reference.
+    DATA source_name TYPE string.
+    DATA field_name TYPE string.
+
+    result = abap_false.
+    IF token IS INITIAL
+    OR token CN 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_/~'.
+      RETURN.
+    ENDIF.
+
+    DATA(first_character) = token(1).
+    IF first_character CO '0123456789~'.
+      RETURN.
+    ENDIF.
+
+    IF token CS '~'.
+      SPLIT token AT '~' INTO source_name field_name.
+      IF source_name IS INITIAL OR field_name IS INITIAL
+      OR source_name CS '~' OR field_name CS '~'.
+        RETURN.
+      ENDIF.
+    ENDIF.
+
+    result = abap_true.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_sql_clause_scanner IMPLEMENTATION.
+  METHOD mask_top_level.
+    DATA index TYPE i.
+    DATA next_index TYPE i.
+    DATA depth TYPE i.
+    DATA character TYPE c LENGTH 1.
+    DATA next_character TYPE c LENGTH 1.
+    DATA in_literal TYPE abap_bool.
+
+    CLEAR top_level.
+    CLEAR invalid.
+    DATA(query_length) = strlen( query ).
+
+    WHILE index < query_length.
+      character = query+index(1).
+
+      IF in_literal = abap_true.
+        top_level = top_level && ` `.
+        IF character = ''''.
+          next_index = index + 1.
+          IF next_index < query_length.
+            next_character = query+next_index(1).
+            IF next_character = ''''.
+              top_level = top_level && ` `.
+              index = index + 2.
+              CONTINUE.
+            ENDIF.
+          ENDIF.
+          CLEAR in_literal.
+        ENDIF.
+        index = index + 1.
+        CONTINUE.
+      ENDIF.
+
+      CASE character.
+        WHEN ''''.
+          in_literal = abap_true.
+          top_level = top_level && ` `.
+        WHEN '"' OR '`' OR '|'.
+          invalid = abap_true.
+          RETURN.
+        WHEN '('.
+          depth = depth + 1.
+          top_level = top_level && ` `.
+        WHEN ')'.
+          IF depth = 0.
+            invalid = abap_true.
+            RETURN.
+          ENDIF.
+          depth = depth - 1.
+          top_level = top_level && ` `.
+        WHEN OTHERS.
+          IF depth > 0 OR is_whitespace( character ) = abap_true.
+            top_level = top_level && ` `.
+          ELSE.
+            top_level = top_level && character.
+          ENDIF.
+      ENDCASE.
+      index = index + 1.
+    ENDWHILE.
+
+    invalid = xsdbool( in_literal = abap_true OR depth <> 0 ).
+  ENDMETHOD.
+
+  METHOD is_whitespace.
+    result = xsdbool(
+      character = space
+      OR character = cl_abap_char_utilities=>horizontal_tab
+      OR character = cl_abap_char_utilities=>newline
+      OR character = cl_abap_char_utilities=>cr_lf(1) ).
+  ENDMETHOD.
+
+  METHOD skip_whitespace.
+    DATA character TYPE c LENGTH 1.
+    DATA(query_length) = strlen( query ).
+
+    result_offset = offset.
+    WHILE result_offset < query_length.
+      character = query+result_offset(1).
+      IF is_whitespace( character ) = abap_false.
+        RETURN.
+      ENDIF.
+      result_offset = result_offset + 1.
+    ENDWHILE.
+  ENDMETHOD.
+
+  METHOD separator_start.
+    DATA previous_offset TYPE i.
+    DATA character TYPE c LENGTH 1.
+
+    result_offset = keyword_offset.
+    WHILE result_offset > 0.
+      previous_offset = result_offset - 1.
+      character = query+previous_offset(1).
+      IF is_whitespace( character ) = abap_false.
+        RETURN.
+      ENDIF.
+      result_offset = previous_offset.
+    ENDWHILE.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_sql_set_expression IMPLEMENTATION.
+  METHOD attach_suffix.
+    query_tail = branch_tail.
+    IF set_suffix IS INITIAL.
+      RETURN.
+    ELSEIF query_tail IS INITIAL.
+      query_tail = set_suffix.
+    ELSE.
+      CONCATENATE query_tail set_suffix
+                  INTO query_tail SEPARATED BY space.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD join_sources.
+    DATA table TYPE tabname.
+
+    LOOP AT sources INTO table.
+      IF from_clause IS INITIAL.
+        from_clause = table.
+      ELSE.
+        CONCATENATE from_clause 'JOIN' table
+                    INTO from_clause SEPARATED BY space.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD contains_union.
+    DATA padded_query TYPE string.
+
+    CONCATENATE top_level_query space
+                INTO padded_query RESPECTING BLANKS.
+    TRANSLATE padded_query TO UPPER CASE.
+    CONDENSE padded_query.
+    result = xsdbool(
+      padded_query CS ' UNION SELECT '
+      OR padded_query CS ' UNION ALL SELECT '
+      OR padded_query CS ' UNION DISTINCT SELECT ' ).
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_generated_line_splitter IMPLEMENTATION.
+  METHOD append.
+    DATA remaining TYPE i.
+    DATA offset TYPE i.
+    DATA split_offset TYPE i.
+    DATA segment_length TYPE i.
+
+    IF safe = abap_false.
+      RETURN.
+    ENDIF.
+
+    remaining = strlen( line ).
+    WHILE remaining > c_line_max.
+      split_offset = find_split_offset( line = line offset = offset ).
+      IF split_offset < offset
+      OR starts_column_one_comment(
+           line = line split_offset = split_offset ) = abap_true.
+        safe = abap_false.
+        RETURN.
+      ENDIF.
+
+      segment_length = split_offset - offset.
+      APPEND line+offset(segment_length) TO lines.
+      remaining = remaining + offset - split_offset - 1.
+      offset = split_offset + 1.
+    ENDWHILE.
+
+    APPEND line+offset(remaining) TO lines.
+  ENDMETHOD.
+
+  METHOD find_split_offset.
+    DATA scan_index TYPE i.
+    DATA scan_limit TYPE i.
+    DATA next_index TYPE i.
+    DATA full_length TYPE i.
+    DATA character TYPE c LENGTH 1.
+    DATA next_character TYPE c LENGTH 1.
+    DATA in_literal TYPE abap_bool.
+
+    split_offset = -1.
+    scan_index = offset.
+    scan_limit = offset + c_line_max.
+    full_length = strlen( line ).
+
+    WHILE scan_index < scan_limit.
+      character = line+scan_index(1).
+      IF character = ''''.
+        next_index = scan_index + 1.
+        IF in_literal = abap_true AND next_index < full_length.
+          next_character = line+next_index(1).
+          IF next_character = ''''.
+            scan_index = scan_index + 2.
+            CONTINUE.
+          ENDIF.
+        ENDIF.
+        IF in_literal = abap_true.
+          CLEAR in_literal.
+        ELSE.
+          in_literal = abap_true.
+        ENDIF.
+      ELSEIF in_literal = abap_false
+         AND is_whitespace( character ) = abap_true.
+        split_offset = scan_index.
+      ENDIF.
+      scan_index = scan_index + 1.
+    ENDWHILE.
+  ENDMETHOD.
+
+  METHOD starts_column_one_comment.
+    DATA index TYPE i.
+    DATA full_length TYPE i.
+    DATA character TYPE c LENGTH 1.
+
+    index = split_offset + 1.
+    full_length = strlen( line ).
+    WHILE index < full_length.
+      character = line+index(1).
+      IF is_whitespace( character ) = abap_false.
+        EXIT.
+      ENDIF.
+      index = index + 1.
+    ENDWHILE.
+
+    result = xsdbool( index < full_length AND character = '*' ).
+  ENDMETHOD.
+
+  METHOD is_whitespace.
+    result = xsdbool(
+      character = space
+      OR character = cl_abap_char_utilities=>horizontal_tab
+      OR character = cl_abap_char_utilities=>newline
+      OR character = cl_abap_char_utilities=>cr_lf(1) ).
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_sql_source_scanner IMPLEMENTATION.
+  METHOD scan.
+    DATA index TYPE i.
+    DATA next_index TYPE i.
+    DATA query_length TYPE i.
+    DATA character TYPE c LENGTH 1.
+    DATA next_character TYPE c LENGTH 1.
+    DATA token TYPE string.
+    DATA expect_source TYPE abap_bool.
+    DATA source_parenthesized TYPE abap_bool.
+    DATA first_token TYPE abap_bool VALUE abap_true.
+    DATA in_single_quote TYPE abap_bool.
+    DATA in_backtick TYPE abap_bool.
+    DATA in_template TYPE abap_bool.
+
+    CLEAR sources.
+    CLEAR invalid.
+    query_length = strlen( query ).
+
+    WHILE index < query_length.
+      character = query+index(1).
+
+      IF in_single_quote = abap_true.
+        IF character = ''''.
+          next_index = index + 1.
+          IF next_index < query_length.
+            next_character = query+next_index(1).
+            IF next_character = ''''.
+              index = index + 2.
+              CONTINUE.
+            ENDIF.
+          ENDIF.
+          CLEAR in_single_quote.
+        ENDIF.
+        index = index + 1.
+        CONTINUE.
+      ENDIF.
+
+      IF in_backtick = abap_true.
+        IF character = '`'.
+          next_index = index + 1.
+          IF next_index < query_length.
+            next_character = query+next_index(1).
+            IF next_character = '`'.
+              index = index + 2.
+              CONTINUE.
+            ENDIF.
+          ENDIF.
+          CLEAR in_backtick.
+        ENDIF.
+        index = index + 1.
+        CONTINUE.
+      ENDIF.
+
+      IF in_template = abap_true.
+        IF character = '|'.
+          CLEAR in_template.
+        ENDIF.
+        index = index + 1.
+        CONTINUE.
+      ENDIF.
+
+      IF character CO 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_/@+\'.
+        CONCATENATE token character INTO token IN CHARACTER MODE.
+        index = index + 1.
+        CONTINUE.
+      ENDIF.
+
+      process_token(
+        EXPORTING token = token
+        CHANGING sources = sources
+                 invalid = invalid
+                 expect_source = expect_source
+                 source_parenthesized = source_parenthesized
+                 first_token = first_token ).
+      CLEAR token.
+      IF invalid = abap_true.
+        RETURN.
+      ENDIF.
+
+      CASE character.
+        WHEN ''''.
+          in_single_quote = abap_true.
+        WHEN '`'.
+          in_backtick = abap_true.
+        WHEN '|'.
+          in_template = abap_true.
+        WHEN '"'.
+* Generated source is wrapped at 255 characters. A comment could therefore
+* hide a source here and end before that source in the generated program.
+          invalid = abap_true.
+          RETURN.
+        WHEN '('.
+          IF expect_source = abap_true.
+            source_parenthesized = abap_true.
+          ENDIF.
+        WHEN ')' OR ','.
+          IF expect_source = abap_true.
+            invalid = abap_true.
+            RETURN.
+          ENDIF.
+      ENDCASE.
+
+      index = index + 1.
+    ENDWHILE.
+
+    process_token(
+      EXPORTING token = token
+      CHANGING sources = sources
+               invalid = invalid
+               expect_source = expect_source
+               source_parenthesized = source_parenthesized
+               first_token = first_token ).
+    IF expect_source = abap_true.
+      invalid = abap_true.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD process_token.
+    DATA upper_token TYPE string.
+    DATA table_name TYPE tabname.
+
+    IF token IS INITIAL OR invalid = abap_true.
+      RETURN.
+    ENDIF.
+
+    upper_token = token.
+    TRANSLATE upper_token TO UPPER CASE.
+
+    IF first_token = abap_true.
+      CLEAR first_token.
+      IF upper_token = 'WITH'.
+        invalid = abap_true.
+        RETURN.
+      ENDIF.
+    ENDIF.
+
+    IF expect_source = abap_true.
+      IF source_parenthesized = abap_true.
+        IF upper_token = 'SELECT'.
+          CLEAR expect_source.
+          CLEAR source_parenthesized.
+          RETURN.
+        ENDIF.
+        invalid = abap_true.
+        RETURN.
+      ENDIF.
+
+      IF upper_token(1) = '@'
+      OR upper_token(1) = '+'
+      OR upper_token CS '\'
+      OR upper_token = 'HIERARCHY'
+      OR strlen( upper_token ) > 30.
+        invalid = abap_true.
+        RETURN.
+      ENDIF.
+
+      table_name = upper_token.
+      INSERT table_name INTO TABLE sources.
+      CLEAR expect_source.
+      RETURN.
+    ENDIF.
+
+    IF upper_token = 'FROM' OR upper_token = 'JOIN'.
+      expect_source = abap_true.
+    ENDIF.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_editor IMPLEMENTATION.
+  METHOD constructor.
+    IF lcl_editor_configuration=>get_editor_type( i_webgui ) = 'TEXT'.
+      CREATE OBJECT text_editor
+        EXPORTING
+          parent                   = i_parent
+        EXCEPTIONS
+          error_cntl_create      = 1
+          error_cntl_init        = 2
+          error_cntl_link        = 3
+          error_dp_create        = 4
+          gui_type_not_supported = 5
+          OTHERS                 = 6.
+    ELSE.
+      abap_editor = NEW cl_gui_abapedit( parent = i_parent ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD is_ready.
+    r_ready = xsdbool( text_editor IS BOUND OR abap_editor IS BOUND ).
+  ENDMETHOD.
+
+  METHOD get_abap_editor.
+    r_editor = abap_editor.
+  ENDMETHOD.
+
+  METHOD get_selection_pos.
+    IF text_editor IS BOUND.
+      text_editor->get_selection_pos(
+        IMPORTING
+          from_line = e_from_line
+          from_pos  = e_from_pos
+          to_line   = e_to_line
+          to_pos    = e_to_pos
+        EXCEPTIONS
+          OTHERS    = 1 ).
+    ELSE.
+      abap_editor->get_selection_pos(
+        IMPORTING
+          from_line = e_from_line
+          from_pos  = e_from_pos
+          to_line   = e_to_line
+          to_pos    = e_to_pos
+        EXCEPTIONS
+          OTHERS    = 1 ).
+    ENDIF.
+
+    IF sy-subrc <> 0.
+      RAISE operation_failed.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD get_selected_text_as_table.
+    IF text_editor IS BOUND.
+      text_editor->get_selected_text_as_r3table(
+        IMPORTING
+          table  = e_table
+        EXCEPTIONS
+          OTHERS = 0 ).
+    ELSE.
+      abap_editor->get_selected_text_as_table(
+        IMPORTING
+          table  = e_table
+        EXCEPTIONS
+          OTHERS = 0 ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD get_text.
+    DATA capabilities TYPE lcl_editor_configuration=>ty_capabilities.
+
+    IF text_editor IS BOUND.
+      capabilities = lcl_editor_configuration=>get_capabilities(
+        i_webgui = abap_true ).
+      IF capabilities-stream_input = abap_true.
+        text_editor->get_text_as_stream(
+          IMPORTING
+            text   = e_table
+          EXCEPTIONS
+            OTHERS = 1 ).
+      ELSE.
+        text_editor->get_text_as_r3table(
+          IMPORTING
+            table  = e_table
+          EXCEPTIONS
+            OTHERS = 1 ).
+      ENDIF.
+    ELSE.
+      abap_editor->get_text(
+        IMPORTING
+          table  = e_table
+        EXCEPTIONS
+          OTHERS = 1 ).
+    ENDIF.
+
+    IF sy-subrc <> 0.
+      RAISE operation_failed.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD delete_text.
+    DATA empty_text TYPE soli_tab.
+
+    IF text_editor IS BOUND.
+      text_editor->set_selection_pos(
+        EXPORTING
+          from_line = i_from_line
+          from_pos  = i_from_pos
+          to_line   = i_to_line
+          to_pos    = i_to_pos
+        EXCEPTIONS
+          OTHERS    = 0 ).
+      text_editor->set_selected_text_as_r3table(
+        EXPORTING
+          table  = empty_text
+        EXCEPTIONS
+          OTHERS = 0 ).
+    ELSE.
+      abap_editor->delete_text(
+        from_line = i_from_line
+        from_pos  = i_from_pos
+        to_line   = i_to_line
+        to_pos    = i_to_pos ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD set_text.
+    IF text_editor IS BOUND.
+      text_editor->set_text_as_r3table(
+        EXPORTING
+          table  = i_table
+        EXCEPTIONS
+          OTHERS = 0 ).
+    ELSE.
+      abap_editor->set_text(
+        EXPORTING
+          table  = i_table
+        EXCEPTIONS
+          OTHERS = 0 ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD set_visible.
+    IF text_editor IS BOUND.
+      text_editor->set_visible( visible = i_visible ).
+    ELSE.
+      abap_editor->set_visible( visible = i_visible ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD set_textmodified_status.
+    IF text_editor IS BOUND.
+      text_editor->set_textmodified_status( ).
+    ELSE.
+      abap_editor->set_textmodified_status( ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD get_textmodified_status.
+    IF text_editor IS BOUND.
+      text_editor->get_textmodified_status(
+        IMPORTING
+          status = r_status
+        EXCEPTIONS
+          OTHERS = 0 ).
+    ELSE.
+      abap_editor->get_textmodified_status(
+        IMPORTING
+          status = r_status
+        EXCEPTIONS
+          OTHERS = 0 ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD insert_block_at_position.
+    IF text_editor IS BOUND.
+      text_editor->set_selection_pos(
+        EXPORTING
+          from_line = i_line
+          from_pos  = i_pos
+          to_line   = i_line
+          to_pos    = i_pos
+        EXCEPTIONS
+          OTHERS    = 0 ).
+      text_editor->set_selected_text_as_stream(
+        EXPORTING
+          selected_text = i_text_tab
+        EXCEPTIONS
+          OTHERS        = 0 ).
+    ELSE.
+      abap_editor->insert_block_at_position(
+        EXPORTING
+          line     = i_line
+          pos      = i_pos
+          text_tab = i_text_tab
+        EXCEPTIONS
+          OTHERS   = 0 ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD set_selection_pos_in_line.
+    IF text_editor IS BOUND.
+      text_editor->set_selection_pos_in_line(
+        EXPORTING
+          line   = i_line
+          pos    = i_pos
+        EXCEPTIONS
+          OTHERS = 0 ).
+    ELSE.
+      abap_editor->set_selection_pos_in_line(
+        EXPORTING
+          line   = i_line
+          pos    = i_pos
+        EXCEPTIONS
+          OTHERS = 0 ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD set_focus.
+    IF text_editor IS BOUND.
+      cl_gui_control=>set_focus(
+        EXPORTING control = text_editor
+        EXCEPTIONS OTHERS = 0 ).
+    ELSE.
+      cl_gui_control=>set_focus(
+        EXPORTING control = abap_editor
+        EXCEPTIONS OTHERS = 0 ).
+    ENDIF.
+  ENDMETHOD.
+ENDCLASS.
+
+*----------------------------------------------------------------------*
+*       CLASS LCL_APPLICATION IMPLEMENTATION
+*----------------------------------------------------------------------*
+*       Class to handle application events                             *
+*----------------------------------------------------------------------*
+CLASS lcl_application IMPLEMENTATION.
+*&---------------------------------------------------------------------*
+*&      CLASS lcl_application
+*&      METHOD hnd_repo_context_menu
+*&---------------------------------------------------------------------*
+*       Handle context menu display on repository tree
+*----------------------------------------------------------------------*
+  METHOD hnd_repo_context_menu.
+    DATA l_node_key TYPE tv_nodekey.
+
+    CALL METHOD o_tree_repository->get_selected_node
+      IMPORTING
+        node_key = l_node_key.
+* For History node, add a "delete all" entry
+* Only if there is at least 1 history entry
+    IF l_node_key = 'HISTO'.
+      READ TABLE t_node_repository TRANSPORTING NO FIELDS
+        WITH KEY relatkey = 'HISTO'.
+      IF sy-subrc = 0.
+        CALL METHOD menu->add_function
+          EXPORTING
+            text  = 'Delete All'(m36)
+            icon  = '@02@'
+            fcode = 'DELETE_HIST'.
+      ENDIF.
+      RETURN.
+    ENDIF.
+
+* Add Delete option only for own queries
+    READ TABLE t_node_repository INTO s_node_repository
+               WITH KEY node_key = l_node_key.
+    IF sy-subrc NE 0 OR s_node_repository-edit = space.
+      RETURN.
+    ENDIF.
+
+    CALL METHOD menu->add_function
+      EXPORTING
+        text  = 'Delete'(m01)
+        icon  = '@02@'
+        fcode = 'DELETE_QUERY'.
+  ENDMETHOD.                    "hnd_repo_context_menu
+
+*&---------------------------------------------------------------------*
+*&      CLASS lcl_application
+*&      METHOD hnd_repo_context_menu_sel
+*&---------------------------------------------------------------------*
+*       Handle context menu clic on repository tree
+*----------------------------------------------------------------------*
+  METHOD hnd_repo_context_menu_sel.
+    DATA : l_node_key TYPE tv_nodekey,
+           l_subrc    TYPE i,
+           ls_histo   LIKE s_node_repository,
+           lw_queryid LIKE ls_histo-queryid.
+* Delete stored query
+    CASE fcode.
+      WHEN 'DELETE_QUERY'.
+        CALL METHOD o_tree_repository->get_selected_node
+          IMPORTING
+            node_key = l_node_key.
+        PERFORM repo_delete_history USING l_node_key
+                                    CHANGING l_subrc.
+        IF l_subrc = 0.
+          MESSAGE 'Query deleted'(m02) TYPE c_msg_success.
+        ELSE.
+          MESSAGE 'Error when deleting the query'(m03)
+                  TYPE c_msg_success DISPLAY LIKE c_msg_error.
+          RETURN.
+        ENDIF.
+
+      WHEN 'DELETE_HIST'.
+        CONCATENATE sy-uname '***' INTO lw_queryid. " Change +++ to wildcard symbol ***
+        LOOP AT t_node_repository INTO ls_histo
+                WHERE queryid CP lw_queryid.
+          PERFORM repo_delete_history USING ls_histo-node_key
+                                      CHANGING l_subrc.
+          IF l_subrc NE 0.
+            MESSAGE 'Error when deleting the query'(m03)
+                    TYPE c_msg_success DISPLAY LIKE c_msg_error.
+            RETURN.
+          ENDIF.
+        ENDLOOP.
+        MESSAGE 'All history entries deleted'(m37) TYPE c_msg_success.
+    ENDCASE.
+  ENDMETHOD.                    "hnd_repo_context_menu_sel
+
+*&---------------------------------------------------------------------*
+*&      CLASS lcl_application
+*&      METHOD hnd_editor_f1
+*&---------------------------------------------------------------------*
+*       Handle F1 call on ABAP editor
+*----------------------------------------------------------------------*
+  METHOD hnd_editor_f1.
+    DATA : lw_cursor_line_from TYPE i,
+           lw_cursor_line_to   TYPE i,
+           lw_cursor_pos_from  TYPE i,
+           lw_cursor_pos_to    TYPE i,
+           lw_offset           TYPE i,
+           lw_length           TYPE i,
+           lt_query            TYPE soli_tab,
+           ls_query            LIKE LINE OF lt_query,
+           lw_sel              TYPE string.
+
+* Find active query
+    CALL METHOD s_tab_active-o_textedit->get_selection_pos
+      IMPORTING
+        e_from_line = lw_cursor_line_from
+        e_from_pos  = lw_cursor_pos_from
+        e_to_line   = lw_cursor_line_to
+        e_to_pos    = lw_cursor_pos_to.
+
+* If nothing selected, no help to display
+    IF lw_cursor_line_from = lw_cursor_line_to
+    AND lw_cursor_pos_to = lw_cursor_pos_from.
+      RETURN.
+    ENDIF.
+
+* Get content of abap edit box
+    CALL METHOD s_tab_active-o_textedit->get_text
+      IMPORTING
+        e_table = lt_query[]
+      EXCEPTIONS
+        OTHERS = 1.
+
+
+    READ TABLE lt_query INTO ls_query INDEX lw_cursor_line_from.
+    IF lw_cursor_line_from = lw_cursor_line_to.
+      lw_length = lw_cursor_pos_to - lw_cursor_pos_from.
+      lw_offset = lw_cursor_pos_from - 1.
+      lw_sel = ls_query+lw_offset(lw_length).
+    ELSE.
+      lw_offset = lw_cursor_pos_from - 1.
+      lw_sel = ls_query+lw_offset.
+    ENDIF.
+    CALL FUNCTION 'ABAP_DOCU_START'
+      EXPORTING
+        word = lw_sel.
+  ENDMETHOD.                    "hnd_editor_f1
+
+*&---------------------------------------------------------------------*
+*&      CLASS lcl_application
+*&      METHOD hnd_ddic_item_dblclick
+*&---------------------------------------------------------------------*
+*       Handle Node double clic on ddic tree
+*----------------------------------------------------------------------*
+  METHOD hnd_ddic_item_dblclick.
+    DATA : ls_node       LIKE LINE OF s_tab_active-t_node_ddic,
+           lw_line_start TYPE i,
+           lw_pos_start  TYPE i,
+           lw_line_end   TYPE i,
+           lw_pos_end    TYPE i,
+           lw_data       TYPE string.
+
+* Check clicked node is valid
+    READ TABLE s_tab_active-t_node_ddic INTO ls_node
+               WITH KEY node_key = node_key.
+    IF sy-subrc NE 0 OR ls_node-isfolder = abap_true.
+      RETURN.
+    ENDIF.
+
+* Get text for the node selected
+    PERFORM ddic_get_field_from_node USING node_key ls_node-relatkey
+                                     CHANGING lw_data.
+
+* Get current cursor position/selection in editor
+    CALL METHOD s_tab_active-o_textedit->get_selection_pos
+      IMPORTING
+        e_from_line = lw_line_start
+        e_from_pos  = lw_pos_start
+        e_to_line   = lw_line_end
+        e_to_pos    = lw_pos_end
+      EXCEPTIONS
+        OTHERS    = 4.
+    IF sy-subrc NE 0.
+      MESSAGE 'Cannot get cursor position'(m35) TYPE c_msg_error.
+    ENDIF.
+
+*   If text is selected/highlighted, delete it
+    IF lw_line_start NE lw_line_end
+    OR lw_pos_start NE lw_pos_end.
+      CALL METHOD s_tab_active-o_textedit->delete_text
+        EXPORTING
+          i_from_line = lw_line_start
+          i_from_pos  = lw_pos_start
+          i_to_line   = lw_line_end
+          i_to_pos    = lw_pos_end.
+    ENDIF.
+
+    PERFORM editor_paste USING lw_data lw_line_start lw_pos_start.
+  ENDMETHOD.                    "hnd_ddic_item_dblclick
+
+*&---------------------------------------------------------------------*
+*&      CLASS lcl_application
+*&      METHOD hnd_repo_dblclick
+*&---------------------------------------------------------------------*
+*       Handle Node double clic on repository tree
+*----------------------------------------------------------------------*
+  METHOD hnd_repo_dblclick.
+    DATA lt_query TYPE TABLE OF string.
+    READ TABLE t_node_repository INTO s_node_repository
+               WITH KEY node_key = node_key.
+    IF sy-subrc = 0 AND NOT s_node_repository-relatkey IS INITIAL.
+      PERFORM query_load USING s_node_repository-queryid
+                         CHANGING lt_query.
+
+      CALL METHOD s_tab_active-o_textedit->set_text
+        EXPORTING
+          i_table = lt_query
+        EXCEPTIONS
+          OTHERS = 0.
+
+      PERFORM ddic_refresh_tree.
+    ENDIF.
+  ENDMETHOD. "hnd_repo_dblclick
+
+*&---------------------------------------------------------------------*
+*&      CLASS lcl_application
+*&      METHOD hnd_result_toolbar
+*&---------------------------------------------------------------------*
+*       Handle grid toolbar to add specific button
+*----------------------------------------------------------------------*
+  METHOD hnd_result_toolbar.
+    DATA: ls_toolbar  TYPE stb_button.
+    DATA capabilities TYPE lcl_editor_configuration=>ty_capabilities.
+
+    capabilities = lcl_editor_configuration=>get_runtime_capabilities( ).
+    IF capabilities-resize_result = abap_false.
+      RETURN.
+    ENDIF.
+
+* Add Separator
+    CLEAR ls_toolbar.
+    ls_toolbar-function = '&&SEP99'.
+    ls_toolbar-butn_type = 3.
+    APPEND ls_toolbar TO e_object->mt_toolbar.
+
+* Add button to close the grid
+    CLEAR ls_toolbar.
+    ls_toolbar-function = 'CLOSE_GRID'.
+    ls_toolbar-icon = '@3X@'.
+    ls_toolbar-quickinfo = 'Close Grid'(m05).
+    ls_toolbar-text = 'Close'(m06).
+    ls_toolbar-butn_type = 0.
+    ls_toolbar-disabled = space.
+    APPEND ls_toolbar TO e_object->mt_toolbar.
+  ENDMETHOD.                    "hnd_result_toolbar
+
+*&---------------------------------------------------------------------*
+*&      CLASS lcl_application
+*&      METHOD hnd_result_user_command
+*&---------------------------------------------------------------------*
+*       Handle grid user command to manage specific fcode
+*       (menus & toolbar)
+*----------------------------------------------------------------------*
+  METHOD hnd_result_user_command.
+    DATA capabilities TYPE lcl_editor_configuration=>ty_capabilities.
+
+    capabilities = lcl_editor_configuration=>get_runtime_capabilities( ).
+    IF e_ucomm = 'CLOSE_GRID'
+    AND capabilities-resize_result = abap_true.
+      CALL METHOD o_splitter->set_row_height
+        EXPORTING
+          id     = 1
+          height = 100.
+    ENDIF.
+  ENDMETHOD. "hnd_result_user_command
+
+*&---------------------------------------------------------------------*
+*&      CLASS lcl_application
+*&      METHOD hnd_ddic_drag
+*&---------------------------------------------------------------------*
+*       Handle drag on DDIC field (store fieldname)
+*----------------------------------------------------------------------*
+  METHOD hnd_ddic_drag.
+    DATA : lo_drag_object TYPE REF TO lcl_drag_object,
+           ls_node        LIKE LINE OF s_tab_active-t_node_ddic,
+           lw_text        TYPE string.
+
+    READ TABLE s_tab_active-t_node_ddic INTO ls_node
+               WITH KEY node_key = node_key.
+    IF sy-subrc NE 0 OR ls_node-isfolder = abap_true. "may not append
+      MESSAGE 'Only fields can be drag&drop to editor'(m34)
+               TYPE c_msg_success DISPLAY LIKE c_msg_error.
+      RETURN.
+    ENDIF.
+
+* Get text for the node selected
+    PERFORM ddic_get_field_from_node USING node_key ls_node-relatkey
+                                     CHANGING lw_text.
+
+* Store the node text
+    CREATE OBJECT lo_drag_object.
+    lo_drag_object->field = lw_text.
+    drag_drop_object->object = lo_drag_object.
+
+  ENDMETHOD."hnd_ddic_drag
+
+*&---------------------------------------------------------------------*
+*&      CLASS lcl_application
+*&      METHOD hnd_editor_drop
+*&---------------------------------------------------------------------*
+*       Handle drop on SQL Editor : paste fieldname at cursor position
+*----------------------------------------------------------------------*
+  METHOD hnd_editor_drop.
+    DATA lo_drag_object TYPE REF TO lcl_drag_object.
+
+    lo_drag_object ?= dragdrop_object->object.
+    IF lo_drag_object IS INITIAL OR lo_drag_object->field IS INITIAL.
+      RETURN.
+    ENDIF.
+
+* Paste fieldname to editor at drop position
+    PERFORM editor_paste USING lo_drag_object->field line pos.
+
+  ENDMETHOD."hnd_editor_drop
+
+*&---------------------------------------------------------------------*
+*&      CLASS lcl_application
+*&      METHOD hnd_ddic_toolbar_clic
+*&---------------------------------------------------------------------*
+*       Handle DDIC toolbar button clic
+*----------------------------------------------------------------------*
+  METHOD hnd_ddic_toolbar_clic.
+
+    CASE fcode.
+      WHEN 'REFRESH'.
+        PERFORM ddic_refresh_tree.
+      WHEN 'FIND'.
+        PERFORM ddic_find_in_tree.
+      WHEN 'F4'.
+        PERFORM ddic_f4.
+    ENDCASE.
+  ENDMETHOD.                    "hnd_ddic_toolbar_clic
+
+ENDCLASS.                    "lcl_application IMPLEMENTATION
+
+
+*######################################################################*
+*
+*                             MAIN SECTION
+*
+*######################################################################*
+START-OF-SELECTION.
+  CALL SCREEN 10.
+
+
+*######################################################################*
+*
+*                             PBO SECTION
+*
+*######################################################################*
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_0010  OUTPUT
+*&---------------------------------------------------------------------*
+*       Set status for main screen
+*       and initialize custom container at first run
+*----------------------------------------------------------------------*
+MODULE status_0010 OUTPUT.
+* Initialization of object screen
+  IF o_container IS INITIAL.
+    PERFORM screen_init.
+    APPEND s_tab_active TO t_tabs.
+  ENDIF.
+
+  perform set_status_010.
+
+ENDMODULE.                 " STATUS_0010  OUTPUT
+
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_0200  OUTPUT
+*&---------------------------------------------------------------------*
+*       Set status for modal box (save query)
+*----------------------------------------------------------------------*
+MODULE status_0200 OUTPUT.
+
+* Fill dropdown listbox with values
+  PERFORM screen_init_listbox_0200.
+
+  SET PF-STATUS 'STATUS200'.
+  SET TITLEBAR 'STATUS200'.
+
+ENDMODULE.                 " STATUS_0200  OUTPUT
+
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_0300  OUTPUT
+*&---------------------------------------------------------------------*
+*       Set status for modal box (options)
+*----------------------------------------------------------------------*
+MODULE status_0300 OUTPUT.
+
+* Create option screen
+  IF o_container_options IS INITIAL.
+    PERFORM options_init.
+  ENDIF.
+
+  SET PF-STATUS 'STATUS300'.
+  SET TITLEBAR 'STATUS300'.
+
+ENDMODULE.                 " STATUS_0200  OUTPUT
+
+*######################################################################*
+*
+*                             PAI SECTION
+*
+*######################################################################*
+
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0010  INPUT
+*&---------------------------------------------------------------------*
+*       User command for main screen
+*----------------------------------------------------------------------*
+MODULE user_command_0010 INPUT.
+  CASE w_okcode.
+    WHEN 'EXIT'.
+      PERFORM screen_exit.
+    WHEN 'EXECUTE'.
+      PERFORM query_process USING space space.
+    WHEN 'DOWNLOAD'.
+      PERFORM query_process USING space abap_true.
+    WHEN 'SAVE'.
+      PERFORM repo_save_query.
+    WHEN 'SHOWCODE'.
+      PERFORM query_process USING abap_true space.
+    WHEN 'HELP'.
+      PERFORM screen_display_help.
+    WHEN 'OPTIONS'.
+      PERFORM options_display.
+    WHEN 'NEW'.
+      PERFORM tab_new.
+    WHEN 'XML'.
+      PERFORM export_xml.
+    WHEN 'XMLI'.
+      PERFORM import_xml.
+    WHEN OTHERS.
+      IF w_okcode(3) = 'TAB' AND w_tabstrip-activetab NE w_okcode.
+        PERFORM leave_current_tab.
+
+        READ TABLE t_tabs INTO s_tab_active INDEX w_okcode+3.
+* Display editor / ddic / alv
+        CALL METHOD s_tab_active-o_textedit->set_visible
+          EXPORTING
+            i_visible = abap_true.
+        CALL METHOD s_tab_active-o_tree_ddic->set_visible
+          EXPORTING
+            visible = abap_true.
+        IF NOT s_tab_active-o_alv_result IS INITIAL.
+          CALL METHOD s_tab_active-o_alv_result->set_visible
+            EXPORTING
+              visible = abap_true.
+        ENDIF.
+        CALL METHOD o_splitter->set_row_height
+          EXPORTING
+            id     = 1
+            height = s_tab_active-row_height.
+        w_tabstrip-activetab = w_okcode.
+      ENDIF.
+  ENDCASE.
+ENDMODULE.                 " USER_COMMAND_0010  INPUT
+
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0200  INPUT
+*&---------------------------------------------------------------------*
+*       PAI module for modal box (save query)
+*----------------------------------------------------------------------*
+MODULE user_command_0200 INPUT.
+  CASE w_okcode.
+    WHEN 'CLOSE'.
+      CLEAR s_options.
+      LEAVE TO SCREEN 0.
+    WHEN 'OK'.
+      LEAVE TO SCREEN 0.
+  ENDCASE.
+ENDMODULE.                 " USER_COMMAND_0200  INPUT
+
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0300  INPUT
+*&---------------------------------------------------------------------*
+*       PAI module for modal box (options)
+*----------------------------------------------------------------------*
+MODULE user_command_0300 INPUT.
+  CASE w_okcode.
+    WHEN 'CLOSE' OR 'OK'.
+      LEAVE TO SCREEN 0.
+  ENDCASE.
+ENDMODULE.                 " USER_COMMAND_0200  INPUT
+
+*######################################################################*
+*
+*                             FORM SECTION
+*
+*######################################################################*
+
+*&---------------------------------------------------------------------*
+*&      Form  SCREEN_INIT
+*&---------------------------------------------------------------------*
+*       Initialize all objects on the screen
+*----------------------------------------------------------------------*
+FORM screen_init.
+  DATA capabilities TYPE lcl_editor_configuration=>ty_capabilities.
+
+* Get user default values
+  PERFORM options_load.
+
+* Create the handle object (required to catch events)
+  CREATE OBJECT o_handle_event.
+
+* Split the screen into 4 parts
+  PERFORM screen_init_splitter.
+
+  capabilities = lcl_editor_configuration=>get_runtime_capabilities( ).
+
+  IF capabilities-full_workspace = abap_false
+  AND capabilities-preload_editor = abap_false.
+    CREATE OBJECT s_tab_active-o_textedit
+      EXPORTING
+        i_parent = o_container_query
+        i_webgui = abap_true.
+    IF s_tab_active-o_textedit->is_ready( ) = abap_false.
+      MESSAGE 'The query editor cannot be created' TYPE c_msg_error.
+      RETURN.
+    ENDIF.
+    PERFORM result_init.
+    RETURN.
+  ENDIF.
+
+* Init History Tree
+  PERFORM repo_init.
+
+* Init DDIC toolbar
+  PERFORM ddic_toolbar_init.
+
+* Init DDic tree
+  PERFORM ddic_init.
+
+* Init Query editor
+  PERFORM editor_init.
+
+* Init ALV result object
+  PERFORM result_init.
+
+ENDFORM.                    " SCREEN_INIT
+
+*&---------------------------------------------------------------------*
+*&      Form  SCREEN_INIT_SPLITTER
+*&---------------------------------------------------------------------*
+*       Split the main screen in 2 lines
+* 1 line with 3 columns : Repository tree / Query code / Ddic tree
+* 1 line with ALV result
+*----------------------------------------------------------------------*
+FORM screen_init_splitter.
+  DATA capabilities TYPE lcl_editor_configuration=>ty_capabilities.
+
+* Create the custom container
+  CREATE OBJECT o_container
+    EXPORTING
+      container_name = 'CUSTCONT'.
+
+* Insert splitter into this container
+  CREATE OBJECT o_splitter
+    EXPORTING
+      parent  = o_container
+      rows    = 2
+      columns = 1.
+
+  capabilities = lcl_editor_configuration=>get_runtime_capabilities( ).
+
+  IF capabilities-full_workspace = abap_false.
+    CALL METHOD o_splitter->get_container
+      EXPORTING
+        row       = 1
+        column    = 1
+      RECEIVING
+        container = o_container_query.
+
+    CALL METHOD o_splitter->get_container
+      EXPORTING
+        row       = 2
+        column    = 1
+      RECEIVING
+        container = o_container_result.
+    RETURN.
+  ENDIF.
+
+* Get the first row of the main splitter
+  CALL METHOD o_splitter->get_container
+    EXPORTING
+      row       = 1
+      column    = 1
+    RECEIVING
+      container = o_container_top.
+
+*  Spliter for the high part (first row)
+  CREATE OBJECT o_splitter_top
+    EXPORTING
+      parent  = o_container_top
+      rows    = 1
+      columns = 3.
+
+* Get the right part of the top part
+  CALL METHOD o_splitter_top->get_container
+    EXPORTING
+      row       = 1
+      column    = 3
+    RECEIVING      "container = o_container_ddic.
+      container = o_container_top_right.
+
+* Add a toolbar to the DDIC container
+  CREATE OBJECT o_splitter_top_right
+    EXPORTING
+      i_r_container = o_container_top_right.
+
+* Affect an object to each "cell" of the high sub splitter
+  CALL METHOD o_splitter_top->get_container
+    EXPORTING
+      row       = 1
+      column    = 1
+    RECEIVING
+      container = o_container_repository.
+
+  CALL METHOD o_splitter_top->get_container
+    EXPORTING
+      row       = 1
+      column    = 2
+    RECEIVING
+      container = o_container_query.
+
+  CALL METHOD o_splitter_top_right->get_controlcontainer
+    RECEIVING
+      e_r_container_control = o_container_ddic.
+
+  CALL METHOD o_splitter->get_container
+    EXPORTING
+      row       = 2
+      column    = 1
+    RECEIVING
+      container = o_container_result.
+
+* Initial repartition :
+*   line 1 = 100% (code+repo+ddic)
+*   line 2 = 0% (result)
+*   line 1 col 1 & 3 = 20% (repo & ddic)
+*   line 1 col 2 = 60% (code)
+  CALL METHOD o_splitter->set_row_height
+    EXPORTING
+      id     = 1
+      height = 100.
+
+  CALL METHOD o_splitter_top->set_column_width
+    EXPORTING
+      id    = 1
+      width = 20.
+  CALL METHOD o_splitter_top->set_column_width
+    EXPORTING
+      id    = 3
+      width = 20.
+
+ENDFORM.                    " SCREEN_INIT_SPLITTER
+
+*&---------------------------------------------------------------------*
+*&      Form  ddic_toolbar_init
+*&---------------------------------------------------------------------*
+*       Initialize DDIC Toolbar
+*
+*----------------------------------------------------------------------*
+FORM ddic_toolbar_init.
+  DATA: lt_button TYPE ttb_button,
+        ls_button LIKE LINE OF lt_button,
+        lt_events TYPE cntl_simple_events,
+        ls_events LIKE LINE OF lt_events.
+
+*  Toolbar already created by class CL_RSAWB_SPLITTER_FOR_TOOLBAR
+  o_toolbar = o_splitter_top_right->get_toolbar( ).
+
+* Add buttons to toolbar
+  CLEAR ls_button.
+  ls_button-function = 'REFRESH'.
+  ls_button-icon = '@42@'.
+  ls_button-quickinfo = 'Refresh DDIC tree'(m41).
+  ls_button-text = 'Refresh'(m40).
+  ls_button-butn_type = 0.
+  APPEND ls_button TO lt_button.
+
+  CLEAR ls_button.
+  ls_button-function = 'FIND'.
+  ls_button-icon = '@13@'.
+  ls_button-quickinfo = 'Search in DDIC tree'(m43).
+  ls_button-text = 'Find'(m42).
+  ls_button-butn_type = 0.
+  APPEND ls_button TO lt_button.
+
+  CLEAR ls_button.
+  ls_button-function = 'F4'.
+  ls_button-icon = '@6T@'.
+  ls_button-quickinfo = 'Display values of sel. field'(m54).
+  ls_button-text = 'Value list'(m55).
+  ls_button-butn_type = 0.
+  APPEND ls_button TO lt_button.
+
+  CALL METHOD o_toolbar->add_button_group
+    EXPORTING
+      data_table = lt_button.
+
+* Register events
+  ls_events-eventid = cl_gui_toolbar=>m_id_function_selected.
+  ls_events-appl_event = space.
+  APPEND ls_events TO lt_events.
+  CALL METHOD o_toolbar->set_registered_events
+    EXPORTING
+      events = lt_events.
+
+  SET HANDLER o_handle_event->hnd_ddic_toolbar_clic FOR o_toolbar.
+
+ENDFORM.                    "ddic_toolbar_init
+
+*&---------------------------------------------------------------------*
+*&      Form  EDITOR_INIT
+*&---------------------------------------------------------------------*
+*       Initialize the sql editor object
+*       Fill it with last query, or template if no previous query
+*----------------------------------------------------------------------*
+FORM editor_init.
+  DATA : lt_events     TYPE cntl_simple_events,
+         ls_event      TYPE cntl_simple_event,
+         lt_default    TYPE TABLE OF string,
+         lw_queryid    TYPE ztoad-queryid,
+         dragdrop      TYPE REF TO cl_dragdrop,
+         abap_editor   TYPE REF TO cl_gui_abapedit,
+         completer     TYPE REF TO cl_abap_parser,
+         lw_dummy_date TYPE timestamp.                      "#EC NEEDED
+
+* For first tab, Get last query used
+  IF t_tabs IS INITIAL.
+    CONCATENATE sy-uname '#%' INTO lw_queryid.
+* aedat is not used but added in select for compatibility reason
+    SELECT queryid aedat
+           INTO (lw_queryid, lw_dummy_date)
+           FROM ztoad
+           UP TO 1 ROWS
+           WHERE queryid LIKE lw_queryid
+           AND owner = sy-uname
+           ORDER BY aedat DESCENDING.
+    ENDSELECT.
+    IF sy-subrc = 0.
+      PERFORM query_load USING lw_queryid
+                         CHANGING lt_default.
+      PERFORM repo_focus_query USING lw_queryid.
+    ENDIF.
+  ENDIF.
+
+* If no last query found, use default template
+  IF lt_default IS INITIAL.
+    PERFORM editor_get_default_query CHANGING lt_default.
+  ENDIF.
+
+* Create the sql editor
+*  CREATE OBJECT s_tab_active-o_container_query
+*    EXPORTING
+*      parent = o_container_query.
+
+  CREATE OBJECT s_tab_active-o_textedit
+    EXPORTING
+      i_parent = o_container_query
+      i_webgui = xsdbool( cl_gui_control=>www_active IS NOT INITIAL ).
+  IF s_tab_active-o_textedit->is_ready( ) = abap_false.
+    MESSAGE 'The query editor cannot be created' TYPE c_msg_error.
+    RETURN.
+  ENDIF.
+
+  abap_editor = s_tab_active-o_textedit->get_abap_editor( ).
+
+* The ABAP source editor and its completer are not supported by WebGUI.
+  IF abap_editor IS BOUND.
+* Register events
+    SET HANDLER o_handle_event->hnd_editor_f1 FOR abap_editor.
+    SET HANDLER o_handle_event->hnd_editor_drop FOR abap_editor.
+
+    ls_event-eventid = cl_gui_textedit=>event_f1.
+    APPEND ls_event TO lt_events.
+
+    abap_editor->set_registered_events(
+      EXPORTING
+        events                    = lt_events
+      EXCEPTIONS
+        cntl_error                = 1
+        cntl_system_error         = 2
+        illegal_event_combination = 3 ).
+    IF sy-subrc <> 0.
+      IF sy-msgno IS NOT INITIAL.
+        MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+                DISPLAY LIKE c_msg_error
+                WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+      ENDIF.
+    ENDIF.
+
+* Activate Code Completion and Quickinfo
+* Comment the paragraph if CL_ABAP_PARSER doesnt exists on your system
+* BEGIN OF ABAP PARSER
+    CALL METHOD abap_editor->('INIT_COMPLETER').
+    CALL METHOD abap_editor->('GET_COMPLETER')
+      RECEIVING
+        m_parser = completer.
+    SET HANDLER completer->handle_completion_request FOR abap_editor.
+    SET HANDLER completer->handle_insertion_request FOR abap_editor.
+    SET HANDLER completer->handle_quickinfo_request FOR abap_editor.
+    abap_editor->register_event_completion( ).
+    abap_editor->register_event_quick_info( ).
+    abap_editor->register_event_insert_pattern( ).
+* END OF ABAP PARSER
+
+* Manage Drop on SQL editor
+    dragdrop = NEW cl_dragdrop( ).
+    dragdrop->add(
+      flavor     = 'EDIT_INSERT'
+      dragsrc    = space
+      droptarget = abap_true
+      effect     = cl_dragdrop=>copy ).
+    abap_editor->set_dragdrop( dragdrop = dragdrop ).
+  ENDIF.
+
+* Set Default template
+  CALL METHOD s_tab_active-o_textedit->set_text
+    EXPORTING
+      i_table = lt_default
+    EXCEPTIONS
+      OTHERS = 0.
+
+* Set focus
+  s_tab_active-o_textedit->set_focus( ).
+
+  PERFORM ddic_refresh_tree.
+ENDFORM.                    " EDITOR_INIT
+
+*&---------------------------------------------------------------------*
+*&      Form  query_process
+*&---------------------------------------------------------------------*
+*       Process selected query : execute or display code
+*----------------------------------------------------------------------*
+*      -->FW_DISPLAY : Flag abap_true to display code
+*      -->FW_DOWNLOAD: Flag abap_true to save results into file
+*----------------------------------------------------------------------*
+FORM query_process USING fw_display TYPE c
+                         fw_download TYPE c.
+  DATA : lw_query         TYPE string,
+         lw_select        TYPE string,
+         lw_from          TYPE string,
+         lw_where         TYPE string,
+         lw_union         TYPE string,
+         lw_command       TYPE string,
+         lw_rows(6)       TYPE n,
+         lw_program       TYPE sy-repid,
+         lo_result        TYPE REF TO data,
+         lt_fieldlist     TYPE ty_fieldlist_table,
+         lt_sources       TYPE ty_table_names,
+         lw_count_only(1) TYPE c,
+         lw_time          TYPE p LENGTH 8 DECIMALS 2,
+         lw_count         TYPE i,
+         lw_charnumb(12)  TYPE c,
+         lw_msg           TYPE string,
+         lw_noauth(1)     TYPE c,
+         lw_newsyntax(1)  TYPE c,
+         lw_answer(1)     TYPE c,
+         lw_exec_failed   TYPE abap_bool,
+         lw_from_concat   LIKE lw_from,
+         lw_set_from      LIKE lw_from,
+         lw_invalid       TYPE abap_bool,
+         lw_error(1)      TYPE c.
+
+* Get only usefull code for current query
+  PERFORM editor_get_query USING space CHANGING lw_query.
+
+* Parse SELECT Query
+  PERFORM query_parse USING lw_query
+                      CHANGING lw_select lw_from lw_where
+                               lw_union lw_rows lw_noauth
+                               lw_newsyntax lw_error.
+  IF lw_error NE space.
+    MESSAGE 'Cannot parse the query'(m07) TYPE c_msg_error.
+  ENDIF.
+
+* Execute a set as one SAP SQL expression. Keep a source-only representation
+* for the DDIC tree before attaching the preserved set suffix to the query.
+  IF NOT lw_union IS INITIAL.
+    lcl_sql_source_scanner=>scan(
+      EXPORTING query = lw_query
+      IMPORTING sources = lt_sources
+                invalid = lw_invalid ).
+    IF lw_invalid = abap_true OR lt_sources IS INITIAL.
+      RETURN.
+    ENDIF.
+    lw_set_from = lcl_sql_set_expression=>join_sources( lt_sources ).
+    lw_where = lcl_sql_set_expression=>attach_suffix(
+      branch_tail = lw_where set_suffix = lw_union ).
+    CLEAR lw_union.
+  ENDIF.
+
+* Not a select query
+  IF lw_select IS INITIAL.
+    PERFORM query_parse_noselect USING    lw_query
+                                 CHANGING lw_noauth
+                                          lw_command
+                                          lw_from
+                                          lw_where.
+    IF lw_noauth NE space.
+      PERFORM ddic_set_tree USING lw_from.
+      RETURN.
+    ENDIF.
+
+* Confirm data changes before allocating an undeletable temporary pool.
+    IF fw_display IS INITIAL.
+      PERFORM ddic_set_tree USING lw_from.
+      CONCATENATE 'Are you sure you want to do a'(m31) lw_command
+                  'on table'(m32) lw_from '?'(m33)
+                  INTO lw_msg SEPARATED BY space.
+      CALL FUNCTION 'POPUP_TO_CONFIRM'
+        EXPORTING
+          titlebar              = 'Warning : critical operation'(t04)
+          text_question         = lw_msg
+          default_button        = '2'
+          display_cancel_button = space
+        IMPORTING
+          answer                = lw_answer
+        EXCEPTIONS
+          text_not_found        = 1
+          OTHERS                = 2.
+      IF sy-subrc NE 0 OR lw_answer NE '1'.
+        RETURN.
+      ENDIF.
+    ENDIF.
+
+* For other no select command, generate program
+    PERFORM query_generate_noselect USING lw_command lw_from
+                                          lw_where fw_display
+                                    CHANGING lw_program.
+    IF lw_program IS INITIAL.
+      RETURN.
+    ENDIF.
+    lw_count_only = abap_true. "no result grid to display
+  ELSEIF lw_noauth NE space.
+    PERFORM ddic_set_tree USING lw_from.
+    RETURN.
+  ELSEIF lw_from IS INITIAL.
+    PERFORM ddic_set_tree USING lw_from.
+    MESSAGE 'Cannot parse the query'(m07) TYPE c_msg_error.
+  ELSE.
+* Generate SELECT subroutine
+    PERFORM query_generate USING lw_select lw_from
+                                 lw_where fw_display
+                                 lw_newsyntax
+                           CHANGING lw_program lw_rows
+                                    lt_fieldlist lw_count_only.
+    IF lw_program IS INITIAL.
+      PERFORM ddic_set_tree USING lw_from.
+      RETURN.
+    ENDIF.
+  ENDIF.
+
+
+* Call the generated subroutine
+  IF NOT lw_program IS INITIAL.
+    PERFORM query_execute USING lw_program
+                          CHANGING lo_result lw_time lw_count
+                                   lw_exec_failed.
+    IF lw_exec_failed = abap_true.
+      lw_msg = lcl_query_error_contract=>to_user_message( space ).
+      MESSAGE lw_msg TYPE c_msg_success DISPLAY LIKE c_msg_error.
+      RETURN.
+    ENDIF.
+    lw_from_concat = lw_from.
+    IF NOT lw_set_from IS INITIAL.
+      lw_from_concat = lw_set_from.
+    ENDIF.
+
+    PERFORM ddic_set_tree USING lw_from_concat.
+
+* Display message
+    lw_charnumb = lw_time.
+    CONCATENATE 'Query executed in'(m09) lw_charnumb INTO lw_msg
+                SEPARATED BY space.
+    lw_charnumb = lw_count.
+    IF NOT lw_select IS INITIAL.
+      CONCATENATE lw_msg 'seconds.'(m10)
+                  lw_charnumb 'entries found'(m11)
+                  INTO lw_msg SEPARATED BY space.
+    ELSE.
+      CONCATENATE lw_msg 'seconds.'(m10)
+                  lw_charnumb 'entries affected'(m12)
+                  INTO lw_msg SEPARATED BY space.
+    ENDIF.
+    CONDENSE lw_msg.
+    MESSAGE lw_msg TYPE c_msg_success.
+
+
+* Display result except for count(*)
+    IF lw_count_only IS INITIAL.
+      IF fw_download = space.
+        PERFORM result_display USING lo_result lt_fieldlist lw_query.
+      ELSE.
+        PERFORM result_save_file USING lo_result lt_fieldlist.
+      ENDIF.
+    ENDIF.
+
+    PERFORM repo_save_current_query.
+  ENDIF.
+ENDFORM.                    " QUERY_PROCESS
+
+*&---------------------------------------------------------------------*
+*&      Form  QUERY_EXECUTE
+*&---------------------------------------------------------------------*
+*       Execute the generated query program
+*----------------------------------------------------------------------*
+*      -->FW_PROGRAM Query subroutine pool
+*      <--FO_RESULT  Result data reference
+*      <--FW_TIME    Query runtime
+*      <--FW_COUNT   Result or affected-row count
+*      <--FW_FAILED  Execution failed
+*----------------------------------------------------------------------*
+FORM query_execute USING    fw_program TYPE sy-repid
+                   CHANGING fo_result TYPE REF TO data
+                            fw_time TYPE p
+                            fw_count TYPE i
+                            fw_failed TYPE abap_bool.
+  CLEAR fw_failed.
+  TRY.
+      PERFORM run_sql IN PROGRAM (fw_program)
+                      CHANGING fo_result fw_time fw_count.
+    CATCH cx_root.
+      CLEAR : fo_result,
+              fw_time,
+              fw_count.
+      fw_failed = abap_true.
+  ENDTRY.
+ENDFORM.                    " QUERY_EXECUTE
+
+*&---------------------------------------------------------------------*
+*&      Form  EDITOR_GET_QUERY
+*&---------------------------------------------------------------------*
+*       Return active query without comment
+*----------------------------------------------------------------------*
+*      -->FW_FORCE_LAST  Keep last request
+*      <--FW_QUERY       Query code
+*----------------------------------------------------------------------*
+FORM editor_get_query USING fw_force_last TYPE c
+                      CHANGING fw_query TYPE string.
+  DATA : lt_query         TYPE soli_tab,
+         ls_query         LIKE LINE OF lt_query,
+         ls_find          TYPE match_result,
+         lt_find          TYPE match_result_tab,
+         lt_find_sub      TYPE match_result_tab,
+         lw_lines         TYPE i,
+         lw_cursor_line   TYPE i,
+         lw_cursor_pos    TYPE i,
+         lw_delto_line    TYPE i,
+         lw_delto_pos     TYPE i,
+         lw_cursor_offset TYPE i,
+         lw_last          TYPE c.
+  DATA capabilities TYPE lcl_editor_configuration=>ty_capabilities.
+
+  CLEAR fw_query.
+
+  capabilities = lcl_editor_configuration=>get_runtime_capabilities( ).
+
+* Get selected content
+  IF capabilities-selected_statement = abap_true.
+    CALL METHOD s_tab_active-o_textedit->get_selected_text_as_table
+      IMPORTING
+        e_table = lt_query[].
+  ENDIF.
+
+* if no selected content, get complete content of abap edit box
+  IF lt_query[] IS INITIAL.
+    CALL METHOD s_tab_active-o_textedit->get_text
+      IMPORTING
+        e_table = lt_query[]
+      EXCEPTIONS
+        OTHERS = 1.
+  ENDIF.
+
+* Remove * comment
+  LOOP AT lt_query INTO ls_query WHERE line(1) = '*'.
+    CLEAR ls_query-line.
+    MODIFY lt_query FROM ls_query.
+  ENDLOOP.
+
+* Remove " comment
+  LOOP AT lt_query INTO ls_query WHERE line CS '"'.
+*    condense ls_query-line.
+    FIND ALL OCCURRENCES OF '"' IN ls_query-line RESULTS lt_find.
+    IF sy-subrc NE 0. "may not occurs
+      CONTINUE.
+    ENDIF.
+    LOOP AT lt_find INTO ls_find.
+      IF ls_find-offset GT 0.
+* Search open '
+        FIND ALL OCCURRENCES OF '''' IN ls_query-line(ls_find-offset)
+             RESULTS lt_find_sub.
+        IF sy-subrc = 0.
+          DESCRIBE TABLE lt_find_sub LINES lw_lines.
+          lw_lines = lw_lines MOD 2.
+          IF lw_lines = 1.
+            CONTINUE.
+          ENDIF.
+        ENDIF.
+        ls_query-line = ls_query-line(ls_find-offset).
+        EXIT. "exit loop
+      ELSE.
+        CLEAR ls_query-line.
+        EXIT. "exit loop
+      ENDIF.
+    ENDLOOP.
+    MODIFY lt_query FROM ls_query.
+  ENDLOOP.
+
+* Find active query
+  IF capabilities-selected_statement = abap_true.
+    CALL METHOD s_tab_active-o_textedit->get_selection_pos
+      IMPORTING
+        e_from_line = lw_cursor_line
+        e_from_pos  = lw_cursor_pos.
+  ELSE.
+    DESCRIBE TABLE lt_query LINES lw_cursor_line.
+    READ TABLE lt_query INTO ls_query INDEX lw_cursor_line.
+    IF sy-subrc = 0.
+      lw_cursor_pos = strlen( ls_query-line ) + 1.
+    ENDIF.
+  ENDIF.
+  lw_cursor_offset = lw_cursor_pos - 1.
+
+  FIND ALL OCCURRENCES OF '.' IN TABLE lt_query RESULTS lt_find.
+  CLEAR : lw_delto_line,
+          lw_delto_pos,
+          lw_last.
+  LOOP AT lt_find INTO ls_find.
+    AT LAST.
+      lw_last = abap_true.
+    ENDAT.
+* Search for open '
+    IF ls_find-offset GT 0.
+      READ TABLE lt_query INTO ls_query INDEX ls_find-line.
+      FIND ALL OCCURRENCES OF '''' IN ls_query(ls_find-offset)
+           RESULTS lt_find_sub.
+      DESCRIBE TABLE lt_find_sub LINES lw_lines.
+      lw_lines = lw_lines MOD 2.
+* If open ' found, ignore the dot
+      IF lw_lines = 1.
+        CONTINUE.
+      ENDIF.
+    ENDIF.
+
+* Active Query
+    IF ls_find-line GT lw_cursor_line
+    OR ( ls_find-line = lw_cursor_line
+         AND ls_find-offset GE lw_cursor_offset )
+    OR ( lw_last = abap_true AND fw_force_last = abap_true ).
+* Delete all query after query active
+      ls_find-line = ls_find-line + 1.
+      DELETE lt_query FROM ls_find-line.
+      ls_find-line = ls_find-line - 1.
+* Do not keep the . for active query
+      IF ls_find-offset = 0.
+        DELETE lt_query FROM ls_find-line.
+      ELSE.
+        ls_query-line = ls_query-line(ls_find-offset).
+        MODIFY lt_query FROM ls_query INDEX ls_find-line.
+      ENDIF.
+      EXIT.
+* Query before active
+    ELSE.
+      lw_delto_line = ls_find-line.
+      lw_delto_pos = ls_find-offset + 1.
+    ENDIF.
+  ENDLOOP.
+
+* Delete all query before query active
+  IF NOT lw_delto_line IS INITIAL.
+    IF lw_delto_line GT 1.
+      lw_delto_line = lw_delto_line - 1.
+      DELETE lt_query FROM 1 TO lw_delto_line.
+    ENDIF.
+    READ TABLE lt_query INTO ls_query INDEX 1.
+    ls_query-line(lw_delto_pos) = ''.
+    MODIFY lt_query FROM ls_query INDEX 1.
+  ENDIF.
+
+* Delete empty lines
+  DELETE lt_query WHERE line CO ' .'.
+
+* Build query string & Remove unnessential spaces
+  LOOP AT lt_query INTO ls_query.
+    CONDENSE ls_query-line.
+    SHIFT ls_query-line LEFT DELETING LEADING space.
+    CONCATENATE fw_query ls_query-line INTO fw_query SEPARATED BY space.
+  ENDLOOP.
+  IF NOT fw_query IS INITIAL.
+    fw_query = fw_query+1.
+  ENDIF.
+
+* If no query selected, try to get the last one
+  IF lt_query IS INITIAL AND fw_force_last = space.
+    PERFORM editor_get_query USING abap_true
+                             CHANGING fw_query.
+  ENDIF.
+ENDFORM.                    " EDITOR_GET_QUERY
+
+*&---------------------------------------------------------------------*
+*&      Form  QUERY_PARSE
+*&---------------------------------------------------------------------*
+*       Split the query into 3 parts : Select / From / Where
+*       - Select : List of the fields to extract
+*       - From   : List of the tables - with join condition
+*       - Where  : List of filters + group, order, having clauses
+*----------------------------------------------------------------------*
+*      -->FW_QUERY   Query to parse
+*      <--FW_SELECT  Select part of the query
+*      <--FW_FROM    From part of the query
+*      <--FW_WHERE   Where part of the query
+*      <--FW_ROWS    Number of rows to display
+*      <--FW_UNION   Union part of the query
+*      <--FW_NOAUTH  Unallowed table entered
+*      <--FW_NEWSYNTAX Use new SQL syntax introduced with NW7.40 SP5
+*      <--FW_ERROR   Cannot parse the query
+*----------------------------------------------------------------------*
+FORM query_parse  USING    fw_query TYPE string
+                  CHANGING fw_select TYPE string
+                           fw_from TYPE string
+                           fw_where TYPE string
+                           fw_union TYPE string
+                           fw_rows TYPE n
+                           fw_noauth TYPE c
+                           fw_newsyntax TYPE c
+                           fw_error TYPE c.
+
+  DATA : ls_find_select TYPE match_result,
+         ls_find_from   TYPE match_result,
+         ls_find_where  TYPE match_result,
+         ls_sub         LIKE LINE OF ls_find_select-submatches,
+         lw_offset      TYPE i,
+         lw_length      TYPE i,
+         lw_query       TYPE string,
+         lw_full_query  TYPE string,
+         lw_top_level   TYPE string,
+         lw_suffix      TYPE string,
+         lo_regex       TYPE REF TO cl_abap_regex,
+         lo_union_regex TYPE REF TO cl_abap_regex,
+         lt_sources     TYPE ty_table_names,
+         lw_string      TYPE string,
+         lw_row_limit   TYPE i,
+         lw_row_invalid TYPE abap_bool,
+         lw_first_token TYPE c LENGTH 7,
+         lw_invalid     TYPE abap_bool,
+         lw_tail_found  TYPE abap_bool,
+         lw_table       TYPE tabname.
+
+  CLEAR : fw_select,
+          fw_from,
+          fw_where,
+          fw_rows,
+          fw_union,
+          fw_noauth,
+          fw_newsyntax,
+          fw_error.
+
+  lw_query = fw_query.
+
+  lcl_sql_clause_scanner=>mask_top_level(
+    EXPORTING query = lw_query
+    IMPORTING top_level = lw_top_level
+              invalid = lw_invalid ).
+  IF lw_invalid = abap_true.
+    fw_error = abap_true.
+    RETURN.
+  ENDIF.
+
+* Recognize top-level set operators before removing the global row cap.
+  CREATE OBJECT lo_union_regex
+    EXPORTING
+      pattern     = lcl_sql_set_expression=>union_pattern
+      ignore_case = abap_true.
+
+* Search UP TO xxx ROWS.
+* Catch the number of rows, delete command in query
+  CREATE OBJECT lo_regex
+    EXPORTING
+      pattern     = '(^| +)(UP) +TO +([^ ]+) +(ROWS)'
+      ignore_case = abap_true.
+  FIND FIRST OCCURRENCE OF REGEX lo_regex
+       IN lw_top_level RESULTS ls_find_select.
+  IF sy-subrc = 0.
+    READ TABLE ls_find_select-submatches INTO ls_sub INDEX 3.
+    IF sy-subrc = 0.
+      lw_string = lw_query+ls_sub-offset(ls_sub-length).
+      lcl_query_row_policy=>resolve(
+        EXPORTING requested = lw_string
+                  explicit_limit = abap_true
+        IMPORTING rows = lw_row_limit
+                  invalid = lw_row_invalid ).
+      IF lw_row_invalid = abap_true.
+        fw_error = abap_true.
+        RETURN.
+      ENDIF.
+      fw_rows = lw_row_limit.
+    ENDIF.
+    READ TABLE ls_find_select-submatches INTO ls_sub INDEX 2.
+    IF sy-subrc <> 0.
+      fw_error = abap_true.
+      RETURN.
+    ENDIF.
+    lw_offset = lcl_sql_clause_scanner=>separator_start(
+      query = lw_query keyword_offset = ls_sub-offset ).
+    FIND FIRST OCCURRENCE OF REGEX lo_union_regex
+         IN SECTION OFFSET lw_offset OF lw_top_level
+         RESULTS ls_find_where.
+    IF sy-subrc = 0.
+      fw_error = abap_true.
+      RETURN.
+    ENDIF.
+    READ TABLE ls_find_select-submatches INTO ls_sub INDEX 4.
+    IF sy-subrc <> 0.
+      fw_error = abap_true.
+      RETURN.
+    ENDIF.
+    lw_length = ls_sub-offset + ls_sub-length.
+    lw_suffix = lw_query+lw_length.
+    lw_query = lw_query(lw_offset).
+    CONCATENATE lw_query lw_suffix INTO lw_query RESPECTING BLANKS.
+    lcl_sql_clause_scanner=>mask_top_level(
+      EXPORTING query = lw_query
+      IMPORTING top_level = lw_top_level
+                invalid = lw_invalid ).
+    IF lw_invalid = abap_true.
+      fw_error = abap_true.
+      RETURN.
+    ENDIF.
+  ELSE.
+* Set default number of rows
+    lw_string = s_customize-default_rows.
+    CONDENSE lw_string NO-GAPS.
+    lcl_query_row_policy=>resolve(
+      EXPORTING requested = lw_string
+                explicit_limit = abap_false
+      IMPORTING rows = lw_row_limit
+                invalid = lw_row_invalid ).
+    fw_rows = lw_row_limit.
+  ENDIF.
+
+* Remove unused INTO (CORRESPONDING FIELDS OF)(TABLE)
+* Detect new syntax in internal table name
+  CREATE OBJECT lo_regex
+    EXPORTING
+      pattern     = '(^| +)(INTO|APPENDING) +'
+      ignore_case = abap_true.
+  FIND FIRST OCCURRENCE OF REGEX lo_regex
+       IN lw_top_level RESULTS ls_find_select.
+  IF sy-subrc = 0.
+    READ TABLE ls_find_select-submatches INTO ls_sub INDEX 2.
+    IF sy-subrc = 0.
+      lw_offset = ls_sub-offset.
+      lw_string = lw_query+lw_offset.
+      CREATE OBJECT lo_regex
+        EXPORTING
+          pattern = '^(INTO|APPENDING)'
+                 && '(\s+CORRESPONDING\s+FIELDS\s+OF\s+TABLE'
+                 && '|\s+CORRESPONDING\s+FIELDS\s+OF'
+                 && '|\s+TABLE|\s+)\s*(\S+)'
+          ignore_case = abap_true.
+      FIND FIRST OCCURRENCE OF REGEX lo_regex
+           IN lw_string RESULTS ls_find_where.
+      IF sy-subrc = 0 AND ls_find_where-offset = 0.
+        IF lw_string(ls_find_where-length) CS '@'.
+          fw_newsyntax = abap_true.
+        ENDIF.
+        lw_length = lw_offset + ls_find_where-length.
+        lw_suffix = lw_query+lw_length.
+        lw_offset = lcl_sql_clause_scanner=>separator_start(
+          query = lw_query keyword_offset = lw_offset ).
+        lw_query = lw_query(lw_offset).
+        CONCATENATE lw_query lw_suffix INTO lw_query RESPECTING BLANKS.
+        lcl_sql_clause_scanner=>mask_top_level(
+          EXPORTING query = lw_query
+          IMPORTING top_level = lw_top_level
+                    invalid = lw_invalid ).
+        IF lw_invalid = abap_true.
+          fw_error = abap_true.
+          RETURN.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+  lw_full_query = lw_query.
+
+* Keep the complete set suffix, including UNION and its optional modifier.
+* SAP must compile and execute the branches as one set expression.
+  FIND FIRST OCCURRENCE OF REGEX lo_union_regex IN lw_top_level
+       RESULTS ls_find_select.
+  IF sy-subrc = 0.
+    READ TABLE ls_find_select-submatches INTO ls_sub INDEX 2.
+    IF sy-subrc <> 0.
+      fw_error = abap_true.
+      RETURN.
+    ENDIF.
+    lw_length = ls_sub-offset.
+    lw_offset = lcl_sql_clause_scanner=>separator_start(
+      query = lw_query keyword_offset = ls_sub-offset ).
+    fw_union = lw_query+lw_length.
+    lw_query = lw_query(lw_offset).
+    fw_newsyntax = abap_true.
+    lcl_sql_clause_scanner=>mask_top_level(
+      EXPORTING query = lw_query
+      IMPORTING top_level = lw_top_level
+                invalid = lw_invalid ).
+    IF lw_invalid = abap_true.
+      CLEAR fw_union.
+      fw_error = abap_true.
+      RETURN.
+    ENDIF.
+  ENDIF.
+
+* Search SELECT
+  CREATE OBJECT lo_regex
+    EXPORTING
+      pattern     = '(^| +)(SELECT) +'
+      ignore_case = abap_true.
+  FIND FIRST OCCURRENCE OF REGEX lo_regex IN lw_top_level
+       RESULTS ls_find_select.
+  IF sy-subrc NE 0.
+    RETURN.
+  ENDIF.
+  READ TABLE ls_find_select-submatches INTO ls_sub INDEX 2.
+  IF sy-subrc <> 0.
+    fw_error = abap_true.
+    RETURN.
+  ENDIF.
+  lw_offset = lcl_sql_clause_scanner=>skip_whitespace(
+    query = lw_query offset = ls_sub-offset + ls_sub-length ).
+
+* Search FROM
+  CREATE OBJECT lo_regex
+    EXPORTING
+      pattern     = '(^| +)(FROM) +'
+      ignore_case = abap_true.
+  FIND FIRST OCCURRENCE OF REGEX lo_regex
+       IN SECTION OFFSET lw_offset OF lw_top_level
+       RESULTS ls_find_from.
+  IF sy-subrc NE 0.
+    fw_error = abap_true.
+    RETURN.
+  ENDIF.
+  READ TABLE ls_find_from-submatches INTO ls_sub INDEX 2.
+  IF sy-subrc <> 0.
+    fw_error = abap_true.
+    RETURN.
+  ENDIF.
+
+  lw_length = lcl_sql_clause_scanner=>separator_start(
+    query = lw_query keyword_offset = ls_sub-offset ) - lw_offset.
+  IF lw_length LE 0.
+    fw_error = abap_true.
+    RETURN.
+  ENDIF.
+  fw_select = lw_query+lw_offset(lw_length).
+
+* SINGLE is not valid for a tabular set result. Reject it before the generator
+* can reinterpret it as a one-row package size.
+  IF NOT fw_union IS INITIAL.
+    lw_string = fw_select.
+    TRANSLATE lw_string TO UPPER CASE.
+    IF strlen( lw_string ) GE 7.
+      lw_first_token = lw_string(7).
+    ENDIF.
+    IF lw_first_token = 'SINGLE'.
+      fw_error = abap_true.
+      RETURN.
+    ENDIF.
+  ENDIF.
+
+* Detect strict syntax from a result separator or a 7.50 SQL function.
+  IF fw_select CS ','
+      OR lcl_select_list_scanner=>contains_v750_function( fw_select ) = abap_true.
+    fw_newsyntax = abap_true.
+  ENDIF.
+
+  lw_offset = lcl_sql_clause_scanner=>skip_whitespace(
+    query = lw_query offset = ls_sub-offset + ls_sub-length ).
+
+* Search WHERE / GROUP BY / HAVING / ORDER BY
+  CREATE OBJECT lo_regex
+    EXPORTING
+      pattern     = '(^| +)(WHERE|GROUP +BY|HAVING|ORDER +BY) +'
+      ignore_case = abap_true.
+  FIND FIRST OCCURRENCE OF REGEX lo_regex
+       IN SECTION OFFSET lw_offset OF lw_top_level
+       RESULTS ls_find_where.
+  lw_tail_found = xsdbool( sy-subrc = 0 ).
+
+  IF lw_tail_found = abap_false.
+    fw_from = lw_query+lw_offset.
+    fw_where = ''.
+  ELSE.
+    READ TABLE ls_find_where-submatches INTO ls_sub INDEX 2.
+    IF sy-subrc <> 0.
+      fw_error = abap_true.
+      RETURN.
+    ENDIF.
+    lw_length = lcl_sql_clause_scanner=>separator_start(
+      query = lw_query keyword_offset = ls_sub-offset ) - lw_offset.
+    fw_from = lw_query+lw_offset(lw_length).
+    lw_offset = lcl_sql_clause_scanner=>separator_start(
+      query = lw_query keyword_offset = ls_sub-offset ).
+    fw_where = lw_query+lw_offset.
+  ENDIF.
+
+* Collect every physical source, including nested subqueries.
+  lcl_sql_source_scanner=>scan(
+    EXPORTING query = lw_full_query
+    IMPORTING sources = lt_sources
+              invalid = lw_invalid ).
+  IF lw_invalid = abap_true OR lt_sources IS INITIAL.
+    CLEAR fw_from.
+    fw_error = abap_true.
+    RETURN.
+  ENDIF.
+
+* Authority-check on every used select table
+  IF s_customize-auth_object NE space OR s_customize-auth_select NE '*'.
+    LOOP AT lt_sources INTO lw_table.
+      CLEAR sy-subrc.
+      IF s_customize-auth_object NE space.
+        AUTHORITY-CHECK OBJECT s_customize-auth_object
+                 ID 'TABLE' FIELD lw_table
+                 ID 'ACTVT' FIELD s_customize-actvt_select.
+      ELSEIF s_customize-auth_select NE '*'
+      AND NOT lw_table CP s_customize-auth_select.
+        sy-subrc = 4.
+      ENDIF.
+      IF sy-subrc NE 0.
+        CONCATENATE 'No authorisation for table'(m13) lw_table
+                    INTO lw_string SEPARATED BY space.
+        MESSAGE lw_string TYPE c_msg_success DISPLAY LIKE c_msg_error.
+        CLEAR fw_from.
+        fw_noauth = abap_true.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+ENDFORM.                    " QUERY_PARSE
+
+*&---------------------------------------------------------------------*
+*&      Form  QUERY_GENERATE
+*&---------------------------------------------------------------------*
+*       Create SELECT SQL query in a new generated temp program
+*----------------------------------------------------------------------*
+*      -->FW_SELECT    Select part of the query
+*      -->FW_FROM      From part of the query
+*      -->FW_WHERE     Where part of the query
+*      -->FW_DISPLAY   Display code instead of generated routine
+*      -->FW_NEWSYNTAX Use new SQL syntax introduced with NW7.40 SP5
+*      <--FW_PROGRAM   Name of the generated program
+*      <--FW_ROWS      Number of rows to display
+*      <--FT_FIELDLIST List of fields to display
+*      <--FW_COUNT     = true if query is only count( * )
+*----------------------------------------------------------------------*
+FORM query_generate  USING    fw_select TYPE string
+                              fw_from TYPE string
+                              fw_where TYPE string
+                              fw_display TYPE c
+                              fw_newsyntax TYPE c
+                     CHANGING fw_program TYPE sy-repid
+                              fw_rows TYPE n
+                              ft_fieldlist TYPE ty_fieldlist_table
+                              fw_count TYPE c.
+
+  DATA : lt_code_string TYPE TABLE OF string,
+         lt_split       TYPE TABLE OF string,
+         lw_string      TYPE string,
+         lw_string2     TYPE string,
+         BEGIN OF ls_table_alias,
+           table(50) TYPE c,
+           alias(50) TYPE c,
+         END OF ls_table_alias,
+         lt_table_alias      LIKE TABLE OF ls_table_alias,
+         lw_select           TYPE string,
+         lw_from             TYPE string,
+         lw_index            TYPE i,
+         lw_select_distinct  TYPE c,
+         lw_select_length    TYPE i,
+         lw_char_10(10)      TYPE c,
+         lw_field_number(6)  TYPE n,
+         lw_current_line     TYPE i,
+         lw_current_length   TYPE i,
+         lw_struct_line      TYPE string,
+         lw_struct_line_type TYPE string,
+         lw_select_table     TYPE string,
+         lw_select_field     TYPE string,
+         lw_dd03l_fieldname  TYPE dd03l-fieldname,
+         lw_position_dummy   TYPE dd03l-position,
+         lw_mess(255),
+         lw_line             TYPE i,
+         lw_word(30),
+         ls_fieldlist        TYPE ty_fieldlist,
+         lw_strlen_string    TYPE string,
+         lw_explicit         TYPE string,
+         lw_case_reference   TYPE string,
+         lw_case_alias       TYPE string,
+         lw_case_aggregate   TYPE abap_bool.
+  DATA security_input TYPE string.
+  DATA line_layout_safe TYPE abap_bool.
+  DATA set_query TYPE abap_bool.
+  DATA use_newsyntax TYPE abap_bool.
+  DATA top_level_query TYPE string.
+  DATA top_level_invalid TYPE abap_bool.
+  DATA normalized_select TYPE string.
+  DATA select_invalid TYPE abap_bool.
+  DATA(function_type) = ``.
+  DATA(function_expression) = ``.
+  DATA function_complete TYPE abap_bool.
+  DATA function_invalid TYPE abap_bool.
+
+  CLEAR fw_program.
+  use_newsyntax = fw_newsyntax.
+  CONCATENATE 'SELECT' fw_select 'FROM' fw_from fw_where
+              INTO security_input SEPARATED BY space.
+  IF lcl_query_input_validator=>is_safe( security_input ) = abap_false.
+    lw_mess = lcl_query_error_contract=>to_user_message( security_input ).
+    MESSAGE lw_mess TYPE c_msg_success DISPLAY LIKE c_msg_error.
+    RETURN.
+  ENDIF.
+
+  lcl_sql_clause_scanner=>mask_top_level(
+    EXPORTING query = security_input
+    IMPORTING top_level = top_level_query
+              invalid = top_level_invalid ).
+  IF top_level_invalid = abap_true.
+    RETURN.
+  ENDIF.
+  set_query = lcl_sql_set_expression=>contains_union( top_level_query ).
+  IF set_query = abap_true.
+    use_newsyntax = abap_true.
+  ENDIF.
+
+  line_layout_safe = abap_true.
+
+  DEFINE c.
+    lw_strlen_string = &1.
+    lcl_generated_line_splitter=>append(
+      EXPORTING line = lw_strlen_string
+      CHANGING lines = lt_code_string safe = line_layout_safe ).
+  END-OF-DEFINITION.
+
+  CLEAR : lw_select_distinct,
+          fw_count.
+
+* Write Header
+  c 'PROGRAM SUBPOOL.'.
+  c '** GENERATED PROGRAM * DO NOT CHANGE IT **'.
+  c 'TYPE-POOLS: slis.'.                                    "#EC NOTEXT
+  c ''.
+
+  lw_select = fw_select.
+  TRANSLATE lw_select TO UPPER CASE.
+
+  lw_from = fw_from.
+  TRANSLATE lw_from TO UPPER CASE.
+
+* Search special term "single" or "distinct"
+  lw_select_length = strlen( lw_select ).
+  IF lw_select_length GE 7.
+    lw_char_10 = lw_select(7).
+    IF lw_char_10 = 'SINGLE'.
+      IF set_query = abap_true.
+        RETURN.
+      ENDIF.
+* Force rows number = 1 for select single
+      fw_rows = 1.
+      lw_select = lw_select+7.
+      lw_select_length = lw_select_length - 7.
+    ENDIF.
+  ENDIF.
+  IF lw_select_length GE 9.
+    lw_char_10 = lw_select(9).
+    IF lw_char_10 = 'DISTINCT'.
+      lw_select_distinct = abap_true.
+      lw_select = lw_select+9.
+      lw_select_length = lw_select_length - 9.
+    ENDIF.
+  ENDIF.
+
+* A set of aggregates is still a tabular result; only a standalone count can
+* use the legacy SELECT SINGLE shortcut.
+  IF lw_select = 'COUNT( * )' AND set_query = abap_false.
+    fw_count = abap_true.
+  ENDIF.
+
+* Create alias table mapping
+  SPLIT lw_from AT space INTO TABLE lt_split.
+  LOOP AT lt_split INTO lw_string.
+    IF lw_string IS INITIAL OR lw_string CO space.
+      DELETE lt_split.
+    ENDIF.
+  ENDLOOP.
+  DO.
+    READ TABLE lt_split TRANSPORTING NO FIELDS WITH KEY = 'AS'.
+    IF sy-subrc NE 0.
+      EXIT. "exit do
+    ENDIF.
+    lw_index = sy-tabix - 1.
+    READ TABLE lt_split INTO lw_string INDEX lw_index.
+    ls_table_alias-table = lw_string.
+    DELETE lt_split INDEX lw_index. "delete table field
+    DELETE lt_split INDEX lw_index. "delete keywork AS
+    READ TABLE lt_split INTO lw_string INDEX lw_index.
+    ls_table_alias-alias = lw_string.
+    DELETE lt_split INDEX lw_index. "delete alias field
+    APPEND ls_table_alias TO lt_table_alias.
+  ENDDO.
+* If no alias table found, create just an entry for "*"
+  IF lt_table_alias[] IS INITIAL.
+    READ TABLE lt_split INTO lw_string INDEX 1.
+    ls_table_alias-table = lw_string.
+    ls_table_alias-alias = '*'.
+    APPEND ls_table_alias TO lt_table_alias.
+  ENDIF.
+  SORT lt_table_alias BY alias.
+
+* Write Data declaration
+  c '***************************************'.              "#EC NOTEXT
+  c '*      Begin of data declaration      *'.              "#EC NOTEXT
+  c '*   Used to store lines of the query  *'.              "#EC NOTEXT
+  c '***************************************'.              "#EC NOTEXT
+  c 'DATA: BEGIN OF s_result'.                              "#EC NOTEXT
+  lw_field_number = 1.
+
+  lw_string = lw_select.
+  IF use_newsyntax = abap_true.
+    lcl_select_list_scanner=>normalize_for_inference(
+      EXPORTING select_list = lw_string
+      IMPORTING normalized  = normalized_select
+                invalid     = select_invalid ).
+    IF select_invalid = abap_true.
+      line_layout_safe = abap_false.
+      CLEAR normalized_select.
+    ENDIF.
+    lw_string = normalized_select.
+  ENDIF.
+  SPLIT lw_string AT space INTO TABLE lt_split.
+
+  LOOP AT lt_split INTO lw_string.
+    lw_current_line = sy-tabix.
+    IF lw_string IS INITIAL OR lw_string CO space.
+      CONTINUE.
+    ENDIF.
+    IF lw_string = 'AS'.
+      DELETE lt_split INDEX lw_current_line. "delete AS
+      DELETE lt_split INDEX lw_current_line. "delete the alias name
+      CONTINUE.
+    ENDIF.
+    lw_current_length = strlen( lw_string ).
+
+    CLEAR ls_fieldlist.
+    CLEAR : lw_case_reference,
+            lw_case_alias,
+            lw_case_aggregate.
+    ls_fieldlist-ref_field = lw_string.
+
+* Manage new syntax "Case"
+    IF use_newsyntax = abap_true AND lw_string = 'CASE'.
+      lw_index = lw_current_line.
+      DO.
+        lw_index = lw_index + 1.
+        READ TABLE lt_split INTO lw_string INDEX lw_index.
+        IF sy-subrc NE 0.
+          MESSAGE 'Incorrect syntax in Case statement'(m62)
+                   TYPE c_msg_success DISPLAY LIKE c_msg_error.
+          RETURN.
+        ENDIF.
+        IF lw_string = 'END'.
+          lw_index = lw_index + 1.
+          READ TABLE lt_split INTO lw_string INDEX lw_index.
+          IF lw_string NE 'AS'.
+            lw_index = lw_index - 1.
+            CONTINUE.
+          ENDIF.
+          lw_index = lw_index + 1.
+          READ TABLE lt_split INTO lw_string INDEX lw_index.
+
+          CLEAR ls_fieldlist.
+          CONCATENATE 'F' lw_field_number INTO ls_fieldlist-field.
+          CONCATENATE ',' ls_fieldlist-field INTO lw_struct_line.
+          CONCATENATE lw_struct_line 'TYPE string'          "#EC NOTEXT
+                      INTO lw_struct_line SEPARATED BY space.
+          c lw_struct_line.
+          ls_fieldlist-ref_table = ''.
+          ls_fieldlist-ref_field = lw_string.
+          APPEND ls_fieldlist TO ft_fieldlist.
+          lw_field_number = lw_field_number + 1.
+
+          lw_index = lw_index - lw_current_line + 1.
+          DO lw_index TIMES.
+            DELETE lt_split INDEX lw_current_line. "delete the case element
+          ENDDO.
+          EXIT.
+        ENDIF.
+      ENDDO.
+      CONTINUE.
+    ENDIF.
+
+* Manage the ABAP 7.50 string-function family. The scanner keeps nested
+* arguments together; the original SELECT text remains unchanged.
+    function_type =
+      lcl_select_list_scanner=>get_function_result_type( lw_string ).
+    IF function_type IS NOT INITIAL.
+      function_expression = lw_string.
+      lcl_select_list_scanner=>get_expression_state(
+        EXPORTING expression = function_expression
+        IMPORTING complete   = function_complete
+                  invalid    = function_invalid ).
+      lw_index = lw_current_line + 1.
+
+      WHILE function_complete = abap_false
+          AND function_invalid = abap_false.
+        IF lines( lt_split ) < lw_index.
+          function_invalid = abap_true.
+          EXIT.
+        ENDIF.
+        lw_string = lt_split[ lw_index ].
+        CONCATENATE function_expression lw_string
+                    INTO function_expression SEPARATED BY space.
+        DELETE lt_split INDEX lw_index.
+        lcl_select_list_scanner=>get_expression_state(
+          EXPORTING expression = function_expression
+          IMPORTING complete   = function_complete
+                    invalid    = function_invalid ).
+      ENDWHILE.
+
+      IF function_invalid = abap_true
+          OR function_complete = abap_false.
+        line_layout_safe = abap_false.
+        EXIT.
+      ENDIF.
+
+      CONCATENATE 'F' lw_field_number INTO ls_fieldlist-field.
+      CONCATENATE ',' ls_fieldlist-field INTO lw_struct_line.
+      CONCATENATE lw_struct_line 'TYPE' function_type
+                  INTO lw_struct_line SEPARATED BY space.
+      c lw_struct_line.
+
+      CLEAR ls_fieldlist-ref_table.
+      ls_fieldlist-ref_field = function_expression.
+      IF lines( lt_split ) >= lw_index.
+        lw_string = lt_split[ lw_index ].
+        IF lw_string = 'AS'.
+          DELETE lt_split INDEX lw_index.
+          IF lines( lt_split ) >= lw_index.
+            lw_string = lt_split[ lw_index ].
+            ls_fieldlist-ref_field = lw_string.
+            DELETE lt_split INDEX lw_index.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+      APPEND ls_fieldlist TO ft_fieldlist.
+      lw_field_number = lw_field_number + 1.
+      CONTINUE.
+    ENDIF.
+
+* Manage "Count"
+    IF lw_current_length GE 6.
+      lw_char_10 = lw_string(6).
+    ELSE.
+      CLEAR lw_char_10.
+    ENDIF.
+    IF lw_char_10 = 'COUNT('.
+      CONCATENATE 'F' lw_field_number INTO ls_fieldlist-field.
+      CONCATENATE ',' ls_fieldlist-field INTO lw_struct_line.
+
+      lw_index = lw_current_line + 1.
+      DO.
+        SEARCH lw_string FOR ')'.
+        IF sy-subrc = 0.
+          EXIT.
+        ELSE.
+* If there is space in the "count()", delete next lines
+          READ TABLE lt_split INTO lw_string INDEX lw_index.
+          IF sy-subrc NE 0.
+            EXIT.
+          ENDIF.
+          CONCATENATE ls_fieldlist-ref_field lw_string
+                      INTO ls_fieldlist-ref_field SEPARATED BY space.
+          DELETE lt_split INDEX lw_index.
+        ENDIF.
+      ENDDO.
+      CONCATENATE lw_struct_line 'TYPE i'                   "#EC NOTEXT
+                  INTO lw_struct_line SEPARATED BY space.
+      c lw_struct_line.
+      APPEND ls_fieldlist TO ft_fieldlist.
+      lw_field_number = lw_field_number + 1.
+      CONTINUE.
+    ENDIF.
+
+* Manage Agregate AVG
+    IF lw_current_length GE 4.
+      lw_char_10 = lw_string(4).
+    ELSE.
+      CLEAR lw_char_10.
+    ENDIF.
+    IF lw_char_10 = 'AVG('.
+      CONCATENATE 'F' lw_field_number INTO ls_fieldlist-field.
+      CONCATENATE ',' ls_fieldlist-field INTO lw_struct_line.
+
+      lw_index = lw_current_line + 1.
+      DO.
+        SEARCH lw_string FOR ')'.
+        IF sy-subrc = 0.
+          EXIT.
+        ELSE.
+* If there is space in the agregate, delete next lines
+          READ TABLE lt_split INTO lw_string INDEX lw_index.
+          IF sy-subrc NE 0.
+            EXIT.
+          ENDIF.
+          CONCATENATE ls_fieldlist-ref_field lw_string
+                      INTO ls_fieldlist-ref_field SEPARATED BY space.
+          DELETE lt_split INDEX lw_index.
+        ENDIF.
+      ENDDO.
+      CONCATENATE lw_struct_line 'TYPE f'                   "#EC NOTEXT
+                  INTO lw_struct_line SEPARATED BY space.
+      c lw_struct_line.
+      APPEND ls_fieldlist TO ft_fieldlist.
+      lw_field_number = lw_field_number + 1.
+      CONTINUE.
+    ENDIF.
+
+* Manage agregate SUM, MAX, MIN
+    IF lw_current_length GE 4.
+      lw_char_10 = lw_string(4).
+    ELSE.
+      CLEAR lw_char_10.
+    ENDIF.
+    IF lw_char_10 = 'SUM(' OR lw_char_10 = 'MAX('
+    OR lw_char_10 = 'MIN('.
+      clear lw_string2.
+      lw_index = lw_current_line + 1.
+      DO.
+        SEARCH lw_string FOR ')'.
+        IF sy-subrc = 0.
+          EXIT.
+        ELSE.
+* Search name of the field in next lines.
+          READ TABLE lt_split INTO lw_string INDEX lw_index.
+          IF sy-subrc NE 0.
+            EXIT.
+          ENDIF.
+          CONCATENATE ls_fieldlist-ref_field lw_string
+                      INTO ls_fieldlist-ref_field SEPARATED BY space.
+          IF lw_string2 IS INITIAL.
+            lw_string2 = lw_string.
+          ENDIF.
+* Delete lines of agregage in field table
+          DELETE lt_split INDEX lw_index.
+        ENDIF.
+      ENDDO.
+      IF lw_char_10 = 'SUM('.
+        lw_case_reference =
+          lcl_select_expression_analyzer=>find_case_result_reference(
+            ls_fieldlist-ref_field ).
+        IF lw_case_reference IS NOT INITIAL.
+          lw_string2 = lw_case_reference.
+          lw_case_aggregate = abap_true.
+          lw_index = lw_current_line + 1.
+          READ TABLE lt_split INTO lw_case_alias INDEX lw_index.
+          IF sy-subrc = 0 AND lw_case_alias = 'AS'.
+            lw_index = lw_index + 1.
+            READ TABLE lt_split INTO lw_case_alias INDEX lw_index.
+          ELSE.
+            CLEAR lw_case_alias.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+      lw_string = lw_string2.
+    ENDIF.
+
+* Now lw_string contain a field name.
+* We have to find the field description
+    SPLIT lw_string AT '~' INTO lw_select_table lw_select_field.
+    IF lw_select_field IS INITIAL.
+      lw_select_field = lw_select_table.
+      lw_select_table = '*'.
+    ENDIF.
+* Search if alias table used
+    CLEAR ls_table_alias.
+    READ TABLE lt_table_alias INTO ls_table_alias
+               WITH KEY alias = lw_select_table             "#EC WARNOK
+               BINARY SEARCH.
+    IF sy-subrc = 0.
+      lw_select_table = ls_table_alias-table.
+    ENDIF.
+    ls_fieldlist-ref_table = lw_select_table.
+    IF lw_string = '*' OR lw_select_field = '*'. " expansion table~*
+      CLEAR lw_explicit.
+      SELECT fieldname position
+      INTO   (lw_dd03l_fieldname,lw_position_dummy)
+      FROM   dd03l
+      WHERE  tabname    = lw_select_table
+      AND    fieldname <> 'MANDT'
+      AND    as4local   = c_vers_active
+      AND    as4vers    = space
+      AND (  comptype   = c_ddic_dtelm
+          OR comptype   = space )
+      ORDER BY position.
+
+        lw_select_field = lw_dd03l_fieldname.
+
+        CONCATENATE 'F' lw_field_number INTO ls_fieldlist-field.
+        ls_fieldlist-ref_field = lw_select_field.
+        APPEND ls_fieldlist TO ft_fieldlist.
+        CONCATENATE ',' ls_fieldlist-field INTO lw_struct_line.
+
+        CONCATENATE lw_select_table '-' lw_select_field
+                    INTO lw_struct_line_type.
+        CONCATENATE lw_struct_line 'TYPE' lw_struct_line_type
+                    INTO lw_struct_line
+                    SEPARATED BY space.
+        c lw_struct_line.
+        lw_field_number = lw_field_number + 1.
+* Explicit list of fields instead of *
+* Generate longer query but mandatory in case of T1~* or MARA~*
+* Required also in some special cases, for example if table use include
+        IF ls_table_alias-alias = space OR ls_table_alias-alias = '*'.
+          CONCATENATE lw_explicit lw_select_table
+                      INTO lw_explicit SEPARATED BY space.
+        ELSE.
+          CONCATENATE lw_explicit ls_table_alias-alias
+                      INTO lw_explicit SEPARATED BY space.
+        ENDIF.
+        CONCATENATE lw_explicit '~' lw_select_field INTO lw_explicit.
+      ENDSELECT.
+      IF sy-subrc NE 0.
+        MESSAGE e701(1r) WITH lw_select_table. "table does not exist
+      ENDIF.
+      IF NOT lw_explicit IS INITIAL.
+        REPLACE FIRST OCCURRENCE OF lw_string
+                IN lw_select WITH lw_explicit.
+      ENDIF.
+
+    ELSE. "Simple field
+      CONCATENATE 'F' lw_field_number INTO ls_fieldlist-field.
+      IF lw_case_aggregate = abap_true.
+        CLEAR ls_fieldlist-ref_table.
+        IF lw_case_alias IS INITIAL.
+          ls_fieldlist-ref_field = 'SUM'.                  "#EC NOTEXT
+        ELSE.
+          ls_fieldlist-ref_field = lw_case_alias.
+        ENDIF.
+      ELSE.
+        ls_fieldlist-ref_field = lw_select_field.
+      ENDIF.
+      APPEND ls_fieldlist TO ft_fieldlist.
+
+      CONCATENATE ',' ls_fieldlist-field INTO lw_struct_line.
+
+      CONCATENATE lw_select_table '-' lw_select_field
+                  INTO lw_struct_line_type.
+      CONCATENATE lw_struct_line 'TYPE' lw_struct_line_type
+                  INTO lw_struct_line
+                  SEPARATED BY space.
+      c lw_struct_line.
+      lw_field_number = lw_field_number + 1.
+    ENDIF.
+  ENDLOOP.
+
+* Add a count field
+  CLEAR ls_fieldlist.
+  ls_fieldlist-field = 'COUNT'.
+  ls_fieldlist-ref_table = ''.
+  ls_fieldlist-ref_field = 'Count'.                         "#EC NOTEXT
+  APPEND ls_fieldlist TO ft_fieldlist.
+  c ', COUNT type i'.                                       "#EC NOTEXT
+
+* End of data definition
+  c ', END OF s_result'.                                    "#EC NOTEXT
+  c ', t_result like table of s_result'.                    "#EC NOTEXT
+  c ', w_timestart type timestampl'.                        "#EC NOTEXT
+  c ', w_timeend type timestampl.'.                         "#EC NOTEXT
+  IF set_query = abap_true.
+    c 'DATA dbcur TYPE cursor.'.                            "#EC NOTEXT
+  ENDIF.
+
+* Write the dynamic subroutine that run the SELECT
+  c 'FORM run_sql CHANGING fo_result TYPE REF TO data'.     "#EC NOTEXT
+  c '                      fw_time type p'.                 "#EC NOTEXT
+  c '                      fw_count type i.'.               "#EC NOTEXT
+  c 'field-symbols <fs_result> like s_result.'.             "#EC NOTEXT
+  c '***************************************'.              "#EC NOTEXT
+  c '*            Begin of query           *'.              "#EC NOTEXT
+  c '***************************************'.              "#EC NOTEXT
+  c 'get TIME STAMP FIELD w_timestart.'.                    "#EC NOTEXT
+  IF set_query = abap_true.
+    c 'OPEN CURSOR @dbcur FOR'.                             "#EC NOTEXT
+  ENDIF.
+  IF fw_count = abap_true.
+    CONCATENATE 'SELECT SINGLE' lw_select                   "#EC NOTEXT
+                INTO lw_select SEPARATED BY space.
+    c lw_select.
+    IF use_newsyntax = abap_true.
+      c 'INTO @s_result-f000001'.                           "#EC NOTEXT
+    ELSE.
+      c 'INTO s_result-f000001'.                            "#EC NOTEXT
+    ENDIF.
+  ELSE.
+    IF lw_select_distinct NE space.
+      CONCATENATE 'SELECT DISTINCT' lw_select               "#EC NOTEXT
+                  INTO lw_select SEPARATED BY space.
+    ELSE.
+      CONCATENATE 'SELECT' lw_select                        "#EC NOTEXT
+                  INTO lw_select SEPARATED BY space.
+    ENDIF.
+    c lw_select.
+* Keep legacy INTO and UP TO before FROM for compatibility.
+    IF use_newsyntax IS INITIAL AND set_query = abap_false.
+      c 'INTO TABLE t_result'.                              "#EC NOTEXT
+
+      IF NOT fw_rows IS INITIAL.
+        c 'UP TO'.                                          "#EC NOTEXT
+        c fw_rows.
+        c 'ROWS'.                                           "#EC NOTEXT
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+  c 'FROM'.                                                 "#EC NOTEXT
+  c lw_from.
+
+* Where, group by, having, order by
+  IF NOT fw_where IS INITIAL.
+    c fw_where.
+  ENDIF.
+
+* A set query has no target or row limit in OPEN CURSOR. FETCH applies ZTOAD's
+* cap to the merged result. Other strict queries keep the standalone order.
+  IF set_query = abap_true.
+    c '.'.
+    c 'FETCH NEXT CURSOR @dbcur'.                           "#EC NOTEXT
+    c 'INTO TABLE @t_result'.                               "#EC NOTEXT
+    IF NOT fw_rows IS INITIAL.
+      c 'PACKAGE SIZE'.                                    "#EC NOTEXT
+      c fw_rows.
+    ENDIF.
+    c '.'.
+    c 'fw_count = sy-dbcnt.'.                              "#EC NOTEXT
+    c 'CLOSE CURSOR @dbcur.'.                              "#EC NOTEXT
+  ELSEIF use_newsyntax = abap_true AND fw_count IS INITIAL.
+    c 'INTO TABLE @t_result'.                               "#EC NOTEXT
+    IF NOT fw_rows IS INITIAL.
+      c 'UP TO'.                                            "#EC NOTEXT
+      c fw_rows.
+      c 'ROWS'.                                             "#EC NOTEXT
+    ENDIF.
+  ENDIF.
+  IF set_query = abap_false.
+    c '.'.
+  ENDIF.
+
+* Display query execution time
+  c 'get TIME STAMP FIELD w_timeend.'.                      "#EC NOTEXT
+  c 'fw_time = w_timeend - w_timestart.'.                   "#EC NOTEXT
+  IF set_query = abap_false.
+    c 'fw_count = sy-dbcnt.'.                               "#EC NOTEXT
+  ENDIF.
+
+* If select count( * ), display number of results
+  IF fw_count NE space.
+    c 'MESSAGE i753(TG) WITH s_result-f000001.'.            "#EC NOTEXT
+  ENDIF.
+  c 'loop at t_result assigning <fs_result>.'.              "#EC NOTEXT
+  c ' <fs_result>-count = 1.'.                              "#EC NOTEXT
+  c 'endloop.'.                                             "#EC NOTEXT
+  c 'GET REFERENCE OF t_result INTO fo_result.'.            "#EC NOTEXT
+  c 'ENDFORM.'.                                             "#EC NOTEXT
+  IF line_layout_safe = abap_false.
+    MESSAGE 'Cannot parse the query'(m07)
+            TYPE c_msg_success DISPLAY LIKE c_msg_error.
+    CLEAR fw_program.
+    RETURN.
+  ENDIF.
+  CLEAR : lw_line,
+          lw_word,
+          lw_mess.
+  SYNTAX-CHECK FOR lt_code_string PROGRAM sy-repid
+               MESSAGE lw_mess LINE lw_line WORD lw_word.
+  IF sy-subrc NE 0 AND fw_display = space.
+    lw_mess = lcl_query_error_contract=>to_user_message(
+      CONV string( lw_mess ) ).
+    MESSAGE lw_mess TYPE c_msg_success DISPLAY LIKE c_msg_error.
+    CLEAR fw_program.
+    RETURN.
+  ENDIF.
+
+  IF fw_display = space.
+    IF lcl_subroutine_pool_budget=>can_generate( w_run ) = abap_false.
+      MESSAGE 'No more run available. Please restart program'(m50)
+              TYPE c_msg_success DISPLAY LIKE c_msg_error.
+      CLEAR fw_program.
+      RETURN.
+    ENDIF.
+    CLEAR lw_mess.
+    GENERATE SUBROUTINE POOL lt_code_string NAME fw_program
+             MESSAGE lw_mess.
+    IF sy-subrc NE 0.
+      lw_mess = lcl_query_error_contract=>to_user_message(
+        CONV string( lw_mess ) ).
+      MESSAGE lw_mess TYPE c_msg_success DISPLAY LIKE c_msg_error.
+      CLEAR fw_program.
+      RETURN.
+    ENDIF.
+  ELSE.
+    IF lw_mess IS NOT INITIAL.
+      lw_explicit = lw_line.
+      CONCATENATE lw_mess '(line'(m28) lw_explicit ',word'(m29)
+                  lw_word ')'(m30)
+                  INTO lw_mess SEPARATED BY space.
+      MESSAGE lw_mess TYPE c_msg_success DISPLAY LIKE c_msg_error.
+    ENDIF.
+    EDITOR-CALL FOR lt_code_string DISPLAY-MODE
+                TITLE 'Generated code for current query'(t01).
+  ENDIF.
+
+  lcl_subroutine_pool_budget=>record_success(
+    EXPORTING is_display        = fw_display
+              generated_program = fw_program
+    CHANGING  generated_count   = w_run ).
+
+ENDFORM.                    " QUERY_GENERATE
+
+*&---------------------------------------------------------------------*
+*&      Form  RESULT_DISPLAY
+*&---------------------------------------------------------------------*
+*       Display data table in the bottom ALV part of the screen
+*----------------------------------------------------------------------*
+*      -->FO_RESULT    Reference to data to display
+*      -->FT_FIELDLIST List of fields to display
+*      -->FW_TITLE     Title of the ALV
+*----------------------------------------------------------------------*
+FORM result_display  USING fo_result TYPE REF TO data
+                           ft_fieldlist TYPE ty_fieldlist_table
+                           fw_title TYPE string.
+*  TYPE-POOLS lvc. "for older sap system only
+
+  DATA : ls_layout    TYPE lvc_s_layo,
+         lt_fieldcat  TYPE lvc_t_fcat,
+         ls_fieldlist TYPE ty_fieldlist,
+         ls_fieldcat  LIKE LINE OF lt_fieldcat.
+  DATA : lo_descr_table TYPE REF TO cl_abap_tabledescr,
+         lo_descr_line  TYPE REF TO cl_abap_structdescr,
+         ls_compx       TYPE abap_compdescr,
+         lw_height      TYPE i.
+  DATA capabilities TYPE lcl_editor_configuration=>ty_capabilities.
+
+  FIELD-SYMBOLS: <lft_data> TYPE ANY TABLE.
+
+  ASSIGN fo_result->* TO <lft_data>.
+
+* Get data type for COUNT & AVG fields
+  lo_descr_table ?=
+    cl_abap_typedescr=>describe_by_data_ref( fo_result ).
+  lo_descr_line ?= lo_descr_table->get_table_line_type( ).
+
+  LOOP AT ft_fieldlist INTO ls_fieldlist.
+    CLEAR ls_fieldcat.
+    ls_fieldcat-fieldname = ls_fieldlist-field.
+
+    IF NOT ls_fieldlist-ref_table IS INITIAL.
+      ls_fieldcat-ref_field = ls_fieldlist-ref_field.
+      ls_fieldcat-ref_table = ls_fieldlist-ref_table.
+      IF s_customize-techname = space.
+        ls_fieldcat-reptext = ls_fieldlist-ref_field.
+      ELSE.
+        ls_fieldcat-reptext = ls_fieldlist-ref_field.
+        ls_fieldcat-scrtext_s = ls_fieldlist-ref_field.
+        ls_fieldcat-scrtext_m = ls_fieldlist-ref_field.
+        ls_fieldcat-scrtext_l = ls_fieldlist-ref_field.
+      ENDIF.
+    ELSE. "COUNT & AVG field
+      CLEAR ls_compx.
+      READ TABLE lo_descr_line->components INTO ls_compx
+                 WITH KEY name = ls_fieldlist-field.        "#EC WARNOK
+      ls_fieldcat-intlen = ls_compx-length.
+      ls_fieldcat-decimals = ls_compx-decimals.
+      ls_fieldcat-inttype = ls_compx-type_kind.
+      ls_fieldcat-reptext = ls_fieldlist-ref_field.
+      ls_fieldcat-scrtext_s = ls_fieldlist-ref_field.
+      ls_fieldcat-scrtext_m = ls_fieldlist-ref_field.
+      ls_fieldcat-scrtext_l = ls_fieldlist-ref_field.
+    ENDIF.
+    APPEND ls_fieldcat TO lt_fieldcat.
+  ENDLOOP.
+
+  ls_layout-smalltitle = abap_true.
+  ls_layout-zebra = abap_true.
+  ls_layout-cwidth_opt = abap_true.
+  ls_layout-grid_title = fw_title.
+  ls_layout-countfname = 'COUNT'.
+
+* Set the grid config and content
+  CALL METHOD s_tab_active-o_alv_result->set_table_for_first_display
+    EXPORTING
+      is_layout       = ls_layout
+    CHANGING
+      it_outtab       = <lft_data>
+      it_fieldcatalog = lt_fieldcat.
+
+  capabilities = lcl_editor_configuration=>get_runtime_capabilities( ).
+  IF capabilities-resize_result = abap_false.
+    RETURN.
+  ENDIF.
+
+* Search if grid is currently displayed
+  CALL METHOD o_splitter->get_row_height
+    EXPORTING
+      id     = 1
+    IMPORTING
+      result = lw_height.
+  CALL METHOD cl_gui_cfw=>flush.
+
+* If grid is hidden, display it
+  IF lw_height = 100.
+    CALL METHOD o_splitter->set_row_height
+      EXPORTING
+        id     = 1
+        height = 20.
+  ENDIF.
+ENDFORM.                    " RESULT_DISPLAY
+
+*&---------------------------------------------------------------------*
+*&      Form  DDIC_INIT
+*&---------------------------------------------------------------------*
+*       Initialize ddic tree
+*----------------------------------------------------------------------*
+FORM ddic_init.
+  DATA : ls_header   TYPE treev_hhdr,
+         ls_event    TYPE cntl_simple_event,
+         lt_events   TYPE cntl_simple_events,
+         lo_dragdrop TYPE REF TO cl_dragdrop,
+         lw_mode     TYPE i.
+
+  ls_header-heading = 'SAP Table/Fields'(t02).
+  ls_header-width = 30.
+  lw_mode = cl_gui_column_tree=>node_sel_mode_single.
+
+  CREATE OBJECT s_tab_active-o_tree_ddic
+    EXPORTING
+      parent                      = o_container_ddic
+      node_selection_mode         = lw_mode
+      item_selection              = abap_true
+      hierarchy_column_name       = c_ddic_col1
+      hierarchy_header            = ls_header
+    EXCEPTIONS
+      cntl_system_error           = 1
+      create_error                = 2
+      failed                      = 3
+      illegal_node_selection_mode = 4
+      illegal_column_name         = 5
+      lifetime_error              = 6.
+  IF sy-subrc <> 0.
+    MESSAGE a000(tree_control_msg).
+  ENDIF.
+
+* Column2
+  CALL METHOD s_tab_active-o_tree_ddic->add_column
+    EXPORTING
+      name                         = c_ddic_col2
+      width                        = 21
+      header_text                  = 'Description'(t03)
+    EXCEPTIONS
+      column_exists                = 1
+      illegal_column_name          = 2
+      too_many_columns             = 3
+      illegal_alignment            = 4
+      different_column_types       = 5
+      cntl_system_error            = 6
+      failed                       = 7
+      predecessor_column_not_found = 8.
+
+* Manage Item clic event to copy value in clipboard
+  ls_event-eventid = cl_gui_column_tree=>eventid_item_double_click.
+  ls_event-appl_event = abap_true.
+  APPEND ls_event TO lt_events.
+
+  CALL METHOD s_tab_active-o_tree_ddic->set_registered_events
+    EXPORTING
+      events                    = lt_events
+    EXCEPTIONS
+      cntl_error                = 1
+      cntl_system_error         = 2
+      illegal_event_combination = 3.
+  IF sy-subrc <> 0.
+    MESSAGE a000(tree_control_msg).
+  ENDIF.
+
+* Manage Drag from DDIC editor
+  CREATE OBJECT lo_dragdrop.
+  CALL METHOD lo_dragdrop->add
+    EXPORTING
+      flavor     = 'EDIT_INSERT'
+      dragsrc    = abap_true
+      droptarget = space
+      effect     = cl_dragdrop=>copy.
+  CALL METHOD lo_dragdrop->get_handle
+    IMPORTING
+      handle = w_dragdrop_handle_tree.
+
+  SET HANDLER o_handle_event->hnd_ddic_item_dblclick FOR s_tab_active-o_tree_ddic.
+  SET HANDLER o_handle_event->hnd_ddic_drag FOR s_tab_active-o_tree_ddic.
+
+* Calculate ZSPRO nodes to add at the bottom of the ddic tree
+  PERFORM ddic_add_tree_zspro IN PROGRAM (sy-repid) IF FOUND.
+
+ENDFORM.                    " DDIC_INIT
+
+*&---------------------------------------------------------------------*
+*&      Form  DDIC_SET_TREE
+*&---------------------------------------------------------------------*
+*       Refresh query with list of table/fields of the given query
+*       Add User defined tree from ZSPRO (if relevant)
+*----------------------------------------------------------------------*
+*      -->FW_FROM  From part of the query
+*----------------------------------------------------------------------*
+FORM ddic_set_tree USING fw_from TYPE string.
+
+  DATA : lw_from   TYPE string,
+         lt_split  TYPE TABLE OF string,
+         lw_string TYPE string,
+         lw_tabix  TYPE i,
+         BEGIN OF ls_table_list,
+           table(30),
+           alias(30),
+         END OF ls_table_list,
+         lt_table_list     LIKE TABLE OF ls_table_list,
+         lw_node_number(6) TYPE n,
+         ls_node           LIKE LINE OF s_tab_active-t_node_ddic,
+         ls_item           LIKE LINE OF s_tab_active-t_item_ddic,
+         lw_parent_node    LIKE ls_node-node_key,
+         BEGIN OF ls_ddic_fields,
+           tabname   TYPE dd03l-tabname,
+           fieldname TYPE dd03l-fieldname,
+           position  TYPE dd03l-position,
+           keyflag   TYPE dd03l-keyflag,
+           ddtext1   TYPE dd03t-ddtext,
+           ddtext2   TYPE dd04t-ddtext,
+         END OF ls_ddic_fields,
+         lt_ddic_fields LIKE TABLE OF ls_ddic_fields.
+  DATA capabilities TYPE lcl_editor_configuration=>ty_capabilities.
+
+  capabilities = lcl_editor_configuration=>get_runtime_capabilities( ).
+  IF capabilities-full_workspace = abap_false.
+    RETURN.
+  ENDIF.
+
+  CONCATENATE 'FROM' fw_from INTO lw_from SEPARATED BY space.
+
+  TRANSLATE lw_from TO UPPER CASE.
+
+  SPLIT lw_from AT space INTO TABLE lt_split.
+  LOOP AT lt_split INTO lw_string.
+    lw_tabix = sy-tabix + 1.
+    CHECK sy-tabix = 1 OR lw_string = 'JOIN'.
+* Read next line (table name)
+    READ TABLE lt_split INTO lw_string INDEX lw_tabix.
+    CHECK sy-subrc = 0.
+
+    CLEAR ls_table_list.
+    ls_table_list-table = lw_string.
+
+    lw_tabix = lw_tabix + 1.
+* Read next line (search alias)
+    READ TABLE lt_split INTO lw_string INDEX lw_tabix.
+    IF sy-subrc = 0 AND lw_string = 'AS'.
+      lw_tabix = lw_tabix + 1.
+      READ TABLE lt_split INTO lw_string INDEX lw_tabix.
+      IF sy-subrc = 0.
+        ls_table_list-alias = lw_string.
+      ENDIF.
+    ENDIF.
+    APPEND ls_table_list TO lt_table_list.
+  ENDLOOP.
+
+* Get list of fields for selected tables
+  IF NOT lt_table_list IS INITIAL.
+    SELECT dd03l~tabname dd03l~fieldname dd03l~position
+           dd03l~keyflag dd03t~ddtext dd04t~ddtext
+           INTO TABLE lt_ddic_fields
+           FROM dd03l
+           LEFT OUTER JOIN dd03t
+           ON dd03l~tabname = dd03t~tabname
+           AND dd03l~fieldname = dd03t~fieldname
+           AND dd03l~as4local = dd03t~as4local
+           AND dd03t~ddlanguage = sy-langu
+           LEFT OUTER JOIN dd04t
+           ON dd03l~rollname = dd04t~rollname
+           AND dd03l~as4local = dd04t~as4local
+           AND dd04t~ddlanguage = sy-langu
+           FOR ALL ENTRIES IN lt_table_list
+           WHERE dd03l~tabname = lt_table_list-table
+           AND dd03l~as4local = c_vers_active
+           AND dd03l~as4vers = space
+           AND ( dd03l~comptype = c_ddic_dtelm
+           OR    dd03l~comptype = space ).
+    SORT lt_ddic_fields BY tabname keyflag DESCENDING position.
+    DELETE ADJACENT DUPLICATES FROM lt_ddic_fields
+                               COMPARING tabname fieldname.
+  ENDIF.
+
+* Build Node & Item tree
+  REFRESH : s_tab_active-t_node_ddic,
+            s_tab_active-t_item_ddic.
+  lw_node_number = 0.
+  LOOP AT lt_table_list INTO ls_table_list.
+* Check table exists (has at least one field)
+    READ TABLE lt_ddic_fields TRANSPORTING NO FIELDS
+               WITH KEY tabname = ls_table_list-table.
+    IF sy-subrc NE 0.
+      DELETE lt_table_list.
+      CONTINUE.
+    ENDIF.
+
+    lw_node_number = lw_node_number + 1.
+    CLEAR ls_node.
+    ls_node-node_key = lw_node_number.
+    ls_node-isfolder = abap_true.
+    ls_node-n_image = '@PO@'.
+    ls_node-exp_image = '@PO@'.
+    ls_node-expander = abap_true.
+    APPEND ls_node TO s_tab_active-t_node_ddic.
+
+    CLEAR ls_item.
+    ls_item-node_key = lw_node_number.
+    ls_item-class = cl_gui_column_tree=>item_class_text.
+    ls_item-item_name = c_ddic_col1.
+    IF ls_table_list-alias IS INITIAL.
+      ls_item-text = ls_table_list-table.
+    ELSE.
+      CONCATENATE ls_table_list-table 'AS' ls_table_list-alias
+                   INTO ls_item-text SEPARATED BY space.
+    ENDIF.
+    APPEND ls_item TO s_tab_active-t_item_ddic.
+    ls_item-item_name = c_ddic_col2.
+    SELECT SINGLE ddtext INTO ls_item-text
+           FROM dd02t
+           WHERE tabname = ls_table_list-table
+           AND ddlanguage = sy-langu
+           AND as4local = c_vers_active
+           AND as4vers = space.
+    IF sy-subrc NE 0.
+      ls_item-text = ls_table_list-table.
+    ENDIF.
+    APPEND ls_item TO s_tab_active-t_item_ddic.
+
+* Display list of fields
+    lw_parent_node = ls_node-node_key.
+    LOOP AT lt_ddic_fields INTO ls_ddic_fields
+            WHERE tabname = ls_table_list-table.
+      CLEAR ls_node.
+      lw_node_number = lw_node_number + 1.
+      ls_node-node_key = lw_node_number.
+      ls_node-relatkey = lw_parent_node.
+      ls_node-relatship = cl_gui_column_tree=>relat_last_child.
+      IF ls_ddic_fields-keyflag = space.
+        ls_node-n_image = '@3W@'.
+        ls_node-exp_image = '@3W@'.
+      ELSE.
+        ls_node-n_image = '@3V@'.
+        ls_node-exp_image = '@3V@'.
+      ENDIF.
+      ls_node-dragdropid = w_dragdrop_handle_tree.
+      APPEND ls_node TO s_tab_active-t_node_ddic.
+
+      CLEAR ls_item.
+      ls_item-node_key = lw_node_number.
+      ls_item-class = cl_gui_column_tree=>item_class_text.
+      ls_item-item_name = c_ddic_col1.
+      ls_item-text = ls_ddic_fields-fieldname.
+      APPEND ls_item TO s_tab_active-t_item_ddic.
+      ls_item-item_name = c_ddic_col2.
+      IF NOT ls_ddic_fields-ddtext1 IS INITIAL.
+        ls_item-text = ls_ddic_fields-ddtext1.
+      ELSE.
+        ls_item-text = ls_ddic_fields-ddtext2.
+      ENDIF.
+      APPEND ls_item TO s_tab_active-t_item_ddic.
+    ENDLOOP.
+  ENDLOOP.
+
+* Add User defined tree from ZSPRO (if relevant)
+  IF NOT t_node_zspro IS INITIAL.
+    APPEND LINES OF t_node_zspro TO s_tab_active-t_node_ddic.
+    APPEND LINES OF t_item_zspro TO s_tab_active-t_item_ddic.
+  ENDIF.
+
+  CALL METHOD s_tab_active-o_tree_ddic->delete_all_nodes.
+
+  CALL METHOD s_tab_active-o_tree_ddic->add_nodes_and_items
+    EXPORTING
+      node_table                     = s_tab_active-t_node_ddic
+      item_table                     = s_tab_active-t_item_ddic
+      item_table_structure_name      = 'MTREEITM'
+    EXCEPTIONS
+      failed                         = 1
+      cntl_system_error              = 3
+      error_in_tables                = 4
+      dp_error                       = 5
+      table_structure_name_not_found = 6.
+  IF sy-subrc <> 0.
+    MESSAGE a000(tree_control_msg).
+  ENDIF.
+
+  DESCRIBE TABLE lt_table_list LINES lw_tabix.
+
+* If no table found, display message
+  IF lw_tabix = 0.
+    MESSAGE 'No valid table found'(m15) TYPE c_msg_success
+            DISPLAY LIKE c_msg_error.
+* If 1 table found, expand it
+  ELSEIF lw_tabix = 1.
+    s_tab_active-o_tree_ddic->expand_root_nodes( ).
+  ENDIF.
+ENDFORM.                    " DDIC_SET_TREE
+
+*&---------------------------------------------------------------------*
+*&      Form  REPO_SAVE_QUERY
+*&---------------------------------------------------------------------*
+*       Save query
+*----------------------------------------------------------------------*
+FORM repo_save_query.
+  DATA : lt_query         TYPE soli_tab,
+         ls_query         LIKE LINE OF lt_query,
+         lw_query_with_cr TYPE string,
+         lw_guid          TYPE guid_32,
+         ls_ztoad         TYPE ztoad,
+         lw_timestamp(14) TYPE c.
+
+* Set default options
+  SELECT SINGLE class INTO s_options-visibilitygrp
+         FROM usr02
+         WHERE bname = sy-uname.
+  s_options-visibility = '0'.
+
+* Ask for options / query name
+  CALL SCREEN 0200 STARTING AT 10 5
+                   ENDING AT 60 7.
+  IF s_options IS INITIAL.
+    MESSAGE 'Action cancelled'(m14) TYPE c_msg_success
+            DISPLAY LIKE c_msg_error.
+    RETURN.
+  ENDIF.
+
+* Get content of abap edit box
+  CALL METHOD s_tab_active-o_textedit->get_text
+    IMPORTING
+      e_table = lt_query[]
+    EXCEPTIONS
+      OTHERS = 1.
+
+* Serialize query into a string
+  CLEAR lw_query_with_cr.
+  LOOP AT lt_query INTO ls_query.
+    CONCATENATE lw_query_with_cr ls_query cl_abap_char_utilities=>cr_lf
+                INTO lw_query_with_cr.
+  ENDLOOP.
+
+* Generate new GUID
+  DO 100 TIMES.
+* Old function to get an unique id
+    CALL FUNCTION 'GUID_CREATE'
+      IMPORTING
+        ev_guid_32 = lw_guid.
+* New function to get an unique id (do not work on older sap system)
+*    TRY.
+*        lw_guid = cl_system_uuid=>create_uuid_c32_static( ).
+*      CATCH cx_uuid_error.
+*        EXIT. "exit do
+*    ENDTRY.
+
+* Check that this uid is not already used
+    SELECT SINGLE queryid INTO ls_ztoad-queryid
+           FROM ztoad
+           WHERE queryid = lw_guid.
+    IF sy-subrc NE 0.
+      EXIT. "exit do
+    ENDIF.
+  ENDDO.
+
+  ls_ztoad-queryid = lw_guid.
+  ls_ztoad-owner = sy-uname.
+  lw_timestamp(8) = sy-datum.
+  lw_timestamp+8 = sy-uzeit.
+  ls_ztoad-aedat = lw_timestamp.
+  ls_ztoad-text = s_options-name.
+  ls_ztoad-visibility = s_options-visibility.
+  ls_ztoad-visibility_group = s_options-visibilitygrp.
+  ls_ztoad-query = lw_query_with_cr.
+  INSERT ztoad FROM ls_ztoad.
+  IF sy-subrc = 0.
+    MESSAGE s031(r9). "Query saved
+  ELSE.
+    MESSAGE e220(iqapi). "Error when saving the query
+  ENDIF.
+
+* Reset the modified status
+  s_tab_active-o_textedit->set_textmodified_status( ).
+
+* Refresh repository to display new saved query
+  PERFORM repo_fill.
+
+* Focus repository on new saved query
+  PERFORM repo_focus_query USING lw_guid.
+ENDFORM.                    " REPO_SAVE_QUERY
+
+*&---------------------------------------------------------------------*
+*&      Form  REPO_INIT
+*&---------------------------------------------------------------------*
+*       Initialize repository tree
+*----------------------------------------------------------------------*
+FORM repo_init.
+  DATA: lt_event TYPE cntl_simple_events,
+        ls_event TYPE cntl_simple_event.
+
+* Create a tree control
+  CREATE OBJECT o_tree_repository
+    EXPORTING
+      parent              = o_container_repository
+      node_selection_mode = cl_gui_simple_tree=>node_sel_mode_single
+    EXCEPTIONS
+      lifetime_error      = 1
+      cntl_system_error   = 2
+      create_error        = 3
+      failed              = 4
+      OTHERS              = 5.
+  IF sy-subrc <> 0.
+    MESSAGE a000(tree_control_msg).
+  ENDIF.
+
+* Catch double clic to open query
+  ls_event-eventid = cl_gui_simple_tree=>eventid_node_double_click.
+  ls_event-appl_event = abap_true. " no PAI if event occurs
+  APPEND ls_event TO lt_event.
+
+* Catch context menu call
+  ls_event-eventid = cl_gui_simple_tree=>eventid_node_context_menu_req.
+  ls_event-appl_event = abap_true. " no PAI if event occurs
+  APPEND ls_event TO lt_event.
+
+  CALL METHOD o_tree_repository->set_registered_events
+    EXPORTING
+      events                    = lt_event
+    EXCEPTIONS
+      cntl_error                = 1
+      cntl_system_error         = 2
+      illegal_event_combination = 3.
+  IF sy-subrc <> 0.
+    MESSAGE a000(tree_control_msg).
+  ENDIF.
+
+* Assign event handlers in the application class to each desired event
+  SET HANDLER o_handle_event->hnd_repo_dblclick
+      FOR o_tree_repository.
+  SET HANDLER o_handle_event->hnd_repo_context_menu
+      FOR o_tree_repository.
+  SET HANDLER o_handle_event->hnd_repo_context_menu_sel
+      FOR o_tree_repository.
+
+  PERFORM repo_fill.
+
+ENDFORM.                    " REPO_INIT
+
+*&---------------------------------------------------------------------*
+*&      Form  REPO_FILL
+*&---------------------------------------------------------------------*
+*       Fill repository tree with all allowed queries
+*----------------------------------------------------------------------*
+FORM repo_fill.
+  DATA : lw_usergroup TYPE usr02-class,
+         BEGIN OF ls_query,
+           queryid    TYPE ztoad-queryid,
+           aedat      TYPE ztoad-aedat,
+           visibility TYPE ztoad-visibility,
+           text       TYPE ztoad-text,
+           query      TYPE ztoad-query,
+         END OF ls_query,
+         lt_query_my     LIKE TABLE OF ls_query,
+         lt_query_shared LIKE TABLE OF ls_query,
+         lw_node_key(6)  TYPE n,
+         lw_queryid      TYPE ztoad-queryid,
+         lw_dummy(1)     TYPE c.                            "#EC NEEDED
+  DATA capabilities TYPE lcl_editor_configuration=>ty_capabilities.
+
+  capabilities = lcl_editor_configuration=>get_runtime_capabilities( ).
+  IF capabilities-full_workspace = abap_false.
+    RETURN.
+  ENDIF.
+
+* Get usergroup
+  SELECT SINGLE class INTO lw_usergroup
+         FROM usr02
+         WHERE bname = sy-uname.
+
+* Get all my queries
+  SELECT queryid aedat visibility text query INTO TABLE lt_query_my
+         FROM ztoad
+         WHERE owner = sy-uname.
+
+* Get all queries that i can use
+  SELECT queryid aedat visibility text INTO TABLE lt_query_shared
+         FROM ztoad
+         WHERE owner NE sy-uname
+         AND ( visibility = c_visibility_all
+               OR ( visibility = c_visibility_shared
+                    AND visibility_group = lw_usergroup )
+             ).
+  REFRESH t_node_repository.
+
+  CALL METHOD o_tree_repository->delete_all_nodes.
+
+  CLEAR s_node_repository.
+  s_node_repository-node_key = c_nodekey_repo_my.
+  s_node_repository-isfolder = abap_true.
+  s_node_repository-text = 'My queries'(m16).
+  APPEND s_node_repository TO t_node_repository.
+
+  CLEAR lw_node_key.
+  CONCATENATE sy-uname '***' INTO lw_queryid. " Change +++ to wildcard symbol ***
+  LOOP AT lt_query_my INTO ls_query WHERE queryid NP lw_queryid.
+    lw_node_key = lw_node_key + 1.
+    CLEAR s_node_repository.
+    s_node_repository-node_key = lw_node_key.
+    s_node_repository-relatkey = c_nodekey_repo_my.
+    s_node_repository-relatship = cl_gui_simple_tree=>relat_last_child.
+    IF ls_query-visibility = c_visibility_my.
+      s_node_repository-n_image = s_node_repository-exp_image = '@LC@'.
+    ELSE.
+      s_node_repository-n_image = s_node_repository-exp_image = '@L9@'.
+    ENDIF.
+    s_node_repository-text = ls_query-text.
+    s_node_repository-queryid = ls_query-queryid.
+    s_node_repository-edit = abap_true.
+    APPEND s_node_repository TO t_node_repository.
+  ENDLOOP.
+
+  CLEAR s_node_repository.
+  s_node_repository-node_key = c_nodekey_repo_shared.
+  s_node_repository-isfolder = abap_true.
+  s_node_repository-text = 'Shared queries'(m17).
+  APPEND s_node_repository TO t_node_repository.
+
+  LOOP AT lt_query_shared INTO ls_query.
+    lw_node_key = lw_node_key + 1.
+    CLEAR s_node_repository.
+    s_node_repository-node_key = lw_node_key.
+    s_node_repository-relatkey = c_nodekey_repo_shared.
+    s_node_repository-relatship = cl_gui_simple_tree=>relat_last_child.
+    s_node_repository-n_image = s_node_repository-exp_image = '@L9@'.
+    s_node_repository-text = ls_query-text.
+    s_node_repository-queryid = ls_query-queryid.
+    s_node_repository-edit = space.
+    APPEND s_node_repository TO t_node_repository.
+  ENDLOOP.
+
+* Add history node
+  CLEAR s_node_repository.
+  s_node_repository-node_key = c_nodekey_repo_history.
+  s_node_repository-isfolder = abap_true.
+  s_node_repository-text = 'History'(m18).
+  APPEND s_node_repository TO t_node_repository.
+
+  DELETE lt_query_my WHERE queryid NP lw_queryid.
+  SORT lt_query_my BY aedat DESCENDING.
+  LOOP AT lt_query_my INTO ls_query.
+    lw_node_key = lw_node_key + 1.
+    CLEAR s_node_repository.
+    s_node_repository-node_key = lw_node_key.
+    s_node_repository-relatkey = c_nodekey_repo_history.
+    s_node_repository-relatship = cl_gui_simple_tree=>relat_last_child.
+    s_node_repository-n_image = s_node_repository-exp_image = '@LC@'.
+    s_node_repository-text = ls_query-text.
+    s_node_repository-queryid = ls_query-queryid.
+    s_node_repository-edit = abap_true.
+    IF ls_query-query(1) = '*'.
+      SPLIT ls_query-query+1 AT cl_abap_char_utilities=>cr_lf
+            INTO ls_query-query lw_dummy.
+      CONCATENATE s_node_repository-text ':' ls_query-query
+                  INTO s_node_repository-text SEPARATED BY space.
+    ENDIF.
+    APPEND s_node_repository TO t_node_repository.
+  ENDLOOP.
+
+  CALL METHOD o_tree_repository->add_nodes
+    EXPORTING
+      table_structure_name           = 'MTREESNODE'
+      node_table                     = t_node_repository
+    EXCEPTIONS
+      failed                         = 1
+      error_in_node_table            = 2
+      dp_error                       = 3
+      table_structure_name_not_found = 4
+      OTHERS                         = 5.
+  IF sy-subrc <> 0.
+    MESSAGE a000(tree_control_msg).
+  ENDIF.
+
+* Exand all root nodes (my, shared, history)
+  CALL METHOD o_tree_repository->expand_root_nodes.
+ENDFORM.                    " REPO_FILL
+
+*&---------------------------------------------------------------------*
+*&      Form  REPO_SAVE_CURRENT_QUERY
+*&---------------------------------------------------------------------*
+*       Save query in the history area
+*       Keep only 1000 last queries
+*----------------------------------------------------------------------*
+FORM repo_save_current_query.
+  DATA : lt_query         TYPE soli_tab,
+         ls_query         LIKE LINE OF lt_query,
+         lw_query_with_cr TYPE string,
+         ls_ztoad         TYPE ztoad,
+         lw_number(3)     TYPE n,
+         lw_timestamp(14) TYPE c,
+         lw_dummy(1)      TYPE c,                           "#EC NEEDED
+         lw_query_last    TYPE string,
+         lw_date(10)      TYPE c,
+         lw_time(8)       TYPE c,
+         lw_dummy_date    TYPE timestamp.                   "#EC NEEDED
+  DATA capabilities TYPE lcl_editor_configuration=>ty_capabilities.
+
+  capabilities = lcl_editor_configuration=>get_runtime_capabilities( ).
+  IF capabilities-persist_history = abap_false.
+    RETURN.
+  ENDIF.
+
+* Get content of abap edit box
+  CALL METHOD s_tab_active-o_textedit->get_text
+    IMPORTING
+      e_table = lt_query[]
+    EXCEPTIONS
+      OTHERS = 1.
+
+* Serialize query into a string
+  CLEAR lw_query_with_cr.
+  LOOP AT lt_query INTO ls_query.
+    CONCATENATE lw_query_with_cr ls_query cl_abap_char_utilities=>cr_lf
+                INTO lw_query_with_cr.
+  ENDLOOP.
+
+* Define timestamp
+  lw_timestamp(8) = sy-datum.
+  lw_timestamp+8 = sy-uzeit.
+  ls_ztoad-aedat = lw_timestamp.
+
+* Search if query is same as last loaded
+  SELECT SINGLE query INTO lw_query_last
+         FROM ztoad
+         WHERE queryid = w_last_loaded_query.
+  IF sy-subrc = 0 AND lw_query_last = lw_query_with_cr.
+    RETURN.
+  ENDIF.
+
+* Get usergroup
+  SELECT SINGLE class INTO ls_ztoad-visibility_group
+         FROM usr02
+         WHERE bname = sy-uname.
+
+  CLEAR lw_number.
+
+* Get last query from history
+  CONCATENATE sy-uname '#%' INTO ls_ztoad-queryid.
+* aedat is not used but added in select for compatibility reason
+  SELECT queryid aedat
+         INTO (ls_ztoad-queryid, lw_dummy_date)
+         FROM ztoad
+         UP TO 1 ROWS
+         WHERE queryid LIKE ls_ztoad-queryid
+         AND owner = sy-uname
+         ORDER BY aedat DESCENDING.
+  ENDSELECT.
+  IF sy-subrc = 0.
+    SPLIT ls_ztoad-queryid AT '#' INTO lw_dummy lw_number.
+  ENDIF.
+
+  lw_number = lw_number + 1.
+
+* For history query, guid = <sy-uname>#NN
+  CONCATENATE sy-uname '#' lw_number INTO ls_ztoad-queryid.
+  ls_ztoad-owner = sy-uname.
+  ls_ztoad-visibility = c_visibility_my.
+
+* Define text for query as timestamp
+  WRITE sy-datlo TO lw_date.
+  WRITE sy-timlo TO lw_time.
+  CONCATENATE lw_date lw_time INTO ls_ztoad-text SEPARATED BY space.
+
+  ls_ztoad-query = lw_query_with_cr.
+  MODIFY ztoad FROM ls_ztoad.
+
+  w_last_loaded_query = ls_ztoad-queryid.
+
+* Reset the modified status
+  s_tab_active-o_textedit->set_textmodified_status( ).
+
+* Refresh repository
+  PERFORM repo_fill.
+
+* Focus on new query
+  PERFORM repo_focus_query USING ls_ztoad-queryid.
+ENDFORM.                    " REPO_SAVE_CURRENT_QUERY
+
+*&---------------------------------------------------------------------*
+*&      Form  QUERY_LOAD
+*&---------------------------------------------------------------------*
+*       Load query
+*----------------------------------------------------------------------*
+*      -->FW_QUERYID QueryID to load
+*      <--FT_QUERY   Saved query
+*----------------------------------------------------------------------*
+FORM query_load USING fw_queryid TYPE ztoad-queryid
+                CHANGING ft_query TYPE table.
+  DATA lw_query_with_cr TYPE string.
+  REFRESH ft_query.
+
+  SELECT SINGLE query INTO lw_query_with_cr
+         FROM ztoad
+         WHERE queryid = fw_queryid.
+  IF sy-subrc = 0.
+    SPLIT lw_query_with_cr AT cl_abap_char_utilities=>cr_lf
+                           INTO TABLE ft_query.
+  ENDIF.
+  w_last_loaded_query = fw_queryid.
+ENDFORM.                    " QUERY_LOAD
+
+*&---------------------------------------------------------------------*
+*&      Form  REPO_FOCUS_QUERY
+*&---------------------------------------------------------------------*
+*       Focus repository tree on a given queryid
+*----------------------------------------------------------------------*
+*      -->FW_QUERYID  ID of the query to focus
+*----------------------------------------------------------------------*
+FORM repo_focus_query USING fw_queryid TYPE ztoad-queryid.
+
+  READ TABLE t_node_repository INTO s_node_repository
+             WITH KEY queryid = fw_queryid.
+  IF sy-subrc NE 0.
+    RETURN.
+  ENDIF.
+
+  CALL METHOD o_tree_repository->set_selected_node
+    EXPORTING
+      node_key = s_node_repository-node_key.
+
+ENDFORM.                    " FOCUS_REPOSITORY
+
+*&---------------------------------------------------------------------*
+*&      Form  RESULT_INIT
+*&---------------------------------------------------------------------*
+*       Initialize ALV grid
+*----------------------------------------------------------------------*
+FORM result_init.
+
+* Create ALV
+  CREATE OBJECT s_tab_active-o_alv_result
+    EXPORTING
+      i_parent = o_container_result.
+
+* Register event toolbar to add button
+  SET HANDLER o_handle_event->hnd_result_toolbar FOR s_tab_active-o_alv_result.
+  SET HANDLER o_handle_event->hnd_result_user_command FOR s_tab_active-o_alv_result.
+
+ENDFORM.                    " RESULT_INIT
+
+*&---------------------------------------------------------------------*
+*&      Form  SCREEN_INIT_LISTBOX_0200
+*&---------------------------------------------------------------------*
+*       Fill dropdown listbox with value on screen 200
+*----------------------------------------------------------------------*
+FORM screen_init_listbox_0200.
+  TYPE-POOLS vrm.
+  DATA : lt_visibility TYPE vrm_values,
+         ls_visibility LIKE LINE OF lt_visibility.
+
+  REFRESH lt_visibility.
+
+  ls_visibility-key = c_visibility_my.
+  ls_visibility-text = 'Personal'(m19).
+  APPEND ls_visibility TO lt_visibility.
+
+  ls_visibility-key = c_visibility_shared.
+  ls_visibility-text = 'User group'(m20).
+  APPEND ls_visibility TO lt_visibility.
+
+  ls_visibility-key = c_visibility_all.
+  ls_visibility-text = 'All'(m21).
+  APPEND ls_visibility TO lt_visibility.
+
+  CALL FUNCTION 'VRM_SET_VALUES'
+    EXPORTING
+      id     = 'S_OPTIONS-VISIBILITY'
+      values = lt_visibility.
+
+ENDFORM.                    " SCREEN_INIT_LISTBOX_0200
+
+*&---------------------------------------------------------------------*
+*&      Form  SCREEN_EXIT
+*&---------------------------------------------------------------------*
+*       Close the grid. If grid is closed, leave program
+*       If sql text area is modified, ask confirmation before leave
+*----------------------------------------------------------------------*
+FORM screen_exit.
+  DATA : lw_status    TYPE i,
+         lw_answer(1) TYPE c,
+         lw_size      TYPE i,
+         lw_string    TYPE string.
+  DATA capabilities TYPE lcl_editor_configuration=>ty_capabilities.
+
+  capabilities = lcl_editor_configuration=>get_runtime_capabilities( ).
+  IF capabilities-full_workspace = abap_false.
+    LEAVE TO SCREEN 0.
+  ENDIF.
+
+* Check if grid is displayed
+  CALL METHOD o_splitter->get_row_height
+    EXPORTING
+      id     = 1
+    IMPORTING
+      result = lw_size.
+  CALL METHOD cl_gui_cfw=>flush.
+
+* If grid is displayed, BACK action is only to close the grid
+  IF lw_size < 100.
+    CALL METHOD o_splitter->set_row_height
+      EXPORTING
+        id     = 1
+        height = 100.
+    RETURN.
+  ENDIF.
+
+* Check if textedit is modified
+  lw_status = s_tab_active-o_textedit->get_textmodified_status( ).
+  IF lw_status NE 0.
+    CONCATENATE 'Current query is not saved. Do you want'(m22)
+'to exit without saving or save into history then exit ?'(m56)
+                INTO lw_string SEPARATED BY space.
+    CALL FUNCTION 'POPUP_TO_CONFIRM'
+      EXPORTING
+        text_question         = lw_string
+        text_button_1         = 'Exit'(m23)
+        icon_button_1         = '@2M@'
+        text_button_2         = 'Save & exit'(m24)
+        icon_button_2         = '@2L@'
+        default_button        = '2'
+        display_cancel_button = space
+      IMPORTING
+        answer                = lw_answer.
+    IF lw_answer = '2'.
+      PERFORM repo_save_current_query.
+    ENDIF.
+  ENDIF.
+
+  LEAVE TO SCREEN 0.
+ENDFORM.                    " SCREEN_EXIT
+
+*&---------------------------------------------------------------------*
+*&      Form  SCREEN_DISPLAY_HELP
+*&---------------------------------------------------------------------*
+*       Display help for this program
+*----------------------------------------------------------------------*
+FORM screen_display_help.
+  DATA : l_report          TYPE string,
+         l_report_char1(1) TYPE c,
+         l_report_char3(3) TYPE c,
+         l_comment_found   TYPE i,
+         lt_report         LIKE TABLE OF l_report,
+         lt_lines          TYPE rcl_bag_tline,
+         ls_line           LIKE LINE OF lt_lines,
+         ls_help           TYPE help_info,
+         lt_exclude        TYPE STANDARD TABLE OF string.
+
+* Get program source code
+  READ REPORT sy-repid INTO lt_report.
+
+  ls_line-tdformat = 'U1'.
+  ls_line-tdline = sy-title.
+  APPEND ls_line TO lt_lines.
+
+  ls_line-tdformat = 'U3'.
+  ls_line-tdline = '&PURPOSE&'.
+  APPEND ls_line TO lt_lines.
+
+  LOOP AT lt_report INTO l_report.
+    l_report_char1 = l_report.
+    CHECK l_report_char1 = '*'.
+
+* Keep only the second block of comment
+* (first block is technical info, third is history)
+    l_report_char3 = l_report.
+    IF l_report_char3 = '*&-'.
+      l_comment_found = l_comment_found + 1.
+      IF l_comment_found LE 2.
+        CONTINUE.
+      ELSE. "l_comment_found > 2
+        EXIT.
+      ENDIF.
+    ENDIF.
+    IF l_comment_found = 2.
+      l_report = l_report+1.
+      l_report_char1 = l_report.
+      CASE l_report_char1.
+        WHEN '='.
+          ls_line-tdformat = '='.
+        WHEN '3'.
+          ls_line-tdformat = 'U3'.
+        WHEN 'E'.
+          ls_line-tdformat = 'PE'.
+        WHEN OTHERS.
+          ls_line-tdformat = '*'.
+      ENDCASE.
+      IF NOT l_report_char1 IS INITIAL.
+        l_report = l_report+1.
+      ENDIF.
+      IF l_report IS INITIAL.
+        ls_line-tdformat = 'LZ'.
+      ENDIF.
+      ls_line-tdline = l_report.
+      APPEND ls_line TO lt_lines.
+    ENDIF.
+  ENDLOOP.
+
+  CALL FUNCTION 'HELP_DOCULINES_SHOW'
+    EXPORTING
+      help_infos = ls_help
+    TABLES
+      excludefun = lt_exclude
+      helplines  = lt_lines.
+
+ENDFORM.                    " SCREEN_DISPLAY_HELP
+
+*&---------------------------------------------------------------------*
+*&      Form  QUERY_PARSE_NOSELECT
+*&---------------------------------------------------------------------*
+*       Check if query is a known SQL command and if user is allowed
+*----------------------------------------------------------------------*
+*      -->FW_QUERY   Query to check
+*      <--FW_NOAUTH  Unallowed table or command entered
+*      <--FW_COMMAND Command to execute (INSERT, DELETE, ...)
+*      <--FW_TABLE   Target table of the query
+*      <--FW_PARAM   Parameters for the command (WHERE, SET, ...)
+*----------------------------------------------------------------------*
+FORM query_parse_noselect  USING    fw_query TYPE string
+                           CHANGING fw_noauth TYPE c
+                                    fw_command TYPE string
+                                    fw_table TYPE string
+                                    fw_param TYPE string.
+  DATA : lw_query TYPE string,
+         lw_table TYPE tabname.
+
+  CLEAR : fw_noauth,
+          fw_table,
+          fw_command,
+          fw_param.
+
+  lw_query = fw_query.
+  SPLIT lw_query AT space INTO fw_command lw_query.
+  TRANSLATE fw_command TO UPPER CASE.
+  CASE fw_command.
+    WHEN 'INSERT'.
+      SPLIT lw_query AT space INTO fw_table fw_param.
+      TRANSLATE fw_table TO UPPER CASE.
+      CLEAR sy-subrc.
+      IF s_customize-auth_object NE space.
+        lw_table = fw_table.
+        AUTHORITY-CHECK OBJECT s_customize-auth_object
+                 ID 'TABLE' FIELD lw_table
+                 ID 'ACTVT' FIELD s_customize-actvt_insert.
+      ELSEIF s_customize-auth_insert NE '*'
+      AND fw_table NP s_customize-auth_insert.
+        sy-subrc = 4.
+      ENDIF.
+      IF sy-subrc NE 0.
+        CONCATENATE 'No authorisation for table'(m13) fw_table
+                    INTO lw_query SEPARATED BY space.
+        MESSAGE lw_query TYPE c_msg_success DISPLAY LIKE c_msg_error.
+        fw_noauth = abap_true.
+        RETURN.
+      ENDIF.
+
+    WHEN 'UPDATE'.
+      SPLIT lw_query AT space INTO fw_table fw_param.
+      TRANSLATE fw_table TO UPPER CASE.
+      CLEAR sy-subrc.
+      IF s_customize-auth_object NE space.
+        lw_table = fw_table.
+        AUTHORITY-CHECK OBJECT s_customize-auth_object
+                 ID 'TABLE' FIELD lw_table
+                 ID 'ACTVT' FIELD s_customize-actvt_update.
+      ELSEIF s_customize-auth_update NE '*'
+      AND fw_table NP s_customize-auth_update.
+        sy-subrc = 4.
+      ENDIF.
+      IF sy-subrc NE 0.
+        CONCATENATE 'No authorisation for table'(m13) fw_table
+                    INTO lw_query SEPARATED BY space.
+        MESSAGE lw_query TYPE c_msg_success DISPLAY LIKE c_msg_error.
+        fw_noauth = abap_true.
+        RETURN.
+      ENDIF.
+
+    WHEN 'DELETE'.
+      SPLIT lw_query AT space INTO fw_table fw_param.
+      TRANSLATE fw_table TO UPPER CASE.
+      IF fw_table = 'FROM'.
+        SPLIT fw_param AT space INTO fw_table fw_param.
+        TRANSLATE fw_table TO UPPER CASE.
+      ENDIF.
+      CLEAR sy-subrc.
+      IF s_customize-auth_object NE space.
+        lw_table = fw_table.
+        AUTHORITY-CHECK OBJECT s_customize-auth_object
+                 ID 'TABLE' FIELD lw_table
+                 ID 'ACTVT' FIELD s_customize-actvt_delete.
+      ELSEIF s_customize-auth_delete NE '*'
+      AND NOT fw_table CP s_customize-auth_delete.
+        sy-subrc = 4.
+      ENDIF.
+      IF sy-subrc NE 0.
+        CONCATENATE 'No authorisation for table'(m13) fw_table
+                    INTO lw_query SEPARATED BY space.
+        MESSAGE lw_query TYPE c_msg_success DISPLAY LIKE c_msg_error.
+        fw_noauth = abap_true.
+        RETURN.
+      ENDIF.
+
+    WHEN c_native_command.
+      CONCATENATE 'SQL command not allowed :'(m25) fw_command
+                  INTO lw_query.
+      MESSAGE lw_query TYPE c_msg_success DISPLAY LIKE c_msg_error.
+      fw_noauth = abap_true.
+      RETURN.
+
+    WHEN OTHERS.
+      CONCATENATE 'SQL command not allowed :'(m25) fw_command
+                  INTO lw_query.
+      MESSAGE lw_query TYPE c_msg_success DISPLAY LIKE c_msg_error.
+      fw_noauth = abap_true.
+      RETURN.
+  ENDCASE.
+ENDFORM.                    " QUERY_PARSE_NOSELECT
+
+*&---------------------------------------------------------------------*
+*&      Form  QUERY_GENERATE_NOSELECT
+*&---------------------------------------------------------------------*
+*       Create all other than SELECT SQL query in a new generated
+*       temp program
+*----------------------------------------------------------------------*
+*      -->FW_COMMAND Query type
+*      -->FW_TABLE   Target table of the query
+*      -->FW_PARAM   Parameters of the query
+*      -->FW_DISPLAY   Display code instead of generated routine
+*      <--FW_PROGRAM Name of the generated program
+*----------------------------------------------------------------------*
+FORM query_generate_noselect  USING    fw_command TYPE string
+                                       fw_table TYPE string
+                                       fw_param TYPE string
+                                       fw_display TYPE c
+                              CHANGING fw_program TYPE sy-repid.
+
+  DATA : lt_code_string      TYPE TABLE OF string,
+         lw_mess(255),
+         lw_line             TYPE i,
+         lw_word(30),
+         lw_strlen_string    TYPE string,
+         lw_explicit         TYPE string,
+         lw_length           TYPE i,
+         lw_pos              TYPE i,
+         lw_fieldnum         TYPE i,
+         lw_fieldval         TYPE string,
+         lw_fieldname        TYPE string,
+         lw_wait_name(1)     TYPE c,
+         lw_char(1)          TYPE c,
+         lw_started(1)       TYPE c,
+         lw_started_field(1) TYPE c.
+  DATA security_input TYPE string.
+  DATA line_layout_safe TYPE abap_bool.
+
+  CLEAR fw_program.
+  CONCATENATE fw_command fw_table fw_param
+              INTO security_input SEPARATED BY space.
+  IF lcl_query_input_validator=>is_safe( security_input ) = abap_false.
+    lw_mess = lcl_query_error_contract=>to_user_message( security_input ).
+    MESSAGE lw_mess TYPE c_msg_success DISPLAY LIKE c_msg_error.
+    RETURN.
+  ENDIF.
+
+  line_layout_safe = abap_true.
+
+  DEFINE c.
+    lw_strlen_string = &1.
+    lcl_generated_line_splitter=>append(
+      EXPORTING line = lw_strlen_string
+      CHANGING lines = lt_code_string safe = line_layout_safe ).
+  END-OF-DEFINITION.
+
+* Write Header
+  c 'PROGRAM SUBPOOL.'.                                     "#EC NOTEXT
+  c '** GENERATED PROGRAM * DO NOT CHANGE IT **'.           "#EC NOTEXT
+  c 'type-pools: slis.'.                                    "#EC NOTEXT
+  c 'DATA : w_timestart type timestampl,'.                  "#EC NOTEXT
+  c '       w_timeend type timestampl.'.                    "#EC NOTEXT
+  c ''.
+  IF fw_command = 'INSERT'.
+    c 'DATA s_insert type'.                                 "#EC NOTEXT
+    c fw_table.
+    c '.'.                                                  "#EC NOTEXT
+    c 'FIELD-SYMBOLS <fs> TYPE ANY.'.                       "#EC NOTEXT
+    c '.'.                                                  "#EC NOTEXT
+  ENDIF.
+
+* Write the dynamic subroutine that run the SELECT
+  c 'FORM run_sql CHANGING fo_result TYPE REF TO data'.     "#EC NOTEXT
+  c '                      fw_time TYPE p'.                 "#EC NOTEXT
+  c '                      fw_count TYPE i.'.               "#EC NOTEXT
+  c '***************************************'.              "#EC NOTEXT
+  c '*            Begin of query           *'.              "#EC NOTEXT
+  c '***************************************'.              "#EC NOTEXT
+  c 'CLEAR fw_count.'.                                      "#EC NOTEXT
+  c 'GET TIME STAMP FIELD w_timestart.'.                    "#EC NOTEXT
+
+  CASE fw_command.
+    WHEN 'UPDATE'.
+      c fw_command.
+      c fw_table.
+      c fw_param.
+      c '.'.
+    WHEN 'DELETE'.
+      c fw_command.
+      c 'FROM'.                                             "#EC NOTEXT
+      c fw_table.
+      c fw_param.
+      c '.'.
+    WHEN 'INSERT'.
+
+      IF fw_param(6) = 'VALUES'.
+        lw_length = strlen( fw_param ).
+        lw_pos = 6.
+        lw_fieldnum = 0.
+        WHILE lw_pos < lw_length.
+          lw_char = fw_param+lw_pos(1).
+          lw_pos = lw_pos + 1.
+          IF lw_started = space.
+            IF lw_char NE '('. "begin of the list
+              CONTINUE.
+            ENDIF.
+            lw_started = abap_true.
+            CONTINUE.
+          ENDIF.
+          IF lw_started_field = space.
+            IF lw_char = ')'. "end of the list
+              EXIT. "exit while
+            ENDIF.
+
+            IF lw_char NE ''''. "field value must start by '
+              CONTINUE.
+            ENDIF.
+            lw_started_field = abap_true.
+            lw_fieldval = lw_char.
+            lw_fieldnum = lw_fieldnum + 1.
+            CONTINUE.
+          ENDIF.
+          IF lw_char = space.
+            CONCATENATE lw_fieldval lw_char INTO lw_fieldval
+                        SEPARATED BY space.
+          ELSE.
+            CONCATENATE lw_fieldval lw_char INTO lw_fieldval.
+          ENDIF.
+          IF lw_char = ''''. "end of a field ?
+            IF lw_pos < lw_length.
+              lw_char = fw_param+lw_pos(1).
+            ELSE.
+              CLEAR lw_char.
+            ENDIF.
+            IF lw_char = ''''. "not end !
+              CONCATENATE lw_fieldval lw_char INTO lw_fieldval.
+              lw_pos = lw_pos + 1.
+              CONTINUE.
+            ELSE. "end of a field!
+              c 'ASSIGN COMPONENT'.                         "#EC NOTEXT
+              c lw_fieldnum.
+              c 'OF STRUCTURE s_insert TO <fs>.'.           "#EC NOTEXT
+              c '<fs> = '.                                  "#EC NOTEXT
+              c lw_fieldval.
+              c '.'.                                        "#EC NOTEXT
+              lw_started_field = space.
+            ENDIF.
+          ENDIF.
+        ENDWHILE.
+      ELSEIF fw_param(3) = 'SET'.
+
+
+        lw_length = strlen( fw_param ).
+        lw_pos = 3.
+        lw_fieldnum = 0.
+        lw_wait_name = abap_true.
+        WHILE lw_pos < lw_length.
+          lw_char = fw_param+lw_pos(1).
+          lw_pos = lw_pos + 1.
+          IF lw_wait_name = abap_true.
+            TRANSLATE lw_char TO UPPER CASE.
+            IF lw_char = space OR NOT sy-abcde CS lw_char.
+              CONTINUE. "not a begin of fieldname
+            ENDIF.
+            lw_wait_name = space.
+            lw_started = abap_true.
+            CONCATENATE 's_insert-' lw_char
+                        INTO lw_fieldname.                  "#EC NOTEXT
+            CONTINUE.
+          ENDIF.
+
+          IF lw_started = abap_true.
+            IF lw_char = space.
+              CONCATENATE lw_fieldname lw_char INTO lw_fieldname
+                          SEPARATED BY space.
+            ELSE.
+              CONCATENATE lw_fieldname lw_char INTO lw_fieldname.
+            ENDIF.
+            IF lw_char = '='. "end of the field name
+              lw_started = space.
+            ENDIF.
+
+            CONTINUE.
+          ENDIF.
+
+          IF lw_started_field NE abap_true.
+            IF lw_char NE ''''. "field value must start by '
+              CONTINUE.
+            ENDIF.
+            lw_started_field = abap_true.
+            lw_fieldval = lw_char.
+            CONTINUE.
+          ENDIF.
+
+          IF lw_char = space.
+            CONCATENATE lw_fieldval lw_char INTO lw_fieldval
+                        SEPARATED BY space.
+          ELSE.
+            CONCATENATE lw_fieldval lw_char INTO lw_fieldval.
+          ENDIF.
+          IF lw_char = ''''. "end of a field ?
+            IF lw_pos < lw_length.
+              lw_char = fw_param+lw_pos(1).
+            ELSE.
+              CLEAR lw_char.
+            ENDIF.
+            IF lw_char = ''''. "not end !
+              CONCATENATE lw_fieldval lw_char INTO lw_fieldval.
+              lw_pos = lw_pos + 1.
+              CONTINUE.
+            ELSE. "end of a field!
+              c lw_fieldname.
+              c lw_fieldval.
+              c '.'.
+              lw_started_field = space.
+              lw_wait_name = abap_true.
+            ENDIF.
+          ENDIF.
+        ENDWHILE.
+      ELSE.
+        MESSAGE 'Error in INSERT syntax : VALUES / SET required'(m26)
+                TYPE c_msg_error.
+      ENDIF. "if fw_param(6) = 'VALUES'.
+      c fw_command.
+      c 'INTO'.                                             "#EC NOTEXT
+      c fw_table.
+      c 'VALUES s_insert.'.                                 "#EC NOTEXT
+  ENDCASE.
+
+* Get query execution time & affected lines
+  c 'IF sy-subrc = 0.'.                                     "#EC NOTEXT
+  c '  fw_count = sy-dbcnt.'.                               "#EC NOTEXT
+  c 'ENDIF.'.                                               "#EC NOTEXT
+  c 'GET TIME STAMP FIELD w_timeend.'.                      "#EC NOTEXT
+  c 'fw_time = w_timeend - w_timestart.'.                   "#EC NOTEXT
+  c 'ENDFORM.'.                                             "#EC NOTEXT
+
+  IF line_layout_safe = abap_false.
+    MESSAGE 'Cannot parse the query'(m07)
+            TYPE c_msg_success DISPLAY LIKE c_msg_error.
+    CLEAR fw_program.
+    RETURN.
+  ENDIF.
+
+  CLEAR : lw_line,
+          lw_word,
+          lw_mess.
+  SYNTAX-CHECK FOR lt_code_string PROGRAM sy-repid
+               MESSAGE lw_mess LINE lw_line WORD lw_word.
+  IF sy-subrc NE 0 AND fw_display = space.
+    lw_mess = lcl_query_error_contract=>to_user_message(
+      CONV string( lw_mess ) ).
+    MESSAGE lw_mess TYPE c_msg_success DISPLAY LIKE c_msg_error.
+    CLEAR fw_program.
+    RETURN.
+  ENDIF.
+
+  IF fw_display = space.
+    IF lcl_subroutine_pool_budget=>can_generate( w_run ) = abap_false.
+      MESSAGE 'No more run available. Please restart program'(m50)
+              TYPE c_msg_success DISPLAY LIKE c_msg_error.
+      CLEAR fw_program.
+      RETURN.
+    ENDIF.
+    CLEAR lw_mess.
+    GENERATE SUBROUTINE POOL lt_code_string NAME fw_program
+             MESSAGE lw_mess.
+    IF sy-subrc NE 0.
+      lw_mess = lcl_query_error_contract=>to_user_message(
+        CONV string( lw_mess ) ).
+      MESSAGE lw_mess TYPE c_msg_success DISPLAY LIKE c_msg_error.
+      CLEAR fw_program.
+      RETURN.
+    ENDIF.
+  ELSE.
+    IF lw_mess IS NOT INITIAL.
+      lw_explicit = lw_line.
+      CONCATENATE lw_mess '(line'(m28) lw_explicit ',word'(m29)
+                  lw_word ')'(m30)
+                  INTO lw_mess SEPARATED BY space.
+      MESSAGE lw_mess TYPE c_msg_success DISPLAY LIKE c_msg_error.
+    ENDIF.
+    EDITOR-CALL FOR lt_code_string DISPLAY-MODE
+                TITLE 'Generated code for current query'(t01).
+  ENDIF.
+
+  lcl_subroutine_pool_budget=>record_success(
+    EXPORTING is_display         = fw_display
+              generated_program = fw_program
+    CHANGING  generated_count    = w_run ).
+ENDFORM.                    " QUERY_GENERATE_NOSELECT
+
+*&---------------------------------------------------------------------*
+*&      Form  DDIC_GET_FIELD_FROM_NODE
+*&---------------------------------------------------------------------*
+*       Get text for a DDIC node
+*       Format of the text : tablename~fieldname
+*----------------------------------------------------------------------*
+*      -->FW_NODE_KEY   DDIC node key
+*      -->FW_RELAT_KEY  DDIC parent node key
+*      -->FW_TEXT       Text
+*----------------------------------------------------------------------*
+FORM ddic_get_field_from_node  USING    fw_node_key TYPE tv_nodekey
+                                        fw_relat_key TYPE tv_nodekey
+                               CHANGING fw_text TYPE string.
+  DATA : ls_item        LIKE LINE OF s_tab_active-t_item_ddic,
+         ls_item_parent LIKE LINE OF s_tab_active-t_item_ddic,
+         lw_table       TYPE string,
+         lw_alias       TYPE string.
+
+* Get field name
+  READ TABLE s_tab_active-t_item_ddic INTO ls_item
+             WITH KEY node_key = fw_node_key
+                      item_name = c_ddic_col1.
+
+* Get table name
+  READ TABLE s_tab_active-t_item_ddic INTO ls_item_parent
+             WITH KEY node_key = fw_relat_key
+                      item_name = c_ddic_col1.
+
+* Search for alias
+  SPLIT ls_item_parent-text AT ' AS ' INTO lw_table lw_alias.
+  IF NOT lw_alias IS INITIAL.
+    lw_table = lw_alias.
+  ENDIF.
+
+* Build tablename~fieldname
+  CONCATENATE lw_table '~' ls_item-text INTO fw_text.
+  CONCATENATE space fw_text space INTO fw_text RESPECTING BLANKS.
+
+ENDFORM.                    " DDIC_GET_FIELD_FROM_NODE
+
+*&---------------------------------------------------------------------*
+*&      Form  EDITOR_PASTE
+*&---------------------------------------------------------------------*
+*       Paste given text to SQL editor at given position
+*----------------------------------------------------------------------*
+*      -->FW_TEXT Text to paste in editor
+*      -->FW_LINE Line in editor to paste
+*      -->FW_POS  Position in the line in editor
+*----------------------------------------------------------------------*
+FORM editor_paste  USING fw_text TYPE string
+                         fw_line TYPE i
+                         fw_pos TYPE i.
+  DATA : lt_text    TYPE TABLE OF string,
+         lw_pos     TYPE i,
+         lw_line    TYPE i,
+         lw_message TYPE string.
+
+*   Set text with new line
+  APPEND fw_text TO lt_text.
+  IF s_customize-paste_break = abap_true.
+    lw_pos = fw_pos - 1.
+    CLEAR lw_message.
+    DO lw_pos TIMES.
+      CONCATENATE lw_message space INTO lw_message RESPECTING BLANKS.
+    ENDDO.
+    APPEND lw_message TO lt_text.
+  ENDIF.
+
+  CALL METHOD s_tab_active-o_textedit->insert_block_at_position
+    EXPORTING
+      i_line     = fw_line
+      i_pos      = fw_pos
+      i_text_tab = lt_text
+    EXCEPTIONS
+      OTHERS   = 0.
+
+* Set cursor at end of pasted field
+  IF s_customize-paste_break = abap_true.
+    lw_pos = fw_pos.
+    lw_line = fw_line + 1.
+  ELSE.
+    lw_pos = strlen( fw_text ).
+    lw_pos = lw_pos + fw_pos.
+    lw_line = fw_line.
+  ENDIF.
+
+  CALL METHOD s_tab_active-o_textedit->set_selection_pos_in_line
+    EXPORTING
+      i_line = lw_line
+      i_pos  = lw_pos
+    EXCEPTIONS
+      OTHERS = 0.
+
+* Focus on editor
+  s_tab_active-o_textedit->set_focus( ).
+
+  CONCATENATE fw_text 'pasted to SQL Editor'(m27)
+              INTO lw_message SEPARATED BY space.
+  MESSAGE lw_message TYPE c_msg_success.
+ENDFORM.                    " EDITOR_PASTE
+
+*&---------------------------------------------------------------------*
+*&      Form  ddic_add_tree_zspro
+*&---------------------------------------------------------------------*
+*       Add nodes from table ZSPRO
+*       You can delete this form if not use ZSPRO or dont have a table
+*       hierarchy in ZSPRO
+*----------------------------------------------------------------------*
+FORM ddic_add_tree_zspro.
+  DATA : lo_zspro   TYPE REF TO data,
+         ls_node    LIKE LINE OF s_tab_active-t_node_ddic,
+         ls_item    LIKE LINE OF s_tab_active-t_item_ddic,
+         lw_nodekey TYPE tv_nodekey,
+         BEGIN OF ls_ddic_fields,
+           tabname   TYPE dd03l-tabname,
+           fieldname TYPE dd03l-fieldname,
+           position  TYPE dd03l-position,
+           keyflag   TYPE dd03l-keyflag,
+           ddtext1   TYPE dd03t-ddtext,
+           ddtext2   TYPE dd04t-ddtext,
+         END OF ls_ddic_fields,
+         lt_ddic_fields     LIKE TABLE OF ls_ddic_fields,
+         lw_node_number(11) TYPE n,
+         lw_found(1)        TYPE c.
+  CONSTANTS lc_zspro(30) TYPE c VALUE 'ZSPRO'.
+  FIELD-SYMBOLS : <ft_zspro> TYPE standard table,
+                  <fs_zspro> TYPE any,
+                  <fw_zspro> TYPE any.
+  REFRESH : t_node_zspro, t_item_zspro.
+
+* Try to create zspro internal table
+  TRY.
+      CREATE DATA lo_zspro TYPE TABLE OF (lc_zspro).
+    CATCH cx_sy_create_data_error.
+* If ZSPRO does not exist, leave the subroutine
+      RETURN.
+  ENDTRY.
+  ASSIGN lo_zspro->* TO <ft_zspro>.
+
+* Get all data from ZSPRO (node or table entry)
+  SELECT * FROM (lc_zspro)
+           INTO TABLE <ft_zspro>
+           WHERE nodetype = 0
+           OR nodetype = 1
+           OR nodetype = space
+           ORDER BY relatkey sort.
+* If ZSPRO does not contain any valuable data, leave the subroutine
+  IF sy-subrc NE 0.
+    RETURN.
+  ENDIF.
+
+* Get field list for each table
+  LOOP AT <ft_zspro> ASSIGNING <fs_zspro>.
+    ASSIGN COMPONENT 'NODETYPE' OF STRUCTURE <fs_zspro> TO <fw_zspro>.
+    IF sy-subrc NE 0 OR <fw_zspro> NE 1.
+      CONTINUE.
+    ENDIF.
+    ASSIGN COMPONENT 'NODEPARAM' OF STRUCTURE <fs_zspro> TO <fw_zspro>.
+    IF sy-subrc = 0.
+      ls_ddic_fields-tabname = <fw_zspro>.
+      APPEND ls_ddic_fields TO lt_ddic_fields.
+    ENDIF.
+  ENDLOOP.
+  IF NOT lt_ddic_fields IS INITIAL.
+    SELECT dd03l~tabname dd03l~fieldname dd03l~position
+           dd03l~keyflag dd03t~ddtext dd04t~ddtext
+           INTO TABLE lt_ddic_fields
+           FROM dd03l
+           LEFT OUTER JOIN dd03t
+           ON dd03l~tabname = dd03t~tabname
+           AND dd03l~fieldname = dd03t~fieldname
+           AND dd03l~as4local = dd03t~as4local
+           AND dd03t~ddlanguage = sy-langu
+           LEFT OUTER JOIN dd04t
+           ON dd03l~rollname = dd04t~rollname
+           AND dd03l~as4local = dd04t~as4local
+           AND dd04t~ddlanguage = sy-langu
+           FOR ALL ENTRIES IN lt_ddic_fields
+           WHERE dd03l~tabname = lt_ddic_fields-tabname
+           AND dd03l~as4local = c_vers_active
+           AND dd03l~as4vers = space
+           AND ( dd03l~comptype = c_ddic_dtelm
+           OR    dd03l~comptype = space ).
+    SORT lt_ddic_fields BY tabname keyflag DESCENDING position.
+    DELETE ADJACENT DUPLICATES FROM lt_ddic_fields
+           COMPARING tabname fieldname.
+  ENDIF.
+
+  CLEAR ls_node.
+  ls_node-node_key = 'ZSPRO'.
+  ls_node-isfolder = abap_true.
+  ls_node-expander = abap_true.
+  APPEND ls_node TO t_node_zspro.
+
+  CLEAR ls_item.
+  ls_item-node_key = 'ZSPRO'.
+  ls_item-class = cl_gui_column_tree=>item_class_text.
+  ls_item-item_name = c_ddic_col1.
+  ls_item-text = 'ZSPRO'.
+  APPEND ls_item TO t_item_zspro.
+
+  ls_item-item_name = c_ddic_col2.
+  ls_item-text = space.
+  APPEND ls_item TO t_item_zspro.
+
+  LOOP AT <ft_zspro> ASSIGNING <fs_zspro>.
+    ASSIGN COMPONENT 'NODE_KEY' OF STRUCTURE <fs_zspro> TO <fw_zspro>.
+    CONCATENATE 'Z' <fw_zspro>+1 INTO lw_nodekey.
+    CLEAR ls_node.
+    ls_node-node_key = lw_nodekey.
+
+    ASSIGN COMPONENT 'RELATKEY' OF STRUCTURE <fs_zspro> TO <fw_zspro>.
+    IF <fw_zspro> IS INITIAL.
+      ls_node-relatkey = 'ZSPRO'.
+    ELSE.
+      CONCATENATE 'Z' <fw_zspro>+1 INTO ls_node-relatkey.
+    ENDIF.
+    ls_node-isfolder = abap_true.
+
+    ASSIGN COMPONENT 'NODETYPE' OF STRUCTURE <fs_zspro> TO <fw_zspro>.
+    IF <fw_zspro> = 1. "table entry
+      ls_node-n_image = '@PO@'.
+      ls_node-exp_image = '@PO@'.
+    ENDIF.
+    ls_node-expander = abap_true.
+    APPEND ls_node TO t_node_zspro.
+
+    CLEAR ls_item.
+    ls_item-node_key = lw_nodekey.
+    ls_item-class = cl_gui_column_tree=>item_class_text.
+    ls_item-item_name = c_ddic_col1.
+    IF <fw_zspro> = 1. "table entry
+      ASSIGN COMPONENT 'NODEPARAM' OF STRUCTURE <fs_zspro> TO <fw_zspro>.
+      ls_item-text = <fw_zspro>.
+    ELSE.
+      ASSIGN COMPONENT 'TEXT' OF STRUCTURE <fs_zspro> TO <fw_zspro>.
+      ls_item-text = <fw_zspro>.
+    ENDIF.
+    APPEND ls_item TO t_item_zspro.
+
+    ls_item-item_name = c_ddic_col2.
+    ASSIGN COMPONENT 'NODETYPE' OF STRUCTURE <fs_zspro> TO <fw_zspro>.
+    IF <fw_zspro> = 1. "table entry
+      ASSIGN COMPONENT 'TEXT' OF STRUCTURE <fs_zspro> TO <fw_zspro>.
+      ls_item-text = <fw_zspro>.
+    ELSE.
+      ls_item-text = space.
+    ENDIF.
+    APPEND ls_item TO t_item_zspro.
+
+* For each table entry, add all fields
+    ASSIGN COMPONENT 'NODETYPE' OF STRUCTURE <fs_zspro> TO <fw_zspro>.
+    IF <fw_zspro> = 1.
+      ASSIGN COMPONENT 'NODEPARAM' OF STRUCTURE <fs_zspro>
+                                   TO <fw_zspro>.
+      LOOP AT lt_ddic_fields INTO ls_ddic_fields
+                             WHERE tabname = <fw_zspro>.
+        CLEAR ls_node.
+        lw_node_number = lw_node_number + 1.
+        CONCATENATE 'F' lw_node_number INTO ls_node-node_key.
+        ls_node-relatkey = lw_nodekey.
+        ls_node-relatship = cl_gui_column_tree=>relat_last_child.
+        IF ls_ddic_fields-keyflag = space.
+          ls_node-n_image = '@3W@'.
+          ls_node-exp_image = '@3W@'.
+        ELSE.
+          ls_node-n_image = '@3V@'.
+          ls_node-exp_image = '@3V@'.
+        ENDIF.
+        ls_node-dragdropid = w_dragdrop_handle_tree.
+        APPEND ls_node TO t_node_zspro.
+
+        CLEAR ls_item.
+        ls_item-node_key = ls_node-node_key.
+        ls_item-class = cl_gui_column_tree=>item_class_text.
+        ls_item-item_name = c_ddic_col1.
+        ls_item-text = ls_ddic_fields-fieldname.
+        APPEND ls_item TO t_item_zspro.
+        ls_item-item_name = c_ddic_col2.
+        IF NOT ls_ddic_fields-ddtext1 IS INITIAL.
+          ls_item-text = ls_ddic_fields-ddtext1.
+        ELSE.
+          ls_item-text = ls_ddic_fields-ddtext2.
+        ENDIF.
+        APPEND ls_item TO t_item_zspro.
+      ENDLOOP.
+    ENDIF.
+  ENDLOOP.
+
+* Clean Empty nodes
+  DO.
+    lw_found = space.
+    LOOP AT t_node_zspro INTO ls_node WHERE isfolder = abap_true.
+      READ TABLE t_node_zspro WITH KEY relatkey = ls_node-node_key
+                 TRANSPORTING NO FIELDS.
+      IF sy-subrc NE 0.
+        lw_found = abap_true.
+        DELETE t_node_zspro.
+        DELETE t_item_zspro WHERE node_key = ls_node-node_key.
+      ENDIF.
+    ENDLOOP.
+    IF lw_found = space.
+      EXIT.
+    ENDIF.
+  ENDDO.
+ENDFORM.                    "ddic_add_tree_zspro
+
+*&---------------------------------------------------------------------*
+*&      Form  REPO_DELETE_HISTORY
+*&---------------------------------------------------------------------*
+*       Delete given history entry
+*----------------------------------------------------------------------*
+*      -->FW_NODE_KEY Node key of history to delete
+*      <--FW_SUBRC    Return code
+*----------------------------------------------------------------------*
+FORM repo_delete_history USING fw_node_key TYPE tv_nodekey
+                         CHANGING fw_subrc TYPE i.
+  DATA ls_histo LIKE s_node_repository.
+
+  READ TABLE t_node_repository INTO ls_histo
+             WITH KEY node_key = fw_node_key.
+  IF sy-subrc = 0 AND ls_histo-edit NE space.
+    DELETE FROM ztoad WHERE queryid = ls_histo-queryid.
+    IF sy-subrc = 0.
+      CALL METHOD o_tree_repository->delete_node
+        EXPORTING
+          node_key = fw_node_key.
+    ENDIF.
+  ENDIF.
+  fw_subrc = sy-subrc.
+ENDFORM.                    " REPO_DELETE_HISTORY
+
+*&---------------------------------------------------------------------*
+*&      Form  options_load
+*&---------------------------------------------------------------------*
+*       Get saved options from user parameters table
+*----------------------------------------------------------------------*
+FORM options_load.
+  DATA : lw_options  TYPE usr05-parva,
+         lw_rows(10) TYPE c.
+  GET PARAMETER ID 'ZTOAD' FIELD lw_options.                "#EC EXISTS
+  IF sy-subrc = 0.
+    SPLIT lw_options AT ';' INTO lw_rows
+                                 s_customize-paste_break
+                                 s_customize-techname
+                                 lw_options. "dummy
+    s_customize-default_rows = lw_rows.
+  ENDIF.
+ENDFORM.                    " options_load
+
+*&---------------------------------------------------------------------*
+*&      Form  options_save
+*&---------------------------------------------------------------------*
+*       Save user options in standard user parameters table
+*----------------------------------------------------------------------*
+FORM options_save.
+  DATA : lw_options  TYPE usr05-parva,
+         lw_rows(10) TYPE c.
+
+  lw_rows =   s_customize-default_rows.
+  CONDENSE lw_rows NO-GAPS.
+  CONCATENATE lw_rows
+              s_customize-paste_break
+              s_customize-techname
+              INTO lw_options
+              SEPARATED BY ';'.
+
+  CALL FUNCTION 'SMAN_SET_USER_PARAMETER'
+    EXPORTING
+      parameter_id    = 'ZTOAD'
+      parameter_value = lw_options
+    EXCEPTIONS
+      OTHERS          = 2.
+  IF sy-subrc <> 0.
+    MESSAGE e082(s1). "Error saving parameter changes
+  ENDIF.
+
+ENDFORM.                    "options_save
+
+*&---------------------------------------------------------------------*
+*&      Form  DDIC_REFRESH_TREE
+*&---------------------------------------------------------------------*
+*       Refresh DDIC tree with current query
+*----------------------------------------------------------------------*
+FORM ddic_refresh_tree.
+  DATA : lw_query        TYPE string,
+         lw_select       TYPE string,
+         lw_from         TYPE string,
+         lw_where        TYPE string,
+         lw_union        TYPE string,
+         lw_rows(6)      TYPE n,
+         lw_noauth(1)    TYPE c,
+         lw_newsyntax(1) TYPE c,
+         lw_error(1)     TYPE c.
+  DATA lt_sources TYPE ty_table_names.
+  DATA lw_set_from TYPE string.
+  DATA lw_invalid TYPE abap_bool.
+  DATA capabilities TYPE lcl_editor_configuration=>ty_capabilities.
+
+  capabilities = lcl_editor_configuration=>get_runtime_capabilities( ).
+  IF capabilities-full_workspace = abap_false.
+    RETURN.
+  ENDIF.
+
+* Get only usefull code for current query
+  PERFORM editor_get_query USING space CHANGING lw_query.
+
+* Parse Query
+  PERFORM query_parse USING lw_query
+                      CHANGING lw_select lw_from lw_where
+                               lw_union lw_rows lw_noauth
+                               lw_newsyntax lw_error.
+
+  IF lw_noauth NE space OR lw_error NE space.
+    RETURN.
+  ELSEIF lw_select IS INITIAL.
+    PERFORM query_parse_noselect USING lw_query
+                                 CHANGING lw_noauth lw_select
+                                          lw_from lw_where.
+    IF lw_noauth NE space.
+      RETURN.
+    ENDIF.
+  ENDIF.
+* Preserve every physical set source in the DDIC tree without executing or
+* reparsing individual branches.
+  IF NOT lw_union IS INITIAL.
+    lcl_sql_source_scanner=>scan(
+      EXPORTING query = lw_query
+      IMPORTING sources = lt_sources
+                invalid = lw_invalid ).
+    IF lw_invalid = abap_true OR lt_sources IS INITIAL.
+      RETURN.
+    ENDIF.
+    lw_set_from = lcl_sql_set_expression=>join_sources( lt_sources ).
+    lw_from = lw_set_from.
+  ENDIF.
+
+  PERFORM tab_update_title USING lw_query.
+
+* Refresh ddic tree with list of table/fields of the actual query
+  PERFORM ddic_set_tree USING lw_from.
+ENDFORM.                    " DDIC_REFRESH_TREE
+
+*&---------------------------------------------------------------------*
+*&      Form  DDIC_FIND_IN_TREE
+*&---------------------------------------------------------------------*
+*       Display popup to search a table in DDIC tree
+*----------------------------------------------------------------------*
+FORM ddic_find_in_tree.
+  DATA : ls_sval        TYPE sval,
+         lt_sval        LIKE TABLE OF ls_sval,
+         lw_returncode  TYPE c,
+         lw_search      TYPE string,
+         lt_search      LIKE TABLE OF lw_search,
+         ls_item_ddic   LIKE LINE OF s_tab_active-t_item_ddic,
+         lw_search_term TYPE string,
+         lw_search_line TYPE i,
+         lw_rest        TYPE i,
+         lw_node_key    TYPE tv_nodekey,
+         lt_nodekey     TYPE TABLE OF tv_nodekey.
+
+* Build search table
+  REFRESH lt_search.
+  LOOP AT s_tab_active-t_item_ddic INTO ls_item_ddic.
+    lw_search = ls_item_ddic-text.
+    APPEND lw_search TO lt_search.
+    APPEND ls_item_ddic-node_key TO lt_nodekey.
+  ENDLOOP.
+
+* Ask for selection search
+  ls_sval-tabname = 'RSDXX'.
+  ls_sval-fieldname = 'FINDSTR'.
+  ls_sval-value = space.
+  APPEND ls_sval TO lt_sval.
+  DO.
+    CALL FUNCTION 'POPUP_GET_VALUES'
+      EXPORTING
+        popup_title     = space
+      IMPORTING
+        returncode      = lw_returncode
+      TABLES
+        fields          = lt_sval
+      EXCEPTIONS
+        error_in_fields = 1
+        OTHERS          = 2.
+    IF sy-subrc NE 0 OR lw_returncode NE space.
+      EXIT. "exit do
+    ENDIF.
+    READ TABLE lt_sval INTO ls_sval INDEX 1.
+    IF ls_sval-value = space.
+      EXIT. "exit do
+    ENDIF.
+
+* For new search, start from line 1
+    IF lw_search_term NE ls_sval-value.
+      lw_search_term = ls_sval-value.
+      lw_search_line = 1.
+* For next result of same search, start from next line
+    ELSE.
+      lw_rest = lw_search_line MOD 2.
+      lw_search_line = lw_search_line + 1 + lw_rest.
+    ENDIF.
+
+    FIND FIRST OCCURRENCE OF ls_sval-value IN TABLE lt_search
+         FROM lw_search_line
+         IN CHARACTER MODE IGNORING CASE
+         MATCH LINE lw_search_line.
+
+* Search string &1 not found
+    IF sy-subrc NE 0 AND lw_search_line = 1.
+      MESSAGE s065(0k) WITH lw_search_term DISPLAY LIKE c_msg_error.
+      CLEAR lw_search_line.
+      CLEAR lw_search_term.
+
+* Last selected entry reached
+    ELSEIF sy-subrc NE 0.
+      MESSAGE s066(0k) DISPLAY LIKE c_msg_error.
+      CLEAR lw_search_line.
+      CLEAR lw_search_term.
+
+* Found
+    ELSE.
+      MESSAGE 'String found'(m04) TYPE c_msg_success.
+      READ TABLE lt_nodekey INTO lw_node_key INDEX lw_search_line.
+      CALL METHOD s_tab_active-o_tree_ddic->set_selected_node
+        EXPORTING
+          node_key = lw_node_key.
+      CALL METHOD s_tab_active-o_tree_ddic->ensure_visible
+        EXPORTING
+          node_key = lw_node_key.
+    ENDIF.
+
+  ENDDO.
+ENDFORM.                    " DDIC_FIND_IN_TREE
+
+*&---------------------------------------------------------------------*
+*&      Form  OPTIONS_INIT
+*&---------------------------------------------------------------------*
+*       Create option panel
+*----------------------------------------------------------------------*
+FORM options_init.
+  DATA : lt_ptab TYPE wdy_wb_property_tab,
+         ls_ptab TYPE wdy_wb_property.
+
+* Create a custom container linked to the custom controm on screen 300
+  CREATE OBJECT o_container_options
+    EXPORTING
+      container_name              = 'CUSTCONT2'
+    EXCEPTIONS
+      cntl_error                  = 1
+      cntl_system_error           = 2
+      create_error                = 3
+      lifetime_error              = 4
+      lifetime_dynpro_dynpro_link = 5
+      OTHERS                      = 6.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+               WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+* Create the property object and link it to the custom controm
+  CREATE OBJECT o_options
+    EXPORTING
+      parent                    = o_container_options
+    EXCEPTIONS
+      cntl_error                = 1
+      cntl_system_error         = 2
+      illegal_event_combination = 3
+      OTHERS                    = 4.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+               WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+* Define Column title of the property object
+  CALL METHOD o_options->initialize
+    EXPORTING
+      property_column_title = 'Property'(m44)
+      value_column_title    = 'Value'(m45)
+      focus_row             = 1
+      scrollable            = abap_true.
+
+  o_options->set_enabled( abap_true ).
+
+* paste_break
+  ls_ptab-name = 'PB'.
+  ls_ptab-type = cl_wdy_wb_property_box=>property_type_boolean.
+  ls_ptab-enabled = abap_true.
+  ls_ptab-value = s_customize-paste_break.
+  CONCATENATE '@74\Q'
+    'Add break line after pasting ddic field into sql editor'(m46)
+    '@' 'Line Break'(m47) INTO ls_ptab-display_name.
+  APPEND ls_ptab TO lt_ptab.
+
+* default up to xxx rows
+  ls_ptab-name = 'MAXROWS'.
+  ls_ptab-type = cl_wdy_wb_property_box=>property_type_integer.
+  ls_ptab-enabled = abap_true.
+  ls_ptab-value = s_customize-default_rows.
+  CONCATENATE '@3W\Q'
+    'Default max number of displayed lines for SELECT'(m48)
+    '@' 'Max Rows'(m49) INTO ls_ptab-display_name.
+  APPEND ls_ptab TO lt_ptab.
+
+* default up to xxx rows
+  ls_ptab-name = 'TECH'.
+  ls_ptab-type = cl_wdy_wb_property_box=>property_type_boolean.
+  ls_ptab-enabled = abap_true.
+  ls_ptab-value = s_customize-techname.
+  CONCATENATE '@AJ\Q'
+    'Display technical name in query result display'(m52)
+    '@' 'Technical name'(m53) INTO ls_ptab-display_name.
+  APPEND ls_ptab TO lt_ptab.
+
+* Fill properties/values
+  CALL METHOD o_options->set_properties
+    EXPORTING
+      properties = lt_ptab
+      refresh    = abap_true.
+ENDFORM.                    " OPTIONS_INIT
+
+*&---------------------------------------------------------------------*
+*&      Form  OPTIONS_DISPLAY
+*&---------------------------------------------------------------------*
+*       Display options panel
+*----------------------------------------------------------------------*
+FORM options_display.
+  DATA : lt_ptab TYPE wdy_wb_property_tab,
+         ls_ptab TYPE wdy_wb_property.
+
+* If not first display, refresh properties values
+  IF NOT o_options IS INITIAL.
+    lt_ptab = o_options->get_properties( ).
+    LOOP AT lt_ptab INTO ls_ptab.
+      CASE ls_ptab-name.
+        WHEN 'PB'.
+          ls_ptab-value = s_customize-paste_break.
+        WHEN 'MAXROWS'.
+          ls_ptab-value = s_customize-default_rows.
+        WHEN 'TECH'.
+          ls_ptab-value = s_customize-techname.
+      ENDCASE.
+      CALL METHOD o_options->update_property
+        EXPORTING
+          property = ls_ptab.
+    ENDLOOP.
+  ENDIF.
+
+* Display properties panel
+  CALL SCREEN 300 STARTING AT 60 10
+                  ENDING AT 90 16.
+  IF w_okcode NE 'OK'.
+    RETURN.
+  ENDIF.
+
+* Update values if not well refreshed in o_options
+  CALL METHOD o_options->dispatch
+    EXPORTING
+      cargo             = w_okcode
+      eventid           = 18
+      is_shellevent     = space
+      is_systemdispatch = space
+    EXCEPTIONS
+      OTHERS            = 0.
+
+* Update values in s_customize
+  lt_ptab = o_options->get_properties( ).
+  LOOP AT lt_ptab INTO ls_ptab.
+    CASE ls_ptab-name.
+      WHEN 'PB'.
+        s_customize-paste_break = ls_ptab-value.
+      WHEN 'MAXROWS'.
+        s_customize-default_rows = ls_ptab-value.
+      WHEN 'TECH'.
+        s_customize-techname = ls_ptab-value.
+    ENDCASE.
+  ENDLOOP.
+
+* Save values in user parameters
+  PERFORM options_save.
+ENDFORM.                    " OPTIONS_DISPLAY
+
+*&---------------------------------------------------------------------*
+*&      Form  RESULT_SAVE_FILE
+*&---------------------------------------------------------------------*
+*       Save results into local file
+*       - 1 line of header is written with technical column name
+*       - Fields are separated by TAB
+*       - Blank at end of char fields are removed
+*----------------------------------------------------------------------*
+*      -->FO_RESULT    Reference to data to display
+*      -->FT_FIELDS    Field list
+*----------------------------------------------------------------------*
+FORM result_save_file USING fo_result TYPE REF TO data
+                            ft_fields TYPE ty_fieldlist_table.
+
+  DATA : lw_filename TYPE string,
+         lt_file_f4  TYPE filetable,
+         ls_file_f4  LIKE LINE OF lt_file_f4,
+         lw_rc       TYPE i,
+         lw_filter   TYPE string,
+         lw_title    TYPE string,
+         BEGIN OF ls_field_out,
+           name TYPE char30,
+         END OF ls_field_out,
+         lt_fields   LIKE TABLE OF ls_field_out,
+         ls_field_in LIKE LINE OF ft_fields.
+
+  FIELD-SYMBOLS: <lft_data> TYPE ANY TABLE.
+
+  lw_filter = 'CSV File (*.csv)|*.csv'(m51).
+  lw_title = 'Download results into file'(m63).
+  CALL METHOD cl_gui_frontend_services=>file_open_dialog
+    EXPORTING
+      window_title = lw_title
+      file_filter  = lw_filter
+    CHANGING
+      file_table   = lt_file_f4
+      rc           = lw_rc
+    EXCEPTIONS
+      OTHERS       = 0.
+  READ TABLE lt_file_f4 INTO ls_file_f4 INDEX 1.
+  IF sy-subrc = 0.
+    lw_filename = ls_file_f4.
+  ENDIF.
+  IF lw_filename IS INITIAL.
+    RETURN.
+  ENDIF.
+
+  ASSIGN fo_result->* TO <lft_data>.
+  LOOP AT ft_fields INTO ls_field_in.
+    APPEND ls_field_in-ref_field TO lt_fields.
+  ENDLOOP.
+  CALL METHOD cl_gui_frontend_services=>gui_download
+    EXPORTING
+      filename              = lw_filename
+      write_field_separator = abap_true
+      trunc_trailing_blanks = abap_true
+      fieldnames            = lt_fields
+    CHANGING
+      data_tab              = <lft_data>
+    EXCEPTIONS
+      OTHERS                = 0.
+
+ENDFORM.                    " RESULT_SAVE_FILE
+
+*&---------------------------------------------------------------------*
+*&      Form  DDIC_F4
+*&---------------------------------------------------------------------*
+*       Display F4 help on selected DDIC tree field
+*       Paste selected value in SQL Editor
+*----------------------------------------------------------------------*
+FORM ddic_f4.
+  DATA : lw_table      TYPE dfies-tabname,
+         lw_field      TYPE dfies-fieldname,
+         lt_val        TYPE TABLE OF ddshretval,
+         ls_val        LIKE LINE OF lt_val,
+         lw_nodekey    TYPE tv_nodekey,
+         lw_item       TYPE tv_itmname,                     "#EC NEEDED
+         ls_node       LIKE LINE OF s_tab_active-t_node_ddic,
+         ls_item       LIKE LINE OF s_tab_active-t_item_ddic,
+         lw_line_start TYPE i,
+         lw_pos_start  TYPE i,
+         lw_line_end   TYPE i,
+         lw_pos_end    TYPE i,
+         lw_val        TYPE string,
+         lw_dummy      type c.                              "#EC NEEDED
+
+* Get selection in ddic tree
+  CALL METHOD s_tab_active-o_tree_ddic->get_selected_node "line selected
+    IMPORTING
+      node_key = lw_nodekey.
+  IF lw_nodekey IS INITIAL.
+    CALL METHOD s_tab_active-o_tree_ddic->get_selected_item "item selected
+      IMPORTING
+        node_key  = lw_nodekey
+        item_name = lw_item.
+  ENDIF.
+  IF lw_nodekey IS INITIAL.
+    RETURN.
+  ENDIF.
+
+* Check selection is a field
+  READ TABLE s_tab_active-t_node_ddic INTO ls_node
+             WITH KEY node_key = lw_nodekey.
+  IF sy-subrc NE 0 OR ls_node-isfolder = abap_true.
+    RETURN.
+  ENDIF.
+
+* Get field name
+  READ TABLE s_tab_active-t_item_ddic INTO ls_item
+             WITH KEY node_key = lw_nodekey
+                      item_name = c_ddic_col1.
+  lw_field = ls_item-text.
+
+* Get table name
+  READ TABLE s_tab_active-t_item_ddic INTO ls_item
+             WITH KEY node_key = ls_node-relatkey
+                      item_name = c_ddic_col1.
+  SPLIT ls_item-text AT ' AS ' INTO lw_table lw_dummy.
+
+* Display standard value-list
+  CALL FUNCTION 'F4IF_FIELD_VALUE_REQUEST'
+    EXPORTING
+      fieldname  = lw_field
+      tabname    = lw_table
+    TABLES
+      return_tab = lt_val
+    EXCEPTIONS
+      OTHERS     = 1.
+
+  IF sy-subrc = 0.
+    READ TABLE lt_val INTO ls_val INDEX 1.
+    CONCATENATE '''' ls_val-fieldval '''' INTO lw_val.
+    CONCATENATE space lw_val INTO lw_val RESPECTING BLANKS.
+
+* Get current cursor position/selection in editor
+    CALL METHOD s_tab_active-o_textedit->get_selection_pos
+      IMPORTING
+        e_from_line = lw_line_start
+        e_from_pos  = lw_pos_start
+        e_to_line   = lw_line_end
+        e_to_pos    = lw_pos_end
+      EXCEPTIONS
+        OTHERS    = 4.
+    IF sy-subrc NE 0.
+      MESSAGE 'Cannot get cursor position'(m35) TYPE c_msg_error.
+    ENDIF.
+
+*   If text is selected/highlighted, delete it
+    IF lw_line_start NE lw_line_end
+    OR lw_pos_start NE lw_pos_end.
+      CALL METHOD s_tab_active-o_textedit->delete_text
+        EXPORTING
+          i_from_line = lw_line_start
+          i_from_pos  = lw_pos_start
+          i_to_line   = lw_line_end
+          i_to_pos    = lw_pos_end.
+    ENDIF.
+
+    PERFORM editor_paste USING lw_val lw_line_start lw_pos_start.
+  ENDIF.
+
+ENDFORM.                    " DDIC_F4
+
+*&---------------------------------------------------------------------*
+*&      Form  EDITOR_GET_DEFAULT_QUERY
+*&---------------------------------------------------------------------*
+*       Get default query
+*----------------------------------------------------------------------*
+*      <--FT_QUERY  Default query content
+*----------------------------------------------------------------------*
+FORM editor_get_default_query  CHANGING ft_query TYPE table.
+  DATA lw_string TYPE string.
+
+  APPEND '* Type here your query title' TO ft_query.        "#EC NOTEXT
+  APPEND '' TO ft_query.
+  APPEND 'SELECT *' TO ft_query.                            "#EC NOTEXT
+  APPEND 'FROM <table_name>' TO ft_query.                   "#EC NOTEXT
+
+  IF s_customize-default_rows NE 0.
+    lw_string = s_customize-default_rows.
+    CONDENSE lw_string NO-GAPS.
+    CONCATENATE 'UP TO'
+                lw_string
+                'ROWS'
+                INTO lw_string SEPARATED BY space.
+    APPEND lw_string TO ft_query.                           "#EC NOTEXT
+  ENDIF.
+
+  APPEND 'WHERE <conditions>' TO ft_query.                  "#EC NOTEXT
+  APPEND '.' TO ft_query.                                   "#EC NOTEXT
+
+ENDFORM.                    " EDITOR_GET_DEFAULT_QUERY
+
+*&---------------------------------------------------------------------*
+*&      Form  TAB_NEW
+*&---------------------------------------------------------------------*
+*       Open a new tab
+*----------------------------------------------------------------------*
+FORM tab_new.
+  DATA : l_numb TYPE i,
+         l_tab TYPE string.
+  DATA capabilities TYPE lcl_editor_configuration=>ty_capabilities.
+
+  capabilities = lcl_editor_configuration=>get_runtime_capabilities( ).
+  IF capabilities-full_workspace = abap_false.
+    MESSAGE 'Multiple tabs are available in desktop SAP GUI only'
+            TYPE c_msg_success DISPLAY LIKE c_msg_error.
+    RETURN.
+  ENDIF.
+
+  DESCRIBE TABLE t_tabs LINES l_numb.
+  IF l_numb GE 30.
+    MESSAGE 'You cannot open more than 30 tabs'(m64)
+            TYPE c_msg_success DISPLAY LIKE c_msg_error.
+    RETURN.
+  ENDIF.
+
+  PERFORM leave_current_tab.
+
+* Hide alv pane if displayed
+  s_tab_active-row_height = 100.
+  CALL METHOD o_splitter->set_row_height
+    EXPORTING
+      id     = 1
+      height = s_tab_active-row_height.
+
+* Start new tab
+  l_tab = l_numb + 1.
+  CONCATENATE 'TAB' l_tab INTO l_tab.
+  CONDENSE l_tab NO-GAPS.
+  w_tabstrip-activetab = l_tab.
+*  w_tabstrip-%_SCROLLPOSITION = l_tab. "bugged
+
+* Initialize new editor / ddic / alv
+  PERFORM ddic_init.
+  PERFORM editor_init.
+  PERFORM result_init.
+
+* Tab management
+  APPEND s_tab_active TO t_tabs.
+
+ENDFORM.                    " TAB_NEW
+
+*&---------------------------------------------------------------------*
+*&      Form  LEAVE_CURRENT_TAB
+*&---------------------------------------------------------------------*
+*       Hide editor / ddic / alv for current tab and save state
+*----------------------------------------------------------------------*
+FORM leave_current_tab.
+* Hide current editor / ddic / alv
+  CALL METHOD s_tab_active-o_textedit->set_visible
+    EXPORTING
+      i_visible = space.
+
+  CALL METHOD s_tab_active-o_tree_ddic->set_visible
+    EXPORTING
+      visible = space.
+
+  IF NOT s_tab_active-o_alv_result IS INITIAL.
+    CALL METHOD s_tab_active-o_alv_result->set_visible
+      EXPORTING
+        visible = space.
+  ENDIF.
+* Save ALV split height
+  CALL METHOD o_splitter->get_row_height
+    EXPORTING
+      id     = 1
+    IMPORTING
+      result = s_tab_active-row_height.
+  CALL METHOD cl_gui_cfw=>flush.
+
+  PERFORM tab_update_title USING space.
+
+  MODIFY t_tabs FROM s_tab_active INDEX w_tabstrip-activetab+3.
+  CLEAR s_tab_active.
+ENDFORM.                    " LEAVE_CURRENT_TAB
+
+*&---------------------------------------------------------------------*
+*&      Form  TAB_UPDATE_TITLE
+*&---------------------------------------------------------------------*
+*       Update tab title regarding current query
+*       - Display first line query if it is a comment
+*       - Display query as title in other cases
+*----------------------------------------------------------------------*
+*      -->FW_QUERY Complete query
+*----------------------------------------------------------------------*
+FORM tab_update_title USING fw_query TYPE string.
+  DATA : lw_name(30) TYPE c,
+         lt_query TYPE soli_tab,
+         ls_query LIKE LINE OF lt_query,
+         lw_query TYPE string.
+  FIELD-SYMBOLS <fs> TYPE any.
+  IF w_tabstrip-activetab IS INITIAL.
+    lw_name = 'S_TAB-TITLE1'.
+  ELSE.
+    CONCATENATE 'S_TAB-TITLE' w_tabstrip-activetab+3 INTO lw_name.
+  ENDIF.
+  ASSIGN (lw_name) TO <fs>.
+  IF sy-subrc NE 0.
+    RETURN.
+  ENDIF.
+
+* Basic read query to check if first line is a comment
+  CALL METHOD s_tab_active-o_textedit->get_text
+    IMPORTING
+      e_table = lt_query[]
+    EXCEPTIONS
+      OTHERS = 1.
+  READ TABLE lt_query INTO ls_query INDEX 1.
+  IF sy-subrc NE 0.
+    <fs> = 'Empty tab'(m65).
+    RETURN.
+  ENDIF.
+  IF ls_query(1) = '*'.
+    <fs> = ls_query+1.
+    RETURN.
+  ENDIF.
+
+* Query given, use it as title
+  IF NOT fw_query IS INITIAL.
+    <fs> = fw_query.
+    RETURN.
+  ENDIF.
+
+* If no query given, try to read it
+  PERFORM editor_get_query USING space CHANGING lw_query.
+  <fs> = lw_query.
+
+ENDFORM.                    " TAB_UPDATE_TITLE
+
+*&---------------------------------------------------------------------*
+*&      Form  Export_xml
+*&---------------------------------------------------------------------*
+*       Export Saved Queries in xml format
+*----------------------------------------------------------------------*
+FORM export_xml.
+  DATA : BEGIN OF ls_xml,
+           line(256) TYPE x,
+         END OF ls_xml,
+         lt_xml LIKE TABLE OF ls_xml,
+
+         lw_filename TYPE string,
+         lw_path TYPE string,
+         lw_fullpath TYPE string.
+  DATA : lo_xml TYPE REF TO if_ixml,
+         lo_document TYPE REF TO if_ixml_document,
+         lo_root TYPE REF TO if_ixml_element,
+         lo_element TYPE REF TO if_ixml_element,
+         lw_string TYPE string,
+         lo_streamfactory TYPE REF TO if_ixml_stream_factory,
+         lo_ostream TYPE REF TO if_ixml_ostream,
+         lo_renderer TYPE REF TO if_ixml_renderer,
+         lw_title TYPE string,
+         lw_filter TYPE string,
+         lw_name TYPE string,
+         BEGIN OF ls_ztoad,
+           queryid TYPE ztoad-queryid,
+           visibility TYPE ztoad-visibility_group,
+           text TYPE ztoad-text,
+           query TYPE ztoad-query,
+         END OF ls_ztoad,
+         lt_ztoad LIKE TABLE OF ls_ztoad.
+
+* Ask name of file to generate
+  lw_title = 'Choose file to create'(m57).
+  lw_filter = 'XML File (*.xml)|*.xml'(m58).
+  CALL METHOD cl_gui_frontend_services=>file_save_dialog
+    EXPORTING
+      window_title = lw_title
+      file_filter  = lw_filter
+    CHANGING
+      path         = lw_path
+      filename     = lw_filename
+      fullpath     = lw_fullpath
+    EXCEPTIONS
+      OTHERS       = 1.
+  IF sy-subrc NE 0 OR lw_filename IS INITIAL OR lw_path IS INITIAL.
+    MESSAGE 'Action cancelled'(m14) TYPE c_msg_success
+            DISPLAY LIKE c_msg_error.
+    RETURN.
+  ENDIF.
+
+  CONCATENATE sy-uname '#%' INTO lw_name.
+  CONDENSE lw_name NO-GAPS.
+
+* Get all saved query (but not history)
+  SELECT queryid visibility text query
+         INTO TABLE lt_ztoad
+         FROM ztoad
+         WHERE owner = sy-uname
+         AND NOT queryid LIKE lw_name.
+
+  lo_xml = cl_ixml=>create( ).
+  lo_document = lo_xml->create_document( ).
+
+  lo_root  = lo_document->create_simple_element( name = c_xmlnode_root
+                                                 parent = lo_document ).
+  LOOP AT lt_ztoad INTO ls_ztoad.
+    lo_element  = lo_document->create_simple_element( name = c_xmlnode_file
+                                                      parent = lo_root ).
+    lw_string = ls_ztoad-visibility.
+    lo_element->set_attribute( name = c_xmlattr_visibility value = lw_string ).
+
+    lw_string = ls_ztoad-text.
+    lo_element->set_attribute( name = c_xmlattr_text value = lw_string ).
+
+    lw_string = ls_ztoad-query.
+    lo_element->set_value( lw_string ).
+  ENDLOOP.
+
+  lo_streamfactory = lo_xml->create_stream_factory( ).
+
+  lo_ostream  = lo_streamfactory->create_ostream_itable( lt_xml ).
+
+  lo_renderer = lo_xml->create_renderer( ostream  = lo_ostream
+                                         document = lo_document ).
+  lo_ostream->set_pretty_print( abap_true ).
+  lo_renderer->render( ).
+
+  CALL METHOD cl_gui_frontend_services=>gui_download
+    EXPORTING
+      filename = lw_fullpath
+      filetype = 'BIN'
+    CHANGING
+      data_tab = lt_xml.
+ENDFORM.                    "Export_xml
+
+*&---------------------------------------------------------------------*
+*&      Form  Import_xml
+*&---------------------------------------------------------------------*
+*       Import Saved Queries from xml format
+*----------------------------------------------------------------------*
+FORM import_xml.
+  DATA : lt_filetab TYPE filetable,
+         ls_file    TYPE file_table,
+         lw_filename TYPE string,
+         lw_subrc    LIKE sy-subrc,
+         lw_xmldata   TYPE xstring,
+         lo_xml TYPE REF TO if_ixml,
+         lo_document TYPE REF TO if_ixml_document,
+         lo_streamfactory TYPE REF TO if_ixml_stream_factory,
+         lo_stream TYPE REF TO if_ixml_istream,
+         lo_parser TYPE REF TO if_ixml_parser.
+  DATA : lo_iterator TYPE REF TO if_ixml_node_iterator,
+         lo_node  TYPE REF TO if_ixml_node,
+         lw_node_name TYPE string,
+         lo_element TYPE REF TO if_ixml_element,
+         lw_title TYPE string,
+         lw_filter TYPE string,
+         lw_guid TYPE guid_32,
+         lw_group TYPE usr02-class,
+         lw_string TYPE string,
+         ls_ztoad TYPE ztoad,
+         lt_ztoad LIKE TABLE OF ls_ztoad.
+
+* Choose file to import
+  lw_title = 'Choose file to import'(m59).
+  lw_filter = 'XML File (*.xml)|*.xml'(m58).
+  CALL METHOD cl_gui_frontend_services=>file_open_dialog
+    EXPORTING
+      window_title   = lw_title
+      file_filter    = lw_filter
+      multiselection = space
+    CHANGING
+      file_table     = lt_filetab
+      rc             = lw_subrc.
+
+* Check user action (1 OPEN, 2 CANCEL)
+  IF lw_subrc NE 1.
+    MESSAGE 'Action cancelled'(m14) TYPE c_msg_success
+            DISPLAY LIKE c_msg_error.
+    RETURN.
+  ENDIF.
+
+* Read filetable
+  READ TABLE lt_filetab INTO ls_file INDEX 1.
+  lw_filename = ls_file-filename.
+
+* Get xml flow from file
+* Or alternatively (if method does not exist) use the method
+* cl_gui_frontend_services=>gui_upload and then convert the
+* x-tab to xstring
+  TRY.
+      lw_xmldata = cl_openxml_helper=>load_local_file( lw_filename ).
+    CATCH cx_openxml_not_found.
+      MESSAGE 'Error when opening the input XML file'(m60)
+              TYPE c_msg_error.
+      RETURN.
+  ENDTRY.
+
+  lo_xml = cl_ixml=>create( ).
+
+  lo_document = lo_xml->create_document( ).
+  lo_streamfactory = lo_xml->create_stream_factory( ).
+  lo_stream = lo_streamfactory->create_istream_xstring( string = lw_xmldata ).
+
+  lo_parser = lo_xml->create_parser( stream_factory = lo_streamfactory
+                                     istream        = lo_stream
+                                     document       = lo_document ).
+*-- parse the stream
+  IF lo_parser->parse( ) NE 0.
+    IF lo_parser->num_errors( ) NE 0.
+      MESSAGE 'Error when parsing the input XML file'(m61)
+              TYPE c_msg_error.
+      RETURN.
+    ENDIF.
+  ENDIF.
+
+*-- we don't need the stream any more, so let's close it...
+  CALL METHOD lo_stream->close( ).
+  CLEAR lo_stream.
+
+* Get usergroup
+  SELECT SINGLE class INTO lw_group
+         FROM usr02
+         WHERE bname = sy-uname.
+
+* Rebuild itab t_zspro
+  lo_iterator = lo_document->create_iterator( ).
+  lo_node = lo_iterator->get_next( ).
+  WHILE NOT lo_node IS INITIAL.
+    lw_node_name = lo_node->get_name( ).
+    IF lw_node_name = c_xmlnode_file.
+* Cast node to element
+      lo_element ?= lo_node. "->query_interface( ixml_iid_element ).
+      CLEAR ls_ztoad.
+      ls_ztoad-visibility_group = lw_group.
+      ls_ztoad-owner = sy-uname.
+      CONCATENATE sy-datum sy-uzeit INTO lw_string.
+      ls_ztoad-aedat = lw_string.
+
+* Generate new GUID
+      DO 100 TIMES.
+* Old function to get an unique id
+        CALL FUNCTION 'GUID_CREATE'
+          IMPORTING
+            ev_guid_32 = lw_guid.
+* New function to get an unique id (do not work on older sap system)
+*    TRY.
+*        lw_guid = cl_system_uuid=>create_uuid_c32_static( ).
+*      CATCH cx_uuid_error.
+*        EXIT. "exit do
+*    ENDTRY.
+
+* Check that this uid is not already used
+        SELECT SINGLE queryid INTO ls_ztoad-queryid
+               FROM ztoad
+               WHERE queryid = lw_guid.
+        IF sy-subrc NE 0.
+          READ TABLE lt_ztoad WITH KEY queryid = lw_guid TRANSPORTING NO FIELDS.
+          IF sy-subrc NE 0.
+            EXIT. "exit do
+          ENDIF.
+        ENDIF.
+      ENDDO.
+      ls_ztoad-queryid = lw_guid.
+      lw_string = lo_element->get_attribute( name = c_xmlattr_visibility ).
+      ls_ztoad-visibility = lw_string.
+      lw_string = lo_element->get_attribute( name = c_xmlattr_text ).
+      ls_ztoad-text = lw_string.
+      lw_string = lo_element->get_value( ).
+      ls_ztoad-query = lw_string.
+      APPEND ls_ztoad TO lt_ztoad.
+    ENDIF.
+    lo_node = lo_iterator->get_next( ).
+  ENDWHILE.
+
+  INSERT ztoad FROM TABLE lt_ztoad.
+  IF sy-subrc = 0.
+    MESSAGE s031(r9). "Query saved
+  ELSE.
+    MESSAGE e220(iqapi). "Error when saving the query
+  ENDIF.
+
+* Refresh repository to display new saved query
+  PERFORM repo_fill.
+
+ENDFORM.                    "import_xml
+
+*&---------------------------------------------------------------------*
+*&      Form  SET_STATUS_010
+*&---------------------------------------------------------------------*
+*       Set PF-STATUS for main scren
+*       Adjust list of visible tabs
+*----------------------------------------------------------------------*
+FORM SET_STATUS_010 .
+  DATA : lw_numb TYPE i,
+         lw_max TYPE i.
+  DATA capabilities TYPE lcl_editor_configuration=>ty_capabilities.
+  DATA lt_exclude TYPE STANDARD TABLE OF sy-ucomm.
+
+  capabilities = lcl_editor_configuration=>get_runtime_capabilities( ).
+  IF capabilities-full_workspace = abap_false.
+    APPEND 'DOWNLOAD' TO lt_exclude.
+    APPEND 'NEW' TO lt_exclude.
+    APPEND 'OPTIONS' TO lt_exclude.
+    APPEND 'SAVE' TO lt_exclude.
+    APPEND 'SHOWCODE' TO lt_exclude.
+    APPEND 'XML' TO lt_exclude.
+    APPEND 'XMLI' TO lt_exclude.
+  ENDIF.
+
+  AUTHORITY-CHECK OBJECT 'S_DEVELOP' ID 'ACTVT' FIELD '03'
+                                     ID 'DEVCLASS' DUMMY
+                                     ID 'OBJTYPE' DUMMY
+                                     ID 'OBJNAME' DUMMY
+                                     ID 'P_GROUP' DUMMY.
+  IF sy-subrc <> 0.
+* If you dont have S_DEVELOP access in display, you probably dont
+* understand the code generated => do not display the button
+    APPEND 'SHOWCODE' TO lt_exclude.
+  ENDIF.
+  SORT lt_exclude.
+  DELETE ADJACENT DUPLICATES FROM lt_exclude.
+  SET PF-STATUS 'STATUS010' EXCLUDING lt_exclude.
+  SET TITLEBAR 'STATUS010'.
+
+  DESCRIBE TABLE t_tabs LINES lw_max.
+
+  LOOP AT SCREEN.
+    IF screen-name(6) = 'S_TAB-'.
+      lw_numb = screen-name+11.
+      IF lw_numb > lw_max.
+        screen-invisible = 1.
+      ELSE.
+        screen-invisible = 0.
+      ENDIF.
+      MODIFY SCREEN.
+    ENDIF.
+  ENDLOOP.
+ENDFORM.                    " SET_STATUS_010
+
+
+*######################################################################*
+*
+*                         ABAP UNIT TESTS
+*
+*######################################################################*
+" These characterization tests intentionally exercise the existing FORM
+" boundaries. They keep the legacy parser stable while its implementation
+" is moved behind testable classes incrementally.
+CLASS ltcl_sql_clause_scanner DEFINITION FINAL
+  FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+  PRIVATE SECTION.
+    METHODS masks_literal_and_nested FOR TESTING.
+    METHODS normalizes_clause_whitespace FOR TESTING.
+    METHODS rejects_unbalanced_state FOR TESTING.
+    METHODS rejects_comment FOR TESTING.
+    METHODS rejects_non_sql_literals FOR TESTING.
+ENDCLASS.
+
+CLASS ltcl_sql_set_expression DEFINITION FINAL
+  FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+  PRIVATE SECTION.
+    METHODS attaches_suffix FOR TESTING.
+    METHODS joins_sources FOR TESTING.
+    METHODS detects_union FOR TESTING.
+ENDCLASS.
+
+CLASS ltc_query_parser DEFINITION FINAL
+  FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+  PRIVATE SECTION.
+    TYPES ty_rows TYPE n LENGTH 6.
+
+    DATA saved_customize LIKE s_customize.
+
+    METHODS setup.
+    METHODS teardown.
+    METHODS parses_simple_select FOR TESTING.
+    METHODS honors_explicit_limit FOR TESTING.
+    METHODS rejects_zero_limit FOR TESTING.
+    METHODS accepts_policy_maximum FOR TESTING.
+    METHODS rejects_above_maximum FOR TESTING.
+    METHODS rejects_invalid_limit FOR TESTING.
+    METHODS rejects_overflow_limit FOR TESTING.
+    METHODS accepts_leading_zero_limit FOR TESTING.
+    METHODS normalizes_invalid_defaults FOR TESTING.
+    METHODS caps_oversized_default FOR TESTING.
+    METHODS keeps_tail_clauses FOR TESTING.
+    METHODS separates_union FOR TESTING.
+    METHODS separates_union_expression FOR TESTING.
+    METHODS separates_union_all FOR TESTING.
+    METHODS separates_union_distinct FOR TESTING.
+    METHODS rejects_union_branch_limit FOR TESTING.
+    METHODS rejects_union_single FOR TESTING.
+    METHODS detects_comma_syntax FOR TESTING.
+    METHODS strips_into_target FOR TESTING.
+    METHODS ignores_literal_from_keyword FOR TESTING.
+    METHODS ignores_literal_union_keyword FOR TESTING.
+    METHODS keeps_literal_row_limit FOR TESTING.
+    METHODS ignores_literal_tail_keyword FOR TESTING.
+    METHODS ignores_tail_keyword_matrix FOR TESTING.
+    METHODS accepts_multiline_clauses FOR TESTING.
+    METHODS rejects_comment_union_keyword FOR TESTING.
+    METHODS rejects_missing_from FOR TESTING.
+    METHODS rejects_unauthorized_subquery FOR TESTING.
+    METHODS accepts_authorized_subquery FOR TESTING.
+    METHODS rejects_two_level_subquery FOR TESTING.
+    METHODS ignores_literal_source_keyword FOR TESTING.
+    METHODS rejects_source_comment FOR TESTING.
+    METHODS rejects_path_source FOR TESTING.
+    METHODS rejects_attached_path_source FOR TESTING.
+    METHODS rejects_hierarchy_source FOR TESTING.
+    METHODS accepts_hierarchy_named_table FOR TESTING.
+    METHODS rejects_parenthesized_join FOR TESTING.
+    METHODS accepts_authorized_join FOR TESTING.
+    METHODS rejects_unauthorized_union FOR TESTING.
+    METHODS rejects_unauthorized_union_all FOR TESTING.
+    METHODS rejects_dynamic_source FOR TESTING.
+    METHODS rejects_unsupported_cte FOR TESTING.
+
+    METHODS parse_select
+      IMPORTING query TYPE string
+      EXPORTING select_part TYPE string
+                from_part TYPE string
+                tail_part TYPE string
+                union_part TYPE string
+                rows TYPE ty_rows
+                no_authority TYPE abap_bool
+                new_syntax TYPE abap_bool
+                parse_error TYPE abap_bool.
+    METHODS assert_limit_policy
+      IMPORTING query TYPE string
+                configured_default TYPE i
+                expected_rows TYPE i
+                expected_error TYPE abap_bool.
+ENDCLASS.
+
+CLASS ltcl_sql_clause_scanner IMPLEMENTATION.
+  METHOD masks_literal_and_nested.
+    DATA top_level TYPE string.
+    DATA invalid TYPE abap_bool.
+    DATA(query) = `SELECT CONCAT( 'A'' FROM ''B', carrname ) AS label`
+               && ` FROM scarr`.
+
+    lcl_sql_clause_scanner=>mask_top_level(
+      EXPORTING query = query
+      IMPORTING top_level = top_level
+                invalid = invalid ).
+
+    cl_abap_unit_assert=>assert_initial( act = invalid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = strlen( top_level )
+      exp = strlen( query )
+      msg = 'The structural view must preserve every source offset' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = find( val = top_level sub = 'FROM scarr' )
+      exp = find( val = query sub = 'FROM scarr' )
+      msg = 'Only the outer FROM must remain visible' ).
+  ENDMETHOD.
+
+  METHOD normalizes_clause_whitespace.
+    DATA top_level TYPE string.
+    DATA invalid TYPE abap_bool.
+    DATA(query) = `SELECT carrid`
+               && cl_abap_char_utilities=>newline
+               && `FROM scarr`.
+
+    lcl_sql_clause_scanner=>mask_top_level(
+      EXPORTING query = query
+      IMPORTING top_level = top_level
+                invalid = invalid ).
+
+    cl_abap_unit_assert=>assert_initial( act = invalid ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( top_level CS ' FROM ' )
+      msg = 'All supported SQL whitespace must expose the same boundary' ).
+  ENDMETHOD.
+
+  METHOD rejects_unbalanced_state.
+    DATA top_level TYPE string.
+    DATA invalid TYPE abap_bool.
+
+    lcl_sql_clause_scanner=>mask_top_level(
+      EXPORTING query = `SELECT carrid FROM scarr WHERE carrid = 'LH`
+      IMPORTING top_level = top_level
+                invalid = invalid ).
+    cl_abap_unit_assert=>assert_true(
+      act = invalid
+      msg = 'An unclosed literal must fail before slicing' ).
+
+    lcl_sql_clause_scanner=>mask_top_level(
+      EXPORTING query = `SELECT carrid FROM scarr WHERE ( carrid = 'LH'`
+      IMPORTING top_level = top_level
+                invalid = invalid ).
+    cl_abap_unit_assert=>assert_true(
+      act = invalid
+      msg = 'An unclosed parenthesis must fail before slicing' ).
+  ENDMETHOD.
+
+  METHOD rejects_comment.
+    DATA top_level TYPE string.
+    DATA invalid TYPE abap_bool.
+
+    lcl_sql_clause_scanner=>mask_top_level(
+      EXPORTING
+        query = `SELECT carrid FROM scarr " UNION SELECT carrid FROM sflight`
+      IMPORTING top_level = top_level
+                invalid = invalid ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = invalid
+      msg = 'A surviving comment must fail before branch splitting' ).
+  ENDMETHOD.
+
+  METHOD rejects_non_sql_literals.
+    DATA top_level TYPE string.
+    DATA invalid TYPE abap_bool.
+
+    lcl_sql_clause_scanner=>mask_top_level(
+      EXPORTING query = 'SELECT `FROM` FROM scarr'
+      IMPORTING top_level = top_level
+                invalid = invalid ).
+    cl_abap_unit_assert=>assert_true(
+      act = invalid
+      msg = 'Typed backtick literals are outside the accepted input grammar' ).
+
+    lcl_sql_clause_scanner=>mask_top_level(
+      EXPORTING query = 'SELECT |FROM| FROM scarr'
+      IMPORTING top_level = top_level
+                invalid = invalid ).
+    cl_abap_unit_assert=>assert_true(
+      act = invalid
+      msg = 'String templates are outside the accepted input grammar' ).
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS ltcl_sql_set_expression IMPLEMENTATION.
+  METHOD attaches_suffix.
+    cl_abap_unit_assert=>assert_equals(
+      act = lcl_sql_set_expression=>attach_suffix(
+              branch_tail = ` WHERE carrid = 'LH'`
+              set_suffix = `UNION ALL SELECT carrid FROM sflight` )
+      exp = ` WHERE carrid = 'LH' UNION ALL SELECT carrid FROM sflight`
+      msg = 'The execution representation must keep the set operator' ).
+  ENDMETHOD.
+
+  METHOD joins_sources.
+    DATA sources TYPE ty_table_names.
+    DATA table_name TYPE tabname.
+
+    table_name = 'SCARR'.
+    INSERT table_name INTO TABLE sources.
+    table_name = 'SFLIGHT'.
+    INSERT table_name INTO TABLE sources.
+    cl_abap_unit_assert=>assert_equals(
+      act = lcl_sql_set_expression=>join_sources( sources )
+      exp = `SCARR JOIN SFLIGHT`
+      msg = 'The DDIC representation must retain every set source' ).
+  ENDMETHOD.
+
+  METHOD detects_union.
+    cl_abap_unit_assert=>assert_true(
+      act = lcl_sql_set_expression=>contains_union(
+              `SELECT carrid FROM scarr UNION ALL SELECT carrid FROM sflight` )
+      msg = 'The generator sink must recognize a structural UNION ALL' ).
+    cl_abap_unit_assert=>assert_false(
+      act = lcl_sql_set_expression=>contains_union(
+              `SELECT carrid FROM scarr` )
+      msg = 'A simple structural query must not select the cursor path' ).
+  ENDMETHOD.
+ENDCLASS.
+
+
+CLASS ltcl_editor_configuration DEFINITION FINAL
+  FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+  PRIVATE SECTION.
+    METHODS uses_text_editor_in_webgui FOR TESTING.
+    METHODS keeps_abap_mode_elsewhere FOR TESTING.
+    METHODS limits_webgui_capabilities FOR TESTING.
+    METHODS keeps_desktop_capabilities FOR TESTING.
+ENDCLASS.
+
+CLASS ltcl_editor_configuration IMPLEMENTATION.
+  METHOD uses_text_editor_in_webgui.
+    cl_abap_unit_assert=>assert_equals(
+      act = lcl_editor_configuration=>get_editor_type(
+              i_webgui = abap_true )
+      exp = 'TEXT'
+      msg = 'WebGUI must use its supported plain text editor' ).
+  ENDMETHOD.
+
+  METHOD keeps_abap_mode_elsewhere.
+    cl_abap_unit_assert=>assert_equals(
+      act = lcl_editor_configuration=>get_editor_type(
+              i_webgui = abap_false )
+      exp = 'ABAP'
+      msg = 'Desktop GUI must retain ABAP editor behavior' ).
+  ENDMETHOD.
+
+  METHOD limits_webgui_capabilities.
+    DATA capabilities TYPE lcl_editor_configuration=>ty_capabilities.
+
+    capabilities = lcl_editor_configuration=>get_capabilities(
+      i_webgui = abap_true ).
+
+    cl_abap_unit_assert=>assert_false(
+      act = capabilities-full_workspace
+      msg = 'WebGUI must not queue the desktop workspace controls' ).
+    cl_abap_unit_assert=>assert_false(
+      act = capabilities-preload_editor
+      msg = 'WebGUI must not populate TextEdit during initial PBO' ).
+    cl_abap_unit_assert=>assert_false(
+      act = capabilities-selected_statement
+      msg = 'WebGUI selects the last statement without cursor access' ).
+    cl_abap_unit_assert=>assert_true(
+      act = capabilities-stream_input
+      msg = 'WebGUI must read the editor through the stream API' ).
+    cl_abap_unit_assert=>assert_false(
+      act = capabilities-resize_result
+      msg = 'WebGUI must not read or set frontend splitter state' ).
+    cl_abap_unit_assert=>assert_false(
+      act = capabilities-persist_history
+      msg = 'WebGUI must not refresh the desktop history tree' ).
+  ENDMETHOD.
+
+  METHOD keeps_desktop_capabilities.
+    DATA capabilities TYPE lcl_editor_configuration=>ty_capabilities.
+
+    capabilities = lcl_editor_configuration=>get_capabilities(
+      i_webgui = abap_false ).
+
+    cl_abap_unit_assert=>assert_true( act = capabilities-full_workspace ).
+    cl_abap_unit_assert=>assert_true( act = capabilities-preload_editor ).
+    cl_abap_unit_assert=>assert_true( act = capabilities-selected_statement ).
+    cl_abap_unit_assert=>assert_false( act = capabilities-stream_input ).
+    cl_abap_unit_assert=>assert_true( act = capabilities-resize_result ).
+    cl_abap_unit_assert=>assert_true( act = capabilities-persist_history ).
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS ltc_query_parser IMPLEMENTATION.
+  METHOD setup.
+    saved_customize = s_customize.
+    CLEAR s_customize-auth_object.
+    s_customize-auth_select = '*'.
+    s_customize-default_rows = 100.
+  ENDMETHOD.
+
+  METHOD teardown.
+    s_customize = saved_customize.
+  ENDMETHOD.
+
+  METHOD parse_select.
+    PERFORM query_parse USING query
+                        CHANGING select_part
+                                 from_part
+                                 tail_part
+                                 union_part
+                                 rows
+                                 no_authority
+                                 new_syntax
+                                 parse_error.
+  ENDMETHOD.
+
+  METHOD assert_limit_policy.
+    DATA select_part TYPE string.
+    DATA from_part TYPE string.
+    DATA tail_part TYPE string.
+    DATA union_part TYPE string.
+    DATA rows TYPE ty_rows.
+    DATA no_authority TYPE abap_bool.
+    DATA new_syntax TYPE abap_bool.
+    DATA parse_error TYPE abap_bool.
+
+    s_customize-default_rows = configured_default.
+    parse_select(
+      EXPORTING query = query
+      IMPORTING select_part = select_part
+                from_part = from_part
+                tail_part = tail_part
+                union_part = union_part
+                rows = rows
+                no_authority = no_authority
+                new_syntax = new_syntax
+                parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = parse_error
+      exp = expected_error
+      msg = 'The parser must apply the row-limit policy before generation' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = rows
+      exp = expected_rows
+      msg = 'The resolved row limit must match the bounded policy' ).
+  ENDMETHOD.
+
+  METHOD parses_simple_select.
+    DATA select_part TYPE string.
+    DATA from_part TYPE string.
+    DATA tail_part TYPE string.
+    DATA union_part TYPE string.
+    DATA rows TYPE ty_rows.
+    DATA expected_rows TYPE ty_rows.
+    DATA no_authority TYPE abap_bool.
+    DATA new_syntax TYPE abap_bool.
+    DATA parse_error TYPE abap_bool.
+
+    expected_rows = 100.
+
+    parse_select(
+      EXPORTING query = 'SELECT carrid FROM scarr'
+      IMPORTING select_part = select_part
+                from_part = from_part
+                tail_part = tail_part
+                union_part = union_part
+                rows = rows
+                no_authority = no_authority
+                new_syntax = new_syntax
+                parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = select_part
+      exp = 'carrid'
+      msg = 'SELECT list must be preserved' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = from_part
+      exp = 'scarr'
+      msg = 'FROM source must be preserved' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = rows
+      exp = expected_rows
+      msg = 'Default row limit must be applied' ).
+    cl_abap_unit_assert=>assert_initial( act = tail_part ).
+    cl_abap_unit_assert=>assert_initial( act = union_part ).
+    cl_abap_unit_assert=>assert_initial( act = no_authority ).
+    cl_abap_unit_assert=>assert_initial( act = new_syntax ).
+    cl_abap_unit_assert=>assert_initial( act = parse_error ).
+  ENDMETHOD.
+
+  METHOD honors_explicit_limit.
+    DATA select_part TYPE string.
+    DATA from_part TYPE string.
+    DATA tail_part TYPE string.
+    DATA union_part TYPE string.
+    DATA rows TYPE ty_rows.
+    DATA expected_rows TYPE ty_rows.
+    DATA no_authority TYPE abap_bool.
+    DATA new_syntax TYPE abap_bool.
+    DATA parse_error TYPE abap_bool.
+
+    expected_rows = 25.
+
+    parse_select(
+      EXPORTING query = 'SELECT carrid FROM scarr UP TO 25 ROWS'
+      IMPORTING select_part = select_part
+                from_part = from_part
+                tail_part = tail_part
+                union_part = union_part
+                rows = rows
+                no_authority = no_authority
+                new_syntax = new_syntax
+                parse_error = parse_error ).
+
+    CONDENSE from_part.
+    cl_abap_unit_assert=>assert_equals(
+      act = rows
+      exp = expected_rows
+      msg = 'Explicit row limit must override the default' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = from_part
+      exp = 'scarr'
+      msg = 'UP TO clause must be removed before generation' ).
+  ENDMETHOD.
+
+  METHOD rejects_zero_limit.
+    assert_limit_policy(
+      query = 'SELECT carrid FROM scarr UP TO 0 ROWS'
+      configured_default = 100
+      expected_rows = 0
+      expected_error = abap_true ).
+  ENDMETHOD.
+
+  METHOD accepts_policy_maximum.
+    assert_limit_policy(
+      query = 'SELECT carrid FROM scarr UP TO 10000 ROWS'
+      configured_default = 100
+      expected_rows = lcl_query_row_policy=>c_max_rows
+      expected_error = abap_false ).
+  ENDMETHOD.
+
+  METHOD rejects_above_maximum.
+    assert_limit_policy(
+      query = 'SELECT carrid FROM scarr UP TO 10001 ROWS'
+      configured_default = 100
+      expected_rows = 0
+      expected_error = abap_true ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_limit.
+    assert_limit_policy(
+      query = 'SELECT carrid FROM scarr UP TO -1 ROWS'
+      configured_default = 100
+      expected_rows = 0
+      expected_error = abap_true ).
+    assert_limit_policy(
+      query = 'SELECT carrid FROM scarr UP TO MANY ROWS'
+      configured_default = 100
+      expected_rows = 0
+      expected_error = abap_true ).
+  ENDMETHOD.
+
+  METHOD rejects_overflow_limit.
+    assert_limit_policy(
+      query = 'SELECT carrid FROM scarr UP TO 2147483648 ROWS'
+      configured_default = 100
+      expected_rows = 0
+      expected_error = abap_true ).
+  ENDMETHOD.
+
+  METHOD accepts_leading_zero_limit.
+    assert_limit_policy(
+      query = 'SELECT carrid FROM scarr UP TO 000025 ROWS'
+      configured_default = 100
+      expected_rows = 25
+      expected_error = abap_false ).
+  ENDMETHOD.
+
+  METHOD normalizes_invalid_defaults.
+    assert_limit_policy(
+      query = 'SELECT carrid FROM scarr'
+      configured_default = 0
+      expected_rows = lcl_query_row_policy=>c_fallback_rows
+      expected_error = abap_false ).
+    assert_limit_policy(
+      query = 'SELECT carrid FROM scarr'
+      configured_default = -1
+      expected_rows = lcl_query_row_policy=>c_fallback_rows
+      expected_error = abap_false ).
+  ENDMETHOD.
+
+  METHOD caps_oversized_default.
+    assert_limit_policy(
+      query = 'SELECT carrid FROM scarr'
+      configured_default = 50000
+      expected_rows = lcl_query_row_policy=>c_max_rows
+      expected_error = abap_false ).
+  ENDMETHOD.
+
+  METHOD keeps_tail_clauses.
+    DATA select_part TYPE string.
+    DATA from_part TYPE string.
+    DATA tail_part TYPE string.
+    DATA union_part TYPE string.
+    DATA rows TYPE ty_rows.
+    DATA no_authority TYPE abap_bool.
+    DATA new_syntax TYPE abap_bool.
+    DATA parse_error TYPE abap_bool.
+
+    parse_select(
+      EXPORTING
+        query = `SELECT carrid COUNT( * ) FROM sflight WHERE connid > '0' GROUP BY carrid HAVING COUNT( * ) > 1 ORDER BY carrid`
+      IMPORTING select_part = select_part
+                from_part = from_part
+                tail_part = tail_part
+                union_part = union_part
+                rows = rows
+                no_authority = no_authority
+                new_syntax = new_syntax
+                parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = tail_part
+      exp = ` WHERE connid > '0' GROUP BY carrid HAVING COUNT( * ) > 1 ORDER BY carrid`
+      msg = 'WHERE through ORDER BY must remain in one ordered tail' ).
+  ENDMETHOD.
+
+  METHOD separates_union.
+    DATA select_part TYPE string.
+    DATA from_part TYPE string.
+    DATA tail_part TYPE string.
+    DATA union_part TYPE string.
+    DATA rows TYPE ty_rows.
+    DATA no_authority TYPE abap_bool.
+    DATA new_syntax TYPE abap_bool.
+    DATA parse_error TYPE abap_bool.
+
+    parse_select(
+      EXPORTING
+        query = 'SELECT carrid FROM scarr UNION SELECT carrid FROM sflight'
+      IMPORTING select_part = select_part
+                from_part = from_part
+                tail_part = tail_part
+                union_part = union_part
+                rows = rows
+                no_authority = no_authority
+                new_syntax = new_syntax
+                parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = union_part
+      exp = 'UNION SELECT carrid FROM sflight'
+      msg = 'The set operator must remain attached to its right branch' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = from_part
+      exp = 'scarr'
+      msg = 'First UNION branch must remain intact' ).
+  ENDMETHOD.
+
+  METHOD separates_union_expression.
+    DATA select_part TYPE string.
+    DATA union_part TYPE string.
+    DATA parse_error TYPE abap_bool.
+
+    parse_select(
+      EXPORTING
+        query = `SELECT CONCAT( 'A UNION B', carrname ) AS label FROM scarr`
+             && ` UNION SELECT carrname FROM scarr`
+      IMPORTING select_part = select_part
+                union_part = union_part
+                parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = select_part
+      exp = `CONCAT( 'A UNION B', carrname ) AS label`
+      msg = 'Masked expression content before UNION must not be truncated' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = union_part
+      exp = 'UNION SELECT carrname FROM scarr'
+      msg = 'The top-level set expression must preserve its operator' ).
+    cl_abap_unit_assert=>assert_initial( act = parse_error ).
+  ENDMETHOD.
+
+  METHOD separates_union_all.
+    DATA union_part TYPE string.
+    DATA parse_error TYPE abap_bool.
+
+    parse_select(
+      EXPORTING
+        query = `SELECT carrid FROM scarr`
+             && cl_abap_char_utilities=>newline
+             && `UNION   ALL`
+             && cl_abap_char_utilities=>newline
+             && `SELECT carrid FROM sflight`
+      IMPORTING union_part = union_part
+                parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = union_part
+      exp = `UNION   ALL`
+         && cl_abap_char_utilities=>newline
+         && `SELECT carrid FROM sflight`
+      msg = 'UNION ALL must follow the same top-level set path' ).
+    cl_abap_unit_assert=>assert_initial( act = parse_error ).
+  ENDMETHOD.
+
+  METHOD separates_union_distinct.
+    DATA union_part TYPE string.
+    DATA parse_error TYPE abap_bool.
+
+    parse_select(
+      EXPORTING
+        query = `SELECT carrid FROM scarr`
+             && ` UNION DISTINCT SELECT carrid FROM sflight`
+      IMPORTING union_part = union_part
+                parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = union_part
+      exp = `UNION DISTINCT SELECT carrid FROM sflight`
+      msg = 'An explicit DISTINCT modifier must reach SAP unchanged' ).
+    cl_abap_unit_assert=>assert_initial( act = parse_error ).
+  ENDMETHOD.
+
+  METHOD rejects_union_branch_limit.
+    DATA parse_error TYPE abap_bool.
+
+    parse_select(
+      EXPORTING
+        query = `SELECT carrid FROM scarr UP TO 1 ROWS`
+             && ` UNION ALL SELECT carrid FROM sflight`
+      IMPORTING parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = parse_error
+      msg = 'A row limit before another set branch is not a global cap' ).
+  ENDMETHOD.
+
+  METHOD rejects_union_single.
+    DATA parse_error TYPE abap_bool.
+
+    parse_select(
+      EXPORTING
+        query = `SELECT SINGLE mandt FROM T000`
+             && ` UNION SELECT mandt FROM T000`
+      IMPORTING parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = parse_error
+      msg = 'SINGLE must not be silently rewritten as a set result cap' ).
+  ENDMETHOD.
+
+  METHOD detects_comma_syntax.
+    DATA select_part TYPE string.
+    DATA from_part TYPE string.
+    DATA tail_part TYPE string.
+    DATA union_part TYPE string.
+    DATA rows TYPE ty_rows.
+    DATA no_authority TYPE abap_bool.
+    DATA new_syntax TYPE abap_bool.
+    DATA parse_error TYPE abap_bool.
+
+    parse_select(
+      EXPORTING query = 'SELECT carrid, connid FROM sflight'
+      IMPORTING select_part = select_part
+                from_part = from_part
+                tail_part = tail_part
+                union_part = union_part
+                rows = rows
+                no_authority = no_authority
+                new_syntax = new_syntax
+                parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = new_syntax
+      exp = abap_true
+      msg = 'Comma-separated SELECT list must select new syntax' ).
+  ENDMETHOD.
+
+  METHOD strips_into_target.
+    DATA select_part TYPE string.
+    DATA from_part TYPE string.
+    DATA tail_part TYPE string.
+    DATA union_part TYPE string.
+    DATA rows TYPE ty_rows.
+    DATA no_authority TYPE abap_bool.
+    DATA new_syntax TYPE abap_bool.
+    DATA parse_error TYPE abap_bool.
+
+    parse_select(
+      EXPORTING
+        query = 'SELECT carrid FROM scarr INTO TABLE @DATA(result)'
+      IMPORTING select_part = select_part
+                from_part = from_part
+                tail_part = tail_part
+                union_part = union_part
+                rows = rows
+                no_authority = no_authority
+                new_syntax = new_syntax
+                parse_error = parse_error ).
+
+    CONDENSE from_part.
+    cl_abap_unit_assert=>assert_equals(
+      act = from_part
+      exp = 'scarr'
+      msg = 'Caller-provided INTO target must be stripped' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = new_syntax
+      exp = abap_true
+      msg = 'Escaped INTO target must select new syntax' ).
+
+    parse_select(
+      EXPORTING
+        query = `SELECT carrid FROM scarr`
+             && cl_abap_char_utilities=>newline
+             && `APPENDING CORRESPONDING FIELDS OF TABLE result`
+      IMPORTING from_part = from_part
+                new_syntax = new_syntax
+                parse_error = parse_error ).
+    CONDENSE from_part.
+    cl_abap_unit_assert=>assert_equals(
+      act = from_part
+      exp = 'scarr'
+      msg = 'A multiline legacy APPENDING target must be stripped' ).
+    cl_abap_unit_assert=>assert_initial(
+      act = new_syntax
+      msg = 'A non-escaped target must retain legacy syntax' ).
+    cl_abap_unit_assert=>assert_initial( act = parse_error ).
+  ENDMETHOD.
+
+  METHOD ignores_literal_from_keyword.
+    DATA select_part TYPE string.
+    DATA from_part TYPE string.
+    DATA parse_error TYPE abap_bool.
+
+    parse_select(
+      EXPORTING
+        query = `SELECT CONCAT( 'A'' FROM ''B', carrname ) AS label FROM scarr`
+      IMPORTING select_part = select_part
+                from_part = from_part
+                parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = select_part
+      exp = `CONCAT( 'A'' FROM ''B', carrname ) AS label`
+      msg = 'FROM inside a doubled-quote literal is not a clause' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = from_part
+      exp = 'scarr'
+      msg = 'The first top-level FROM must delimit the select list' ).
+    cl_abap_unit_assert=>assert_initial( act = parse_error ).
+  ENDMETHOD.
+
+  METHOD ignores_literal_union_keyword.
+    DATA tail_part TYPE string.
+    DATA union_part TYPE string.
+    DATA parse_error TYPE abap_bool.
+
+    parse_select(
+      EXPORTING
+        query = `SELECT carrid FROM scarr WHERE carrid = ' UNION SELECT '`
+      IMPORTING tail_part = tail_part
+                union_part = union_part
+                parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = tail_part
+      exp = ` WHERE carrid = ' UNION SELECT '`
+      msg = 'UNION SELECT inside a literal must remain data' ).
+    cl_abap_unit_assert=>assert_initial(
+      act = union_part
+      msg = 'A literal must not create another query branch' ).
+    cl_abap_unit_assert=>assert_initial( act = parse_error ).
+  ENDMETHOD.
+
+  METHOD keeps_literal_row_limit.
+    DATA tail_part TYPE string.
+    DATA rows TYPE ty_rows.
+    DATA expected_rows TYPE ty_rows.
+    DATA parse_error TYPE abap_bool.
+
+    expected_rows = 100.
+    parse_select(
+      EXPORTING
+        query = `SELECT carrid FROM scarr WHERE carrid = 'UP TO 5 ROWS'`
+      IMPORTING tail_part = tail_part
+                rows = rows
+                parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = tail_part
+      exp = ` WHERE carrid = 'UP TO 5 ROWS'`
+      msg = 'A row-limit lookalike inside a literal must be preserved' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = rows
+      exp = expected_rows
+      msg = 'A literal must not override the default row limit' ).
+    cl_abap_unit_assert=>assert_initial( act = parse_error ).
+
+    expected_rows = 7.
+    parse_select(
+      EXPORTING
+        query = `SELECT carrid FROM scarr`
+             && ` WHERE carrid = 'UP TO 5 ROWS' UP TO 7 ROWS`
+      IMPORTING tail_part = tail_part
+                rows = rows
+                parse_error = parse_error ).
+    cl_abap_unit_assert=>assert_equals(
+      act = tail_part
+      exp = ` WHERE carrid = 'UP TO 5 ROWS'`
+      msg = 'Removing the real limit must preserve adjacent literal data' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = rows
+      exp = expected_rows
+      msg = 'Only the top-level row limit can override the default' ).
+    cl_abap_unit_assert=>assert_initial( act = parse_error ).
+  ENDMETHOD.
+
+  METHOD ignores_literal_tail_keyword.
+    DATA from_part TYPE string.
+    DATA tail_part TYPE string.
+    DATA parse_error TYPE abap_bool.
+
+    parse_select(
+      EXPORTING
+        query = `SELECT a~carrid FROM scarr AS a INNER JOIN spfli AS b`
+             && ` ON b~carrid = a~carrid AND b~cityfrom = ' ORDER BY '`
+             && ` ORDER BY a~carrid`
+      IMPORTING from_part = from_part
+                tail_part = tail_part
+                parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = from_part
+      exp = `scarr AS a INNER JOIN spfli AS b`
+         && ` ON b~carrid = a~carrid AND b~cityfrom = ' ORDER BY '`
+      msg = 'A literal in JOIN ON must remain in the FROM clause' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = tail_part
+      exp = ` ORDER BY a~carrid`
+      msg = 'Only the top-level ORDER BY can start the query tail' ).
+    cl_abap_unit_assert=>assert_initial( act = parse_error ).
+  ENDMETHOD.
+
+  METHOD ignores_tail_keyword_matrix.
+    DATA keywords TYPE string_table.
+    DATA keyword TYPE string.
+    DATA literal TYPE string.
+    DATA query TYPE string.
+    DATA expected_from TYPE string.
+    DATA from_part TYPE string.
+    DATA tail_part TYPE string.
+    DATA parse_error TYPE abap_bool.
+
+    APPEND ' WHERE ' TO keywords.
+    APPEND ' GROUP BY ' TO keywords.
+    APPEND ' HAVING ' TO keywords.
+    APPEND ' ORDER BY ' TO keywords.
+
+    LOOP AT keywords INTO keyword.
+      literal = `'` && keyword && `'`.
+      query = `SELECT a~carrid FROM scarr AS a INNER JOIN spfli AS b`
+           && ` ON b~carrid = a~carrid AND b~cityfrom = `
+           && literal
+           && ` ORDER BY a~carrid`.
+      expected_from = `scarr AS a INNER JOIN spfli AS b`
+                   && ` ON b~carrid = a~carrid AND b~cityfrom = `
+                   && literal.
+
+      parse_select(
+        EXPORTING query = query
+        IMPORTING from_part = from_part
+                  tail_part = tail_part
+                  parse_error = parse_error ).
+
+      cl_abap_unit_assert=>assert_equals(
+        act = from_part
+        exp = expected_from
+        msg = 'A literal tail-keyword lookalike must remain data' ).
+      cl_abap_unit_assert=>assert_equals(
+        act = tail_part
+        exp = ` ORDER BY a~carrid`
+        msg = 'The actual top-level tail must remain visible' ).
+      cl_abap_unit_assert=>assert_initial( act = parse_error ).
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD accepts_multiline_clauses.
+    DATA select_part TYPE string.
+    DATA from_part TYPE string.
+    DATA tail_part TYPE string.
+    DATA parse_error TYPE abap_bool.
+    DATA(query) = `SELECT carrid`
+               && cl_abap_char_utilities=>newline
+               && `FROM scarr`
+               && cl_abap_char_utilities=>newline
+               && `WHERE carrid = 'LH'`.
+
+    parse_select(
+      EXPORTING query = query
+      IMPORTING select_part = select_part
+                from_part = from_part
+                tail_part = tail_part
+                parse_error = parse_error ).
+
+    CONDENSE select_part.
+    CONDENSE from_part.
+    REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>newline
+            IN tail_part WITH space.
+    CONDENSE tail_part.
+    cl_abap_unit_assert=>assert_equals( act = select_part exp = 'carrid' ).
+    cl_abap_unit_assert=>assert_equals( act = from_part exp = 'scarr' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = tail_part
+      exp = `WHERE carrid = 'LH'`
+      msg = 'Clause whitespace can include a line break' ).
+    cl_abap_unit_assert=>assert_initial( act = parse_error ).
+  ENDMETHOD.
+
+  METHOD rejects_comment_union_keyword.
+    DATA union_part TYPE string.
+    DATA parse_error TYPE abap_bool.
+
+    parse_select(
+      EXPORTING
+        query = `SELECT carrid FROM scarr " UNION SELECT carrid FROM sflight`
+      IMPORTING union_part = union_part
+                parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = parse_error
+      msg = 'A surviving comment must fail before structural splitting' ).
+    cl_abap_unit_assert=>assert_initial(
+      act = union_part
+      msg = 'Comment text must not create an executable UNION branch' ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_from.
+    DATA select_part TYPE string.
+    DATA from_part TYPE string.
+    DATA tail_part TYPE string.
+    DATA union_part TYPE string.
+    DATA rows TYPE ty_rows.
+    DATA no_authority TYPE abap_bool.
+    DATA new_syntax TYPE abap_bool.
+    DATA parse_error TYPE abap_bool.
+
+    parse_select(
+      EXPORTING query = 'SELECT carrid'
+      IMPORTING select_part = select_part
+                from_part = from_part
+                tail_part = tail_part
+                union_part = union_part
+                rows = rows
+                no_authority = no_authority
+                new_syntax = new_syntax
+                parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = parse_error
+      exp = abap_true
+      msg = 'SELECT without FROM must be rejected' ).
+  ENDMETHOD.
+
+  METHOD rejects_unauthorized_subquery.
+    DATA no_authority TYPE abap_bool.
+    DATA parse_error TYPE abap_bool.
+
+    s_customize-auth_select = 'SCARR'.
+
+    parse_select(
+      EXPORTING
+        query = `SELECT carrid FROM scarr WHERE carrid IN ( SELECT carrid FROM sflight )`
+      IMPORTING no_authority = no_authority
+                parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = no_authority
+      msg = 'Unauthorized subquery source must be rejected' ).
+    cl_abap_unit_assert=>assert_initial( act = parse_error ).
+  ENDMETHOD.
+
+  METHOD accepts_authorized_subquery.
+    DATA no_authority TYPE abap_bool.
+    DATA parse_error TYPE abap_bool.
+
+    s_customize-auth_select = 'S*'.
+
+    parse_select(
+      EXPORTING
+        query = `SELECT carrid FROM scarr WHERE carrid IN ( SELECT carrid FROM sflight )`
+      IMPORTING no_authority = no_authority
+                parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_initial( act = no_authority ).
+    cl_abap_unit_assert=>assert_initial( act = parse_error ).
+  ENDMETHOD.
+
+  METHOD rejects_two_level_subquery.
+    DATA no_authority TYPE abap_bool.
+
+    s_customize-auth_select = 'SCARR'.
+
+    parse_select(
+      EXPORTING
+        query = `SELECT carrid FROM scarr WHERE EXISTS ( SELECT carrid FROM spfli WHERE EXISTS ( SELECT carrid FROM sflight ) )`
+      IMPORTING no_authority = no_authority ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = no_authority
+      msg = 'Every nested physical source must be authorized' ).
+  ENDMETHOD.
+
+  METHOD ignores_literal_source_keyword.
+    DATA no_authority TYPE abap_bool.
+    DATA parse_error TYPE abap_bool.
+
+    s_customize-auth_select = 'SCARR'.
+
+    parse_select(
+      EXPORTING
+        query = `SELECT carrid FROM scarr WHERE carrid = 'FROM SFLIGHT'`
+      IMPORTING no_authority = no_authority
+                parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = no_authority
+      msg = 'Keywords in literals are not data sources' ).
+    cl_abap_unit_assert=>assert_initial( act = parse_error ).
+  ENDMETHOD.
+
+  METHOD rejects_source_comment.
+    DATA parse_error TYPE abap_bool.
+
+    s_customize-auth_select = '*'.
+
+    parse_select(
+      EXPORTING
+        query = `SELECT carrid FROM scarr " source can resume after generated line wrapping`
+      IMPORTING parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = parse_error
+      msg = 'Comments must fail before generated-source line wrapping' ).
+  ENDMETHOD.
+
+  METHOD rejects_path_source.
+    DATA parse_error TYPE abap_bool.
+
+    s_customize-auth_select = '*'.
+
+    parse_select(
+      EXPORTING query = `SELECT * FROM \_association`
+      IMPORTING parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = parse_error
+      msg = 'Path-expression sources cannot be mapped to a physical object' ).
+  ENDMETHOD.
+
+  METHOD rejects_attached_path_source.
+    DATA parse_error TYPE abap_bool.
+
+    s_customize-auth_select = '*'.
+
+    parse_select(
+      EXPORTING query = `SELECT COUNT( * ) FROM zi_view\_association`
+      IMPORTING parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = parse_error
+      msg = 'Attached path sources cannot be mapped to one physical object' ).
+  ENDMETHOD.
+
+  METHOD rejects_hierarchy_source.
+    DATA parse_error TYPE abap_bool.
+
+    s_customize-auth_select = '*'.
+
+    parse_select(
+      EXPORTING query = `SELECT * FROM HIERARCHY( SOURCE scarr )`
+      IMPORTING parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = parse_error
+      msg = 'Hierarchy sources must fail until their grammar is modeled' ).
+  ENDMETHOD.
+
+  METHOD accepts_hierarchy_named_table.
+    DATA no_authority TYPE abap_bool.
+    DATA parse_error TYPE abap_bool.
+
+    s_customize-auth_select = 'HIERARCHY_*'.
+
+    parse_select(
+      EXPORTING query = `SELECT * FROM hierarchy_table`
+      IMPORTING no_authority = no_authority
+                parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = no_authority
+      msg = 'A table whose name starts with HIERARCHY must remain usable' ).
+    cl_abap_unit_assert=>assert_initial( act = parse_error ).
+  ENDMETHOD.
+
+  METHOD rejects_parenthesized_join.
+    DATA parse_error TYPE abap_bool.
+
+    s_customize-auth_select = '*'.
+
+    parse_select(
+      EXPORTING
+        query = `SELECT a~carrid FROM ( scarr AS a INNER JOIN sflight AS b`
+             && ` ON b~carrid = a~carrid )`
+      IMPORTING parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = parse_error
+      msg = 'Parenthesized joins must fail until their grammar is modeled' ).
+  ENDMETHOD.
+
+  METHOD accepts_authorized_join.
+    DATA no_authority TYPE abap_bool.
+    DATA parse_error TYPE abap_bool.
+
+    s_customize-auth_select = 'S*'.
+
+    parse_select(
+      EXPORTING
+        query = `SELECT a~carrid FROM scarr AS a INNER JOIN sflight AS b ON b~carrid = a~carrid`
+      IMPORTING no_authority = no_authority
+                parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_initial( act = no_authority ).
+    cl_abap_unit_assert=>assert_initial( act = parse_error ).
+  ENDMETHOD.
+
+  METHOD rejects_unauthorized_union.
+    DATA no_authority TYPE abap_bool.
+    DATA parse_error TYPE abap_bool.
+
+    s_customize-auth_select = 'SCARR'.
+
+    parse_select(
+      EXPORTING
+        query = `SELECT carrid FROM scarr UNION SELECT carrid FROM sflight`
+      IMPORTING no_authority = no_authority
+                parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = no_authority
+      msg = 'The complete UNION must authorize every source before execution' ).
+    cl_abap_unit_assert=>assert_initial( act = parse_error ).
+  ENDMETHOD.
+
+  METHOD rejects_unauthorized_union_all.
+    DATA no_authority TYPE abap_bool.
+    DATA parse_error TYPE abap_bool.
+
+    s_customize-auth_select = 'SCARR'.
+
+    parse_select(
+      EXPORTING
+        query = `SELECT carrid FROM scarr UNION ALL SELECT carrid FROM sflight`
+      IMPORTING no_authority = no_authority
+                parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = no_authority
+      msg = 'UNION ALL must not hide an unauthorized later source' ).
+    cl_abap_unit_assert=>assert_initial( act = parse_error ).
+  ENDMETHOD.
+
+  METHOD rejects_dynamic_source.
+    DATA no_authority TYPE abap_bool.
+    DATA parse_error TYPE abap_bool.
+
+    s_customize-auth_select = '*'.
+
+    parse_select(
+      EXPORTING query = `SELECT * FROM (dynamic_table)`
+      IMPORTING no_authority = no_authority
+                parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = parse_error
+      exp = abap_true
+      msg = 'Unprovable dynamic data sources must fail closed' ).
+  ENDMETHOD.
+
+  METHOD rejects_unsupported_cte.
+    DATA no_authority TYPE abap_bool.
+    DATA parse_error TYPE abap_bool.
+
+    s_customize-auth_select = '*'.
+
+    parse_select(
+      EXPORTING
+        query = `WITH +cte AS ( SELECT carrid FROM sflight ) SELECT carrid FROM +cte`
+      IMPORTING no_authority = no_authority
+                parse_error = parse_error ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = parse_error
+      exp = abap_true
+      msg = 'Unsupported CTE input must fail before generation' ).
+  ENDMETHOD.
+ENDCLASS.
+
+
+CLASS ltc_query_input_validator DEFINITION FINAL
+  FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+  PRIVATE SECTION.
+    METHODS accepts_common_sql FOR TESTING.
+    METHODS accepts_literal_metacharacters FOR TESTING.
+    METHODS accepts_doubled_quote FOR TESTING.
+    METHODS rejects_statement_terminator FOR TESTING.
+    METHODS rejects_source_comment FOR TESTING.
+    METHODS rejects_host_escape FOR TESTING.
+    METHODS rejects_host_component FOR TESTING.
+    METHODS rejects_unbalanced_literal FOR TESTING.
+    METHODS rejects_backtick_literal FOR TESTING.
+    METHODS rejects_string_template FOR TESTING.
+    METHODS rejects_chained_statement FOR TESTING.
+    METHODS rejects_namespace_like_period FOR TESTING.
+ENDCLASS.
+
+CLASS ltc_query_input_validator IMPLEMENTATION.
+  METHOD accepts_common_sql.
+    cl_abap_unit_assert=>assert_true(
+      act = lcl_query_input_validator=>is_safe(
+        `SELECT /DMO/TRAVEL~TRAVEL_ID, TOTAL_PRICE, COUNT( * )`
+        && ` FROM /DMO/TRAVEL WHERE TOTAL_PRICE - TAX >= -1.25` )
+      msg = 'Common SQL identifiers, functions, and numbers must remain valid' ).
+  ENDMETHOD.
+
+  METHOD accepts_literal_metacharacters.
+    cl_abap_unit_assert=>assert_true(
+      act = lcl_query_input_validator=>is_safe(
+        `WHERE TEXT = 'A.B@C:"|;:-'` )
+      msg = 'Source metacharacters inside a SQL literal are data' ).
+  ENDMETHOD.
+
+  METHOD accepts_doubled_quote.
+    cl_abap_unit_assert=>assert_true(
+      act = lcl_query_input_validator=>is_safe(
+        `WHERE CITY = 'O''HARE'` )
+      msg = 'Doubled SQL quotes must remain valid' ).
+  ENDMETHOD.
+
+  METHOD rejects_statement_terminator.
+    cl_abap_unit_assert=>assert_false(
+      act = lcl_query_input_validator=>is_safe(
+        `WHERE CARRID = 'LH'. WRITE sy-uname` ) ).
+  ENDMETHOD.
+
+  METHOD rejects_source_comment.
+    cl_abap_unit_assert=>assert_false(
+      act = lcl_query_input_validator=>is_safe(
+        `WHERE CARRID = 'LH' " comment` ) ).
+  ENDMETHOD.
+
+  METHOD rejects_host_escape.
+    cl_abap_unit_assert=>assert_false(
+      act = lcl_query_input_validator=>is_safe(
+        `WHERE CARRID = @sy-uname` ) ).
+  ENDMETHOD.
+
+  METHOD rejects_host_component.
+    cl_abap_unit_assert=>assert_false(
+      act = lcl_query_input_validator=>is_safe(
+        `WHERE CARRID = sy-uname` ) ).
+  ENDMETHOD.
+
+  METHOD rejects_unbalanced_literal.
+    cl_abap_unit_assert=>assert_false(
+      act = lcl_query_input_validator=>is_safe(
+        `WHERE CARRID = 'LH` ) ).
+  ENDMETHOD.
+
+  METHOD rejects_backtick_literal.
+    cl_abap_unit_assert=>assert_false(
+      act = lcl_query_input_validator=>is_safe(
+        'WHERE TEXT = `unsafe`' ) ).
+  ENDMETHOD.
+
+  METHOD rejects_string_template.
+    cl_abap_unit_assert=>assert_false(
+      act = lcl_query_input_validator=>is_safe(
+        'WHERE TEXT = |unsafe|' ) ).
+  ENDMETHOD.
+
+  METHOD rejects_chained_statement.
+    cl_abap_unit_assert=>assert_false(
+      act = lcl_query_input_validator=>is_safe(
+        `UPDATE SCARR SET CARRNAME = 'X': WRITE sy-uname` ) ).
+  ENDMETHOD.
+
+  METHOD rejects_namespace_like_period.
+    cl_abap_unit_assert=>assert_false(
+      act = lcl_query_input_validator=>is_safe(
+        `SELECT CARRID AS ABAP.WRITE sy-uname FROM SCARR` ) ).
+  ENDMETHOD.
+ENDCLASS.
+
+
+CLASS ltcl_select_expr_analyzer DEFINITION FINAL
+  FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+  PRIVATE SECTION.
+    METHODS finds_simple_case_result FOR TESTING.
+    METHODS finds_searched_case_result FOR TESTING.
+    METHODS finds_unqualified_case_result FOR TESTING.
+    METHODS ignores_quoted_then FOR TESTING.
+    METHODS ignores_spaced_quoted_then FOR TESTING.
+    METHODS ignores_escaped_quoted_then FOR TESTING.
+    METHODS rejects_literal_result FOR TESTING.
+ENDCLASS.
+
+CLASS ltcl_select_expr_analyzer IMPLEMENTATION.
+  METHOD finds_simple_case_result.
+    cl_abap_unit_assert=>assert_equals(
+      act = lcl_select_expression_analyzer=>find_case_result_reference(
+        `SUM( CASE SFLIGHT~CARRID WHEN 'LH' THEN SFLIGHT~PRICE ELSE SFLIGHT~PRICE END )` )
+      exp = 'SFLIGHT~PRICE' ).
+  ENDMETHOD.
+
+  METHOD finds_searched_case_result.
+    cl_abap_unit_assert=>assert_equals(
+      act = lcl_select_expression_analyzer=>find_case_result_reference(
+        `SUM( CASE WHEN SFLIGHT~PRICE > 0 THEN SFLIGHT~PRICE ELSE SFLIGHT~PRICE END )` )
+      exp = 'SFLIGHT~PRICE' ).
+  ENDMETHOD.
+
+  METHOD finds_unqualified_case_result.
+    cl_abap_unit_assert=>assert_equals(
+      act = lcl_select_expression_analyzer=>find_case_result_reference(
+        `SUM( CASE CARRID WHEN 'LH' THEN PRICE ELSE PRICE END )` )
+      exp = 'PRICE' ).
+  ENDMETHOD.
+
+  METHOD ignores_quoted_then.
+    cl_abap_unit_assert=>assert_equals(
+      act = lcl_select_expression_analyzer=>find_case_result_reference(
+        `SUM( CASE SFLIGHT~CARRID WHEN 'THEN' THEN SFLIGHT~PRICE ELSE SFLIGHT~PRICE END )` )
+      exp = 'SFLIGHT~PRICE' ).
+  ENDMETHOD.
+
+  METHOD ignores_spaced_quoted_then.
+    cl_abap_unit_assert=>assert_equals(
+      act = lcl_select_expression_analyzer=>find_case_result_reference(
+        `SUM( CASE SFLIGHT~CARRID WHEN 'X THEN Y' THEN SFLIGHT~PRICE ELSE SFLIGHT~PRICE END )` )
+      exp = 'SFLIGHT~PRICE'
+      msg = 'THEN inside a spaced literal is not a CASE branch' ).
+  ENDMETHOD.
+
+  METHOD ignores_escaped_quoted_then.
+    cl_abap_unit_assert=>assert_equals(
+      act = lcl_select_expression_analyzer=>find_case_result_reference(
+        `SUM( CASE SFLIGHT~CARRID WHEN 'X'' THEN Y' THEN SFLIGHT~PRICE ELSE SFLIGHT~PRICE END )` )
+      exp = 'SFLIGHT~PRICE'
+      msg = 'THEN inside a doubled-quote literal is not a CASE branch' ).
+  ENDMETHOD.
+
+  METHOD rejects_literal_result.
+    cl_abap_unit_assert=>assert_initial(
+      act = lcl_select_expression_analyzer=>find_case_result_reference(
+        `SUM( CASE SFLIGHT~CARRID WHEN 'LH' THEN 1 ELSE 0 END )` ) ).
+  ENDMETHOD.
+ENDCLASS.
+
+
+CLASS ltcl_select_list_scanner DEFINITION FINAL
+  FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+  PRIVATE SECTION.
+    METHODS normalizes_nested_commas FOR TESTING.
+    METHODS preserves_doubled_quotes FOR TESTING.
+    METHODS recognizes_v750_family FOR TESTING.
+    METHODS ignores_literal_lookalike FOR TESTING.
+    METHODS tracks_nested_expression FOR TESTING.
+    METHODS rejects_unbalanced_list FOR TESTING.
+    METHODS rejects_trailing_expression FOR TESTING.
+ENDCLASS.
+
+CLASS ltcl_select_list_scanner IMPLEMENTATION.
+  METHOD normalizes_nested_commas.
+    DATA normalized TYPE string.
+    DATA invalid TYPE abap_bool.
+
+    lcl_select_list_scanner=>normalize_for_inference(
+      EXPORTING
+        select_list        = `TABNAME,SUBSTRING( FIELDNAME, 1, 3 ),`
+                          && `CONCAT( TABNAME, ', ' )`
+      IMPORTING normalized = normalized
+                invalid    = invalid ).
+
+    cl_abap_unit_assert=>assert_initial( act = invalid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = normalized
+      exp = `TABNAME SUBSTRING( FIELDNAME, 1, 3 ) `
+         && `CONCAT( TABNAME, ', ' )`
+      msg = 'Only top-level result commas may become spaces' ).
+  ENDMETHOD.
+
+  METHOD preserves_doubled_quotes.
+    DATA normalized TYPE string.
+    DATA invalid TYPE abap_bool.
+
+    lcl_select_list_scanner=>normalize_for_inference(
+      EXPORTING
+        select_list        = `CONCAT( TABNAME, 'O''HARE, ' ),FIELDNAME`
+      IMPORTING normalized = normalized
+                invalid    = invalid ).
+
+    cl_abap_unit_assert=>assert_initial( act = invalid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = normalized
+      exp = `CONCAT( TABNAME, 'O''HARE, ' ) FIELDNAME`
+      msg = 'Doubled quotes and literal commas must remain data' ).
+  ENDMETHOD.
+
+  METHOD recognizes_v750_family.
+    DATA functions TYPE string_table.
+    DATA function TYPE string.
+
+    APPEND 'CONCAT(' TO functions.
+    APPEND 'LPAD(' TO functions.
+    APPEND 'LTRIM(' TO functions.
+    APPEND 'REPLACE(' TO functions.
+    APPEND 'RIGHT(' TO functions.
+    APPEND 'RTRIM(' TO functions.
+    APPEND 'SUBSTRING(' TO functions.
+
+    LOOP AT functions INTO function.
+      cl_abap_unit_assert=>assert_equals(
+        act = lcl_select_list_scanner=>get_function_result_type( function )
+        exp = 'string'
+        msg = 'A 7.50 character function needs a string component' ).
+    ENDLOOP.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lcl_select_list_scanner=>get_function_result_type( 'LENGTH(' )
+      exp = 'i'
+      msg = 'LENGTH needs an integer component' ).
+  ENDMETHOD.
+
+  METHOD ignores_literal_lookalike.
+    cl_abap_unit_assert=>assert_false(
+      act = lcl_select_list_scanner=>contains_v750_function(
+        `'CONCAT(' AS TEXT` )
+      msg = 'Function-like literal data must not activate strict mode' ).
+  ENDMETHOD.
+
+  METHOD tracks_nested_expression.
+    DATA complete TYPE abap_bool.
+    DATA invalid TYPE abap_bool.
+
+    lcl_select_list_scanner=>get_expression_state(
+      EXPORTING
+        expression       = `CONCAT( TABNAME, SUBSTRING( FIELDNAME, 1, 3 ) )`
+      IMPORTING complete = complete
+                invalid  = invalid ).
+
+    cl_abap_unit_assert=>assert_true( act = complete ).
+    cl_abap_unit_assert=>assert_initial( act = invalid ).
+  ENDMETHOD.
+
+  METHOD rejects_unbalanced_list.
+    DATA normalized TYPE string.
+    DATA invalid TYPE abap_bool.
+
+    lcl_select_list_scanner=>normalize_for_inference(
+      EXPORTING select_list = `SUBSTRING( FIELDNAME, 1, 3`
+      IMPORTING normalized  = normalized
+                invalid     = invalid ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = invalid
+      msg = 'Unbalanced select-list expressions must fail closed' ).
+  ENDMETHOD.
+
+  METHOD rejects_trailing_expression.
+    DATA complete TYPE abap_bool.
+    DATA invalid TYPE abap_bool.
+
+    lcl_select_list_scanner=>get_expression_state(
+      EXPORTING expression = `LENGTH( FIELDNAME ) + 1`
+      IMPORTING complete   = complete
+                invalid    = invalid ).
+
+    cl_abap_unit_assert=>assert_initial( act = complete ).
+    cl_abap_unit_assert=>assert_true(
+      act = invalid
+      msg = 'Unsupported trailing expression syntax must fail closed' ).
+  ENDMETHOD.
+ENDCLASS.
+
+
+CLASS ltc_query_generator DEFINITION FINAL
+  FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+  PRIVATE SECTION.
+    TYPES ty_rows TYPE n LENGTH 6.
+
+    DATA saved_customize LIKE s_customize.
+
+    METHODS setup.
+    METHODS teardown.
+    METHODS generates_case_sum_expression FOR TESTING.
+    METHODS generates_searched_case_sum FOR TESTING.
+    METHODS rejects_unproven_case_sum_type FOR TESTING.
+    METHODS generates_strict_aggregate FOR TESTING.
+    METHODS keeps_escaped_count_valid FOR TESTING.
+    METHODS keeps_legacy_select_valid FOR TESTING.
+    METHODS generates_substring_function FOR TESTING.
+    METHODS generates_nested_functions FOR TESTING.
+    METHODS preserves_function_literal FOR TESTING.
+    METHODS generates_length_function FOR TESTING.
+    METHODS rejects_statement_injection FOR TESTING.
+    METHODS rejects_wrapped_quote_boundary FOR TESTING.
+    METHODS generates_union_distinct FOR TESTING.
+    METHODS generates_explicit_distinct FOR TESTING.
+    METHODS generates_union_all FOR TESTING.
+    METHODS rejects_union_layout_mismatch FOR TESTING.
+    METHODS rejects_union_type_mismatch FOR TESTING.
+    METHODS generates_three_union_branches FOR TESTING.
+    METHODS limits_union_result FOR TESTING.
+    METHODS rejects_zero_union_limit FOR TESTING.
+
+    METHODS generate_query
+      IMPORTING query TYPE string
+                expect_parse_error TYPE abap_bool DEFAULT abap_false
+      EXPORTING generated_program TYPE sy-repid
+                new_syntax TYPE abap_bool
+                count_query TYPE abap_bool
+                field_list TYPE ty_fieldlist_table.
+ENDCLASS.
+
+CLASS ltc_query_generator IMPLEMENTATION.
+  METHOD setup.
+    saved_customize = s_customize.
+    CLEAR s_customize-auth_object.
+    s_customize-auth_select = '*'.
+    s_customize-default_rows = 100.
+  ENDMETHOD.
+
+  METHOD teardown.
+    s_customize = saved_customize.
+  ENDMETHOD.
+
+  METHOD generate_query.
+    DATA select_part TYPE string.
+    DATA from_part TYPE string.
+    DATA tail_part TYPE string.
+    DATA union_part TYPE string.
+    DATA rows TYPE ty_rows.
+    DATA no_authority TYPE abap_bool.
+    DATA parse_error TYPE abap_bool.
+    PERFORM query_parse USING query
+                        CHANGING select_part
+                                 from_part
+                                 tail_part
+                                 union_part
+                                 rows
+                                 no_authority
+                                 new_syntax
+                                 parse_error.
+
+    cl_abap_unit_assert=>assert_initial( act = no_authority ).
+    cl_abap_unit_assert=>assert_equals(
+      act = parse_error
+      exp = expect_parse_error ).
+    IF parse_error = abap_true.
+      CLEAR generated_program.
+      RETURN.
+    ENDIF.
+
+    tail_part = lcl_sql_set_expression=>attach_suffix(
+      branch_tail = tail_part set_suffix = union_part ).
+
+    PERFORM query_generate USING select_part
+                                 from_part
+                                 tail_part
+                                 space
+                                 new_syntax
+                           CHANGING generated_program
+                                    rows
+                                    field_list
+                                    count_query.
+  ENDMETHOD.
+
+  METHOD generates_strict_aggregate.
+    DATA generated_program TYPE sy-repid.
+    DATA new_syntax TYPE abap_bool.
+    DATA count_query TYPE abap_bool.
+
+    generate_query(
+      EXPORTING
+        query = `SELECT DISTINCT DATATYPE, COUNT( DISTINCT FIELDNAME ) AS CNT_FIELDNAME, MAX( TABNAME ) AS MAX_TABNAME`
+             && ` FROM DD03L WHERE TABNAME IS NOT NULL AND TABNAME <> ''`
+             && ` AND TABNAME LIKE 'Z%' AND AS4LOCAL = 'A' GROUP BY DATATYPE`
+             && ` HAVING COUNT( DISTINCT FIELDNAME ) > 1 ORDER BY DATATYPE`
+      IMPORTING
+        generated_program = generated_program
+        new_syntax = new_syntax
+        count_query = count_query ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = new_syntax
+      exp = abap_true
+      msg = 'Comma syntax must activate strict ABAP SQL generation' ).
+    cl_abap_unit_assert=>assert_initial(
+      act = count_query
+      msg = 'Aggregate select list must use the table-result path' ).
+
+    cl_abap_unit_assert=>assert_not_initial(
+      act = generated_program
+      msg = 'Strict aggregate query must produce a valid subroutine pool' ).
+  ENDMETHOD.
+
+  METHOD generates_case_sum_expression.
+    DATA generated_program TYPE c LENGTH 40.
+    DATA new_syntax TYPE abap_bool.
+    DATA count_query TYPE abap_bool.
+    DATA field_list TYPE ty_fieldlist_table.
+    DATA first_field TYPE ty_fieldlist.
+
+    generate_query(
+      EXPORTING
+        query = `SELECT SUM( CASE SFLIGHT~CARRID WHEN 'LH' THEN SFLIGHT~PRICE`
+             && ` ELSE SFLIGHT~PRICE * -1 END ) AS NET_PRICE, SFLIGHT~CARRID`
+             && ` FROM SFLIGHT GROUP BY SFLIGHT~CARRID`
+      IMPORTING
+        generated_program = generated_program
+        new_syntax = new_syntax
+        count_query = count_query
+        field_list = field_list ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = new_syntax
+      exp = abap_true
+      msg = 'CASE aggregate must use strict ABAP SQL generation' ).
+    cl_abap_unit_assert=>assert_initial(
+      act = count_query
+      msg = 'CASE aggregate must use the table-result path' ).
+    cl_abap_unit_assert=>assert_not_initial(
+      act = generated_program
+      msg = 'SUM CASE expression must produce a valid subroutine pool' ).
+    READ TABLE field_list INTO first_field INDEX 1.
+    cl_abap_unit_assert=>assert_equals(
+      act = sy-subrc
+      exp = 0
+      msg = 'Generated CASE field metadata must be present' ).
+    cl_abap_unit_assert=>assert_initial(
+      act = first_field-ref_table
+      msg = 'Computed CASE result must not claim direct DDIC metadata' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = first_field-ref_field
+      exp = 'NET_PRICE'
+      msg = 'Computed CASE result must preserve its SQL alias' ).
+  ENDMETHOD.
+
+  METHOD generates_searched_case_sum.
+    DATA generated_program TYPE c LENGTH 40.
+
+    generate_query(
+      EXPORTING
+        query = `SELECT SUM( CASE WHEN SFLIGHT~PRICE > 0 THEN SFLIGHT~PRICE`
+             && ` ELSE SFLIGHT~PRICE * -1 END ) AS NET_PRICE, SFLIGHT~CARRID`
+             && ` FROM SFLIGHT GROUP BY SFLIGHT~CARRID`
+      IMPORTING generated_program = generated_program ).
+
+    cl_abap_unit_assert=>assert_not_initial(
+      act = generated_program
+      msg = 'Searched CASE sum must produce a valid subroutine pool' ).
+  ENDMETHOD.
+
+  METHOD rejects_unproven_case_sum_type.
+    DATA generated_program TYPE c LENGTH 40.
+
+    generate_query(
+      EXPORTING
+        query = `SELECT SUM( CASE SFLIGHT~CARRID WHEN 'LH' THEN 1 ELSE 0 END ) AS MATCH_COUNT,`
+             && ` SFLIGHT~CARRID FROM SFLIGHT GROUP BY SFLIGHT~CARRID`
+      IMPORTING generated_program = generated_program ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = generated_program
+      msg = 'Unproven CASE result types must fail closed' ).
+  ENDMETHOD.
+
+  METHOD keeps_escaped_count_valid.
+    DATA generated_program TYPE sy-repid.
+    DATA new_syntax TYPE abap_bool.
+    DATA count_query TYPE abap_bool.
+
+    generate_query(
+      EXPORTING query = 'SELECT COUNT( * ) FROM DD03L INTO @DATA(result)'
+      IMPORTING generated_program = generated_program
+                new_syntax = new_syntax
+                count_query = count_query ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = new_syntax
+      exp = abap_true
+      msg = 'Escaped target must activate strict ABAP SQL generation' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = count_query
+      exp = abap_true
+      msg = 'COUNT-only query must use the scalar-result path' ).
+    cl_abap_unit_assert=>assert_not_initial(
+      act = generated_program
+      msg = 'Escaped COUNT query must produce a valid subroutine pool' ).
+  ENDMETHOD.
+
+  METHOD keeps_legacy_select_valid.
+    DATA generated_program TYPE sy-repid.
+    DATA new_syntax TYPE abap_bool.
+    DATA count_query TYPE abap_bool.
+
+    generate_query(
+      EXPORTING query = 'SELECT FIELDNAME FROM DD03L'
+      IMPORTING generated_program = generated_program
+                new_syntax = new_syntax
+                count_query = count_query ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = new_syntax
+      msg = 'Space-separated select list must remain on the legacy path' ).
+    cl_abap_unit_assert=>assert_not_initial(
+      act = generated_program
+      msg = 'Legacy SELECT query must remain valid' ).
+  ENDMETHOD.
+
+  METHOD generates_substring_function.
+    DATA generated_program TYPE c LENGTH 40.
+    DATA new_syntax TYPE abap_bool.
+    DATA field_list TYPE ty_fieldlist_table.
+
+    generate_query(
+      EXPORTING
+        query                     = `SELECT SUBSTRING( DD03L~FIELDNAME, 1, 3 ) AS PREFIX,`
+                                 && ` DD03L~TABNAME FROM DD03L`
+      IMPORTING generated_program = generated_program
+                new_syntax        = new_syntax
+                field_list        = field_list ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = new_syntax
+      msg = 'SUBSTRING argument commas require strict SQL generation' ).
+    cl_abap_unit_assert=>assert_not_initial(
+      act = generated_program
+      msg = 'SUBSTRING must produce a valid generated program' ).
+    IF field_list IS INITIAL.
+      cl_abap_unit_assert=>fail( msg = 'Function result metadata must exist' ).
+    ENDIF.
+    DATA(first_field) = field_list[ 1 ].
+    cl_abap_unit_assert=>assert_equals(
+      act = first_field-ref_field
+      exp = 'PREFIX'
+      msg = 'Function result metadata must preserve its explicit alias' ).
+    cl_abap_unit_assert=>assert_initial(
+      act = first_field-ref_table
+      msg = 'Computed function results must not claim DDIC table metadata' ).
+  ENDMETHOD.
+
+  METHOD generates_nested_functions.
+    DATA generated_program TYPE c LENGTH 40.
+
+    generate_query(
+      EXPORTING
+        query                     = `SELECT CONCAT( DD03L~TABNAME,`
+                                 && ` SUBSTRING( DD03L~FIELDNAME, 1, 3 ) ) AS LABEL`
+                                 && ` FROM DD03L`
+      IMPORTING generated_program = generated_program ).
+
+    cl_abap_unit_assert=>assert_not_initial(
+      act = generated_program
+      msg = 'Nested 7.50 string functions must remain one select item' ).
+  ENDMETHOD.
+
+  METHOD preserves_function_literal.
+    DATA generated_program TYPE c LENGTH 40.
+
+    generate_query(
+      EXPORTING
+        query                     = `SELECT CONCAT( DD03L~TABNAME, ', ' ) AS LABEL FROM DD03L`
+      IMPORTING generated_program = generated_program ).
+
+    cl_abap_unit_assert=>assert_not_initial(
+      act = generated_program
+      msg = 'A comma and space inside a literal must remain function data' ).
+  ENDMETHOD.
+
+  METHOD generates_length_function.
+    DATA generated_program TYPE c LENGTH 40.
+    DATA new_syntax TYPE abap_bool.
+
+    generate_query(
+      EXPORTING query             = `SELECT LENGTH( DD03L~FIELDNAME ) AS NAME_LENGTH FROM DD03L`
+      IMPORTING generated_program = generated_program
+                new_syntax        = new_syntax ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = new_syntax
+      msg = 'A 7.50 string function must activate strict SQL generation' ).
+    cl_abap_unit_assert=>assert_not_initial(
+      act = generated_program
+      msg = 'LENGTH must produce a valid generated program' ).
+  ENDMETHOD.
+
+  METHOD rejects_statement_injection.
+    DATA generated_program TYPE sy-repid.
+    DATA new_syntax TYPE abap_bool.
+    DATA count_query TYPE abap_bool.
+
+    generate_query(
+      EXPORTING
+        query = `SELECT CARRID FROM SCARR WHERE CARRID = 'LH'. WRITE sy-uname`
+      IMPORTING generated_program = generated_program
+                new_syntax = new_syntax
+                count_query = count_query ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = generated_program
+      msg = 'User input must not terminate SELECT and append ABAP' ).
+  ENDMETHOD.
+
+  METHOD rejects_wrapped_quote_boundary.
+    DATA generated_program TYPE sy-repid.
+    DATA new_syntax TYPE abap_bool.
+    DATA count_query TYPE abap_bool.
+    DATA query TYPE string.
+    DATA literal TYPE string.
+
+    literal = ''''.
+    DO c_line_max - 2 TIMES.
+      literal = literal && 'A'.
+    ENDDO.
+    literal = literal && `''B'`.
+    query = `SELECT COUNT( * ) FROM SCARR WHERE CARRID = ` && literal.
+
+    cl_abap_unit_assert=>assert_true(
+      act = lcl_query_input_validator=>is_safe( query )
+      msg = 'Balanced doubled quotes must pass fragment validation' ).
+
+    generate_query(
+      EXPORTING query = query
+      IMPORTING generated_program = generated_program
+                new_syntax = new_syntax
+                count_query = count_query ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = generated_program
+      msg = 'A wrapped doubled quote must not produce executable source' ).
+  ENDMETHOD.
+
+  METHOD generates_union_distinct.
+    DATA generated_program TYPE sy-repid.
+    DATA new_syntax TYPE abap_bool.
+    DATA count_query TYPE abap_bool.
+    DATA result TYPE REF TO data.
+    DATA runtime TYPE p LENGTH 8 DECIMALS 2.
+    DATA row_count TYPE i.
+    FIELD-SYMBOLS <result> TYPE STANDARD TABLE.
+
+    generate_query(
+      EXPORTING
+        query = `SELECT COUNT( * ) FROM T000`
+             && ` UNION SELECT COUNT( * ) FROM T000`
+      IMPORTING generated_program = generated_program
+                new_syntax = new_syntax
+                count_query = count_query ).
+
+    cl_abap_unit_assert=>assert_not_initial(
+      act = generated_program
+      msg = 'A valid UNION must compile as one set expression' ).
+    PERFORM run_sql IN PROGRAM (generated_program)
+            CHANGING result runtime row_count.
+    ASSIGN result->* TO <result>.
+    DESCRIBE TABLE <result> LINES row_count.
+    cl_abap_unit_assert=>assert_equals(
+      act = row_count
+      exp = 1
+      msg = 'Implicit UNION DISTINCT must remove duplicate rows' ).
+    cl_abap_unit_assert=>assert_initial(
+      act = count_query
+      msg = 'A set of aggregates is a tabular result, not SELECT SINGLE' ).
+  ENDMETHOD.
+
+  METHOD generates_explicit_distinct.
+    DATA generated_program TYPE sy-repid.
+    DATA result TYPE REF TO data.
+    DATA runtime TYPE p LENGTH 8 DECIMALS 2.
+    DATA row_count TYPE i.
+    FIELD-SYMBOLS <result> TYPE STANDARD TABLE.
+
+    generate_query(
+      EXPORTING
+        query = `SELECT COUNT( * ) FROM T000`
+             && ` UNION DISTINCT SELECT COUNT( * ) FROM T000`
+      IMPORTING generated_program = generated_program ).
+
+    cl_abap_unit_assert=>assert_not_initial( act = generated_program ).
+    PERFORM run_sql IN PROGRAM (generated_program)
+            CHANGING result runtime row_count.
+    ASSIGN result->* TO <result>.
+    DESCRIBE TABLE <result> LINES row_count.
+    cl_abap_unit_assert=>assert_equals(
+      act = row_count
+      exp = 1
+      msg = 'Explicit UNION DISTINCT must remove duplicate rows' ).
+  ENDMETHOD.
+
+  METHOD generates_union_all.
+    DATA generated_program TYPE sy-repid.
+    DATA new_syntax TYPE abap_bool.
+    DATA count_query TYPE abap_bool.
+    DATA result TYPE REF TO data.
+    DATA runtime TYPE p LENGTH 8 DECIMALS 2.
+    DATA row_count TYPE i.
+    FIELD-SYMBOLS <result> TYPE STANDARD TABLE.
+
+    generate_query(
+      EXPORTING
+        query = `SELECT COUNT( * ) FROM T000`
+             && cl_abap_char_utilities=>newline
+             && `UNION   ALL`
+             && cl_abap_char_utilities=>newline
+             && `SELECT COUNT( * ) FROM T000`
+      IMPORTING generated_program = generated_program
+                new_syntax = new_syntax
+                count_query = count_query ).
+
+    cl_abap_unit_assert=>assert_not_initial(
+      act = generated_program
+      msg = 'UNION ALL must compile as one set expression' ).
+    PERFORM run_sql IN PROGRAM (generated_program)
+            CHANGING result runtime row_count.
+    ASSIGN result->* TO <result>.
+    DESCRIBE TABLE <result> LINES row_count.
+    cl_abap_unit_assert=>assert_equals(
+      act = row_count
+      exp = 2
+      msg = 'UNION ALL must preserve duplicate rows' ).
+    cl_abap_unit_assert=>assert_initial( act = count_query ).
+  ENDMETHOD.
+
+  METHOD rejects_union_layout_mismatch.
+    DATA generated_program TYPE sy-repid.
+
+    generate_query(
+      EXPORTING
+        query = `SELECT mandt FROM T000`
+             && ` UNION SELECT tabname, tabclass FROM DD02L`
+      IMPORTING generated_program = generated_program ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = generated_program
+      msg = 'SAP syntax must reject incompatible set branch layouts' ).
+  ENDMETHOD.
+
+  METHOD rejects_union_type_mismatch.
+    DATA generated_program TYPE sy-repid.
+
+    generate_query(
+      EXPORTING
+        query = `SELECT mandt FROM T000`
+             && ` UNION SELECT as4date FROM DD02L`
+      IMPORTING generated_program = generated_program ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = generated_program
+      msg = 'SAP syntax must reject incompatible set branch types' ).
+  ENDMETHOD.
+
+  METHOD generates_three_union_branches.
+    DATA generated_program TYPE sy-repid.
+    DATA result TYPE REF TO data.
+    DATA runtime TYPE p LENGTH 8 DECIMALS 2.
+    DATA row_count TYPE i.
+    FIELD-SYMBOLS <result> TYPE STANDARD TABLE.
+
+    generate_query(
+      EXPORTING
+        query = `SELECT COUNT( * ) FROM T000`
+             && ` UNION ALL SELECT COUNT( * ) FROM T000`
+             && ` UNION ALL SELECT COUNT( * ) FROM T000`
+      IMPORTING generated_program = generated_program ).
+
+    cl_abap_unit_assert=>assert_not_initial( act = generated_program ).
+    PERFORM run_sql IN PROGRAM (generated_program)
+            CHANGING result runtime row_count.
+    ASSIGN result->* TO <result>.
+    DESCRIBE TABLE <result> LINES row_count.
+    cl_abap_unit_assert=>assert_equals(
+      act = row_count
+      exp = 3
+      msg = 'All set branches must execute in the same cursor' ).
+  ENDMETHOD.
+
+  METHOD limits_union_result.
+    DATA generated_program TYPE sy-repid.
+    DATA result TYPE REF TO data.
+    DATA runtime TYPE p LENGTH 8 DECIMALS 2.
+    DATA row_count TYPE i.
+    FIELD-SYMBOLS <result> TYPE STANDARD TABLE.
+
+    generate_query(
+      EXPORTING
+        query = `SELECT COUNT( * ) FROM T000`
+             && ` UNION ALL SELECT COUNT( * ) FROM T000 UP TO 1 ROWS`
+      IMPORTING generated_program = generated_program ).
+
+    cl_abap_unit_assert=>assert_not_initial( act = generated_program ).
+    PERFORM run_sql IN PROGRAM (generated_program)
+            CHANGING result runtime row_count.
+    ASSIGN result->* TO <result>.
+    DESCRIBE TABLE <result> LINES row_count.
+    cl_abap_unit_assert=>assert_equals(
+      act = row_count
+      exp = 1
+      msg = 'The final ZTOAD row cap must bound the merged result' ).
+  ENDMETHOD.
+
+  METHOD rejects_zero_union_limit.
+    DATA generated_program TYPE sy-repid.
+
+    generate_query(
+      EXPORTING
+        query = `SELECT COUNT( * ) FROM T000`
+             && ` UNION ALL SELECT COUNT( * ) FROM T000 UP TO 0 ROWS`
+        expect_parse_error = abap_true
+      IMPORTING generated_program = generated_program ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = generated_program
+      msg = 'A zero-limit set query must stop before pool generation' ).
+  ENDMETHOD.
+ENDCLASS.
+
+
+CLASS ltcl_query_execution DEFINITION FINAL
+  FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+  PRIVATE SECTION.
+    METHODS contains_runtime_exception FOR TESTING.
+    METHODS keeps_successful_execution FOR TESTING.
+    METHODS sanitizes_technical_detail FOR TESTING.
+ENDCLASS.
+
+CLASS ltcl_query_execution IMPLEMENTATION.
+  METHOD contains_runtime_exception.
+    DATA generated_program TYPE sy-repid
+      VALUE 'ZTOAD_TEST_MISSING_PROGRAM'.
+    DATA result TYPE REF TO data.
+    DATA runtime TYPE p LENGTH 8 DECIMALS 2.
+    DATA row_count TYPE i.
+    DATA execution_failed TYPE abap_bool.
+    DATA exception_escaped TYPE abap_bool.
+
+    CREATE DATA result TYPE i.
+    runtime = 3.
+    row_count = 4.
+
+    TRY.
+        PERFORM query_execute USING generated_program
+                              CHANGING result runtime row_count
+                                       execution_failed.
+      CATCH cx_root.
+        exception_escaped = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_initial(
+      act = exception_escaped
+      msg = 'A generated-program exception must not escape the boundary' ).
+    cl_abap_unit_assert=>assert_true(
+      act = execution_failed
+      msg = 'A generated-program exception needs a stable failure result' ).
+    cl_abap_unit_assert=>assert_initial(
+      act = result
+      msg = 'A failed query must not retain a partial result reference' ).
+    cl_abap_unit_assert=>assert_initial(
+      act = runtime
+      msg = 'A failed query must not retain a partial runtime' ).
+    cl_abap_unit_assert=>assert_initial(
+      act = row_count
+      msg = 'A failed query must not retain a partial row count' ).
+  ENDMETHOD.
+
+  METHOD keeps_successful_execution.
+    DATA generated_program TYPE sy-repid.
+    DATA result TYPE REF TO data.
+    DATA runtime TYPE p LENGTH 8 DECIMALS 2.
+    DATA row_count TYPE i.
+    DATA execution_failed TYPE abap_bool.
+    DATA rows TYPE n LENGTH 6 VALUE 1.
+    DATA field_list TYPE ty_fieldlist_table.
+    DATA count_query TYPE abap_bool.
+
+    PERFORM query_generate USING 'MANDT'
+                                 'T000'
+                                 space
+                                 space
+                                 space
+                           CHANGING generated_program
+                                    rows
+                                    field_list
+                                    count_query.
+    cl_abap_unit_assert=>assert_not_initial(
+      act = generated_program
+      msg = 'The successful query fixture must compile' ).
+
+    PERFORM query_execute USING generated_program
+                          CHANGING result runtime row_count
+                                   execution_failed.
+
+    cl_abap_unit_assert=>assert_initial(
+      act = execution_failed
+      msg = 'A successful generated routine must remain successful' ).
+    cl_abap_unit_assert=>assert_bound(
+      act = result
+      msg = 'A successful generated routine must retain its result' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = row_count
+      exp = 1
+      msg = 'The successful query must keep its bounded result count' ).
+  ENDMETHOD.
+
+  METHOD sanitizes_technical_detail.
+    DATA(user_message) = lcl_query_error_contract=>to_user_message(
+      `Compiler detail contains SECRET_QUERY_VALUE` ).
+
+    cl_abap_unit_assert=>assert_not_initial(
+      act = user_message
+      msg = 'A failed query must produce a stable user message' ).
+    IF user_message CS 'SECRET_QUERY_VALUE'.
+      cl_abap_unit_assert=>fail(
+        msg = 'Technical query details must not reach the user message' ).
+    ENDIF.
+  ENDMETHOD.
+ENDCLASS.
+
+
+CLASS ltc_line_splitter DEFINITION FINAL
+  FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+  PRIVATE SECTION.
+    METHODS keeps_short_line FOR TESTING.
+    METHODS keeps_255_char_boundary FOR TESTING.
+    METHODS splits_long_line FOR TESTING.
+    METHODS rejects_unsafe_hard_split FOR TESTING.
+    METHODS rejects_literal_space_split FOR TESTING.
+    METHODS rejects_column_one_comment FOR TESTING.
+ENDCLASS.
+
+CLASS ltc_line_splitter IMPLEMENTATION.
+  METHOD keeps_short_line.
+    DATA line TYPE string.
+    DATA lines TYPE STANDARD TABLE OF string.
+    DATA safe TYPE abap_bool VALUE abap_true.
+
+    line = 'SELECT carrid FROM scarr'.
+
+    lcl_generated_line_splitter=>append(
+      EXPORTING line = line
+      CHANGING lines = lines safe = safe ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines
+      exp = VALUE string_table( ( `SELECT carrid FROM scarr` ) )
+      msg = 'A short generated-code line must remain unchanged' ).
+    cl_abap_unit_assert=>assert_true( act = safe ).
+  ENDMETHOD.
+
+  METHOD keeps_255_char_boundary.
+    DATA line TYPE string.
+    DATA lines TYPE STANDARD TABLE OF string.
+    DATA index TYPE i.
+    DATA safe TYPE abap_bool VALUE abap_true.
+
+    DO c_line_max TIMES.
+      line = line && 'A'.
+    ENDDO.
+
+    lcl_generated_line_splitter=>append(
+      EXPORTING line = line
+      CHANGING lines = lines safe = safe ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lines )
+      exp = 1
+      msg = 'A 255-character line must not be split' ).
+    READ TABLE lines INDEX 1 INTO line.
+    index = strlen( line ).
+    cl_abap_unit_assert=>assert_equals(
+      act = index
+      exp = c_line_max
+      msg = 'Boundary line length must be preserved' ).
+    cl_abap_unit_assert=>assert_true( act = safe ).
+  ENDMETHOD.
+
+  METHOD splits_long_line.
+    DATA line TYPE string.
+    DATA lines TYPE STANDARD TABLE OF string.
+    DATA first_line TYPE string.
+    DATA second_line TYPE string.
+    DATA index TYPE i.
+    DATA safe TYPE abap_bool VALUE abap_true.
+
+    DO 250 TIMES.
+      line = line && 'A'.
+    ENDDO.
+    line = line && ' BBBBBBBBBB'.
+
+    lcl_generated_line_splitter=>append(
+      EXPORTING line = line
+      CHANGING lines = lines safe = safe ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lines )
+      exp = 2
+      msg = 'Long generated-code line must be split' ).
+    READ TABLE lines INDEX 1 INTO first_line.
+    READ TABLE lines INDEX 2 INTO second_line.
+    index = strlen( first_line ).
+    cl_abap_unit_assert=>assert_equals(
+      act = index
+      exp = 250
+      msg = 'First segment must end at safe whitespace' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = second_line
+      exp = 'BBBBBBBBBB'
+      msg = 'Remaining text must be preserved exactly' ).
+    cl_abap_unit_assert=>assert_true( act = safe ).
+  ENDMETHOD.
+
+  METHOD rejects_unsafe_hard_split.
+    DATA line TYPE string.
+    DATA lines TYPE STANDARD TABLE OF string.
+    DATA safe TYPE abap_bool VALUE abap_true.
+
+    DO c_line_max + 1 TIMES.
+      line = line && 'A'.
+    ENDDO.
+
+    lcl_generated_line_splitter=>append(
+      EXPORTING line = line
+      CHANGING lines = lines safe = safe ).
+
+    cl_abap_unit_assert=>assert_false(
+      act = safe
+      msg = 'An unbroken token must not be cut into generated source' ).
+    cl_abap_unit_assert=>assert_initial( act = lines ).
+  ENDMETHOD.
+
+  METHOD rejects_column_one_comment.
+    DATA line TYPE string.
+    DATA lines TYPE STANDARD TABLE OF string.
+    DATA safe TYPE abap_bool VALUE abap_true.
+
+    DO 250 TIMES.
+      line = line && 'A'.
+    ENDDO.
+    line = line && ' *REMAINDER'.
+
+    lcl_generated_line_splitter=>append(
+      EXPORTING line = line
+      CHANGING lines = lines safe = safe ).
+
+    cl_abap_unit_assert=>assert_false(
+      act = safe
+      msg = 'Wrapping must not move an asterisk into source column one' ).
+  ENDMETHOD.
+
+  METHOD rejects_literal_space_split.
+    DATA line TYPE string.
+    DATA literal_part TYPE string.
+    DATA lines TYPE STANDARD TABLE OF string.
+    DATA safe TYPE abap_bool VALUE abap_true.
+
+    DO 130 TIMES.
+      literal_part = literal_part && 'A'.
+    ENDDO.
+    line = `WHERE TEXT = '` && literal_part && space
+        && literal_part && `'`.
+
+    lcl_generated_line_splitter=>append(
+      EXPORTING line = line
+      CHANGING lines = lines safe = safe ).
+
+    cl_abap_unit_assert=>assert_false(
+      act = safe
+      msg = 'Whitespace inside a literal is not a safe source split' ).
+  ENDMETHOD.
+ENDCLASS.
+
+
+CLASS ltc_command_parser DEFINITION FINAL
+  FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+  PRIVATE SECTION.
+    DATA saved_customize LIKE s_customize.
+
+    METHODS setup.
+    METHODS teardown.
+    METHODS parses_update FOR TESTING.
+    METHODS accepts_delete_from FOR TESTING.
+    METHODS rejects_native_sql_by_default FOR TESTING.
+    METHODS cannot_reenable_native_sql FOR TESTING.
+    METHODS rejects_dml_injection FOR TESTING.
+    METHODS rejects_invalid_dml_syntax FOR TESTING.
+    METHODS keeps_valid_dml_generation FOR TESTING.
+ENDCLASS.
+
+CLASS ltc_command_parser IMPLEMENTATION.
+  METHOD setup.
+    saved_customize = s_customize.
+    CLEAR s_customize-auth_object.
+    s_customize-auth_insert = '*'.
+    s_customize-auth_update = '*'.
+    s_customize-auth_delete = '*'.
+    CLEAR s_customize-auth_native.
+  ENDMETHOD.
+
+  METHOD teardown.
+    s_customize = saved_customize.
+  ENDMETHOD.
+
+  METHOD parses_update.
+    DATA no_authority TYPE abap_bool.
+    DATA command TYPE string.
+    DATA table TYPE string.
+    DATA parameters TYPE string.
+
+    PERFORM query_parse_noselect
+      USING `UPDATE ztable SET field = 'X'`
+      CHANGING no_authority command table parameters.
+
+    cl_abap_unit_assert=>assert_equals( act = command exp = 'UPDATE' ).
+    cl_abap_unit_assert=>assert_equals( act = table exp = 'ZTABLE' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = parameters
+      exp = `SET field = 'X'` ).
+    cl_abap_unit_assert=>assert_initial( act = no_authority ).
+  ENDMETHOD.
+
+  METHOD accepts_delete_from.
+    DATA no_authority TYPE abap_bool.
+    DATA command TYPE string.
+    DATA table TYPE string.
+    DATA parameters TYPE string.
+
+    PERFORM query_parse_noselect
+      USING `DELETE FROM ztable WHERE field = 'X'`
+      CHANGING no_authority command table parameters.
+
+    cl_abap_unit_assert=>assert_equals( act = command exp = 'DELETE' ).
+    cl_abap_unit_assert=>assert_equals( act = table exp = 'ZTABLE' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = parameters
+      exp = `WHERE field = 'X'` ).
+    cl_abap_unit_assert=>assert_initial( act = no_authority ).
+  ENDMETHOD.
+
+  METHOD rejects_native_sql_by_default.
+    DATA no_authority TYPE abap_bool.
+    DATA command TYPE string.
+    DATA table TYPE string.
+    DATA parameters TYPE string.
+
+    PERFORM query_parse_noselect
+      USING `NATIVE DROP INDEX 'ZTEST_INDEX'`
+      CHANGING no_authority command table parameters.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = command
+      exp = c_native_command ).
+    cl_abap_unit_assert=>assert_initial( act = parameters ).
+    cl_abap_unit_assert=>assert_true(
+      act = no_authority
+      msg = 'Native SQL must be rejected by default' ).
+  ENDMETHOD.
+
+  METHOD cannot_reenable_native_sql.
+    DATA no_authority TYPE abap_bool.
+    DATA command TYPE string.
+    DATA table TYPE string.
+    DATA parameters TYPE string.
+
+    s_customize-auth_native = abap_true.
+
+    PERFORM query_parse_noselect
+      USING `NATIVE DROP INDEX 'ZTEST_INDEX'`
+      CHANGING no_authority command table parameters.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = command
+      exp = c_native_command ).
+    cl_abap_unit_assert=>assert_initial( act = parameters ).
+    cl_abap_unit_assert=>assert_true(
+      act = no_authority
+      msg = 'Legacy configuration must not re-enable Native SQL' ).
+  ENDMETHOD.
+
+  METHOD rejects_dml_injection.
+    DATA generated_program TYPE sy-repid.
+
+    PERFORM query_generate_noselect
+      USING 'UPDATE'
+            'SCARR'
+            `SET CARRNAME = 'X'. WRITE sy-uname`
+            space
+      CHANGING generated_program.
+
+    cl_abap_unit_assert=>assert_initial(
+      act = generated_program
+      msg = 'User DML must not append a generated ABAP statement' ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_dml_syntax.
+    DATA generated_program TYPE sy-repid.
+
+    PERFORM query_generate_noselect
+      USING 'UPDATE'
+            'SCARR'
+            `WHERE CARRID = 'LH'`
+            space
+      CHANGING generated_program.
+
+    cl_abap_unit_assert=>assert_initial(
+      act = generated_program
+      msg = 'Invalid DML syntax must return no generated program' ).
+  ENDMETHOD.
+
+  METHOD keeps_valid_dml_generation.
+    DATA generated_program TYPE sy-repid.
+
+    PERFORM query_generate_noselect
+      USING 'UPDATE'
+            'SCARR'
+            `SET CARRNAME = 'Test carrier' WHERE CARRID = 'ZZ'`
+            space
+      CHANGING generated_program.
+
+    cl_abap_unit_assert=>assert_not_initial(
+      act = generated_program
+      msg = 'A valid authorized DML fragment must still generate safely' ).
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS ltcl_subroutine_pool_budget DEFINITION FINAL
+  FOR TESTING
+  RISK LEVEL HARMLESS
+  DURATION SHORT.
+  PRIVATE SECTION.
+    METHODS stops_at_ztoad_limit FOR TESTING.
+    METHODS reserves_system_capacity FOR TESTING.
+    METHODS ignores_display FOR TESTING.
+    METHODS ignores_failed_generation FOR TESTING.
+ENDCLASS.
+
+CLASS ltcl_subroutine_pool_budget IMPLEMENTATION.
+  METHOD stops_at_ztoad_limit.
+    DATA generated_count TYPE i.
+
+    DO 40 TIMES.
+      IF lcl_subroutine_pool_budget=>can_generate(
+           generated_count ) = abap_true.
+        lcl_subroutine_pool_budget=>record_success(
+          EXPORTING is_display       = space
+                    generated_program = 'ZTEST'
+          CHANGING  generated_count  = generated_count ).
+      ENDIF.
+    ENDDO.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = generated_count
+      exp = lcl_subroutine_pool_budget=>c_ztoad_limit ).
+    cl_abap_unit_assert=>assert_false(
+      act = lcl_subroutine_pool_budget=>can_generate(
+        generated_count ) ).
+  ENDMETHOD.
+
+  METHOD reserves_system_capacity.
+    cl_abap_unit_assert=>assert_equals(
+      act = lcl_subroutine_pool_budget=>c_ztoad_limit
+          + lcl_subroutine_pool_budget=>c_reserved_slots
+      exp = lcl_subroutine_pool_budget=>c_system_limit
+      msg = 'ZTOAD must leave capacity below SAP''s 36-pool limit' ).
+  ENDMETHOD.
+
+  METHOD ignores_display.
+    DATA generated_count TYPE i VALUE 4.
+
+    lcl_subroutine_pool_budget=>record_success(
+      EXPORTING is_display        = abap_true
+                generated_program = 'ZTEST'
+      CHANGING  generated_count   = generated_count ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = generated_count
+      exp = 4 ).
+  ENDMETHOD.
+
+  METHOD ignores_failed_generation.
+    DATA generated_count TYPE i VALUE 4.
+
+    lcl_subroutine_pool_budget=>record_success(
+      EXPORTING is_display        = space
+                generated_program = space
+      CHANGING  generated_count   = generated_count ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = generated_count
+      exp = 4 ).
+  ENDMETHOD.
+ENDCLASS.

@@ -1,0 +1,1442 @@
+CLASS zcl_oapi_generator_v2 DEFINITION PUBLIC.
+  PUBLIC SECTION.
+
+
+    TYPES: BEGIN OF ty_input,
+             clas_icf_serv   TYPE c LENGTH 30,
+             clas_icf_impl   TYPE c LENGTH 30,
+             clas_client     TYPE c LENGTH 30,
+             intf            TYPE c LENGTH 30,
+             openapi_json    TYPE string,
+             no_compression  TYPE abap_bool,
+             skip_deprecated TYPE abap_bool,
+             use_empty_key   TYPE abap_bool,
+             pretty_name     TYPE string,
+           END OF ty_input.
+
+    TYPES: BEGIN OF ty_result,
+             clas_icf_serv TYPE string,
+             clas_icf_impl TYPE string,
+             clas_client   TYPE string,
+             intf          TYPE string,
+           END OF ty_result.
+
+    METHODS run
+      IMPORTING
+        is_input         TYPE ty_input
+      RETURNING
+        VALUE(rs_result) TYPE ty_result.
+
+  PROTECTED SECTION.
+  PRIVATE SECTION.
+    DATA ms_specification TYPE zif_oapi_specification_v3=>ty_specification.
+    DATA ms_input TYPE ty_input.
+
+    TYPES ty_abap_names TYPE HASHED TABLE OF abap_compname WITH UNIQUE KEY table_line.
+    TYPES ty_strings    TYPE HASHED TABLE OF string WITH UNIQUE KEY table_line.
+
+    METHODS sanitize_specification_names.
+
+    METHODS sanitize_abap_name
+      IMPORTING
+        iv_name        TYPE string
+        iv_max_length  TYPE i DEFAULT 30
+      RETURNING
+        VALUE(rv_abap) TYPE string.
+
+    METHODS ensure_unique_abap_name
+      IMPORTING
+        iv_name       TYPE string
+      CHANGING
+        ct_used_names TYPE ty_abap_names
+        cv_abap       TYPE string.
+
+    METHODS build_name_mappings
+      RETURNING VALUE(rv_abap) TYPE string.
+
+    METHODS collect_name_mappings
+      IMPORTING io_schema              TYPE REF TO zif_oapi_schema OPTIONAL
+                iv_schema_ref          TYPE string                 OPTIONAL
+      CHANGING  ct_name_mappings       TYPE /ui2/cl_json=>name_mappings
+                ct_blocked_abap_names  TYPE ty_abap_names
+                ct_blocked_json_names  TYPE ty_strings
+                ct_visited_schema_refs TYPE ty_strings.
+
+    METHODS make_property_names_unique
+      IMPORTING io_schema              TYPE REF TO zif_oapi_schema OPTIONAL
+                iv_schema_ref          TYPE string                 OPTIONAL
+      CHANGING  ct_visited_schema_refs TYPE ty_strings.
+
+    METHODS build_clas_icf_serv
+      RETURNING
+        VALUE(rv_abap) TYPE string.
+
+    METHODS build_clas_icf_impl
+      RETURNING
+        VALUE(rv_abap) TYPE string.
+
+    METHODS build_clas_client
+      RETURNING
+        VALUE(rv_abap) TYPE string.
+
+    METHODS build_intf
+      RETURNING
+        VALUE(rv_abap) TYPE string.
+
+    METHODS build_pattern_support
+      RETURNING
+        VALUE(rv_abap) TYPE string.
+
+    METHODS collect_pattern_rules
+      IMPORTING
+        io_schema              TYPE REF TO zif_oapi_schema OPTIONAL
+        iv_schema_ref          TYPE string                 OPTIONAL
+        iv_path                TYPE string                 OPTIONAL
+      CHANGING
+        ct_rules               TYPE string_table
+        ct_visited_schema_refs TYPE ty_strings.
+
+    METHODS escape_abap_literal
+      IMPORTING
+        iv_value        TYPE string
+      RETURNING
+        VALUE(rv_value) TYPE string.
+
+    METHODS single_line
+      IMPORTING
+        iv_value        TYPE string
+        iv_max_length   TYPE i DEFAULT 150
+      RETURNING
+        VALUE(rv_value) TYPE string.
+
+    METHODS build_validation_code
+      IMPORTING
+        io_schema          TYPE REF TO zif_oapi_schema OPTIONAL
+        iv_schema_ref      TYPE string                 OPTIONAL
+        iv_expression      TYPE string
+        iv_path            TYPE string
+        iv_validator_class TYPE string
+      RETURNING
+        VALUE(rv_abap)     TYPE string.
+
+    METHODS find_input_parameters
+      IMPORTING
+        is_operation   TYPE zif_oapi_specification_v3=>ty_operation
+      RETURNING
+        VALUE(rv_abap) TYPE string.
+
+    METHODS find_parameter_type
+      IMPORTING
+        is_parameter   TYPE zif_oapi_specification_v3=>ty_parameter
+      RETURNING
+        VALUE(rv_type) TYPE string.
+
+    TYPES: BEGIN OF ty_returning,
+             abap TYPE string,
+             type TYPE string,
+           END OF ty_returning.
+    METHODS find_returning_parameter
+      IMPORTING
+        is_operation        TYPE zif_oapi_specification_v3=>ty_operation
+      RETURNING
+        VALUE(rs_returning) TYPE ty_returning.
+
+    METHODS find_schema
+      IMPORTING
+        iv_name          TYPE string
+      RETURNING
+        VALUE(rs_schema) TYPE zif_oapi_specification_v3=>ty_component_schema.
+
+    METHODS generation_information
+      RETURNING
+        VALUE(rv_info) TYPE string.
+
+    METHODS split_string
+      IMPORTING
+        iv_size          TYPE i
+        iv_input         TYPE string
+      RETURNING
+        VALUE(rt_output) TYPE string_table.
+
+    METHODS split_description
+      IMPORTING
+        iv_description TYPE string
+      CHANGING
+        cv_info        TYPE string.
+ENDCLASS.
+
+
+
+CLASS zcl_oapi_generator_v2 IMPLEMENTATION.
+
+  METHOD sanitize_abap_name.
+    DATA lv_name TYPE string.
+    DATA lv_char TYPE c LENGTH 1.
+    DATA lv_offset TYPE i.
+    DATA lv_len TYPE i.
+
+    lv_name = iv_name.
+    TRANSLATE lv_name TO LOWER CASE.
+
+    " Replace common language-specific characters with ASCII fallback.
+    REPLACE ALL OCCURRENCES OF 'ä' IN lv_name WITH 'ae'.
+    REPLACE ALL OCCURRENCES OF 'ö' IN lv_name WITH 'oe'.
+    REPLACE ALL OCCURRENCES OF 'ü' IN lv_name WITH 'ue'.
+    REPLACE ALL OCCURRENCES OF 'ß' IN lv_name WITH 'ss'.
+    REPLACE ALL OCCURRENCES OF 'à' IN lv_name WITH 'a'.
+    REPLACE ALL OCCURRENCES OF 'á' IN lv_name WITH 'a'.
+    REPLACE ALL OCCURRENCES OF 'â' IN lv_name WITH 'a'.
+    REPLACE ALL OCCURRENCES OF 'ã' IN lv_name WITH 'a'.
+    REPLACE ALL OCCURRENCES OF 'å' IN lv_name WITH 'a'.
+    REPLACE ALL OCCURRENCES OF 'ç' IN lv_name WITH 'c'.
+    REPLACE ALL OCCURRENCES OF 'è' IN lv_name WITH 'e'.
+    REPLACE ALL OCCURRENCES OF 'é' IN lv_name WITH 'e'.
+    REPLACE ALL OCCURRENCES OF 'ê' IN lv_name WITH 'e'.
+    REPLACE ALL OCCURRENCES OF 'ë' IN lv_name WITH 'e'.
+    REPLACE ALL OCCURRENCES OF 'ì' IN lv_name WITH 'i'.
+    REPLACE ALL OCCURRENCES OF 'í' IN lv_name WITH 'i'.
+    REPLACE ALL OCCURRENCES OF 'î' IN lv_name WITH 'i'.
+    REPLACE ALL OCCURRENCES OF 'ï' IN lv_name WITH 'i'.
+    REPLACE ALL OCCURRENCES OF 'ñ' IN lv_name WITH 'n'.
+    REPLACE ALL OCCURRENCES OF 'ò' IN lv_name WITH 'o'.
+    REPLACE ALL OCCURRENCES OF 'ó' IN lv_name WITH 'o'.
+    REPLACE ALL OCCURRENCES OF 'ô' IN lv_name WITH 'o'.
+    REPLACE ALL OCCURRENCES OF 'õ' IN lv_name WITH 'o'.
+    REPLACE ALL OCCURRENCES OF 'ù' IN lv_name WITH 'u'.
+    REPLACE ALL OCCURRENCES OF 'ú' IN lv_name WITH 'u'.
+    REPLACE ALL OCCURRENCES OF 'û' IN lv_name WITH 'u'.
+    REPLACE ALL OCCURRENCES OF 'ý' IN lv_name WITH 'y'.
+
+    CLEAR rv_abap.
+    lv_len = strlen( lv_name ).
+    DO lv_len TIMES.
+      lv_offset = sy-index - 1.
+      lv_char = lv_name+lv_offset(1).
+      IF lv_char CO 'abcdefghijklmnopqrstuvwxyz0123456789_'.
+        CONCATENATE rv_abap lv_char INTO rv_abap IN CHARACTER MODE.
+      ELSE.
+        CONCATENATE rv_abap '_' INTO rv_abap IN CHARACTER MODE.
+      ENDIF.
+    ENDDO.
+
+    WHILE rv_abap CS '__'.
+      REPLACE ALL OCCURRENCES OF '__' IN rv_abap WITH '_'.
+
+    ENDWHILE.
+
+    SHIFT rv_abap LEFT DELETING LEADING '_'.
+
+    WHILE rv_abap IS NOT INITIAL.
+      lv_offset = strlen( rv_abap ) - 1.
+      IF rv_abap+lv_offset(1) = '_'.
+
+        rv_abap = rv_abap(lv_offset).
+      ELSE.
+        EXIT.
+      ENDIF.
+    ENDWHILE.
+
+    IF rv_abap IS INITIAL.
+      rv_abap = 'field'.
+    ENDIF.
+
+    lv_char = rv_abap(1).
+    IF lv_char CO '0123456789'.
+      CONCATENATE 'f_' rv_abap INTO rv_abap IN CHARACTER MODE.
+    ENDIF.
+
+    IF strlen( rv_abap ) > iv_max_length.
+      rv_abap = rv_abap(iv_max_length).
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD ensure_unique_abap_name.
+    DATA lv_base       TYPE string.
+    DATA lv_candidate  TYPE string.
+    DATA lv_suffix     TYPE c LENGTH 10.
+    DATA lv_prefix_len TYPE i.
+    DATA lv_trim_len   TYPE i.
+    DATA lv_index      TYPE i.
+    DATA lv_compname   TYPE abap_compname.
+
+    lv_base = sanitize_abap_name( iv_name ).
+    lv_candidate = lv_base.
+
+    lv_compname = lv_candidate.
+    READ TABLE ct_used_names WITH TABLE KEY table_line = lv_compname TRANSPORTING NO FIELDS.
+    IF sy-subrc <> 0.
+      INSERT lv_compname INTO TABLE ct_used_names.
+      cv_abap = lv_candidate.
+      RETURN.
+    ENDIF.
+
+    DO 999 TIMES.
+      lv_index = sy-index.
+      WRITE lv_index TO lv_suffix LEFT-JUSTIFIED.
+      CONDENSE lv_suffix NO-GAPS.
+
+      lv_prefix_len = 30 - strlen( lv_suffix ).
+      IF lv_prefix_len < 1.
+        CONTINUE.
+      ENDIF.
+
+      lv_trim_len = strlen( lv_base ).
+      IF lv_trim_len > lv_prefix_len.
+        lv_trim_len = lv_prefix_len.
+      ENDIF.
+
+      lv_candidate = lv_base.
+      IF strlen( lv_base ) >= lv_trim_len.
+        lv_candidate = lv_base(lv_trim_len).
+      ENDIF.
+
+      CONCATENATE lv_candidate lv_suffix INTO lv_candidate IN CHARACTER MODE.
+
+      lv_compname = lv_candidate.
+      READ TABLE ct_used_names WITH TABLE KEY table_line = lv_compname TRANSPORTING NO FIELDS.
+      IF sy-subrc <> 0.
+        INSERT lv_compname INTO TABLE ct_used_names.
+        cv_abap = lv_candidate.
+        RETURN.
+      ENDIF.
+    ENDDO.
+
+    cv_abap = lv_base.
+  ENDMETHOD.
+
+
+  METHOD sanitize_specification_names.
+    DATA lt_used_schema_names     TYPE ty_abap_names.
+    DATA lt_used_operation_names  TYPE ty_abap_names.
+    DATA lt_used_parameter_names  TYPE ty_abap_names.
+
+    FIELD-SYMBOLS <ls_component_schema> LIKE LINE OF ms_specification-components-schemas.
+    FIELD-SYMBOLS <ls_operation>        LIKE LINE OF ms_specification-operations.
+    FIELD-SYMBOLS <ls_parameter>        LIKE LINE OF ms_specification-components-parameters.
+    FIELD-SYMBOLS <ls_op_parameter>     TYPE zif_oapi_specification_v3=>ty_parameter.
+
+    LOOP AT ms_specification-components-schemas ASSIGNING <ls_component_schema>.
+      ensure_unique_abap_name(
+        EXPORTING iv_name       = <ls_component_schema>-abap_name
+        CHANGING  ct_used_names = lt_used_schema_names
+                  cv_abap       = <ls_component_schema>-abap_name ).
+    ENDLOOP.
+
+    LOOP AT ms_specification-components-parameters ASSIGNING <ls_parameter>.
+      <ls_parameter>-abap_name = sanitize_abap_name( <ls_parameter>-abap_name ).
+    ENDLOOP.
+
+* methods and types share the same namespace in the generated interface
+    lt_used_operation_names = lt_used_schema_names.
+
+    LOOP AT ms_specification-operations ASSIGNING <ls_operation>.
+      ensure_unique_abap_name(
+        EXPORTING iv_name       = <ls_operation>-abap_name
+        CHANGING  ct_used_names = lt_used_operation_names
+                  cv_abap       = <ls_operation>-abap_name ).
+
+      CLEAR lt_used_parameter_names.
+      LOOP AT <ls_operation>-parameters ASSIGNING <ls_op_parameter>.
+        ensure_unique_abap_name(
+          EXPORTING iv_name       = <ls_op_parameter>-abap_name
+          CHANGING  ct_used_names = lt_used_parameter_names
+                    cv_abap       = <ls_op_parameter>-abap_name ).
+      ENDLOOP.
+    ENDLOOP.
+  ENDMETHOD.
+
+
+  METHOD generation_information.
+
+    rv_info =
+      |* Auto generated by https://github.com/abap-openapi/abap-openapi\n|.
+
+    IF ms_specification-info-title IS NOT INITIAL.
+      rv_info = rv_info && |* Title: { ms_specification-info-title }\n|.
+    ENDIF.
+    IF ms_specification-info-description IS NOT INITIAL.
+      split_description( EXPORTING  iv_description = ms_specification-info-description
+                         CHANGING   cv_info         = rv_info ).
+    ENDIF.
+    IF ms_specification-info-version IS NOT INITIAL.
+      rv_info = rv_info && |* Version: { ms_specification-info-version }\n|.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD find_schema.
+    DATA lv_name TYPE string.
+
+    lv_name = iv_name.
+
+    REPLACE FIRST OCCURRENCE OF '#/components/schemas/' IN lv_name WITH ''.
+    READ TABLE ms_specification-components-schemas
+      INTO rs_schema WITH KEY name = lv_name.             "#EC CI_SUBRC
+  ENDMETHOD.
+
+  METHOD build_name_mappings.
+    DATA lt_name_mappings       TYPE /ui2/cl_json=>name_mappings.
+    DATA ls_component_schema    LIKE LINE OF ms_specification-components-schemas.
+    DATA lt_blocked_abap_names  TYPE ty_abap_names.
+    DATA lt_blocked_json_names  TYPE ty_strings.
+    DATA lt_visited_schema_refs TYPE ty_strings.
+    DATA ls_name_mapping        LIKE LINE OF lt_name_mappings.
+    DATA lv_json_name           TYPE string.
+
+    LOOP AT ms_specification-components-schemas INTO ls_component_schema.
+      collect_name_mappings( EXPORTING io_schema              = ls_component_schema-schema
+                                       iv_schema_ref          = ''
+                             CHANGING  ct_name_mappings       = lt_name_mappings
+                                       ct_blocked_abap_names  = lt_blocked_abap_names
+                                       ct_blocked_json_names  = lt_blocked_json_names
+                                       ct_visited_schema_refs = lt_visited_schema_refs ).
+    ENDLOOP.
+
+    IF lt_name_mappings IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    rv_abap = |VALUE /ui2/cl_json=>name_mappings(\n|.
+    LOOP AT lt_name_mappings INTO ls_name_mapping.
+      lv_json_name = ls_name_mapping-json.
+      REPLACE ALL OCCURRENCES OF '''' IN lv_json_name WITH ''''''.
+      rv_abap = |{ rv_abap }                ( abap = '{ ls_name_mapping-abap }' json = '{ lv_json_name }' )\n|.
+    ENDLOOP.
+    rv_abap = |{ rv_abap }              )|.
+  ENDMETHOD.
+
+  METHOD collect_name_mappings.
+    DATA lo_schema           TYPE REF TO zif_oapi_schema.
+    DATA lv_schema_name      TYPE string.
+    DATA ls_component_schema TYPE zif_oapi_specification_v3=>ty_component_schema.
+    DATA ls_property         TYPE zif_oapi_schema=>ty_property.
+    DATA ls_existing_mapping LIKE LINE OF ct_name_mappings.
+    DATA ls_json_mapping     LIKE LINE OF ct_name_mappings.
+
+    lo_schema = io_schema.
+    IF lo_schema IS NOT BOUND AND iv_schema_ref IS NOT INITIAL.
+      lv_schema_name = iv_schema_ref.
+      REPLACE FIRST OCCURRENCE OF '#/components/schemas/' IN lv_schema_name WITH ''.
+      IF line_exists( ct_visited_schema_refs[ table_line = lv_schema_name ] ).
+        RETURN.
+      ENDIF.
+      INSERT lv_schema_name INTO TABLE ct_visited_schema_refs.
+      ls_component_schema = find_schema( iv_schema_ref ).
+      lo_schema = ls_component_schema-schema.
+    ENDIF.
+
+    IF lo_schema IS NOT BOUND.
+      RETURN.
+    ENDIF.
+
+    LOOP AT lo_schema->properties INTO ls_property.
+      IF strlen( ls_property-name ) <= 30.
+        READ TABLE ct_name_mappings WITH TABLE KEY abap = ls_property-abap_name INTO ls_existing_mapping.
+        IF sy-subrc = 0.
+          DELETE TABLE ct_name_mappings FROM ls_existing_mapping.
+          INSERT CONV abap_compname( ls_property-abap_name ) INTO TABLE ct_blocked_abap_names.
+          INSERT ls_existing_mapping-json INTO TABLE ct_blocked_json_names.
+        ENDIF.
+      ELSEIF ls_property-abap_name IS NOT INITIAL.
+        IF line_exists( ct_blocked_abap_names[ table_line = CONV abap_compname( ls_property-abap_name ) ] )
+            OR line_exists( ct_blocked_json_names[ table_line = ls_property-name ] ).
+          CONTINUE.
+        ENDIF.
+
+        READ TABLE ct_name_mappings WITH TABLE KEY abap = ls_property-abap_name INTO ls_existing_mapping.
+        IF sy-subrc = 0 AND ls_existing_mapping-json <> ls_property-name.
+          DELETE TABLE ct_name_mappings FROM ls_existing_mapping.
+          INSERT CONV abap_compname( ls_property-abap_name ) INTO TABLE ct_blocked_abap_names.
+          INSERT ls_existing_mapping-json INTO TABLE ct_blocked_json_names.
+          INSERT ls_property-name INTO TABLE ct_blocked_json_names.
+        ELSEIF sy-subrc <> 0.
+          CLEAR ls_json_mapping.
+          LOOP AT ct_name_mappings INTO ls_json_mapping WHERE json = ls_property-name.
+            EXIT.
+          ENDLOOP.
+          IF ls_json_mapping IS NOT INITIAL AND ls_json_mapping-abap <> ls_property-abap_name.
+            DELETE TABLE ct_name_mappings FROM ls_json_mapping.
+            INSERT ls_json_mapping-abap INTO TABLE ct_blocked_abap_names.
+            INSERT CONV abap_compname( ls_property-abap_name ) INTO TABLE ct_blocked_abap_names.
+            INSERT ls_property-name INTO TABLE ct_blocked_json_names.
+          ELSE.
+            INSERT VALUE #( abap = ls_property-abap_name
+                            json = ls_property-name ) INTO TABLE ct_name_mappings.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+
+      collect_name_mappings( EXPORTING io_schema              = ls_property-schema
+                                       iv_schema_ref          = ls_property-ref
+                             CHANGING  ct_name_mappings       = ct_name_mappings
+                                       ct_blocked_abap_names  = ct_blocked_abap_names
+                                       ct_blocked_json_names  = ct_blocked_json_names
+                                       ct_visited_schema_refs = ct_visited_schema_refs ).
+    ENDLOOP.
+
+    collect_name_mappings( EXPORTING io_schema              = lo_schema->items_schema
+                                     iv_schema_ref          = lo_schema->items_ref
+                           CHANGING  ct_name_mappings       = ct_name_mappings
+                                     ct_blocked_abap_names  = ct_blocked_abap_names
+                                     ct_blocked_json_names  = ct_blocked_json_names
+                                     ct_visited_schema_refs = ct_visited_schema_refs ).
+  ENDMETHOD.
+
+  METHOD make_property_names_unique.
+    DATA lo_schema           TYPE REF TO zif_oapi_schema.
+    DATA lv_schema_name      TYPE string.
+    DATA ls_component_schema TYPE zif_oapi_specification_v3=>ty_component_schema.
+    DATA lt_used_names       TYPE ty_abap_names.
+
+    FIELD-SYMBOLS <ls_property> TYPE zif_oapi_schema=>ty_property.
+
+    lo_schema = io_schema.
+    IF lo_schema IS NOT BOUND AND iv_schema_ref IS NOT INITIAL.
+      lv_schema_name = iv_schema_ref.
+      REPLACE FIRST OCCURRENCE OF '#/components/schemas/' IN lv_schema_name WITH ''.
+      IF line_exists( ct_visited_schema_refs[ table_line = lv_schema_name ] ).
+        RETURN.
+      ENDIF.
+      INSERT lv_schema_name INTO TABLE ct_visited_schema_refs.
+      ls_component_schema = find_schema( iv_schema_ref ).
+      lo_schema = ls_component_schema-schema.
+    ENDIF.
+
+    IF lo_schema IS NOT BOUND.
+      RETURN.
+    ENDIF.
+
+    LOOP AT lo_schema->properties ASSIGNING <ls_property>.
+      IF <ls_property>-abap_name IS INITIAL.
+        CONTINUE.
+      ENDIF.
+
+      ensure_unique_abap_name(
+        EXPORTING iv_name       = <ls_property>-abap_name
+        CHANGING  ct_used_names = lt_used_names
+                  cv_abap       = <ls_property>-abap_name ).
+
+      make_property_names_unique( EXPORTING io_schema              = <ls_property>-schema
+                                            iv_schema_ref          = <ls_property>-ref
+                                  CHANGING  ct_visited_schema_refs = ct_visited_schema_refs ).
+    ENDLOOP.
+
+    make_property_names_unique( EXPORTING io_schema              = lo_schema->items_schema
+                                          iv_schema_ref          = lo_schema->items_ref
+                                CHANGING  ct_visited_schema_refs = ct_visited_schema_refs ).
+  ENDMETHOD.
+
+  METHOD run.
+    DATA lo_parser     TYPE REF TO zcl_oapi_parser.
+    DATA lo_references TYPE REF TO zcl_oapi_references.
+    DATA lt_visited_schema_refs TYPE ty_strings.
+
+    ms_input = is_input.
+
+    IF ms_input-pretty_name IS INITIAL.
+      ms_input-pretty_name = '/ui2/cl_json=>pretty_mode-camel_case'.
+    ENDIF.
+
+    CREATE OBJECT lo_parser.
+    ms_specification = lo_parser->parse( is_input-openapi_json ).
+
+    IF is_input-skip_deprecated = abap_true.
+      DELETE ms_specification-operations WHERE deprecated = abap_true.
+    ENDIF.
+
+    CREATE OBJECT lo_references.
+    ms_specification = lo_references->normalize( ms_specification ).
+
+    sanitize_specification_names( ).
+
+    LOOP AT ms_specification-components-schemas ASSIGNING FIELD-SYMBOL(<ls_component_schema>).
+      make_property_names_unique( EXPORTING io_schema              = <ls_component_schema>-schema
+                                  CHANGING  ct_visited_schema_refs = lt_visited_schema_refs ).
+    ENDLOOP.
+
+    rs_result-clas_icf_serv = build_clas_icf_serv( ).
+    rs_result-clas_icf_impl = build_clas_icf_impl( ).
+    rs_result-clas_client = build_clas_client( ).
+    rs_result-intf = build_intf( ).
+    rs_result-clas_icf_impl = rs_result-clas_icf_impl && build_pattern_support( ).
+  ENDMETHOD.
+
+
+  METHOD escape_abap_literal.
+    rv_value = iv_value.
+    REPLACE ALL OCCURRENCES OF '''' IN rv_value WITH ''''''.
+  ENDMETHOD.
+
+
+  METHOD single_line.
+* descriptions can span multiple lines, output them in comments and literals on a single line
+    rv_value = iv_value.
+    REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>cr_lf IN rv_value WITH ` `.
+    REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>newline IN rv_value WITH ` `.
+    REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>horizontal_tab IN rv_value WITH ` `.
+    CONDENSE rv_value.
+    IF strlen( rv_value ) > iv_max_length.
+      rv_value = rv_value(iv_max_length).
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD collect_pattern_rules.
+    DATA lo_schema           TYPE REF TO zif_oapi_schema.
+    DATA lo_schema_impl      TYPE REF TO zcl_oapi_schema.
+    DATA lv_schema_name      TYPE string.
+    DATA lv_path             TYPE string.
+    DATA lv_negative         TYPE string.
+    DATA ls_component_schema TYPE zif_oapi_specification_v3=>ty_component_schema.
+    DATA ls_property         TYPE zif_oapi_schema=>ty_property.
+
+    lo_schema = io_schema.
+    IF lo_schema IS NOT BOUND AND iv_schema_ref IS NOT INITIAL.
+      lv_schema_name = iv_schema_ref.
+      REPLACE FIRST OCCURRENCE OF '#/components/schemas/' IN lv_schema_name WITH ''.
+      IF line_exists( ct_visited_schema_refs[ table_line = lv_schema_name ] ).
+        RETURN.
+      ENDIF.
+      INSERT lv_schema_name INTO TABLE ct_visited_schema_refs.
+      ls_component_schema = find_schema( iv_schema_ref ).
+      lo_schema = ls_component_schema-schema.
+    ENDIF.
+    IF lo_schema IS NOT BOUND.
+      RETURN.
+    ENDIF.
+
+    lo_schema_impl ?= lo_schema.
+    IF lo_schema_impl->mv_json_pattern IS NOT INITIAL.
+      IF lv_schema_name IS INITIAL.
+        lv_schema_name = iv_path.
+      ENDIF.
+      lv_negative = lo_schema_impl->mv_json_example.
+      IF lv_negative IS INITIAL.
+        lv_negative = '!'.
+      ELSE.
+        lv_negative = substring( val = lv_negative off = 0 len = strlen( lv_negative ) - 1 ) && '!'.
+      ENDIF.
+      APPEND lv_schema_name && cl_abap_char_utilities=>horizontal_tab && iv_path
+        && cl_abap_char_utilities=>horizontal_tab && lo_schema_impl->mv_json_pattern
+        && cl_abap_char_utilities=>horizontal_tab && lo_schema_impl->mv_json_example
+        && cl_abap_char_utilities=>horizontal_tab && lv_negative TO ct_rules.
+    ENDIF.
+
+    LOOP AT lo_schema->properties INTO ls_property.
+      lv_path = COND string( WHEN iv_path IS INITIAL
+                             THEN ls_property-abap_name
+                             ELSE iv_path && '.' && ls_property-abap_name ).
+      collect_pattern_rules( EXPORTING io_schema = ls_property-schema
+                                        iv_schema_ref = ls_property-ref
+                                        iv_path = lv_path
+                              CHANGING ct_rules = ct_rules
+                                       ct_visited_schema_refs = ct_visited_schema_refs ).
+    ENDLOOP.
+    collect_pattern_rules( EXPORTING io_schema = lo_schema->items_schema
+                                      iv_schema_ref = lo_schema->items_ref
+                                      iv_path = iv_path
+                            CHANGING ct_rules = ct_rules
+                                     ct_visited_schema_refs = ct_visited_schema_refs ).
+  ENDMETHOD.
+
+
+  METHOD build_pattern_support.
+    DATA lt_rules TYPE string_table.
+    DATA lt_visited TYPE ty_strings.
+    DATA lv_rule TYPE string.
+    DATA lt_parts TYPE string_table.
+    DATA lv_validator_class TYPE string.
+    DATA lv_test_class TYPE string.
+    DATA lv_schema_name TYPE string.
+    DATA lv_pattern TYPE string.
+    DATA lv_has_request_body TYPE abap_bool.
+
+    LOOP AT ms_specification-operations INTO DATA(ls_operation).
+      IF ls_operation-request_body-schema_ref IS NOT INITIAL
+          OR ls_operation-request_body-schema IS NOT INITIAL.
+        lv_has_request_body = abap_true.
+        EXIT.
+      ENDIF.
+    ENDLOOP.
+    IF lv_has_request_body = abap_false.
+      RETURN.
+    ENDIF.
+
+    LOOP AT ms_specification-components-schemas INTO DATA(ls_component_schema).
+      collect_pattern_rules( EXPORTING io_schema = ls_component_schema-schema
+                                        iv_schema_ref = '#/components/schemas/' && ls_component_schema-name
+                                        iv_path = ls_component_schema-abap_name
+                              CHANGING ct_rules = lt_rules
+                                       ct_visited_schema_refs = lt_visited ).
+    ENDLOOP.
+    IF lt_rules IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    lv_validator_class = sanitize_abap_name( iv_name = |{ ms_input-clas_icf_impl }| iv_max_length = 24 ) && '_val'.
+    lv_test_class = sanitize_abap_name( iv_name = |{ ms_input-clas_icf_impl }| iv_max_length = 24 ) && '_tst'.
+    rv_abap = |\n\nCLASS { lv_validator_class } DEFINITION PUBLIC FINAL CREATE PUBLIC.\n| &&
+      |  PUBLIC SECTION.\n| &&
+      |    CLASS-METHODS check IMPORTING iv_schema_name TYPE string iv_value TYPE string RETURNING VALUE(rv_valid) TYPE abap_bool.\n| &&
+      |ENDCLASS.\n\nCLASS { lv_validator_class } IMPLEMENTATION.\n| &&
+      |  METHOD check.\n| &&
+      |    DATA lo_regex TYPE REF TO cl_abap_regex.\n| &&
+      |    DATA lo_matcher TYPE REF TO cl_abap_matcher.\n| &&
+      |    rv_valid = abap_false.\n|.
+
+    LOOP AT lt_rules INTO lv_rule.
+      SPLIT lv_rule AT cl_abap_char_utilities=>horizontal_tab INTO TABLE lt_parts.
+      READ TABLE lt_parts INDEX 1 INTO lv_schema_name.
+      IF sy-subrc <> 0.
+        CONTINUE.
+      ENDIF.
+      READ TABLE lt_parts INDEX 3 INTO lv_pattern.
+      IF sy-subrc <> 0.
+        CONTINUE.
+      ENDIF.
+      rv_abap = rv_abap && |    IF iv_schema_name = '{ escape_abap_literal( lv_schema_name ) }'.\n| &&
+        |      CREATE OBJECT lo_regex EXPORTING pattern = '{ escape_abap_literal( lv_pattern ) }'.\n| &&
+        |      lo_matcher = lo_regex->create_matcher( text = iv_value ).\n| &&
+        |      rv_valid = lo_matcher->match( ).\n| &&
+        |      RETURN.\n| &&
+        |    ENDIF.\n|.
+    ENDLOOP.
+    rv_abap = rv_abap && |  ENDMETHOD.\nENDCLASS.\n| &&
+      |CLASS { lv_test_class } DEFINITION FINAL FOR TESTING DURATION SHORT RISK LEVEL HARMLESS.\n| &&
+      |ENDCLASS.\n\nCLASS { lv_test_class } IMPLEMENTATION.\nENDCLASS.|.
+  ENDMETHOD.
+
+
+  METHOD build_validation_code.
+    DATA lo_schema TYPE REF TO zif_oapi_schema.
+    DATA lo_schema_impl TYPE REF TO zcl_oapi_schema.
+    DATA ls_component TYPE zif_oapi_specification_v3=>ty_component_schema.
+    DATA ls_property TYPE zif_oapi_schema=>ty_property.
+    DATA lv_schema_name TYPE string.
+    DATA lv_path TYPE string.
+    DATA lv_expression TYPE string.
+
+    lo_schema = io_schema.
+    IF lo_schema IS NOT BOUND AND iv_schema_ref IS NOT INITIAL.
+      lv_schema_name = iv_schema_ref.
+      REPLACE FIRST OCCURRENCE OF '#/components/schemas/' IN lv_schema_name WITH ''.
+      ls_component = find_schema( iv_schema_ref ).
+      lo_schema = ls_component-schema.
+    ENDIF.
+    IF lo_schema IS NOT BOUND.
+      RETURN.
+    ENDIF.
+    lo_schema_impl ?= lo_schema.
+    IF lo_schema_impl->mv_json_pattern IS NOT INITIAL.
+      IF lv_schema_name IS INITIAL.
+        lv_schema_name = iv_path.
+      ENDIF.
+      rv_abap = |          IF { iv_validator_class }=>check( iv_schema_name = '{ escape_abap_literal( lv_schema_name ) }' iv_value = { iv_expression } ) = abap_false.\n| &&
+        |            server->response->set_status( code = 400 reason = 'Pattern validation failed' ).\n| &&
+        |            RETURN.\n| &&
+        |          ENDIF.\n|.
+      RETURN.
+    ENDIF.
+    LOOP AT lo_schema->properties INTO ls_property.
+      lv_path = COND string( WHEN iv_path IS INITIAL THEN ls_property-abap_name ELSE iv_path && '.' && ls_property-abap_name ).
+      lv_expression = iv_expression && '-' && ls_property-abap_name.
+      rv_abap = rv_abap && build_validation_code( io_schema = ls_property-schema iv_schema_ref = ls_property-ref
+        iv_expression = lv_expression iv_path = lv_path iv_validator_class = iv_validator_class ).
+    ENDLOOP.
+  ENDMETHOD.
+
+
+  METHOD build_clas_icf_serv.
+    DATA ls_operation  LIKE LINE OF ms_specification-operations.
+    DATA lv_parameters TYPE string.
+    DATA lv_typename   TYPE string.
+    DATA lv_post       TYPE string.
+    DATA lv_pre        TYPE string.
+    DATA lv_indentation TYPE string.
+    DATA ls_response   LIKE LINE OF ls_operation-responses.
+    DATA ls_content    LIKE LINE OF ls_response-content.
+    DATA ls_parameter  LIKE LINE OF ls_operation-parameters.
+    DATA lo_response_name TYPE REF TO zcl_oapi_response_name.
+    DATA lv_response_name TYPE string.
+    DATA lv_code          TYPE string.
+    DATA lv_counter       TYPE i.
+    DATA lv_path_match    TYPE string.
+    DATA lt_template_segments TYPE STANDARD TABLE OF string WITH DEFAULT KEY.
+    DATA lv_path_placeholder  TYPE string.
+    DATA lv_segment_index     TYPE i.
+    DATA lv_path_parameter_setup TYPE string.
+    DATA lv_path_segment_var  TYPE string.
+    DATA lv_body_name         TYPE string.
+    DATA lv_body_type         TYPE string.
+    DATA lv_name_mappings        TYPE string.
+    DATA lv_validator_class   TYPE string.
+
+    CREATE OBJECT lo_response_name.
+    lv_name_mappings = build_name_mappings( ).
+    lv_validator_class = sanitize_abap_name( iv_name = |{ ms_input-clas_icf_impl }| iv_max_length = 24 ) && '_val'.
+
+    rv_abap = |CLASS { ms_input-clas_icf_serv } DEFINITION PUBLIC.\n| &&
+      generation_information( ) &&
+      |  PUBLIC SECTION.\n| &&
+      |    INTERFACES if_http_extension.\n| &&
+      |    CLASS-METHODS class_constructor.\n| &&
+      |  PRIVATE SECTION.\n| &&
+      |    CLASS-DATA mt_name_mappings TYPE /ui2/cl_json=>name_mappings.\n|.
+
+    rv_abap = rv_abap &&
+      |ENDCLASS.\n\n| &&
+      |CLASS { ms_input-clas_icf_serv } IMPLEMENTATION.\n| &&
+      |  METHOD class_constructor.\n| &&
+      COND string( WHEN lv_name_mappings IS NOT INITIAL
+                   THEN |    mt_name_mappings = { lv_name_mappings }.\n| ) &&
+      |  ENDMETHOD.\n\n|.
+
+    rv_abap = rv_abap &&
+      |  METHOD if_http_extension~handle_request.\n| &&
+      |    DATA li_handler      TYPE REF TO { ms_input-intf }.\n| &&
+      |    DATA lv_method       TYPE string.\n| &&
+      |    DATA lv_path         TYPE string.\n| &&
+      |    CREATE OBJECT li_handler TYPE { ms_input-clas_icf_impl }.\n| &&
+      |    lv_path = server->request->get_header_field( '~path' ).\n| &&
+      |    REPLACE FIRST OCCURRENCE OF { ms_input-intf }=>base_path IN lv_path WITH ''.\n| &&
+      |    lv_method = server->request->get_method( ).\n\n|.
+    LOOP AT ms_specification-operations INTO ls_operation.
+      lv_counter = lv_counter + 1.
+
+      lv_path_match = ls_operation-path.
+      REPLACE ALL OCCURRENCES OF REGEX '\{[^}]+\}' IN lv_path_match WITH '*'.
+
+      rv_abap = rv_abap &&
+        |    TRY.\n| &&
+        COND string(
+          WHEN lv_path_match = ls_operation-path
+            THEN |        IF lv_path = '{ ls_operation-path }' AND lv_method = '{ to_upper( ls_operation-method ) }'.\n|
+            ELSE |        IF lv_path CP '{ lv_path_match }' AND lv_method = '{ to_upper( ls_operation-method ) }'.\n| ).
+
+      CLEAR lv_parameters.
+      CLEAR lv_path_parameter_setup.
+      CLEAR lt_template_segments.
+      SPLIT ls_operation-path AT '/' INTO TABLE lt_template_segments.
+      DELETE lt_template_segments WHERE table_line IS INITIAL.
+
+      LOOP AT ls_operation-parameters INTO ls_parameter.
+        CASE ls_parameter-in.
+          WHEN 'query'.
+            lv_parameters = lv_parameters &&
+              |\n            { ls_parameter-abap_name } = server->request->get_form_field( '{ ls_parameter-name }' )|.
+          WHEN 'header'.
+            lv_parameters = lv_parameters &&
+              |\n            { ls_parameter-abap_name } = server->request->get_header_field( '{ ls_parameter-name }' )|.
+          WHEN 'path'.
+            IF lv_path_parameter_setup IS INITIAL.
+              IF ms_input-use_empty_key = abap_true.
+                lv_path_parameter_setup = lv_path_parameter_setup &&
+                  |          DATA lt_path_segments_{ lv_counter } TYPE STANDARD TABLE OF string WITH EMPTY KEY.\n|.
+              ELSE.
+                lv_path_parameter_setup = lv_path_parameter_setup &&
+                  |          DATA lt_path_segments_{ lv_counter } TYPE STANDARD TABLE OF string WITH DEFAULT KEY.\n|.
+              ENDIF.
+              lv_path_parameter_setup = lv_path_parameter_setup &&
+                |          SPLIT lv_path AT '/' INTO TABLE lt_path_segments_{ lv_counter }.\n| &&
+                |          DELETE lt_path_segments_{ lv_counter } WHERE table_line IS INITIAL.\n|.
+            ENDIF.
+
+            lv_path_placeholder = |\{{ ls_parameter-name }\}|.
+            CLEAR lv_segment_index.
+            READ TABLE lt_template_segments WITH KEY table_line = lv_path_placeholder TRANSPORTING NO FIELDS.
+            IF sy-subrc = 0.
+              lv_segment_index = sy-tabix.
+            ENDIF.
+
+            IF lv_segment_index > 0.
+              lv_path_segment_var = |lv_path_segment_{ lv_counter }_{ lv_segment_index }|.
+              lv_path_parameter_setup = lv_path_parameter_setup &&
+                |          DATA { lv_path_segment_var } TYPE { find_parameter_type( ls_parameter ) }.\n| &&
+                |          READ TABLE lt_path_segments_{ lv_counter } INDEX { lv_segment_index } INTO { lv_path_segment_var }.\n| &&
+                |          ASSERT sy-subrc = 0.\n|.
+              lv_parameters = lv_parameters &&
+                |\n            { ls_parameter-abap_name } = { lv_path_segment_var }|.
+            ELSE.
+              lv_parameters = lv_parameters &&
+                |\n            { ls_parameter-abap_name } = ''|.
+            ENDIF.
+          WHEN OTHERS.
+            lv_parameters = lv_parameters &&
+              |\n            { ls_parameter-abap_name } = '{ ls_parameter-in }-todo'|.
+        ENDCASE.
+      ENDLOOP.
+
+
+      IF ls_operation-request_body-schema_ref IS NOT INITIAL.
+        rv_abap = rv_abap &&
+          |          DATA { ls_operation-abap_name  } TYPE { ms_input-intf }=>{ find_schema( ls_operation-request_body-schema_ref )-abap_name }.\n| &&
+          |          /ui2/cl_json=>deserialize(\n| &&
+          |            EXPORTING\n| &&
+          |              json          = server->request->get_cdata( )\n| &&
+          |              pretty_name   = { ms_input-pretty_name }\n| &&
+          |              name_mappings = mt_name_mappings\n| &&
+          |            CHANGING\n| &&
+          |              data          = { ls_operation-abap_name } ).\n|.
+        rv_abap = rv_abap && build_validation_code(
+          io_schema          = find_schema( ls_operation-request_body-schema_ref )-schema
+          iv_expression      = ls_operation-abap_name
+          iv_path            = find_schema( ls_operation-request_body-schema_ref )-abap_name
+          iv_validator_class = lv_validator_class ).
+        lv_parameters = lv_parameters &&
+          |\n            body = { ls_operation-abap_name }|.
+      ELSEIF ls_operation-request_body-schema IS NOT INITIAL.
+        lv_body_name = |lv_body_{ lv_counter }|.
+        lv_body_type = ls_operation-request_body-schema->get_simple_type( ).
+        IF lv_body_type = 'any' OR lv_body_type IS INITIAL.
+          lv_body_type = 'string'.
+        ENDIF.
+        rv_abap = rv_abap &&
+          |          DATA { lv_body_name } TYPE { lv_body_type }.\n|.
+        IF lv_body_type = 'xstring'.
+          rv_abap = rv_abap &&
+            |          { lv_body_name } = server->request->get_data( ).\n|.
+        ELSE.
+          rv_abap = rv_abap &&
+            |          { lv_body_name } = server->request->get_cdata( ).\n|.
+        ENDIF.
+        lv_parameters = lv_parameters &&
+          |\n            body = { lv_body_name }|.
+      ENDIF.
+
+      lv_typename = 'r_' && ls_operation-abap_name.
+
+      CLEAR lv_post.
+      LOOP AT ls_operation-responses INTO ls_response.
+        IF ls_response-code = 'default'.
+          READ TABLE ls_operation-responses WITH KEY code = '200' TRANSPORTING NO FIELDS.
+          IF sy-subrc = 0.
+            lv_code = '400'.
+          ELSE.
+            lv_code = '200'.
+          ENDIF.
+        ELSE.
+          lv_code = ls_response-code.
+        ENDIF.
+        IF lines( ls_response-content ) = 0.
+          lv_post = lv_post &&
+            |          server->response->set_status( code = { lv_code } reason = '{ escape_abap_literal( single_line( iv_value = ls_response-description iv_max_length = 100 ) ) }' ).\n| &&
+            |          RETURN.\n|.
+        ELSE.
+          LOOP AT ls_response-content INTO ls_content.
+
+            lv_response_name = lo_response_name->generate_response_name( iv_content_type = ls_content-type
+                                                                         iv_code         = ls_response-code ).
+
+            lv_indentation = ||.
+            IF lines( ls_response-content ) > 1.
+              lv_post = lv_post &&
+                |          IF { lv_typename }-{ lv_response_name } IS NOT INITIAL.\n|.
+              lv_indentation = |  |.
+            ENDIF.
+            lv_post = lv_post &&
+              |{ lv_indentation }          server->response->set_content_type( '{ ls_content-type }' ).\n| &&
+              |{ lv_indentation }          server->response->set_cdata( /ui2/cl_json=>serialize(\n| &&
+              |{ lv_indentation }            data          = { lv_typename }-{ lv_response_name }\n| &&
+              |{ lv_indentation }            pretty_name   = { ms_input-pretty_name }\n| &&
+              |{ lv_indentation }            name_mappings = mt_name_mappings ) ).\n| &&
+              |{ lv_indentation }          server->response->set_status( code = { lv_code } reason = '{ escape_abap_literal( single_line( iv_value = ls_response-description iv_max_length = 100 ) ) }' ).\n| &&
+              |{ lv_indentation }          RETURN.\n|.
+            IF lines( ls_response-content ) > 1.
+              lv_post = lv_post &&
+                |          ENDIF.\n|.
+            ENDIF.
+          ENDLOOP.
+        ENDIF.
+      ENDLOOP.
+      IF lv_post IS NOT INITIAL.
+        lv_pre =
+          |          DATA { lv_typename } TYPE { ms_input-intf }=>{ lv_typename }.\n| &&
+          |          { lv_typename } = |.
+      ELSE.
+        lv_pre = |          |.
+        lv_post = |          RETURN.\n|.
+      ENDIF.
+
+      rv_abap = rv_abap &&
+        lv_path_parameter_setup &&
+        lv_pre &&
+        |li_handler->{ ls_operation-abap_name }({ lv_parameters } ).\n| &&
+        lv_post &&
+        |        ENDIF.\n| &&
+        |      CATCH cx_static_check INTO DATA(lx_error{ lv_counter }).\n| &&
+        |        server->response->set_content_type( 'text/plain' ).\n| &&
+        |        server->response->set_cdata( lx_error{ lv_counter }->get_text( ) ).\n| &&
+        |        server->response->set_status( code = 500 reason = 'Error' ).\n| &&
+        |    ENDTRY.\n|.
+    ENDLOOP.
+    rv_abap = rv_abap &&
+      |\n| &&
+      |    server->response->set_content_type( 'text/plain' ).\n| &&
+      |    server->response->set_cdata( \|No handler found for \{ lv_path \} \{ lv_method \}\| ).\n| &&
+      |    server->response->set_status( code = 500 reason = 'Error' ).\n| &&
+      |  ENDMETHOD.\n| &&
+      |ENDCLASS.|.
+  ENDMETHOD.
+
+
+  METHOD build_clas_icf_impl.
+    DATA ls_operation LIKE LINE OF ms_specification-operations.
+
+    rv_abap = |CLASS { ms_input-clas_icf_impl } DEFINITION PUBLIC.\n| &&
+      |  PUBLIC SECTION.\n| &&
+      |    INTERFACES { ms_input-intf }.\n| &&
+      |ENDCLASS.\n\n| &&
+      |CLASS { ms_input-clas_icf_impl } IMPLEMENTATION.\n\n|.
+
+    LOOP AT ms_specification-operations INTO ls_operation.
+      rv_abap = rv_abap &&
+        |  METHOD { ms_input-intf }~{ ls_operation-abap_name }.\n| &&
+        |* Add implementation logic here\n| &&
+        |  ENDMETHOD.\n\n|.
+    ENDLOOP.
+
+    rv_abap = rv_abap && |ENDCLASS.|.
+  ENDMETHOD.
+
+
+  METHOD build_clas_client.
+    DATA ls_operation     LIKE LINE OF ms_specification-operations.
+    DATA ls_parameter     LIKE LINE OF ls_operation-parameters.
+    DATA ls_response      LIKE LINE OF ls_operation-responses.
+    DATA ls_content       LIKE LINE OF ls_response-content.
+    DATA lo_response_name TYPE REF TO zcl_oapi_response_name.
+    DATA ls_cresponse     LIKE LINE OF ms_specification-components-responses.
+    DATA lv_name          TYPE string.
+    DATA lv_has_others       TYPE abap_bool.
+    DATA lv_name_mappings TYPE string.
+
+    CREATE OBJECT lo_response_name.
+    lv_name_mappings = build_name_mappings( ).
+
+    rv_abap = |CLASS { ms_input-clas_client } DEFINITION PUBLIC.\n| &&
+      generation_information( ) &&
+      |  PUBLIC SECTION.\n| &&
+      |    INTERFACES { ms_input-intf }.\n| &&
+      |    "! Supply http client and possibily extra http headers to instantiate the openAPI client\n| &&
+      |    "! Use cl_http_client=>create_by_destination() or cl_http_client=>create_by_url() to create the client\n| &&
+      |    "! the caller must close() the client\n| &&
+      |    CLASS-METHODS class_constructor.\n| &&
+      |    METHODS constructor\n| &&
+      |      IMPORTING\n| &&
+      |        ii_client        TYPE REF TO if_http_client\n| &&
+      |        iv_uri_prefix    TYPE string OPTIONAL\n| &&
+      |        it_extra_headers TYPE tihttpnvp OPTIONAL\n| &&
+      |        iv_logon_popup   TYPE i DEFAULT if_http_client=>co_disabled\n| &&
+      |        iv_timeout       TYPE i DEFAULT if_http_client=>co_timeout_default.\n| &&
+      |  PROTECTED SECTION.\n| &&
+      |    DATA mi_client        TYPE REF TO if_http_client.\n| &&
+      |    DATA mv_timeout       TYPE i.\n| &&
+      |    DATA mv_logon_popup   TYPE i.\n| &&
+      |    DATA mv_uri_prefix    TYPE string.\n| &&
+      |    DATA mt_extra_headers TYPE tihttpnvp.\n| &&
+      |  PRIVATE SECTION.\n| &&
+      |    CLASS-DATA mt_name_mappings TYPE /ui2/cl_json=>name_mappings.\n| &&
+      |ENDCLASS.\n\n| &&
+      |CLASS { ms_input-clas_client } IMPLEMENTATION.\n| &&
+      |  METHOD constructor.\n| &&
+      |    mi_client = ii_client.\n| &&
+      |    mv_timeout = iv_timeout.\n| &&
+      |    mv_logon_popup = iv_logon_popup.\n| &&
+      |    mv_uri_prefix = iv_uri_prefix.\n| &&
+      |    mt_extra_headers = it_extra_headers.\n| &&
+      |  ENDMETHOD.\n\n| &&
+      |  METHOD class_constructor.\n| &&
+      COND string( WHEN lv_name_mappings IS NOT INITIAL
+                   THEN |    mt_name_mappings = { lv_name_mappings }.\n| ) &&
+      |  ENDMETHOD.\n\n|.
+
+    LOOP AT ms_specification-operations INTO ls_operation.
+      rv_abap = rv_abap &&
+        |  METHOD { ms_input-intf }~{ ls_operation-abap_name }.\n| &&
+        |    DATA lv_uri          TYPE string.\n| &&
+        |    DATA ls_header       LIKE LINE OF mt_extra_headers.\n| &&
+        |    DATA lv_dummy        TYPE string.\n| &&
+        |    DATA lv_content_type TYPE string.\n| &&
+        |\n| &&
+        |    mi_client->propertytype_logon_popup = mv_logon_popup.\n| &&
+        |    mi_client->request->set_method( '{ to_upper( ls_operation-method ) }' ).\n| &&
+        |    mi_client->request->set_version( if_http_request=>co_protocol_version_1_1 ).\n|.
+      IF ms_input-no_compression = abap_false.
+        rv_abap = rv_abap &&
+          |    mi_client->request->set_compression( ).\n|.
+      ENDIF.
+      rv_abap = rv_abap &&
+          |    lv_uri = mv_uri_prefix && '{ ls_operation-path }'.\n|.
+
+      LOOP AT ls_operation-parameters INTO ls_parameter.
+        CASE ls_parameter-in.
+          WHEN 'header'.
+            rv_abap = rv_abap &&
+              |    mi_client->request->set_header_field(\n| &&
+              |      name  = '{ ls_parameter-name }'\n| &&
+              |      value = { ls_parameter-abap_name } ).\n|.
+          WHEN 'path'.
+            rv_abap = rv_abap &&
+              |    REPLACE FIRST OCCURRENCE OF '\{{ ls_parameter-name }\}' IN lv_uri WITH { ls_parameter-abap_name }.\n|.
+          WHEN OTHERS.
+            rv_abap = rv_abap &&
+              |" todo, in={ ls_parameter-in } name={ ls_parameter-name }\n|.
+        ENDCASE.
+      ENDLOOP.
+
+      rv_abap = rv_abap &&
+        |    cl_http_utility=>set_request_uri(\n| &&
+        |      request = mi_client->request\n| &&
+        |      uri     = lv_uri ).\n| &&
+        |    LOOP AT mt_extra_headers INTO ls_header.\n| &&
+        |      mi_client->request->set_header_field(\n| &&
+        |        name  = ls_header-name\n| &&
+        |        value = ls_header-value ).\n| &&
+        |    ENDLOOP.\n|.
+
+      IF ls_operation-request_body-type IS NOT INITIAL.
+        rv_abap = rv_abap && |    mi_client->request->set_content_type( '{ ls_operation-request_body-type }' ).\n|.
+      ENDIF.
+
+      IF ls_operation-request_body-schema IS NOT INITIAL.
+        CASE ls_operation-request_body-schema->get_simple_type( ).
+          WHEN 'xstring'.
+            rv_abap = rv_abap && |    mi_client->request->set_data( body ).\n|.
+          WHEN 'string'.
+            rv_abap = rv_abap && |    mi_client->request->set_cdata( body ).\n|.
+        ENDCASE.
+      ELSEIF ls_operation-request_body-schema_ref IS NOT INITIAL
+          AND ls_operation-request_body-type = 'application/json'.
+* this does make some assumptions on the names in the openapi, it should work for every case, eventually,
+        rv_abap = rv_abap &&
+          |    mi_client->request->set_cdata( /ui2/cl_json=>serialize(\n| &&
+          |      data          = body\n| &&
+          |      ts_as_iso8601 = abap_true\n| &&
+          |      pretty_name   = { ms_input-pretty_name }\n| &&
+          |      name_mappings = mt_name_mappings ) ).\n|.
+      ENDIF.
+
+      rv_abap = rv_abap &&
+        |    mi_client->send( mv_timeout ).\n| &&
+        |    mi_client->receive(\n| &&
+        |      EXCEPTIONS\n| &&
+        |        http_communication_failure = 1\n| &&
+        |        http_invalid_state         = 2\n| &&
+        |        http_processing_failed     = 3\n| &&
+        |        OTHERS                     = 4 ).\n| &&
+        |    IF sy-subrc <> 0.\n| &&
+        |      mi_client->get_last_error(\n| &&
+        |        IMPORTING\n| &&
+        |          code    = return-code\n| &&
+        |          message = return-reason ).\n| &&
+        |      ASSERT 1 = 2.\n| &&
+        |    ENDIF.\n| &&
+        |\n| &&
+        |    lv_content_type = mi_client->response->get_content_type( ).\n| &&
+        |    mi_client->response->get_status(\n| &&
+        |      IMPORTING\n| &&
+        |        code   = return-code\n| &&
+        |        reason = return-reason ).\n| &&
+        |    CASE return-code.\n|.
+
+      lv_has_others = abap_false.
+      LOOP AT ls_operation-responses INTO ls_response.
+        IF ls_response-code = 'default'.
+          rv_abap = rv_abap && |      WHEN OTHERS.\n|.
+          lv_has_others = abap_true.
+        ELSEIF ls_response-description IS NOT INITIAL.
+          rv_abap = rv_abap && |      WHEN { ls_response-code }. " { single_line( ls_response-description ) }\n|.
+        ELSE.
+          rv_abap = rv_abap && |      WHEN { ls_response-code }.\n|.
+        ENDIF.
+
+        IF ls_response-ref IS NOT INITIAL.
+          lv_name = ls_response-ref.
+          REPLACE FIRST OCCURRENCE OF '#/components/responses/' IN lv_name WITH ''.
+          READ TABLE ms_specification-components-responses WITH KEY name = lv_name INTO ls_cresponse.
+          IF sy-subrc = 0.
+            APPEND LINES OF ls_cresponse-content TO ls_response-content.
+          ENDIF.
+        ENDIF.
+
+        IF lines( ls_response-content ) > 0.
+          rv_abap = rv_abap &&
+            |        SPLIT lv_content_type AT ';' INTO lv_content_type lv_dummy.\n| &&
+            |        CASE lv_content_type.\n|.
+          LOOP AT ls_response-content INTO ls_content.
+            rv_abap = rv_abap &&
+              |          WHEN '{ ls_content-type }'.\n|.
+            IF ls_content-type = 'application/json'
+                OR ls_content-type CP 'application/*#+json'.
+              lv_name = lo_response_name->generate_response_name(
+                iv_content_type = ls_content-type
+                iv_code         = ls_response-code ).
+
+              rv_abap = rv_abap &&
+                |            /ui2/cl_json=>deserialize(\n| &&
+                |              EXPORTING\n| &&
+                |                json          = mi_client->response->get_cdata( )\n| &&
+                |                pretty_name   = { ms_input-pretty_name }\n| &&
+                |                name_mappings = mt_name_mappings\n| &&
+                |              CHANGING\n| &&
+                |                data          = return-{ lv_name } ).\n|.
+            ELSE.
+              rv_abap = rv_abap &&
+                |* todo, content type = '{ ls_content-type }'\n|.
+            ENDIF.
+          ENDLOOP.
+          rv_abap = rv_abap &&
+            |          WHEN OTHERS.\n| &&
+            |* unexpected content type\n| &&
+            |        ENDCASE.\n|.
+        ELSEIF ls_response-ref IS NOT INITIAL.
+          rv_abap = rv_abap &&
+            |* todo, no content types { ls_response-ref }\n|.
+        ELSE.
+          rv_abap = rv_abap &&
+            |* todo, no content types\n|.
+        ENDIF.
+      ENDLOOP.
+
+      IF lv_has_others = abap_false.
+        rv_abap = rv_abap &&
+          |      WHEN OTHERS.\n| &&
+          |* todo, error handling\n|.
+      ENDIF.
+      rv_abap = rv_abap &&
+        |    ENDCASE.\n\n| &&
+        |  ENDMETHOD.\n\n|.
+    ENDLOOP.
+
+    rv_abap = rv_abap && |ENDCLASS.|.
+  ENDMETHOD.
+
+
+  METHOD build_intf.
+    DATA ls_operation LIKE LINE OF ms_specification-operations.
+    DATA ls_returning TYPE ty_returning.
+    DATA ls_component_schema LIKE LINE OF ms_specification-components-schemas.
+    DATA ls_server LIKE LINE OF ms_specification-servers.
+    DATA lo_names TYPE REF TO zcl_oapi_abap_name.
+
+    rv_abap = |INTERFACE { ms_input-intf } PUBLIC.\n| &&
+      generation_information( ) &&
+      |\n|.
+
+    IF ms_specification-servers IS NOT INITIAL.
+      READ TABLE ms_specification-servers INDEX 1 INTO ls_server.
+      IF sy-subrc = 0.
+        rv_abap = rv_abap && |  CONSTANTS base_path TYPE string VALUE '{ ls_server-url }'.\n\n|.
+      ENDIF.
+    ELSE.
+      rv_abap = rv_abap && |  CONSTANTS base_path TYPE string VALUE ''.\n\n|.
+    ENDIF.
+
+
+* names are shared across all schemas, so generated sub types are unique in the interface
+    CREATE OBJECT lo_names.
+    LOOP AT ms_specification-components-schemas INTO ls_component_schema.
+      lo_names->add_used( ls_component_schema-abap_name ).
+    ENDLOOP.
+    LOOP AT ms_specification-operations INTO ls_operation.
+      lo_names->add_used( ls_operation-abap_name ).
+    ENDLOOP.
+
+    LOOP AT ms_specification-components-schemas INTO ls_component_schema.
+      rv_abap = rv_abap && |* { ls_component_schema-name }\n|.
+      rv_abap = rv_abap && ls_component_schema-schema->build_type_definition(
+        iv_name          = ls_component_schema-abap_name
+        it_refs          = ms_specification-components-schemas
+        io_names         = lo_names
+        iv_use_empty_key = ms_input-use_empty_key ).
+    ENDLOOP.
+    IF sy-subrc = 0.
+      rv_abap = rv_abap && |\n|.
+    ENDIF.
+
+    LOOP AT ms_specification-operations INTO ls_operation.
+      ls_returning = find_returning_parameter( ls_operation ).
+      rv_abap = rv_abap && ls_returning-type.
+      IF ls_operation-summary IS NOT INITIAL.
+        rv_abap = rv_abap && |  "! { ls_operation-summary }\n|.
+      ENDIF.
+      rv_abap = rv_abap && |  METHODS { ls_operation-abap_name }{
+          find_input_parameters( ls_operation ) }{
+          ls_returning-abap }\n    RAISING\n      cx_static_check.\n|.
+    ENDLOOP.
+    rv_abap = rv_abap && |ENDINTERFACE.|.
+  ENDMETHOD.
+
+
+  METHOD find_input_parameters.
+    DATA lt_list          TYPE STANDARD TABLE OF string WITH DEFAULT KEY.
+    DATA lv_str           TYPE string.
+    DATA ls_parameter     LIKE LINE OF is_operation-parameters.
+    DATA ls_parameter_ref LIKE LINE OF is_operation-parameters_ref.
+    DATA lv_name          TYPE string.
+    DATA ls_cparameter    LIKE LINE OF ms_specification-components-parameters.
+    DATA lt_parameters    LIKE is_operation-parameters.
+
+    lt_parameters = is_operation-parameters.
+    LOOP AT is_operation-parameters_ref INTO ls_parameter_ref.
+      lv_name = ls_parameter_ref.
+      REPLACE FIRST OCCURRENCE OF '#/components/parameters/' IN lv_name WITH ''.
+      READ TABLE ms_specification-components-parameters WITH KEY name = lv_name INTO ls_cparameter.
+      IF sy-subrc = 0.
+        APPEND ls_cparameter TO lt_parameters.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_parameters INTO ls_parameter.
+      lv_str = |      { ls_parameter-abap_name } TYPE { find_parameter_type( ls_parameter ) }|.
+      IF ls_parameter-required = abap_false.
+        lv_str = lv_str && | OPTIONAL|.
+      ENDIF.
+      APPEND lv_str TO lt_list.
+    ENDLOOP.
+
+    IF is_operation-request_body-schema_ref IS NOT INITIAL.
+      lv_str = |      body TYPE { find_schema( is_operation-request_body-schema_ref )-abap_name }|.
+      APPEND lv_str TO lt_list.
+    ELSEIF is_operation-request_body-schema IS NOT INITIAL.
+      lv_str = |      body TYPE { is_operation-request_body-schema->get_simple_type( ) }|.
+      APPEND lv_str TO lt_list.
+    ENDIF.
+
+    rv_abap = concat_lines_of( table = lt_list sep = |\n| ).
+
+    IF rv_abap IS NOT INITIAL.
+      rv_abap = |\n    IMPORTING\n{ rv_abap }|.
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD find_parameter_type.
+    IF is_parameter-schema->type = 'array'.
+      rv_type = 'string_table'.
+    ELSE.
+      rv_type = is_parameter-schema->get_simple_type( ).
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD find_returning_parameter.
+    DATA ls_response       LIKE LINE OF is_operation-responses.
+    DATA ls_content        LIKE LINE OF ls_response-content.
+    DATA lv_typename       TYPE char30.
+    DATA lo_response_name  TYPE REF TO zcl_oapi_response_name.
+    DATA lv_response_name  TYPE string.
+    DATA lv_returning_type TYPE string.
+    DATA lv_name           TYPE string.
+    DATA ls_cresponse      LIKE LINE OF ms_specification-components-responses.
+
+    FIELD-SYMBOLS <ls_response> LIKE LINE OF is_operation-responses.
+
+    CREATE OBJECT lo_response_name.
+
+    lv_typename = 'r_' && is_operation-abap_name.
+
+    LOOP AT is_operation-responses ASSIGNING <ls_response>.
+      IF <ls_response>-ref IS NOT INITIAL.
+        lv_name = <ls_response>-ref.
+        REPLACE FIRST OCCURRENCE OF '#/components/responses/' IN lv_name WITH ''.
+        READ TABLE ms_specification-components-responses WITH KEY name = lv_name INTO ls_cresponse.
+        IF sy-subrc = 0.
+          APPEND LINES OF ls_cresponse-content TO <ls_response>-content.
+        ENDIF.
+      ENDIF.
+
+      LOOP AT <ls_response>-content INTO ls_content.
+        lv_response_name = lo_response_name->generate_response_name(
+          iv_content_type = ls_content-type
+          iv_code         = <ls_response>-code ).
+        IF ls_content-schema_ref = space.
+          lv_returning_type = ls_content-schema->get_simple_type( ).
+          IF lv_returning_type IS INITIAL OR lv_returning_type = 'any'.
+            lv_returning_type = 'string'.
+          ENDIF.
+        ELSE.
+          lv_returning_type = find_schema( ls_content-schema_ref )-abap_name.
+        ENDIF.
+        rs_returning-type = rs_returning-type &&
+              |           { lv_response_name } TYPE { lv_returning_type },\n|.
+      ENDLOOP.
+    ENDLOOP.
+    rs_returning-type =
+      |  TYPES: BEGIN OF { lv_typename },\n| &&
+      |           code          TYPE i,\n| &&
+      |           reason        TYPE string,\n| &&
+      |{ rs_returning-type }| &&
+      |         END OF { lv_typename }.\n|.
+
+    rs_returning-abap = rs_returning-abap &&
+      |\n    RETURNING\n      VALUE(return) TYPE { lv_typename }|.
+
+  ENDMETHOD.
+
+  METHOD split_description.
+*----------------------------------------------------------------------*
+* LOCAL DATA DEFINITION
+*----------------------------------------------------------------------*
+    DATA: lt_descr1     TYPE STANDARD TABLE OF string WITH DEFAULT KEY,
+          lt_descr2     TYPE STANDARD TABLE OF string WITH DEFAULT KEY,
+          lv_first_time TYPE abap_bool.
+
+    FIELD-SYMBOLS: <ls_desc1> TYPE string,
+                   <ls_desc2> TYPE string.
+
+* ---------- Set description title ----------------------------------------------------------------
+    cv_info = cv_info && |* Description:|.
+
+* ---------- Split desription at new line ---------------------------------------------------------
+    SPLIT iv_description AT cl_abap_char_utilities=>newline INTO TABLE lt_descr1.
+
+    LOOP AT lt_descr1 ASSIGNING <ls_desc1>.
+* ---------- Init loop data -----------------------------------------------------------------------
+      CLEAR: lt_descr2.
+      UNASSIGN: <ls_desc2>.
+
+* ---------- Split remaining string by fix length -------------------------------------------------
+      lt_descr2 = split_string( iv_size   = 200
+                                iv_input  = <ls_desc1> ).
+
+      LOOP AT lt_descr2 ASSIGNING <ls_desc2>.
+        IF lv_first_time = abap_false.
+          cv_info = cv_info && | { <ls_desc2> }\n|.
+          lv_first_time = abap_true.
+        ELSE.
+          cv_info = cv_info && |* { <ls_desc2> }\n|.
+        ENDIF.
+      ENDLOOP.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD split_string.
+*----------------------------------------------------------------------*
+* LOCAL DATA DEFINITION
+*----------------------------------------------------------------------*
+    DATA: lv_size      TYPE i,
+          lv_size_end  TYPE i,
+          lv_pos       TYPE i,
+          lv_substring TYPE string.
+
+    lv_size = strlen( iv_input ) DIV iv_size.
+    lv_size_end = strlen( iv_input ) MOD iv_size.
+
+* ---------- Main split ---------------------------------------------------------------------------
+    DO lv_size TIMES.
+      CLEAR lv_substring.
+      lv_substring = substring( val = iv_input off = lv_pos len = iv_size ).
+      lv_pos = lv_pos + iv_size.
+      INSERT lv_substring INTO TABLE rt_output.
+    ENDDO.
+
+* ---------- If still some last characters to add, calculate last substring -----------------------
+    IF lv_size_end IS NOT INITIAL.
+      CLEAR lv_substring.
+      lv_substring = substring( val = iv_input off = lv_pos len = lv_size_end ).
+      INSERT lv_substring INTO TABLE rt_output.
+    ENDIF.
+  ENDMETHOD.
+ENDCLASS.

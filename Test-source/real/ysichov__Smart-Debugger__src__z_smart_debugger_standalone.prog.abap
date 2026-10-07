@@ -1,0 +1,9015 @@
+*<SCRIPT:PERSISTENT>
+
+REPORT  z_smart_debugger_script.
+
+*<SCRIPT:HEADER>
+*<SCRIPTNAME>Z_SMART_DEBUGGER_SCRIPT</SCRIPTNAME>
+*<SCRIPT_CLASS>lcl_debugger_script</SCRIPT_CLASS>
+*<SINGLE_RUN>X</SINGLE_RUN>
+
+*</SCRIPT:HEADER>
+
+*<SCRIPT:PRESETTINGS>
+
+*</SCRIPT:PRESETTINGS>
+
+*<SCRIPT:SCRIPT_CLASS>
+*<SCRIPT:PERSISTENT>
+
+*<SCRIPT:HEADER>
+*<SCRIPTNAME>Z_SMART_DEBUGGER_TEST</SCRIPTNAME>
+*<SCRIPT_CLASS>lcl_debugger_script</SCRIPT_CLASS>
+*<SCRIPT_COMMENT>Debugger Skript: Default Template</SCRIPT_COMMENT>
+*<SINGLE_STEP>X</SINGLE_STEP>
+
+*</SCRIPT:HEADER>
+
+*<SCRIPT:PRESETTINGS>
+
+*</SCRIPT:PRESETTINGS>
+
+*<SCRIPT:SCRIPT_CLASS>
+
+INTERFACE zif_smd_ai_agent_types DEFERRED.
+CLASS zcl_smd_window DEFINITION DEFERRED.
+CLASS zcl_smd_text_viewer DEFINITION DEFERRED.
+CLASS zcl_smd_table_viewer DEFINITION DEFERRED.
+CLASS zcl_smd_source_parser DEFINITION DEFERRED.
+CLASS zcl_smd_sel_opt DEFINITION DEFERRED.
+CLASS zcl_smd_rtti_tree DEFINITION DEFERRED.
+CLASS zcl_smd_rtti DEFINITION DEFERRED.
+CLASS zcl_smd_popup DEFINITION DEFERRED.
+CLASS zcl_smd_password_popup DEFINITION DEFERRED.
+CLASS zcl_smd_mermaid DEFINITION DEFERRED.
+CLASS zcl_smd_markdown_html DEFINITION DEFERRED.
+CLASS zcl_smd_html_viewer DEFINITION DEFERRED.
+CLASS zcl_smd_debugger_base DEFINITION DEFERRED.
+CLASS zcl_smd_ddic DEFINITION DEFERRED.
+CLASS zcl_smd_common DEFINITION DEFERRED.
+CLASS zcl_smd_code_scheme DEFINITION DEFERRED.
+CLASS zcl_smd_appl DEFINITION DEFERRED.
+INTERFACE zif_smd_ai_agent_types.
+
+  TYPES:
+    BEGIN OF ty_action,
+      tool              TYPE string,
+      command           TYPE string,
+      program           TYPE string,
+      include           TYPE string,
+      line              TYPE i,
+      from_line         TYPE i,
+      to_line           TYPE i,
+      mode              TYPE string,
+      variable          TYPE string,
+      reason            TYPE string,
+      arguments         TYPE string,
+      status            TYPE string,
+      diagnosis         TYPE string,
+      evidence_variable TYPE string,
+      evidence_step     TYPE string,
+      evidence_value    TYPE string,
+      fix_suggestion    TYPE string,
+    END OF ty_action.
+
+  TYPES tt_action TYPE STANDARD TABLE OF ty_action WITH EMPTY KEY.
+
+ENDINTERFACE.
+
+CLASS zcl_smd_appl DEFINITION CREATE PUBLIC.
+
+  PUBLIC SECTION.
+
+    TYPES:
+
+           BEGIN OF var_table,
+             step          TYPE i,
+             stack         TYPE i,
+             program(40)   TYPE c,
+             eventtype(30) TYPE c,
+             eventname(61) TYPE c,
+             first         TYPE xfeld,
+             is_appear     TYPE xfeld,
+             del           TYPE xfeld,
+             leaf          TYPE string,
+             name(1000)               ,
+             path          TYPE string,
+             short         TYPE string,
+             key           TYPE salv_de_node_key,
+             parent        TYPE string,
+             cl_leaf       TYPE int4,
+             ref           TYPE REF TO data,
+             type          TYPE string,
+             instance      TYPE string,
+             objname       TYPE string,
+             done          TYPE xfeld,
+             "delta storage for table history: ref holds only the changed block
+             is_delta      TYPE xfeld, "'X' = ref contains replacement rows, not the full table
+             delta_from    TYPE i,     "1-based row index where the old block is replaced
+             delta_del     TYPE i,     "number of old rows removed at delta_from
+           END OF var_table,
+
+           variables TYPE STANDARD TABLE OF var_table WITH NON-UNIQUE DEFAULT KEY,
+
+           BEGIN OF var_table_temp,
+             step          TYPE i,
+             line          TYPE tpda_sc_line,
+             stack         TYPE i,
+             eventtype(30) TYPE c,
+             eventname(61) TYPE c,
+             name          TYPE string,
+             value         TYPE string,
+             first         TYPE xfeld,
+             is_appear     TYPE xfeld,
+             del           TYPE xfeld,
+             program(40)   TYPE c,
+             leaf          TYPE string,
+             path          TYPE string,
+             type          TYPE string,
+             instance      TYPE string,
+             objname       TYPE string,
+             ref           TYPE REF TO data,
+           END OF var_table_temp,
+
+           BEGIN OF var_table_h,
+             step          TYPE i,
+             program(40)   TYPE c,
+             eventtype(30) TYPE c,
+             eventname(61) TYPE c,
+             leaf          TYPE string,
+             name          TYPE string,
+             path          TYPE string,
+             parent        TYPE string,
+             short         TYPE string,
+             cl_leaf       TYPE int4,  "?
+             ref           TYPE REF TO data,
+             tree          TYPE REF TO zcl_smd_rtti_tree,
+             time          LIKE sy-uname,
+           END OF var_table_h,
+
+           BEGIN OF t_obj,
+             name       TYPE string,
+             alv_viewer TYPE REF TO zcl_smd_table_viewer,
+           END OF t_obj,
+
+           BEGIN OF t_popup,
+             parent TYPE REF TO cl_gui_dialogbox_container,
+             child  TYPE REF TO cl_gui_dialogbox_container,
+           END OF t_popup,
+
+           BEGIN OF t_classes_types,
+             name TYPE string,
+             full TYPE string,
+             type TYPE char1,
+             key  TYPE salv_de_node_key,
+           END OF t_classes_types,
+
+           BEGIN OF t_lang,
+             spras(4),
+             sptxt    TYPE sptxt,
+           END OF t_lang,
+
+           BEGIN OF t_stack,
+             step       TYPE i,
+             "stackpointer TYPE tpda_stack_pointer,
+             stacklevel TYPE tpda_stack_level,
+             line       TYPE tpda_sc_line,
+             eventtype  TYPE tpda_event_type,
+             eventname  TYPE tpda_event,
+             program    TYPE tpda_program,
+             include    TYPE tpda_include,
+           END OF t_stack,
+
+           BEGIN OF t_step_counter,
+             step       TYPE i,
+             stacklevel TYPE tpda_stack_level,
+             line       TYPE tpda_sc_line,
+             eventtype  TYPE string,
+             eventname  TYPE string,
+             first      TYPE xfeld,
+             last       TYPE xfeld,
+             program    TYPE tpda_program,
+             include    TYPE tpda_include,
+             time       LIKE sy-uzeit,
+           END OF t_step_counter,
+           tt_steps TYPE STANDARD TABLE OF t_step_counter WITH EMPTY KEY.
+
+    CLASS-DATA: "m_option_icons    TYPE TABLE OF sign_option_icon_s,
+                mt_lang           TYPE TABLE OF t_lang,
+                mt_obj            TYPE TABLE OF t_obj, "main object table
+                mt_popups         TYPE TABLE OF t_popup, "dependents popups
+                c_dragdropalv     TYPE REF TO cl_dragdrop,
+                is_mermaid_active TYPE xfeld.
+
+    "CLASS-DATA: mt_sel TYPE TABLE OF selection_display.
+    CLASS-METHODS:
+      init_icons_table,
+      init_lang,
+      check_mermaid,
+      open_int_table IMPORTING it_tab    TYPE ANY TABLE OPTIONAL
+                               it_ref    TYPE REF TO data OPTIONAL
+                               i_name    TYPE string
+                               io_window TYPE REF TO zcl_smd_window.
+
+ENDCLASS.
+CLASS zcl_smd_popup DEFINITION
+  create public .
+
+public section.
+
+  class-data M_COUNTER type I .
+  data M_ADDITIONAL_NAME type STRING .
+  data MO_BOX type ref to CL_GUI_DIALOGBOX_CONTAINER .
+  data MO_SPLITTER type ref to CL_GUI_SPLITTER_CONTAINER .
+  data MO_SPLITTER_IMP_EXP type ref to CL_GUI_SPLITTER_CONTAINER .
+  data MO_VARIABLES_CONTAINER type ref to CL_GUI_CONTAINER .
+  data MO_TABLES_CONTAINER type ref to CL_GUI_CONTAINER .
+
+  methods CONSTRUCTOR
+    importing
+      !I_ADDITIONAL_NAME type STRING optional .
+  methods CREATE
+    importing
+      !I_WIDTH type I
+      !I_HIGHT type I
+      !I_NAME type TEXT100 optional
+    returning
+      value(RO_BOX) type ref to CL_GUI_DIALOGBOX_CONTAINER .
+  methods ON_BOX_CLOSE
+    for event CLOSE of CL_GUI_DIALOGBOX_CONTAINER
+    importing
+      !SENDER .
+protected section.
+private section.
+ENDCLASS.
+CLASS zcl_smd_window DEFINITION INHERITING FROM zcl_smd_popup CREATE PUBLIC.
+
+  PUBLIC SECTION.
+
+    TYPES: BEGIN OF ts_table,
+             ref      TYPE REF TO data,
+             kind(1),
+             value    TYPE string,
+             typename TYPE abap_abstypename,
+             fullname TYPE string,
+           END OF ts_table,
+
+           BEGIN OF ts_calls,
+             event TYPE string,
+             type  TYPE string,
+             name  TYPE string,
+             outer TYPE string,
+             inner TYPE string,
+           END OF ts_calls,
+           tt_calls TYPE STANDARD TABLE OF ts_calls WITH NON-UNIQUE KEY outer,
+
+           BEGIN OF ts_calls_line,
+             class     TYPE string,
+             eventtype TYPE string,
+             eventname TYPE string,
+             index     TYPE i,
+           END OF ts_calls_line,
+           tt_calls_line TYPE STANDARD TABLE OF ts_calls_line WITH NON-UNIQUE EMPTY KEY,
+
+           BEGIN OF ts_kword,
+             index     TYPE i,
+             line      TYPE i,
+             name      TYPE string,
+             from      TYPE i,
+             to        TYPE i,
+             tt_calls  TYPE tt_calls,
+             to_evtype TYPE string,
+             to_evname TYPE string,
+           END OF ts_kword,
+
+           BEGIN OF calculated_var ,
+             line TYPE i,
+             name TYPE string,
+           END OF calculated_var ,
+
+           BEGIN OF composed_vars,
+             line TYPE i,
+             name TYPE string,
+           END OF composed_vars,
+
+           tt_kword      TYPE STANDARD TABLE OF ts_kword WITH EMPTY KEY,
+           tt_calculated TYPE STANDARD TABLE OF calculated_var  WITH EMPTY KEY,
+           tt_composed   TYPE STANDARD TABLE OF composed_vars WITH EMPTY KEY,
+
+           BEGIN OF ts_params,
+             class     TYPE string,
+             event     TYPE string,
+             name      TYPE string,
+             param     TYPE string,
+             type      TYPE char1,
+             preferred TYPE char1,
+           END OF ts_params,
+           tt_params TYPE STANDARD TABLE OF ts_params WITH EMPTY KEY,
+
+           BEGIN OF ts_int_tabs,
+             eventtype TYPE string,
+             eventname TYPE string,
+             name      TYPE string,
+             type      TYPE string,
+           END OF ts_int_tabs,
+           tt_tabs TYPE STANDARD TABLE OF ts_int_tabs WITH EMPTY KEY,
+
+           BEGIN OF ts_progs,
+             include       TYPE program,
+             source        TYPE REF TO cl_ci_source_include,
+             scan          TYPE REF TO cl_ci_scan,
+             t_keytokens   TYPE tt_kword,
+             t_calculated  TYPE tt_calculated,
+             t_composed    TYPE tt_composed,
+             t_params      TYPE tt_params,
+             tt_tabs       TYPE tt_tabs,
+             tt_calls_line TYPE tt_calls_line,
+           END OF ts_progs,
+
+           BEGIN OF ts_locals,
+             program    TYPE tpda_program,
+             eventtype  TYPE tpda_event_type,
+             eventname  TYPE tpda_event,
+             loc_fill   TYPE xfeld,
+             locals_tab TYPE tpda_scr_locals_it,
+             mt_fs      TYPE tpda_scr_locals_it,
+           END OF ts_locals,
+
+           BEGIN OF ts_globals,
+             program     TYPE tpda_program,
+             glob_fill   TYPE xfeld,
+             globals_tab TYPE tpda_scr_globals_it,
+             mt_fs       TYPE tpda_scr_locals_it,
+           END OF ts_globals,
+
+           BEGIN OF ts_watch,
+             program TYPE string,
+             line    TYPE i,
+           END OF ts_watch,
+           tt_watch TYPE STANDARD  TABLE OF ts_watch WITH EMPTY KEY,
+
+           BEGIN OF ts_bpoint,
+             program TYPE string,
+             include TYPE string,
+             line    TYPE i,
+             type    TYPE char1,
+             del     TYPE char1,
+           END OF ts_bpoint,
+           tt_bpoints TYPE STANDARD TABLE OF ts_bpoint WITH EMPTY KEY.
+
+    TYPES tt_table TYPE STANDARD TABLE OF ts_table
+          WITH NON-UNIQUE DEFAULT KEY.
+    TYPES tt_html TYPE STANDARD TABLE OF w3html
+          WITH NON-UNIQUE DEFAULT KEY.
+
+    DATA: m_version              TYPE x, " 0 - alpha, 01 - beta
+          m_history              TYPE x,
+          m_visualization        TYPE x,
+          m_varhist              TYPE x,
+          m_zcode                TYPE x,
+          m_direction            TYPE x,
+          m_prg                  TYPE tpda_scr_prg_info,
+          m_debug_button         LIKE sy-ucomm,
+          m_show_step            TYPE xfeld,
+          mt_bpoints             TYPE tt_bpoints,
+          mo_debugger            TYPE REF TO zcl_smd_debugger_base,
+          mo_splitter_code       TYPE REF TO cl_gui_splitter_container,
+          mo_splitter_var        TYPE REF TO cl_gui_splitter_container,
+          mo_splitter_steps      TYPE REF TO cl_gui_splitter_container,
+          mo_toolbar_container   TYPE REF TO cl_gui_container,
+          mo_importing_container TYPE REF TO cl_gui_container,
+          mo_locals_container    TYPE REF TO cl_gui_container,
+          mo_exporting_container TYPE REF TO cl_gui_container,
+          mo_code_container      TYPE REF TO cl_gui_container,
+          mo_ai_container        TYPE REF TO cl_gui_container,
+          mo_ai_prompt_container TYPE REF TO cl_gui_container,
+          mo_ai_result_container TYPE REF TO cl_gui_container,
+          mo_imp_exp_container   TYPE REF TO cl_gui_container,
+          mo_editor_container    TYPE REF TO cl_gui_container,
+          mo_steps_container     TYPE REF TO cl_gui_container,
+          mo_stack_container     TYPE REF TO cl_gui_container,
+          mo_hist_container      TYPE REF TO cl_gui_container,
+          mo_ai_splitter         TYPE REF TO cl_gui_splitter_container,
+          mo_ai_prompt           TYPE REF TO cl_gui_textedit,
+          mo_ai_result           TYPE REF TO cl_gui_html_viewer,
+          mo_ai_agent            TYPE REF TO object, "AI agent stripped from standalone build
+          mo_ai_log_viewer       TYPE REF TO zcl_smd_html_viewer,
+          mt_ai_pending_actions  TYPE zif_smd_ai_agent_types=>tt_action,
+          mo_code_viewer         TYPE REF TO cl_gui_abapedit,
+          mt_stack               TYPE TABLE OF zcl_smd_appl=>t_stack,
+          mo_toolbar             TYPE REF TO cl_gui_toolbar,
+          mo_salv_stack          TYPE REF TO cl_salv_table,
+          mo_salv_steps          TYPE REF TO cl_salv_table,
+          mo_salv_hist           TYPE REF TO cl_salv_table,
+          mt_breaks              TYPE tpda_bp_persistent_it,
+          mt_watch               TYPE tt_watch,
+          mt_coverage            TYPE tt_watch,
+          mv_ai_provider         TYPE string,
+          mv_ai_model            TYPE text255,
+          mv_ai_apikey           TYPE string,
+          m_ai_open              TYPE xfeld,
+          m_hist_depth           TYPE i,
+          m_start_stack          TYPE i,
+          mt_source              TYPE STANDARD  TABLE OF ts_progs,
+          mt_params              TYPE STANDARD  TABLE OF ts_params,
+          mt_locals_set          TYPE STANDARD TABLE OF ts_locals,
+          mt_globals_set         TYPE STANDARD TABLE OF ts_globals.
+
+    "raised after every debugger step or history navigation once the new state
+    "is displayed - open table popups refresh their content on it
+    EVENTS navigated.
+
+    METHODS: constructor IMPORTING i_debugger TYPE REF TO zcl_smd_debugger_base i_additional_name TYPE string OPTIONAL,
+      raise_navigated,
+      add_toolbar_buttons,
+      hnd_toolbar FOR EVENT function_selected OF cl_gui_toolbar IMPORTING fcode,
+      on_stack_double_click FOR EVENT double_click OF cl_salv_events_table IMPORTING row column,
+      set_program IMPORTING i_program TYPE program,
+      show_coverage,
+
+      on_editor_double_click  FOR EVENT dblclick OF cl_gui_abapedit IMPORTING sender,
+      on_editor_border_click  FOR EVENT border_click OF cl_gui_abapedit IMPORTING line cntrl_pressed_set shift_pressed_set,
+
+      set_program_line IMPORTING i_line LIKE sy-index OPTIONAL,
+      create_ai_panel,
+      run_ai_agent,
+      set_ai_text IMPORTING io_text TYPE REF TO cl_gui_textedit i_text TYPE string,
+      set_ai_result IMPORTING i_text TYPE string,
+      show_ai_log,
+      create_code_viewer,
+      show_stack.
+
+ENDCLASS.
+CLASS zcl_smd_code_scheme DEFINITION
+  FINAL
+  CREATE PRIVATE.
+
+  PUBLIC SECTION.
+
+    "! @parameter it_source | source lines of the include
+    "! @parameter it_kw     | parsed statement keywords (index / line / name)
+    "! @parameter io_scan   | scan of the same include; without it there is
+    "!                        no block information and only a title is drawn
+    "! @parameter i_title   | caption of the root node
+    CLASS-METHODS build
+      IMPORTING it_source    TYPE STANDARD TABLE
+                it_kw        TYPE zcl_smd_window=>tt_kword OPTIONAL
+                io_scan      TYPE REF TO cl_ci_scan OPTIONAL
+                i_title      TYPE string OPTIONAL
+      RETURNING VALUE(rv_mm) TYPE string.
+
+  PRIVATE SECTION.
+
+    TYPES:
+      BEGIN OF ts_line,
+        line  TYPE i,
+        text  TYPE string,
+        word  TYPE string,
+        depth TYPE i,
+        kind  TYPE char1,   " 'O'=opener 'B'=branch 'C'=closer 'P'=plain
+                            " 'S'=whole block on one line
+        end   TYPE i,       " last line of this header's own branch segment
+        all   TYPE i,       " openers: last line before the matching closer
+      END OF ts_line,
+      tt_line TYPE STANDARD TABLE OF ts_line WITH EMPTY KEY.
+
+    TYPES:
+      BEGIN OF ts_stmt,
+        index TYPE i,
+        line  TYPE i,
+        word  TYPE string,
+      END OF ts_stmt,
+      tt_stmt TYPE STANDARD TABLE OF ts_stmt WITH EMPTY KEY.
+
+    TYPES:
+      BEGIN OF ts_block,
+        open  TYPE i,
+        close TYPE i,
+        word  TYPE string,
+      END OF ts_block,
+      tt_block TYPE STANDARD TABLE OF ts_block WITH EMPTY KEY.
+
+    CONSTANTS c_apos TYPE c LENGTH 1 VALUE ''''.
+    CONSTANTS c_branches TYPE string VALUE ' ELSEIF ELSE WHEN CATCH CLEANUP '.
+
+    " Declarations are not execution: they never appear in the scheme and do
+    " not count towards the "N operations" between two branches.
+    CONSTANTS c_decls TYPE string VALUE ' DATA CLASS-DATA CONSTANTS STATICS FIELD-SYMBOLS TYPES TYPE-POOLS TABLES RANGES INCLUDE METHODS CLASS-METHODS EVENTS INTERFACES ALIASES DEFINE PARAMETERS SELECT-OPTIONS NODES INFOTYPES '.
+
+    CLASS-METHODS analyze
+      IMPORTING it_source       TYPE STANDARD TABLE
+                it_kw           TYPE zcl_smd_window=>tt_kword
+                io_scan         TYPE REF TO cl_ci_scan
+      RETURNING VALUE(rt_lines) TYPE tt_line.
+
+    "! Closing keyword expected for an opening one, '' if not a block opener.
+    CLASS-METHODS closer_of
+      IMPORTING i_word          TYPE string
+      RETURNING VALUE(r_closer) TYPE string.
+
+    "! Mermaid arrow, with the branch condition on it when there is one.
+    CLASS-METHODS arrow
+      IMPORTING i_label       TYPE string
+      RETURNING VALUE(r_text) TYPE string.
+
+    "! Emits an "N operations" node for the executable statements between two
+    "! lines and wires it after i_prev. Returns the node the chain now ends
+    "! on — the new node, or i_prev when there was nothing in between.
+    CLASS-METHODS ops_node
+      IMPORTING i_from        TYPE i
+                i_to          TYPE i
+                i_id          TYPE string
+                i_prev        TYPE string
+                i_label       TYPE string OPTIONAL
+                it_ops        TYPE int4_table
+                it_lines      TYPE tt_line
+      CHANGING  cv_mm         TYPE string
+                cv_edges      TYPE string
+      RETURNING VALUE(r_node) TYPE string.
+
+    "! Statement text, trimmed and stripped of what would break a label.
+    CLASS-METHODS scheme_label
+      IMPORTING i_text        TYPE string
+      RETURNING VALUE(r_text) TYPE string.
+
+ENDCLASS.
+CLASS zcl_smd_common DEFINITION
+  create public .
+
+public section.
+
+  constants:
+    c_white(4) TYPE x value '00000001' ##NO_TEXT.
+
+  class-methods REFRESH
+    importing
+      !I_OBJ type ref to CL_GUI_ALV_GRID
+      !I_LAYOUT type LVC_S_LAYO optional
+      !I_SOFT type CHAR01 optional .
+  class-methods TRANSLATE_FIELD
+    importing
+      !I_LANG type DDLANGUAGE optional
+    changing
+      !C_FLD type LVC_S_FCAT .
+  class-methods GET_SELECTED
+    importing
+      !I_OBJ type ref to CL_GUI_ALV_GRID
+    returning
+      value(E_INDEX) type I .
+protected section.
+private section.
+ENDCLASS.
+CLASS zcl_smd_ddic DEFINITION
+  create public .
+
+public section.
+
+  class-methods GET_TEXT_TABLE
+    importing
+      !I_TNAME type TABNAME
+    exporting
+      !E_TAB type TABNAME .
+protected section.
+private section.
+ENDCLASS.
+CLASS zcl_smd_debugger_base DEFINITION ABSTRACT INHERITING FROM cl_tpda_script_class_super CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    TYPES: BEGIN OF t_obj,
+             name TYPE string,
+             obj  TYPE string,
+           END OF t_obj,
+
+           BEGIN OF t_sel_var,
+             name   TYPE string,
+             is_sel TYPE xfeld,
+             refval TYPE REF TO data,
+           END OF t_sel_var.
+
+    DATA: mt_obj            TYPE TABLE OF t_obj,
+          mt_compo          TYPE TABLE OF scompo,
+          mt_locals         TYPE tpda_scr_locals_it,
+          mt_globals        TYPE tpda_scr_globals_it,
+          mt_ret_exp        TYPE tpda_scr_locals_it,
+          m_hide            TYPE x,
+          m_counter         TYPE i,
+          mt_steps          TYPE  TABLE OF zcl_smd_appl=>t_step_counter, "source code steps
+          mt_var_step       TYPE  TABLE OF zcl_smd_appl=>var_table_h,
+          m_step            TYPE i,
+          m_is_find         TYPE xfeld,
+          m_stop_stack      TYPE i,
+          m_debug           TYPE x,
+          m_refresh         TYPE xfeld, "to refactor
+          m_update          TYPE xfeld,
+          is_step           TYPE xfeld,
+          ms_stack_prev     TYPE   zcl_smd_appl=>t_stack,
+          ms_stack          TYPE   zcl_smd_appl=>t_stack,
+          is_history        TYPE xfeld,
+          m_hist_step       TYPE i,
+          m_step_delta      TYPE i,
+          mt_vars_hist_view TYPE STANDARD TABLE OF zcl_smd_appl=>var_table,
+          mt_vars_hist      TYPE STANDARD TABLE OF zcl_smd_appl=>var_table,
+          mt_state          TYPE STANDARD TABLE OF zcl_smd_appl=>var_table,
+          mv_recurse        TYPE i,
+          mt_classes_types  TYPE TABLE OF zcl_smd_appl=>t_classes_types,
+          mo_window         TYPE REF TO zcl_smd_window,
+          mv_f7_stop        TYPE xfeld,
+          m_f6_level        TYPE i,
+          m_target_stack    TYPE i,
+          mo_tree_imp       TYPE REF TO zcl_smd_rtti_tree,
+          mo_tree_local     TYPE REF TO zcl_smd_rtti_tree,
+          mo_tree_exp       TYPE REF TO zcl_smd_rtti_tree,
+          mt_selected_var   TYPE TABLE OF t_sel_var,
+          mv_stack_changed  TYPE xfeld,
+          m_variable        TYPE REF TO data,
+          m_quick           TYPE tpda_scr_quick_info,
+          mo_live_graph        TYPE REF TO zcl_smd_mermaid, "live calls-flow graph popup
+          mv_suppress_stack    TYPE xfeld, "skip the bottom stack ALV refresh during a multi-step run
+          mv_vis_include       TYPE program, "include currently loaded in the code viewer during a visualization run
+          mv_live_running      TYPE xfeld, "live_run auto-trace in progress - keep the main window untouched, only the graph updates
+          m_action_start_step  TYPE i, "m_step captured when an F6/F8 command starts
+          m_action_start_stack TYPE i, "stack level captured when an F6/F8 command starts
+          mr_statements     TYPE RANGE OF string.
+
+    METHODS:
+      run_script,
+      run_script_hist IMPORTING i_step  TYPE i OPTIONAL
+                      EXPORTING es_stop TYPE xfeld
+                      ,
+      show_variables CHANGING it_var TYPE zcl_smd_appl=>variables RETURNING VALUE(stop) TYPE xfeld,
+      set_selected_vars,
+      save_hist IMPORTING
+                  i_name              TYPE clike
+                  i_fullname          TYPE string
+                  i_type              TYPE string
+                  i_cl_leaf           TYPE int4
+                  i_parent_calculated TYPE string
+                  ir_up               TYPE any OPTIONAL
+                  i_instance          TYPE string OPTIONAL,
+
+      is_z_or_custom_code IMPORTING i_program        TYPE clike
+                          RETURNING VALUE(rv_custom) TYPE abap_bool,
+      f5 RETURNING VALUE(stop) TYPE xfeld,
+      f6 RETURNING VALUE(stop) TYPE xfeld,
+      f7 RETURNING VALUE(stop) TYPE xfeld,
+      f8 RETURNING VALUE(stop) TYPE xfeld,
+      make_step,
+      hndl_script_buttons IMPORTING i_stack_changed TYPE xfeld
+                          RETURNING VALUE(stop)     TYPE xfeld,
+      get_obj_index IMPORTING i_name TYPE any RETURNING VALUE(e_index) TYPE string,
+      create_reference         IMPORTING i_name            TYPE string
+                                         i_type            TYPE string
+                                         i_shortname       TYPE string OPTIONAL
+                                         i_quick           TYPE tpda_scr_quick_info
+                                         i_parent          TYPE string OPTIONAL
+                               RETURNING VALUE(e_root_key) TYPE salv_de_node_key,
+      show_step,
+      "Auto-open/refresh the live calls-flow graph after a long F6/F8 run.
+      maybe_show_live_graph,
+      "Every 1000 executed operations, ask the user whether to keep running.
+      "Returns X when the user chose to stop here.
+      checkpoint_1000 IMPORTING i_ops TYPE i RETURNING VALUE(r_stop) TYPE xfeld,
+      "Live-debug auto-run: single-step (dive into Z, step out of standard),
+      "refresh the calls graph on each stack change, stop at breakpoints/end.
+      live_run.
+
+  PRIVATE SECTION.
+
+    CONSTANTS: BEGIN OF c_kind,
+                 struct LIKE cl_abap_typedescr=>kind_struct VALUE cl_abap_typedescr=>kind_struct,
+                 table  LIKE cl_abap_typedescr=>kind_table VALUE cl_abap_typedescr=>kind_table,
+                 elem   LIKE cl_abap_typedescr=>kind_elem VALUE cl_abap_typedescr=>kind_elem,
+                 class  LIKE cl_abap_typedescr=>kind_class VALUE cl_abap_typedescr=>kind_class,
+                 intf   LIKE cl_abap_typedescr=>kind_intf VALUE cl_abap_typedescr=>kind_intf,
+                 ref    LIKE cl_abap_typedescr=>kind_ref VALUE cl_abap_typedescr=>kind_ref,
+               END OF c_kind.
+
+    "history delta handling: big tables are stored as deltas, not full copies
+    METHODS: hist_same_var IMPORTING is_a          TYPE zcl_smd_appl=>var_table
+                                     is_b          TYPE zcl_smd_appl=>var_table
+                           RETURNING VALUE(r_same) TYPE xfeld,
+
+      build_tab_delta IMPORTING ir_old  TYPE REF TO data
+                      CHANGING  cs_hist TYPE zcl_smd_appl=>var_table,
+
+      "type-safe value comparison: same-named variables can have different
+      "types in different blocks - comparing those directly dumps
+      hist_value_changed IMPORTING ir_old           TYPE REF TO data
+                                   ir_new           TYPE REF TO data
+                         RETURNING VALUE(r_changed) TYPE xfeld,
+
+      restore_tab_hist IMPORTING is_hist       TYPE zcl_smd_appl=>var_table
+                       RETURNING VALUE(rr_tab) TYPE REF TO data.
+
+    METHODS: transfer_variable IMPORTING i_name              TYPE string
+                                         i_type              TYPE string
+                                         i_shortname         TYPE string OPTIONAL
+                                         i_value             TYPE string OPTIONAL
+                                         i_parent_calculated TYPE string OPTIONAL
+                                         i_cl_leaf           TYPE int4 OPTIONAL
+                                         i_instance          TYPE string OPTIONAL,
+
+      create_simple_var IMPORTING i_name        TYPE string
+                        RETURNING VALUE(er_var) TYPE REF TO data,
+
+      create_simple_string IMPORTING i_name          TYPE string
+                           RETURNING VALUE(e_string) TYPE string,
+
+      create_struc         IMPORTING  i_name          TYPE string
+                           RETURNING  VALUE(er_struc) TYPE REF TO data
+                           EXCEPTIONS type_not_found,
+
+      create_struc2         IMPORTING i_name      TYPE string
+                                      i_shortname TYPE string OPTIONAL,
+
+      get_class_name   IMPORTING i_name        TYPE string
+                       RETURNING VALUE(e_name) TYPE string,
+
+      get_deep_struc       IMPORTING i_name TYPE string
+                                     r_obj  TYPE REF TO data,
+
+      get_table  IMPORTING i_name TYPE string
+                 CHANGING  c_obj  TYPE REF TO data,
+
+      read_class_globals.
+
+    METHODS traverse
+      IMPORTING
+        io_type_descr       TYPE REF TO cl_abap_typedescr
+        i_name              TYPE clike
+        i_fullname          TYPE string OPTIONAL
+        i_type              TYPE string
+        ir_up               TYPE REF TO data OPTIONAL
+        i_parent_calculated TYPE string OPTIONAL
+        i_struc_name        TYPE string OPTIONAL
+        i_instance          TYPE string OPTIONAL
+        i_cl_leaf           TYPE int4
+        i_ref               TYPE xfeld OPTIONAL
+        i_suffix            TYPE string OPTIONAL.
+
+    METHODS traverse_struct
+      IMPORTING io_type_descr       TYPE REF TO cl_abap_typedescr
+                i_name              TYPE clike
+                i_fullname          TYPE string OPTIONAL
+                i_type              TYPE string
+                i_cl_leaf           TYPE int4
+                ir_up               TYPE  REF TO data OPTIONAL
+                i_parent_calculated TYPE string OPTIONAL
+                i_struc_name        TYPE string OPTIONAL
+                i_instance          TYPE string OPTIONAL
+                i_suffix            TYPE string OPTIONAL.
+
+    METHODS traverse_elem
+      IMPORTING
+        i_name              TYPE clike
+        i_fullname          TYPE string OPTIONAL
+        i_type              TYPE string
+        i_value             TYPE any OPTIONAL
+        ir_up               TYPE  REF TO data OPTIONAL
+        i_parent_calculated TYPE string OPTIONAL
+        i_cl_leaf           TYPE int4
+        i_instance          TYPE string OPTIONAL.
+
+ENDCLASS.
+CLASS zcl_smd_markdown_html DEFINITION
+  FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    CLASS-METHODS to_html
+      IMPORTING
+        !i_markdown    TYPE string
+      RETURNING
+        VALUE(rv_html) TYPE string.
+
+  PRIVATE SECTION.
+    CLASS-METHODS escape_html
+      IMPORTING
+        !i_text        TYPE string
+      RETURNING
+        VALUE(rv_html) TYPE string.
+
+    CLASS-METHODS inline_markdown
+      IMPORTING
+        !i_text        TYPE string
+      RETURNING
+        VALUE(rv_html) TYPE string.
+ENDCLASS.
+CLASS zcl_smd_html_viewer DEFINITION
+  inheriting from ZCL_SMD_POPUP
+  final
+  create public .
+
+public section.
+
+  data MO_HTML type ref to CL_GUI_HTML_VIEWER .
+
+  methods CONSTRUCTOR
+    importing
+      !I_MARKDOWN type STRING
+      !I_TITLE type TEXT100 optional .
+protected section.
+private section.
+ENDCLASS.
+CLASS zcl_smd_mermaid DEFINITION INHERITING FROM zcl_smd_popup CREATE PUBLIC.
+
+  PUBLIC SECTION.
+
+    DATA: mo_debugger     TYPE REF TO zcl_smd_debugger_base,
+          mo_mm_container TYPE REF TO cl_gui_container,
+          mo_mm_toolbar   TYPE REF TO cl_gui_container,
+          mo_toolbar      TYPE REF TO cl_gui_toolbar,
+          mo_diagram      TYPE REF TO object,
+          mv_type         TYPE string,
+          mv_step         TYPE i,
+          mt_steps        TYPE zcl_smd_appl=>tt_steps.
+
+    METHODS: constructor IMPORTING io_debugger TYPE REF TO zcl_smd_debugger_base
+                                   i_type      TYPE string,
+
+      steps_flow IMPORTING i_direction TYPE ui_func OPTIONAL,
+      refresh,
+      hnd_live_close FOR EVENT close OF cl_gui_dialogbox_container,
+      magic_search IMPORTING i_direction TYPE ui_func OPTIONAL,
+      code_execution_scanner,
+      parse_call IMPORTING i_program TYPE program i_index TYPE i i_stack TYPE i i_event TYPE string,
+      add_toolbar_buttons,
+      hnd_toolbar FOR EVENT function_selected OF cl_gui_toolbar IMPORTING fcode,
+      open_mermaid IMPORTING i_mm_string TYPE string.
+
+ENDCLASS.
+CLASS zcl_smd_password_popup DEFINITION
+  inheriting from ZCL_SMD_POPUP
+  final
+  create public .
+
+public section.
+
+  data MO_TEXT type ref to CL_GUI_TEXTEDIT .
+
+  methods CONSTRUCTOR
+    importing
+      !IR_PASSWORD type ref to STRING
+      !IR_OPEN type ref to XFELD .
+  methods ON_BOX_CLOSE
+    redefinition .
+protected section.
+private section.
+
+  data MR_PASSWORD type ref to STRING .
+  data MR_OPEN type ref to XFELD .
+ENDCLASS.
+CLASS zcl_smd_rtti DEFINITION
+  create public .
+
+public section.
+
+  class-methods CREATE_TABLE_BY_NAME
+    importing
+      !I_TNAME type TABNAME
+    changing
+      !C_TABLE type ref to DATA .
+  class-methods CREATE_STRUC_HANDLE
+    importing
+      !I_TNAME type TABNAME
+    exporting
+      !E_T_COMP type ABAP_COMPONENT_TAB
+      !E_HANDLE type ref to CL_ABAP_STRUCTDESCR .
+protected section.
+private section.
+ENDCLASS.
+CLASS zcl_smd_rtti_tree DEFINITION FINAL CREATE PUBLIC. " INHERITING FROM zcl_smd_popup.
+
+  PUBLIC SECTION.
+
+    TYPES: BEGIN OF t_classes_leaf,
+             name TYPE string,
+             type TYPE char1,
+             key  TYPE salv_de_node_key,
+           END OF t_classes_leaf.
+
+    TYPES: BEGIN OF ts_table,
+             ref      TYPE REF TO data,
+             kind(1),
+             value    TYPE string,
+             typename TYPE abap_abstypename,
+             fullname TYPE string,
+             path     TYPE string,
+             instance TYPE string,
+           END OF ts_table.
+
+    TYPES tt_table TYPE STANDARD TABLE OF ts_table
+          WITH NON-UNIQUE DEFAULT KEY.
+
+    DATA: main_node_key   TYPE salv_de_node_key,
+          m_refresh       TYPE xfeld,
+          m_leaf          TYPE string,
+          "m_hide          TYPE x,
+          m_clear         TYPE flag,
+          m_locals        TYPE x,
+          m_globals       TYPE x,
+          m_syst          TYPE x,
+          m_class_data    TYPE x,
+          m_ldb           TYPE x,
+          m_locals_key    TYPE salv_de_node_key,
+          m_globals_key   TYPE salv_de_node_key,
+          m_class_key     TYPE salv_de_node_key,
+          m_syst_key      TYPE salv_de_node_key,
+          m_ldb_key       TYPE salv_de_node_key,
+          m_icon          TYPE salv_de_tree_image,
+          mt_vars         TYPE STANDARD TABLE OF zcl_smd_appl=>var_table,
+          mt_classes_leaf TYPE TABLE OF t_classes_leaf,
+          m_prg_info      TYPE tpda_scr_prg_info,
+          mo_debugger     TYPE REF TO zcl_smd_debugger_base,
+          m_tree          TYPE REF TO cl_salv_tree.
+
+    METHODS constructor IMPORTING i_header   TYPE clike DEFAULT 'View'
+                                  i_type     TYPE xfeld OPTIONAL
+                                  i_cont     TYPE REF TO cl_gui_container OPTIONAL
+                                  i_debugger TYPE REF TO zcl_smd_debugger_base OPTIONAL.
+
+    METHODS del_variable IMPORTING  i_full_name TYPE string i_state TYPE xfeld OPTIONAL.
+
+    METHODS clear.
+
+    METHODS add_buttons IMPORTING i_type TYPE xfeld.
+    METHODS add_node
+      IMPORTING
+        i_name TYPE string
+        i_icon TYPE salv_de_tree_image OPTIONAL.
+
+    METHODS add_obj_nodes
+      IMPORTING
+                is_var            TYPE zcl_smd_appl=>var_table
+      RETURNING VALUE(e_root_key) TYPE salv_de_node_key.
+
+    METHODS delete_node IMPORTING i_key TYPE salv_de_node_key.
+    METHODS display IMPORTING io_debugger TYPE REF TO zcl_smd_debugger_base OPTIONAL.
+
+    METHODS traverse
+      IMPORTING
+                io_type_descr       TYPE REF TO cl_abap_typedescr
+                i_parent_key        TYPE salv_de_node_key
+                i_rel               TYPE salv_de_node_relation
+                is_var              TYPE zcl_smd_appl=>var_table
+                ir_up               TYPE REF TO data OPTIONAL
+                i_parent_calculated TYPE string OPTIONAL
+                i_struc_name        TYPE string OPTIONAL
+      RETURNING VALUE(e_root_key)   TYPE salv_de_node_key.
+
+    METHODS traverse_struct
+      IMPORTING
+                io_type_descr       TYPE REF TO cl_abap_typedescr
+                i_parent_key        TYPE salv_de_node_key
+                i_rel               TYPE salv_de_node_relation
+                is_var              TYPE zcl_smd_appl=>var_table
+                ir_up               TYPE REF TO data OPTIONAL
+                i_parent_calculated TYPE string OPTIONAL
+                i_struc_name        TYPE string OPTIONAL
+      RETURNING VALUE(e_root_key)   TYPE salv_de_node_key.
+
+    METHODS traverse_elem
+      IMPORTING
+                io_type_descr       TYPE REF TO cl_abap_typedescr
+                i_parent_key        TYPE salv_de_node_key
+                i_rel               TYPE salv_de_node_relation
+                is_var              TYPE zcl_smd_appl=>var_table
+                i_value             TYPE any OPTIONAL
+                i_parent_calculated TYPE string OPTIONAL
+      RETURNING VALUE(e_root_key)   TYPE salv_de_node_key.
+
+    METHODS traverse_obj
+      IMPORTING
+                i_parent_key        TYPE salv_de_node_key
+                i_rel               TYPE salv_de_node_relation
+                is_var              TYPE zcl_smd_appl=>var_table
+                i_value             TYPE any OPTIONAL
+                ir_up               TYPE REF TO data OPTIONAL
+                i_parent_calculated TYPE string OPTIONAL
+      RETURNING VALUE(e_root_key)   TYPE salv_de_node_key.
+
+    METHODS traverse_table
+      IMPORTING
+                io_type_descr       TYPE REF TO cl_abap_typedescr
+                i_parent_key        TYPE salv_de_node_key
+                i_rel               TYPE salv_de_node_relation
+                is_var              TYPE zcl_smd_appl=>var_table
+                ir_up               TYPE REF TO data OPTIONAL
+                i_parent_calculated TYPE string OPTIONAL
+      RETURNING VALUE(e_root_key)   TYPE salv_de_node_key.
+
+  PRIVATE SECTION.
+    CONSTANTS: BEGIN OF c_kind,
+                 struct LIKE cl_abap_typedescr=>kind_struct VALUE cl_abap_typedescr=>kind_struct,
+                 table  LIKE cl_abap_typedescr=>kind_table VALUE cl_abap_typedescr=>kind_table,
+                 elem   LIKE cl_abap_typedescr=>kind_elem VALUE cl_abap_typedescr=>kind_elem,
+                 class  LIKE cl_abap_typedescr=>kind_class VALUE cl_abap_typedescr=>kind_class,
+                 intf   LIKE cl_abap_typedescr=>kind_intf VALUE cl_abap_typedescr=>kind_intf,
+                 ref    LIKE cl_abap_typedescr=>kind_ref VALUE cl_abap_typedescr=>kind_ref,
+               END OF c_kind.
+
+    DATA: tree_table TYPE tt_table.
+
+    "deletes a node with its whole subtree and removes all their keys
+    "from mt_vars/mt_classes_leaf so no stale node keys are left behind
+    METHODS purge_node IMPORTING io_node TYPE REF TO cl_salv_node.
+
+    METHODS: hndl_double_click FOR EVENT double_click OF cl_salv_events_tree IMPORTING node_key,
+      hndl_user_command FOR EVENT added_function OF cl_salv_events IMPORTING e_salv_function.
+
+ENDCLASS.
+CLASS zcl_smd_sel_opt DEFINITION
+  create public .
+
+public section.
+
+  types:
+    BEGIN OF selection_display,
+        ind         TYPE i,
+        field_label TYPE lvc_fname,
+        int_type(1),
+        inherited   TYPE aqadh_type_of_icon,
+        emitter     TYPE aqadh_type_of_icon,
+        sign        TYPE tvarv_sign,
+        opti        TYPE tvarv_opti,
+        option_icon TYPE aqadh_type_of_icon,
+        low         TYPE string,
+        high        TYPE string,
+        more_icon   TYPE aqadh_type_of_icon,
+        range       TYPE aqadh_t_ranges,
+        name        TYPE reptext,
+        element     TYPE text60,
+        domain      TYPE text60,
+        datatype    TYPE string,
+        length      TYPE i,
+        color       TYPE lvc_t_scol,
+        style       TYPE lvc_t_styl,
+      END OF selection_display .
+  types:
+    BEGIN OF t_sel_row,
+        sign        TYPE tvarv_sign,
+        opti        TYPE tvarv_opti,
+        option_icon TYPE aqadh_type_of_icon,
+        low         TYPE string, "aqadh_range_value,
+        high        TYPE string, "aqadh_range_value,
+        more_icon   TYPE aqadh_type_of_icon,
+        range       TYPE aqadh_t_ranges,
+      END OF t_sel_row .
+  types:
+    BEGIN OF sign_option_icon_s,
+             sign          TYPE tvarv_sign,
+             option        TYPE tvarv_opti,
+             icon_name(64) TYPE c,
+             icon          TYPE aqadh_type_of_icon,
+           END OF sign_option_icon_s .
+
+  class-data:
+    m_option_icons    TYPE TABLE OF sign_option_icon_s .
+  class-data:
+    mt_sel TYPE TABLE OF selection_display .
+  data MO_DEBUGGER type ref to ZCL_SMD_TABLE_VIEWER .
+  data MO_SEL_ALV type ref to CL_GUI_ALV_GRID .
+  data MT_FCAT type LVC_T_FCAT .
+  data:
+    mt_sel_tab  TYPE TABLE OF selection_display .
+  data MS_LAYOUT type LVC_S_LAYO .
+
+  events SELECTION_DONE .
+
+  methods CONSTRUCTOR
+    importing
+      !IO_VIEWER type ref to ZCL_SMD_TABLE_VIEWER
+      !IO_CONTAINER type ref to CL_GUI_CONTAINER .
+  methods RAISE_SELECTION_DONE .
+  methods UPDATE_SEL_TAB .
+  methods SET_VALUE
+    importing
+      !I_FIELD type ANY
+      !I_LOW type ANY optional
+      !I_HIGH type ANY optional
+      !I_CLEAR type XFELD default ABAP_TRUE .
+  methods UPDATE_SEL_ROW
+    changing
+      !C_SEL_ROW type SELECTION_DISPLAY .
+protected section.
+private section.
+
+  methods INIT_FCAT
+    importing
+      !I_DD_HANDLE type I .
+  methods HANDLE_SEL_TOOLBAR
+    for event TOOLBAR of CL_GUI_ALV_GRID
+    importing
+      !E_OBJECT .
+  methods ON_F4
+    for event ONF4 of CL_GUI_ALV_GRID
+    importing
+      !ER_EVENT_DATA
+      !ES_ROW_NO
+      !E_FIELDNAME .
+  methods ON_GRID_BUTTON_CLICK
+    for event BUTTON_CLICK of CL_GUI_ALV_GRID
+    importing
+      !ES_COL_ID
+      !ES_ROW_NO .
+  methods ON_DATA_CHANGED
+    for event DATA_CHANGED of CL_GUI_ALV_GRID
+    importing
+      !ER_DATA_CHANGED .
+  methods ON_DATA_CHANGED_FINISHED
+    for event DATA_CHANGED_FINISHED of CL_GUI_ALV_GRID
+    importing
+      !E_MODIFIED .
+  methods HANDLE_USER_COMMAND
+    for event USER_COMMAND of CL_GUI_ALV_GRID
+    importing
+      !E_UCOMM .
+  methods HANDLE_DOUBLECLICK
+    for event DOUBLE_CLICK of CL_GUI_ALV_GRID
+    importing
+      !ES_ROW_NO
+      !E_COLUMN .
+  methods HANDLE_CONTEXT_MENU_REQUEST
+    for event CONTEXT_MENU_REQUEST of CL_GUI_ALV_GRID
+    importing
+      !E_OBJECT .
+ENDCLASS.
+CLASS zcl_smd_source_parser DEFINITION CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    CLASS-METHODS: parse_tokens IMPORTING i_program TYPE program io_debugger TYPE REF TO zcl_smd_debugger_base.
+
+ENDCLASS.
+CLASS zcl_smd_table_viewer DEFINITION
+  inheriting from ZCL_SMD_POPUP
+  create public .
+
+public section.
+
+  types:
+    BEGIN OF t_elem,
+        field TYPE fieldname,
+        elem  TYPE ddobjname,
+      END OF t_elem .
+
+  data M_LANG type DDLANGUAGE .
+  data M_TABNAME type TABNAME .
+  data MO_ALV type ref to CL_GUI_ALV_GRID .
+  data MO_SEL type ref to ZCL_SMD_SEL_OPT .
+  data MR_TABLE type ref to DATA .
+  data MO_SEL_PARENT type ref to CL_GUI_CONTAINER .
+  data MO_ALV_PARENT type ref to CL_GUI_CONTAINER .
+  data MT_ALV_CATALOG type LVC_T_FCAT .
+  data:
+    mt_fields      TYPE TABLE OF t_elem .
+  data MO_SEL_WIDTH type I .
+  data M_VISIBLE type C .
+  data M_STD_TBAR type X .
+  data M_SHOW_EMPTY type I .
+  data MO_WINDOW type ref to ZCL_SMD_WINDOW .
+  "last displayed source snapshot - to skip refresh when nothing changed
+  data MR_SOURCE type ref to DATA .
+
+  methods CONSTRUCTOR
+    importing
+      !I_TNAME type ANY optional
+      !I_ADDITIONAL_NAME type STRING optional
+      !IR_TAB type ref to DATA optional
+      !IO_WINDOW type ref to ZCL_SMD_WINDOW optional .
+  methods REFRESH_TABLE
+    for event SELECTION_DONE of ZCL_SMD_SEL_OPT .
+  methods ON_NAVIGATED
+    for event NAVIGATED of ZCL_SMD_WINDOW .
+protected section.
+private section.
+
+  methods PREPARE_TABLE
+    importing
+      !IR_TAB type ref to DATA .
+  methods UPDATE_TABLE
+    importing
+      !IR_TAB type ref to DATA .
+  methods CREATE_POPUP .
+  methods CREATE_ALV .
+  methods CREATE_SEL_ALV .
+  methods SET_HEADER .
+  methods CREATE_FIELD_CAT
+    importing
+      !I_TNAME type TABNAME
+    returning
+      value(ET_CATALOG) type LVC_T_FCAT .
+  methods TRANSLATE_FIELD
+    importing
+      !I_LANG type DDLANGUAGE
+    changing
+      !C_FLD type LVC_S_FCAT .
+  methods HANDLE_TAB_TOOLBAR
+    for event TOOLBAR of CL_GUI_ALV_GRID
+    importing
+      !E_OBJECT .
+  methods BEFORE_USER_COMMAND
+    for event BEFORE_USER_COMMAND of CL_GUI_ALV_GRID
+    importing
+      !E_UCOMM .
+  methods HANDLE_USER_COMMAND
+    for event USER_COMMAND of CL_GUI_ALV_GRID
+    importing
+      !E_UCOMM .
+  methods HANDLE_DOUBLECLICK
+    for event DOUBLE_CLICK of CL_GUI_ALV_GRID
+    importing
+      !ES_ROW_NO
+      !E_COLUMN .
+  methods ON_TABLE_CLOSE
+    for event CLOSE of CL_GUI_DIALOGBOX_CONTAINER
+    importing
+      !SENDER .
+ENDCLASS.
+CLASS zcl_smd_text_viewer DEFINITION
+  inheriting from ZCL_SMD_POPUP
+  final
+  create public .
+
+public section.
+
+  data MO_TEXT type ref to CL_GUI_TEXTEDIT .
+
+  methods CONSTRUCTOR
+    importing
+      !IR_STR type ref to DATA .
+protected section.
+private section.
+ENDCLASS.
+CLASS zcl_smd_window IMPLEMENTATION.
+
+  METHOD constructor.
+    super->constructor( ).
+    mo_debugger = i_debugger.
+    DATA: BEGIN OF ls_ai_config,
+            provider TYPE string,
+            model    TYPE text255,
+            apikey   TYPE string,
+            tools_path TYPE string,
+            max_tokens TYPE i,
+            thinking_budget TYPE i,
+          END OF ls_ai_config.
+    DATA lv_ai_config_id TYPE indx-srtfd.
+    lv_ai_config_id = |ZSMDBG{ sy-uname }|.
+    IMPORT ai_config = ls_ai_config FROM DATABASE indx(st) ID lv_ai_config_id.
+    mv_ai_provider = ls_ai_config-provider.
+    mv_ai_model    = ls_ai_config-model.
+    mv_ai_apikey   = ls_ai_config-apikey.
+    m_history = m_varhist = m_zcode = '01'.
+    m_hist_depth = 9.
+
+    mo_box = create( i_name = 'SDDE Simple Debugger Data Explorer beta v. 0.9' i_width = 1400 i_hight = 400 ).
+    SET HANDLER on_box_close FOR mo_box.
+    CREATE OBJECT mo_splitter
+      EXPORTING
+        parent  = mo_box
+        rows    = 3
+        columns = 1
+      EXCEPTIONS
+        OTHERS  = 1.
+
+    mo_splitter->get_container(
+      EXPORTING
+        row       = 2
+        column    = 1
+      RECEIVING
+        container = mo_code_container ).
+
+    mo_splitter->get_container(
+      EXPORTING
+        row       = 1
+        column    = 1
+      RECEIVING
+        container = mo_toolbar_container ).
+
+    mo_splitter->set_row_height( id = 1 height = '3' ).
+    mo_splitter->set_row_height( id = 2 height = '70' ).
+
+    mo_splitter->set_row_sash( id    = 1
+                               type  = 0
+                               value = 0 ).
+
+    mo_splitter->get_container(
+      EXPORTING
+        row       = 3
+        column    = 1
+      RECEIVING
+        container = mo_tables_container ).
+
+    mo_splitter->get_container(
+      EXPORTING
+        row       = 3
+        column    = 1
+      RECEIVING
+        container = mo_tables_container ).
+
+    CREATE OBJECT mo_splitter_code
+      EXPORTING
+        parent  = mo_code_container
+        rows    = 1
+        columns = 3
+      EXCEPTIONS
+        OTHERS  = 1.
+
+    mo_splitter_code->get_container(
+      EXPORTING
+        row       = 1
+        column    = 1
+      RECEIVING
+        container = mo_ai_container ).
+
+    mo_splitter_code->get_container(
+      EXPORTING
+        row       = 1
+        column    = 2
+      RECEIVING
+        container = mo_editor_container ).
+
+    mo_splitter_code->get_container(
+      EXPORTING
+        row       = 1
+        column    = 3
+      RECEIVING
+        container = mo_variables_container ).
+
+    mo_splitter_code->set_column_width( EXPORTING id = 1 width = '0' ).
+    mo_splitter_code->set_column_width( EXPORTING id = 2 width = '60' ).
+
+    CREATE OBJECT mo_splitter_var
+      EXPORTING
+        parent  = mo_variables_container
+        rows    = 2
+        columns = 1
+      EXCEPTIONS
+        OTHERS  = 1.
+
+    mo_splitter_var->set_row_height( id = 1 height = '66' ).
+
+    mo_splitter_var->get_container(
+      EXPORTING
+        row       = 1
+        column    = 1
+      RECEIVING
+        container = mo_locals_container ).
+
+    mo_splitter_var->get_container(
+      EXPORTING
+        row       = 2
+        column    = 1
+      RECEIVING
+        container = mo_imp_exp_container ).
+
+    CREATE OBJECT mo_splitter_imp_exp
+      EXPORTING
+        parent  = mo_imp_exp_container
+        rows    = 1
+        columns = 2
+      EXCEPTIONS
+        OTHERS  = 1.
+
+    mo_splitter_imp_exp->get_container(
+      EXPORTING
+        row       = 1
+        column    = 1
+      RECEIVING
+        container = mo_importing_container ).
+
+    mo_splitter_imp_exp->get_container(
+      EXPORTING
+        row       = 1
+        column    = 2
+      RECEIVING
+        container = mo_exporting_container ).
+
+    SET HANDLER on_box_close FOR mo_box.
+
+    CREATE OBJECT mo_toolbar EXPORTING parent = mo_toolbar_container.
+    add_toolbar_buttons( ).
+    mo_toolbar->set_visible( 'X' ).
+    create_code_viewer( ).
+
+  ENDMETHOD.
+
+  METHOD raise_navigated.
+    RAISE EVENT navigated.
+  ENDMETHOD.
+
+  METHOD add_toolbar_buttons.
+
+    DATA: button TYPE ttb_button,
+          events TYPE cntl_simple_events,
+          event  LIKE LINE OF events.
+
+    button  = VALUE #(
+     ( function = 'VIS'  icon = CONV #( icon_flight ) quickinfo = 'Visualization switch' text = 'Visualization OFF' )
+     ( function = 'HIST' icon = CONV #( icon_graduate ) quickinfo = 'Stack History switch' text = 'History On' )
+     ( function = 'VARHIST' icon = CONV #( icon_graduate ) quickinfo = 'Variables History switch' text = 'Vars History On' )
+     ( function = 'AI' icon = CONV #( icon_wizard ) quickinfo = 'AI debugger agent' text = 'AI' )
+     ( function = 'AI_LOG' icon = CONV #( icon_list ) quickinfo = 'AI call/action log' text = 'AI Log' )
+     ( butn_type = 3  )
+     ( function = 'F5' icon = CONV #( icon_debugger_step_into ) quickinfo = 'Step into' text = 'Step into' )
+     ( function = 'F6' icon = CONV #( icon_debugger_step_over ) quickinfo = 'Step over' text = 'Step over' )
+     ( function = 'F7' icon = CONV #( icon_debugger_step_out ) quickinfo = 'Step out' text = 'Step out' )
+     ( function = 'F8' icon = CONV #( icon_debugger_continue ) quickinfo = 'to the next Breakpoint' text = 'Continue' )
+     ( function = 'DIRECTION' icon = CONV #( icon_column_right ) quickinfo = 'Forward' text = 'Forward' )
+     ( butn_type = 3  )
+     ( function = 'DEPTH' icon = CONV #( icon_next_hierarchy_level ) quickinfo = 'History depth level' text = |Depth { m_hist_depth }| )
+     ( function = 'CODE' icon = CONV #( icon_customer_warehouse ) quickinfo = 'Only Z' text = 'Only Z' )
+     ( function = 'CLEARVAR' icon = CONV #( icon_select_detail ) quickinfo = 'Clear all selected variables' text = 'Clear vars' )
+     ( butn_type = 3  )
+     ( COND #( WHEN zcl_smd_appl=>is_mermaid_active = abap_true
+      THEN VALUE #( function = 'DIAGRAM' icon = CONV #( icon_workflow_process ) quickinfo = ' Calls Flow' text = 'Diagram' ) ) )
+     ( COND #( WHEN zcl_smd_appl=>is_mermaid_active = abap_true
+      THEN VALUE #( function = 'LIVEDBG' icon = CONV #( icon_workflow_process ) quickinfo = 'Live debug with calls graph' text = 'Live Debug' ) ) )
+     ( function = 'SMART' icon = CONV #( icon_wizard ) quickinfo = 'Calculations sequence' text = 'Calculations Flow' )
+     ( function = 'COVERAGE' icon = CONV #( icon_wizard ) quickinfo = 'Coverage ' text = 'Coverage' )
+     ( butn_type = 3  )
+     ( function = 'STEPS' icon = CONV #( icon_next_step ) quickinfo = 'Steps table' text = 'Steps' )
+     ( function = 'HISTORY' icon = CONV #( icon_history ) quickinfo = 'History table' text = 'History' )
+     ( butn_type = 3  )
+     ( function = 'ENGINE' icon = CONV #( icon_graduate ) quickinfo = 'Faster version but can skip some changes' text = 'Alpha' )
+     ( function = 'DEBUG' icon = CONV #( icon_tools ) quickinfo = 'Debug' text = 'Debug' )
+     ( function = 'INFO' icon = CONV #( icon_bw_gis ) quickinfo = 'Documentation' text = '' )
+                    ).
+    IF mv_ai_provider IS INITIAL
+       OR mv_ai_model IS INITIAL
+       OR mv_ai_apikey IS INITIAL.
+      DELETE button WHERE function = 'AI'.
+    ENDIF.
+
+    mo_toolbar->add_button_group( button ).
+
+*   Register events
+    event-eventid = cl_gui_toolbar=>m_id_function_selected.
+    event-appl_event = space.
+    APPEND event TO events.
+
+    mo_toolbar->set_registered_events( events = events ).
+    SET HANDLER me->hnd_toolbar FOR mo_toolbar.
+
+  ENDMETHOD.
+
+  METHOD set_program.
+
+    zcl_smd_source_parser=>parse_tokens( i_program = i_program io_debugger = mo_debugger ).
+    READ TABLE mt_source WITH KEY include = i_program INTO DATA(source).
+    IF sy-subrc = 0.
+      mo_code_viewer->set_text( table = source-source->lines ).
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD set_program_line.
+
+    TYPES: lntab TYPE STANDARD TABLE OF i.
+    DATA lines TYPE lntab.
+
+    CLEAR mt_bpoints.
+
+    mo_code_viewer->remove_all_marker( 2 ).
+    mo_code_viewer->remove_all_marker( 4 ).
+
+*    "session breakpoints
+    CALL METHOD cl_abap_debugger=>read_breakpoints
+      EXPORTING
+        main_program         = mo_debugger->mo_window->m_prg-include
+      IMPORTING
+        breakpoints_complete = DATA(points)
+      EXCEPTIONS
+        c_call_error         = 1
+        generate             = 2
+        wrong_parameters     = 3
+        OTHERS               = 4.
+
+    "session breakpoints - marker 2 is set ONCE at the end, together with
+    "watch/coverage lines; setting it twice would erase the first set
+    LOOP AT points INTO DATA(point). "WHERE inclnamesrc = m_prg-include.
+      APPEND INITIAL LINE TO lines ASSIGNING FIELD-SYMBOL(<line>).
+      <line> = point-line.
+
+      APPEND INITIAL LINE TO mt_bpoints ASSIGNING FIELD-SYMBOL(<point>).
+      MOVE-CORRESPONDING point TO <point>.
+      <point>-type = 'S'.
+    ENDLOOP.
+
+*    "exernal breakpoints
+    CALL METHOD cl_abap_debugger=>read_breakpoints
+      EXPORTING
+        main_program         = mo_debugger->mo_window->m_prg-include
+        flag_other_session   = abap_true
+      IMPORTING
+        breakpoints_complete = points
+      EXCEPTIONS
+        c_call_error         = 1
+        generate             = 2
+        wrong_parameters     = 3
+        OTHERS               = 4.
+
+    "blue arrow - current line only (own table, otherwise every breakpoint
+    "line would get the arrow marker too)
+    DATA arrow_lines TYPE lntab.
+    APPEND INITIAL LINE TO arrow_lines ASSIGNING <line>.
+    <line> = i_line.
+    mo_code_viewer->set_marker( EXPORTING marker_number = 7 marker_lines = arrow_lines ).
+
+    DATA ext_lines TYPE lntab.
+    LOOP AT points INTO point. "WHERE inclnamesrc = m_prg-include.
+      APPEND INITIAL LINE TO ext_lines ASSIGNING <line>.
+      <line> = point-line.
+
+      APPEND INITIAL LINE TO mt_bpoints ASSIGNING <point>.
+      MOVE-CORRESPONDING point TO <point>.
+      <point>-type = 'E'.
+    ENDLOOP.
+    mo_code_viewer->set_marker( EXPORTING marker_number = 4 marker_lines = ext_lines ).
+
+    "watchpoints or coverage - share marker 2 with session breakpoints
+    LOOP AT mt_watch INTO DATA(watch).
+      APPEND INITIAL LINE TO lines ASSIGNING <line>.
+      <line> = watch-line.
+    ENDLOOP.
+
+    "coverage
+    LOOP AT mt_coverage INTO DATA(coverage).
+      APPEND INITIAL LINE TO lines ASSIGNING <line>.
+      <line> = coverage-line.
+    ENDLOOP.
+
+    SORT lines.
+    DELETE ADJACENT DUPLICATES FROM lines.
+    mo_code_viewer->set_marker( EXPORTING marker_number = 2 marker_lines = lines ).
+
+    IF i_line IS NOT INITIAL.
+      mo_code_viewer->select_lines( EXPORTING from_line = i_line to_line = i_line ).
+    ENDIF.
+
+    mo_code_viewer->draw( ).
+
+  ENDMETHOD.
+
+  METHOD create_ai_panel.
+
+    CHECK mo_ai_splitter IS INITIAL.
+
+    CREATE OBJECT mo_ai_splitter
+      EXPORTING
+        parent  = mo_ai_container
+        rows    = 2
+        columns = 1
+      EXCEPTIONS
+        OTHERS  = 1.
+
+    mo_ai_splitter->set_row_height( id = 1 height = '35' ).
+
+    mo_ai_splitter->get_container(
+      EXPORTING
+        row       = 1
+        column    = 1
+      RECEIVING
+        container = mo_ai_prompt_container ).
+
+    mo_ai_splitter->get_container(
+      EXPORTING
+        row       = 2
+        column    = 1
+      RECEIVING
+        container = mo_ai_result_container ).
+
+    CREATE OBJECT mo_ai_prompt
+      EXPORTING
+        parent = mo_ai_prompt_container
+      EXCEPTIONS
+        OTHERS = 1.
+
+    CREATE OBJECT mo_ai_result
+      EXPORTING
+        parent = mo_ai_result_container
+      EXCEPTIONS
+        OTHERS = 1.
+
+    set_ai_text(
+      io_text = mo_ai_prompt
+      i_text  = |Find the most likely cause of the bug. Use the current step, stack, variables, and change history.| ).
+
+    set_ai_result( |AI agent ready. Press AI again to analyze the current debugger state.| ).
+
+    cl_gui_cfw=>flush( ).
+
+  ENDMETHOD.
+
+  METHOD run_ai_agent.
+    "AI agent stripped from standalone build - see strip_ai_support.py
+  ENDMETHOD.
+
+  METHOD show_ai_log.
+    DATA lv_log TYPE string.
+    lv_log = `# AI Log` && cl_abap_char_utilities=>newline && cl_abap_char_utilities=>newline &&
+             `AI agent is not available in the standalone build.`.
+    mo_ai_log_viewer = NEW zcl_smd_html_viewer(
+      i_markdown = lv_log
+      i_title    = 'AI Log' ).
+  ENDMETHOD.
+
+  METHOD set_ai_result.
+
+    DATA(lv_html) = zcl_smd_markdown_html=>to_html( i_text ).
+    DATA lt_html TYPE tt_html.
+    DATA ls_html TYPE w3html.
+    DATA lv_offset TYPE i.
+    DATA lv_url TYPE c LENGTH 255.
+
+    CHECK mo_ai_result IS BOUND.
+
+    WHILE lv_offset < strlen( lv_html ).
+      CLEAR ls_html.
+      ls_html-line = substring(
+        val = lv_html
+        off = lv_offset
+        len = nmin( val1 = 255 val2 = strlen( lv_html ) - lv_offset ) ).
+      APPEND ls_html TO lt_html.
+      lv_offset = lv_offset + 255.
+    ENDWHILE.
+
+    mo_ai_result->load_data(
+      EXPORTING
+        type         = 'text'
+        subtype      = 'html'
+      IMPORTING
+        assigned_url = lv_url
+      CHANGING
+        data_table   = lt_html
+      EXCEPTIONS
+        OTHERS       = 1 ).
+
+    mo_ai_result->show_url(
+      EXPORTING
+        url = lv_url
+      EXCEPTIONS
+        OTHERS = 1 ).
+
+  ENDMETHOD.
+
+  METHOD set_ai_text.
+
+    DATA lt_text TYPE STANDARD TABLE OF char255.
+    DATA lv_text TYPE string.
+
+    CHECK io_text IS BOUND.
+
+    lv_text = i_text.
+    WHILE strlen( lv_text ) > 255.
+      APPEND lv_text+0(255) TO lt_text.
+      SHIFT lv_text LEFT BY 255 PLACES.
+    ENDWHILE.
+    APPEND lv_text TO lt_text.
+
+    io_text->set_text_as_r3table( lt_text ).
+
+  ENDMETHOD.
+
+  METHOD create_code_viewer.
+
+    DATA: events TYPE cntl_simple_events,
+          event  TYPE cntl_simple_event.
+
+    CHECK mo_code_viewer IS INITIAL.
+
+    CREATE OBJECT mo_code_viewer
+      EXPORTING
+        parent           = mo_editor_container
+        max_number_chars = 100.
+
+    mo_code_viewer->init_completer( ).
+    mo_code_viewer->upload_properties(
+      EXCEPTIONS
+        dp_error_create  = 1
+        dp_error_general = 2
+        dp_error_send    = 3
+        OTHERS           = 4 ).
+
+    "DATA(o_handler) = NEW lcl_event_handler( mo_debugger ).
+
+    event-eventid    = cl_gui_textedit=>event_double_click.
+    APPEND event TO events.
+
+    mo_code_viewer->set_registered_events( events ).
+    mo_code_viewer->register_event_border_click( ).
+    mo_code_viewer->register_event_break_changed( ).
+
+    SET HANDLER on_editor_double_click FOR mo_code_viewer.
+    SET HANDLER on_editor_border_click FOR mo_code_viewer.
+
+    mo_code_viewer->set_statusbar_mode( statusbar_mode = cl_gui_abapedit=>true ).
+    mo_code_viewer->create_document( ).
+    mo_code_viewer->set_readonly_mode( 1 ).
+
+  ENDMETHOD.
+
+  METHOD show_stack.
+    IF mo_salv_stack IS INITIAL.
+
+      cl_salv_table=>factory(
+        EXPORTING
+          r_container  = mo_tables_container
+        IMPORTING
+          r_salv_table = mo_salv_stack
+        CHANGING
+          t_table      = mt_stack ).
+
+      DATA:  o_column  TYPE REF TO cl_salv_column.
+
+      DATA(o_columns) = mo_salv_stack->get_columns( ).
+      "o_columns->set_optimize( 'X' ).
+
+      o_column ?= o_columns->get_column( 'STEP' ).
+      o_column->set_output_length( '3' ).
+      o_column->set_short_text( 'STEP' ).
+
+      "o_column ?= o_columns->get_column( 'STACKPOINTER' ).
+      "o_column->set_output_length( '5' ).
+
+      o_column ?= o_columns->get_column( 'STACKLEVEL' ).
+      o_column->set_output_length( '5' ).
+
+      o_column ?= o_columns->get_column( 'PROGRAM' ).
+      o_column->set_output_length( '30' ).
+
+      o_column ?= o_columns->get_column( 'INCLUDE' ).
+      o_column->set_output_length( '40' ).
+
+      o_column ?= o_columns->get_column( 'EVENTTYPE' ).
+      o_column->set_output_length( '20' ).
+
+      o_column ?= o_columns->get_column( 'EVENTNAME' ).
+      o_column->set_output_length( '50' ).
+
+      DATA(o_event) =  mo_salv_stack->get_event( ).
+
+      SET HANDLER on_stack_double_click FOR o_event.
+
+      mo_salv_stack->display( ).
+    ELSE.
+      "skip the per-step refresh while a multi-step run is in progress (F8 etc.);
+      "make_step clears the flag and refreshes once at the final stop
+      IF mo_debugger->mv_suppress_stack IS INITIAL.
+        mo_salv_stack->refresh( ).
+      ENDIF.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD show_coverage.
+
+    CLEAR: mt_watch, mt_coverage,mt_stack.
+    LOOP AT mo_debugger->mt_steps INTO DATA(step).
+
+      READ TABLE mt_stack WITH KEY include = step-include TRANSPORTING NO FIELDS.
+      IF sy-subrc <> 0.
+        APPEND INITIAL LINE TO mt_stack ASSIGNING FIELD-SYMBOL(<stack>).
+        MOVE-CORRESPONDING step TO <stack>.
+      ENDIF.
+
+      IF step-include <> mo_debugger->mo_window->m_prg-include.
+        CONTINUE.
+      ENDIF.
+
+      APPEND INITIAL LINE TO mt_coverage ASSIGNING FIELD-SYMBOL(<coverage>).
+      <coverage>-line = step-line.
+    ENDLOOP.
+
+    SORT mt_coverage.
+    DELETE ADJACENT DUPLICATES FROM mt_coverage.
+
+  ENDMETHOD.
+  METHOD on_stack_double_click.
+
+    READ TABLE mo_debugger->mo_window->mt_stack INDEX row INTO DATA(stack).
+    "only for coverage stack selection should work.
+
+    CHECK mo_debugger->mo_window->mt_coverage IS NOT INITIAL.
+
+    "check if we have recorded steps for choosen stack level
+    READ TABLE  mo_debugger->mt_steps WITH KEY program = stack-program include = stack-include TRANSPORTING NO FIELDS.
+    CHECK sy-subrc = 0.
+
+    MOVE-CORRESPONDING stack TO mo_debugger->mo_window->m_prg.
+    MOVE-CORRESPONDING stack TO mo_debugger->ms_stack.
+
+    show_coverage( ).
+    mo_debugger->show_step( ).
+
+  ENDMETHOD.
+
+  METHOD on_editor_double_click.
+    sender->get_selection_pos( IMPORTING from_line = DATA(fr_line) from_pos = DATA(fr_pos) to_line = DATA(to_line) to_pos = DATA(to_pos) ).
+
+  ENDMETHOD.
+
+  METHOD on_editor_border_click.
+
+    DATA: type    TYPE char1.
+
+    IF cntrl_pressed_set IS INITIAL.
+      type = 'S'.
+    ELSE.
+      type = 'E'.
+    ENDIF.
+
+    LOOP AT mt_bpoints ASSIGNING FIELD-SYMBOL(<point>) WHERE line = line.
+      type = <point>-type.
+
+      CALL FUNCTION 'RS_DELETE_BREAKPOINT'
+        EXPORTING
+          index        = line
+          mainprog     = m_prg-program
+          program      = m_prg-include
+          bp_type      = type
+        EXCEPTIONS
+          not_executed = 1
+          OTHERS       = 2.
+
+      IF sy-subrc = 0.
+        <point>-del = abap_true.
+      ENDIF.
+    ENDLOOP.
+
+    IF sy-subrc <> 0. "create
+      CALL FUNCTION 'RS_SET_BREAKPOINT'
+        EXPORTING
+          index        = line
+          program      = m_prg-include
+          mainprogram  = m_prg-program
+          bp_type      = type
+        EXCEPTIONS
+          not_executed = 1
+          OTHERS       = 2.
+
+    ENDIF.
+    DELETE mt_bpoints WHERE del IS NOT INITIAL.
+    set_program_line( ).
+  ENDMETHOD.
+  METHOD hnd_toolbar.
+
+    CONSTANTS: c_mask TYPE x VALUE '01'.
+    FIELD-SYMBOLS: <any> TYPE any.
+    m_debug_button = fcode.
+    READ TABLE mt_stack INDEX 1 INTO DATA(stack).
+    "snapshot step counter / stack at command start so the debugger can tell
+    "how far an F6/F8 run went and whether the frame changed (live calls graph)
+    IF fcode = 'F6' OR fcode = 'F8'.
+      mo_debugger->m_action_start_step  = mo_debugger->m_step.
+      mo_debugger->m_action_start_stack = stack-stacklevel.
+    ENDIF.
+    CASE fcode.
+
+*      WHEN 'AI'.
+*
+*        READ TABLE mo_debugger->mo_window->mt_source INDEX 1 INTO DATA(source).
+*        NEW lcl_ai( io_source = source-source io_parent =  mo_debugger->mo_window->mo_box ).
+
+      WHEN 'AI'.
+        IF m_ai_open IS INITIAL.
+          create_ai_panel( ).
+          m_ai_open = abap_true.
+          mo_splitter_code->set_column_width( EXPORTING id = 1 width = '28' ).
+          mo_splitter_code->set_column_width( EXPORTING id = 2 width = '45' ).
+          mo_toolbar->set_button_info( EXPORTING fcode = 'AI' text = 'AI Run' quickinfo = 'Run AI debugger agent' ).
+        ELSE.
+          run_ai_agent( ).
+        ENDIF.
+        RETURN.
+
+      WHEN 'AI_LOG'.
+        show_ai_log( ).
+        RETURN.
+
+      WHEN 'ENGINE'.
+        m_version = m_version BIT-XOR c_mask.
+        IF m_version IS INITIAL.
+          mo_toolbar->set_button_info( EXPORTING fcode =  'ENGINE'  text = 'Alpha' quickinfo = 'Faster version' ).
+        ELSE.
+          mo_toolbar->set_button_info( EXPORTING fcode =  'ENGINE'  text = 'Beta' quickinfo = 'Slower version' ).
+        ENDIF.
+      WHEN 'VIS'.
+        m_visualization = m_visualization BIT-XOR c_mask.
+        IF m_visualization IS INITIAL.
+          mo_toolbar->set_button_info( EXPORTING fcode =  'VIS' icon = CONV #( icon_flight ) text = 'Visualization OFF' ).
+        ELSE.
+          mo_toolbar->set_button_info( EXPORTING fcode =  'VIS' icon = CONV #( icon_car ) text = 'Visualization ON' ).
+        ENDIF.
+
+      WHEN 'DIRECTION'.
+        m_direction = m_direction BIT-XOR c_mask.
+        IF m_direction IS INITIAL.
+          mo_toolbar->set_button_info( EXPORTING fcode =  'DIRECTION' icon = CONV #( icon_column_right ) text = 'Forward' quickinfo = 'Forward' ).
+          mo_toolbar->set_button_info( EXPORTING fcode = 'F5' text = 'Step into' quickinfo = 'Step into' ).
+          mo_toolbar->set_button_info( EXPORTING fcode = 'F8' text = 'Continue' quickinfo = 'to the next Breakpoint' ).
+          mo_toolbar->set_button_visible( visible = abap_true fcode = 'F6' ).
+          mo_toolbar->set_button_visible( visible = abap_true fcode = 'F7' ).
+        ELSE.
+          mo_toolbar->set_button_info( EXPORTING fcode =  'DIRECTION' icon = CONV #( icon_column_left ) text = 'Backward' quickinfo = 'Backward' ).
+          mo_toolbar->set_button_info( EXPORTING fcode = 'F5' text = 'Step back' quickinfo = 'Step back' ).
+          mo_toolbar->set_button_info( EXPORTING fcode = 'F8' text = 'to the previous stop condition' ).
+          mo_toolbar->set_button_visible( visible = abap_false fcode = 'F6' ).
+          mo_toolbar->set_button_visible( visible = abap_false fcode = 'F7' ).
+
+        ENDIF.
+
+      WHEN 'DEPTH'.
+        IF m_hist_depth < 9.
+          ADD 1 TO m_hist_depth.
+        ELSE.
+          CLEAR m_hist_depth.
+        ENDIF.
+        mo_toolbar->set_button_info( EXPORTING fcode = 'DEPTH' text = |Depth { m_hist_depth }| ).
+
+      WHEN 'HIST'.
+        m_history = m_history BIT-XOR c_mask.
+        IF m_history IS INITIAL.
+          mo_toolbar->set_button_info( EXPORTING fcode =  'HIST' icon = CONV #( icon_red_xcircle ) text = 'History OFF' ).
+        ELSE.
+          mo_toolbar->set_button_info( EXPORTING fcode =  'HIST' icon = CONV #( icon_graduate ) text = 'History ON' ).
+        ENDIF.
+
+      WHEN 'VARHIST'.
+        m_varhist = m_varhist BIT-XOR c_mask.
+        IF m_varhist IS INITIAL.
+          mo_toolbar->set_button_info( EXPORTING fcode =  'VARHIST' icon = CONV #( icon_red_xcircle ) text = 'Vars History OFF' ).
+        ELSE.
+          mo_toolbar->set_button_info( EXPORTING fcode =  'VARHIST' icon = CONV #( icon_graduate ) text = 'Vars History ON' ).
+        ENDIF.
+
+      WHEN 'DIAGRAM'.
+        DATA(o_mermaid) = NEW zcl_smd_mermaid( io_debugger = mo_debugger i_type =  'DIAG' ).
+
+      WHEN 'LIVEDBG'.
+        "pre-draw the live-debug window (own F5/6/7/8 buttons + calls graph);
+        "it then refreshes itself on every stop via maybe_show_live_graph
+        IF mo_debugger->mo_live_graph IS INITIAL.
+          mo_debugger->mo_live_graph = NEW zcl_smd_mermaid( io_debugger = mo_debugger i_type = 'LIVE' ).
+        ENDIF.
+
+      WHEN 'SMART'.
+        o_mermaid = NEW zcl_smd_mermaid( io_debugger = mo_debugger i_type =  'SMART' ).
+        mo_debugger->show_step( ).
+
+      WHEN 'COVERAGE'.
+        show_coverage( ).
+        mo_debugger->show_step( ).
+
+      WHEN 'CODE'.
+        m_zcode = m_zcode BIT-XOR c_mask.
+        IF m_zcode IS INITIAL.
+          mo_toolbar->set_button_info( EXPORTING fcode = 'CODE' text = 'Z & Standard' ).
+        ELSE.
+          mo_toolbar->set_button_info( EXPORTING fcode = 'CODE' text = 'Only Z code' ).
+        ENDIF.
+
+      WHEN 'CLEARVAR'.
+        CLEAR: mo_debugger->mt_selected_var.
+
+        DATA(nodes) = mo_debugger->mo_tree_local->m_tree->get_nodes( )->get_all_nodes( ).
+        LOOP AT nodes INTO DATA(node).
+          node-node->set_row_style( if_salv_c_tree_style=>default ).
+        ENDLOOP.
+        mo_debugger->run_script_hist( mo_debugger->m_hist_step ).
+        mo_debugger->mo_tree_local->display( ).
+        RETURN.
+      WHEN 'DEBUG'."activate break_points
+        mo_debugger->m_debug = mo_debugger->m_debug BIT-XOR c_mask.
+
+      WHEN 'INFO'.
+        DATA(url) = 'https://ysychov.wordpress.com/2020/07/27/abap-simple-debugger-data-explorer/'.
+        CALL FUNCTION 'CALL_BROWSER' EXPORTING url = url.
+
+        url = 'https://github.com/ysichov/Smart-Debugger'.
+        CALL FUNCTION 'CALL_BROWSER' EXPORTING url = url.
+      WHEN 'STEPS'.
+
+        zcl_smd_appl=>open_int_table( i_name = 'Steps' it_tab = mo_debugger->mt_steps io_window = mo_debugger->mo_window ).
+
+      WHEN 'HISTORY'.
+        DATA: vars_hist TYPE TABLE OF zcl_smd_appl=>var_table_temp.
+        LOOP AT  mo_debugger->mt_vars_hist INTO DATA(vars).
+          APPEND INITIAL LINE TO vars_hist ASSIGNING FIELD-SYMBOL(<hist>).
+          MOVE-CORRESPONDING vars TO <hist>.
+          READ TABLE mo_debugger->mt_steps INTO DATA(step_info)
+            WITH KEY step = vars-step.
+          IF sy-subrc = 0.
+            <hist>-line = step_info-line.
+          ENDIF.
+
+          IF vars-ref IS BOUND.
+            DATA(o_descr) = cl_abap_typedescr=>describe_by_data_ref( vars-ref ).
+
+            IF o_descr->type_kind = cl_abap_typedescr=>typekind_table.
+              <hist>-value = 'Table'.
+            ELSEIF o_descr->type_kind = cl_abap_typedescr=>typekind_struct1."structure
+              <hist>-value = 'Structure'.
+            ELSEIF o_descr->type_kind = cl_abap_typedescr=>typekind_struct2."deep structure
+              <hist>-value = 'Deep Structure'.
+            ELSE.
+              ASSIGN vars-ref->* TO <any>.
+              IF sy-subrc = 0.
+                <hist>-value = <any>.
+              ENDIF.
+            ENDIF.
+          ENDIF.
+        ENDLOOP.
+        zcl_smd_appl=>open_int_table( i_name = |mt_vars_hist - History({ lines( vars_hist ) })| it_tab = vars_hist io_window = mo_debugger->mo_window ).
+
+    ENDCASE.
+
+    IF m_direction IS INITIAL AND mo_debugger->m_hist_step = mo_debugger->m_step.
+      IF fcode = 'F8'.
+        m_start_stack = stack-stacklevel.
+
+      ENDIF.
+      CASE fcode.
+        WHEN 'F5' OR 'F6' OR 'F6END' OR 'F6BEG' OR 'F7' OR 'F8'.
+
+          IF fcode = 'F7'.
+            mo_debugger->m_target_stack = stack-stacklevel - 1.
+          ENDIF.
+
+          mo_debugger->make_step( ).
+      ENDCASE.
+
+    ELSE.
+      CASE fcode.
+
+        WHEN 'F5' OR 'F6' OR 'F7' OR 'F8' OR 'F6BEG' OR 'F6END'.
+          DO.
+            mo_debugger->run_script_hist( IMPORTING es_stop = DATA(stop) ).
+
+            IF stop = abap_true.
+              READ TABLE  mo_debugger->mt_steps INTO DATA(step) INDEX mo_debugger->m_hist_step.
+              set_program( step-include ).
+              set_program_line( step-line ).
+              mo_debugger->mo_tree_imp->display( ).
+              mo_debugger->mo_tree_local->display( ).
+              mo_debugger->mo_tree_exp->display( ).
+              raise_navigated( ). "history navigation - refresh open table popups
+              RETURN.
+            ENDIF.
+          ENDDO.
+      ENDCASE.
+    ENDIF.
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+CLASS ZCL_SMD_TEXT_VIEWER IMPLEMENTATION.
+  method CONSTRUCTOR.
+
+    super->constructor( ).
+    mo_box = create( i_name = 'text' i_width = 700 i_hight = 200 ).
+    CREATE OBJECT mo_splitter
+      EXPORTING
+        parent  = mo_box
+        rows    = 1
+        columns = 1
+      EXCEPTIONS
+        OTHERS  = 1.
+
+    mo_splitter->get_container(
+      EXPORTING
+        row       = 1
+        column    = 1
+      RECEIVING
+        container = mo_variables_container ).
+
+    SET HANDLER on_box_close FOR mo_box.
+
+    CREATE OBJECT mo_text
+      EXPORTING
+        parent                 = mo_variables_container
+      EXCEPTIONS
+        error_cntl_create      = 1
+        error_cntl_init        = 2
+        error_cntl_link        = 3
+        error_dp_create        = 4
+        gui_type_not_supported = 5
+        OTHERS                 = 6.
+    IF sy-subrc <> 0.
+      on_box_close( mo_box ).
+      RETURN.
+    ENDIF.
+
+    mo_text->set_readonly_mode( ).
+    FIELD-SYMBOLS <str> TYPE string.
+    ASSIGN ir_str->* TO <str>.
+    DATA string TYPE TABLE OF char255.
+
+    "work on a copy: shifting the referenced string directly would truncate
+    "the debugger-held value of the variable being displayed
+    DATA(text) = <str>.
+    WHILE strlen( text ) > 255.
+      APPEND text+0(255) TO string.
+      SHIFT text LEFT BY 255 PLACES.
+    ENDWHILE.
+
+    APPEND text TO string.
+    mo_text->set_text_as_r3table( string ).
+    CALL METHOD cl_gui_cfw=>flush.
+    mo_text->set_focus( mo_box ).
+  endmethod.
+ENDCLASS.
+
+CLASS ZCL_SMD_TABLE_VIEWER IMPLEMENTATION.
+  method BEFORE_USER_COMMAND.
+    CASE e_ucomm.
+      WHEN '&INFO'.
+        DATA(url) = 'https://ysychov.wordpress.com/2020/02/10/simple-data-explorer/'.
+        CALL FUNCTION 'CALL_BROWSER' EXPORTING url = url.
+    ENDCASE.
+  endmethod.
+  method CONSTRUCTOR.
+    super->constructor( i_additional_name = i_additional_name ).
+    mo_window = io_window.
+    m_lang = sy-langu.
+    mo_sel_width = 0.
+    m_tabname = i_tname.
+    create_popup( ).
+
+    IF ir_tab IS NOT BOUND.
+      zcl_smd_rtti=>create_table_by_name( EXPORTING i_tname = m_tabname CHANGING c_table = mr_table ).
+    ELSE.
+      prepare_table( ir_tab ).
+      mr_source = ir_tab.
+    ENDIF.
+
+    create_alv( ).
+    create_sel_alv( ).
+    mo_alv->set_focus( mo_alv ).
+
+    "follow debugger navigation: refresh the popup on every step
+    IF mo_window IS BOUND.
+      SET HANDLER on_navigated FOR mo_window.
+    ENDIF.
+  endmethod.
+  method PREPARE_TABLE.
+    "builds mr_table from ir_tab: nested table columns are replaced by a
+    "text + hidden _REF column pair; used by the constructor and on refresh
+
+    DATA: comp_descr   TYPE abap_componentdescr,
+          comp_notab   TYPE abap_component_tab,
+          comp_tab2str TYPE abap_component_tab,
+          comp_str     TYPE abap_component_tab,
+          s            TYPE string,
+          data         TYPE REF TO data.
+
+    DATA: notab   TYPE REF TO data,
+          tab2str TYPE REF TO data.
+
+    DATA: handle_notab   TYPE REF TO cl_abap_structdescr,
+          handle_tab2str TYPE REF TO cl_abap_structdescr,
+          o_new_tab      TYPE REF TO cl_abap_tabledescr.
+
+    FIELD-SYMBOLS: <notab>   TYPE STANDARD TABLE,
+                   <tab2str> TYPE STANDARD TABLE,
+                   <any_tab> TYPE ANY TABLE,
+                   <temptab> TYPE ANY TABLE.
+
+    FIELD-SYMBOLS:<any> TYPE any.
+    ASSIGN ir_tab->* TO <any>.
+    DATA o_tabl  TYPE REF TO cl_abap_tabledescr.
+    DATA o_struc TYPE REF TO cl_abap_structdescr.
+    o_tabl ?= cl_abap_typedescr=>describe_by_data( <any> ).
+    TRY.
+        o_struc ?= o_tabl->get_table_line_type( ).
+        ASSIGN ir_tab->* TO <any_tab>.
+        TRY.
+            LOOP AT o_struc->components INTO DATA(comp).
+
+              IF comp-type_kind NE 'h'.
+                comp_descr-name = comp-name.
+                comp_descr-type ?= o_struc->get_component_type( comp-name ).
+                APPEND comp_descr TO comp_notab.
+                APPEND comp_descr TO comp_tab2str.
+              ELSE.
+                comp_descr-name = comp-name.
+                comp_descr-type ?= cl_abap_typedescr=>describe_by_data( s ).
+                APPEND comp_descr TO comp_tab2str.
+                APPEND comp_descr TO comp_str.
+
+                comp_descr-name = comp-name && '_REF'.
+                comp_descr-type ?= cl_abap_typedescr=>describe_by_data( data ).
+                APPEND comp_descr TO comp_tab2str.
+              ENDIF.
+            ENDLOOP.
+          CATCH cx_sy_move_cast_error.
+        ENDTRY.
+
+        TRY.
+            handle_notab  = cl_abap_structdescr=>create( comp_notab ).
+            handle_tab2str  = cl_abap_structdescr=>create( comp_tab2str ).
+
+            o_new_tab = cl_abap_tabledescr=>create(
+              p_line_type  = handle_notab
+              p_table_kind = cl_abap_tabledescr=>tablekind_std
+              p_unique     = abap_false ).
+
+            CREATE DATA notab TYPE HANDLE o_new_tab.
+
+            o_new_tab = cl_abap_tabledescr=>create(
+              p_line_type  = handle_tab2str
+              p_table_kind = cl_abap_tabledescr=>tablekind_std
+              p_unique     = abap_false ).
+
+            CREATE DATA tab2str TYPE HANDLE o_new_tab.
+
+            ASSIGN notab->* TO <notab>.
+            MOVE-CORRESPONDING <any_tab> TO <notab>.
+            ASSIGN tab2str->* TO <tab2str>.
+            MOVE-CORRESPONDING <notab> TO <tab2str>.
+
+            LOOP AT <any_tab> ASSIGNING FIELD-SYMBOL(<old_struc>).
+              READ TABLE <tab2str> ASSIGNING FIELD-SYMBOL(<new_struc>) INDEX sy-tabix.
+              LOOP AT comp_str INTO comp_descr.
+                ASSIGN COMPONENT comp_descr-name OF STRUCTURE <new_struc> TO FIELD-SYMBOL(<field>).
+                ASSIGN COMPONENT comp_descr-name OF STRUCTURE <old_struc> TO <temptab>.
+                <field> = | { icon_view_table } [{ lines( <temptab> ) }] |.
+                ASSIGN COMPONENT comp_descr-name  OF STRUCTURE <old_struc> TO <field>.
+                ASSIGN COMPONENT |{ comp_descr-name }_REF| OF STRUCTURE <new_struc> TO FIELD-SYMBOL(<ref>).
+                GET REFERENCE OF <field> INTO <ref>.
+              ENDLOOP.
+            ENDLOOP.
+
+            GET REFERENCE OF <tab2str> INTO mr_table.
+          CATCH cx_root.
+            mr_table = ir_tab.
+        ENDTRY.
+      CATCH cx_sy_move_cast_error.  "no structure
+        comp_descr-name = 'FIELD'.
+        comp_descr-type ?= cl_abap_typedescr=>describe_by_data( s ).
+        APPEND comp_descr TO comp_tab2str.
+
+        handle_tab2str  = cl_abap_structdescr=>create( comp_tab2str ).
+        o_new_tab = cl_abap_tabledescr=>create(
+          p_line_type  = handle_tab2str
+          p_table_kind = cl_abap_tabledescr=>tablekind_std
+          p_unique     = abap_false ).
+
+        CREATE DATA tab2str TYPE HANDLE o_new_tab.
+        ASSIGN tab2str->* TO <tab2str>.
+        ASSIGN ir_tab->* TO <any_tab>.
+
+        LOOP AT <any_tab> ASSIGNING <old_struc>.
+          APPEND INITIAL LINE TO <tab2str> ASSIGNING <new_struc>.
+          ASSIGN COMPONENT 'FIELD' OF STRUCTURE <new_struc> TO <field>.
+          <field> = <old_struc>.
+        ENDLOOP.
+        GET REFERENCE OF <tab2str> INTO mr_table.
+    ENDTRY.
+  endmethod.
+  method CREATE_ALV.
+    DATA: layout TYPE lvc_s_layo,
+          effect TYPE i,
+          f4s    TYPE lvc_t_f4.
+
+    FIELD-SYMBOLS: <table>   TYPE table.
+
+    mo_alv = NEW #( i_parent = mo_alv_parent ).
+    mt_alv_catalog = create_field_cat( m_tabname ).
+
+    IF mt_alv_catalog IS INITIAL.
+      RETURN. "todo show tables without structure
+    ENDIF.
+
+    ASSIGN mr_table->* TO <table>.
+    set_header( ).
+    layout-cwidth_opt = abap_true.
+    layout-sel_mode = 'D'.
+
+    SET HANDLER   before_user_command
+                  handle_user_command
+                  handle_tab_toolbar
+                  handle_doubleclick
+                  FOR mo_alv.
+
+    CALL METHOD mo_alv->set_table_for_first_display
+      EXPORTING
+        i_save          = abap_true
+        i_default       = abap_true
+        is_layout       = layout
+      CHANGING
+        it_fieldcatalog = mt_alv_catalog
+        it_outtab       = <table>.
+
+    mo_alv->get_frontend_fieldcatalog( IMPORTING et_fieldcatalog = mt_alv_catalog ).
+    LOOP AT mt_alv_catalog ASSIGNING FIELD-SYMBOL(<catalog>).
+      CLEAR <catalog>-key.
+      DATA(f4) = VALUE lvc_s_f4( register = abap_true chngeafter = abap_true fieldname = <catalog>-fieldname ).
+      INSERT f4 INTO TABLE f4s.
+    ENDLOOP.
+
+    mo_alv->register_f4_for_fields( it_f4 = f4s ).
+    mo_alv->set_frontend_fieldcatalog( EXPORTING it_fieldcatalog = mt_alv_catalog ).
+
+    LOOP AT mt_alv_catalog ASSIGNING FIELD-SYMBOL(<cat>) WHERE scrtext_l IS INITIAL.
+      zcl_smd_common=>translate_field( CHANGING c_fld = <cat> ).
+    ENDLOOP.
+
+    mo_alv->set_frontend_fieldcatalog( EXPORTING it_fieldcatalog = mt_alv_catalog ).
+    me->handle_user_command( EXPORTING e_ucomm = 'TECH' ).
+    me->handle_user_command( EXPORTING e_ucomm = 'SHOW' ).
+    mo_alv->set_toolbar_interactive( ).
+  endmethod.
+  method CREATE_FIELD_CAT.
+    DATA: lr_field       TYPE REF TO data,
+          lr_table_descr TYPE REF TO cl_abap_structdescr,
+          lr_data_descr  TYPE REF TO cl_abap_datadescr,
+          it_tabdescr    TYPE abap_compdescr_tab,
+          texttab        TYPE tabname,
+          lr_temp        TYPE REF TO data,
+          name           TYPE string,
+          dd04           TYPE dd04v.
+
+    FIELD-SYMBOLS: <tab>   TYPE STANDARD TABLE,
+                   <struc> TYPE any,
+                   <field> TYPE any.
+
+    CLEAR mt_fields. "rebuilt together with the catalog on every (re)bind
+
+    ASSIGN mr_table->* TO <tab>.
+    CREATE DATA lr_temp LIKE LINE OF <tab>.
+    ASSIGN lr_temp->* TO <struc>.
+
+    TRY.
+        lr_table_descr ?= cl_abap_typedescr=>describe_by_data_ref( lr_temp ).
+      CATCH cx_root.
+        RETURN.
+    ENDTRY.
+
+    it_tabdescr[] = lr_table_descr->components[].
+    zcl_smd_ddic=>get_text_table( EXPORTING i_tname = i_tname IMPORTING e_tab = texttab ).
+
+    LOOP AT it_tabdescr INTO DATA(ls)
+       WHERE type_kind NE 'h'
+         AND type_kind NE 'l'.
+      DATA(ind) = sy-tabix.
+
+      ASSIGN COMPONENT ls-name OF STRUCTURE <struc> TO <field>.
+      GET REFERENCE OF <field> INTO lr_field.
+      lr_data_descr ?= cl_abap_typedescr=>describe_by_data_ref( lr_field ).
+      name = lr_data_descr->absolute_name.
+      REPLACE ALL OCCURRENCES OF '\TYPE=' IN name WITH ''.
+      APPEND VALUE #( field = ls-name elem = name ) TO mt_fields.
+
+      CLEAR dd04.
+      CALL FUNCTION 'DDIF_DTEL_GET'
+        EXPORTING
+          name          = CONV ddobjname( name )
+          langu         = m_lang
+        IMPORTING
+          dd04v_wa      = dd04
+        EXCEPTIONS
+          illegal_input = 1
+          OTHERS        = 2.
+
+      APPEND INITIAL LINE TO et_catalog ASSIGNING FIELD-SYMBOL(<catalog>).
+
+      <catalog>-col_pos = ind.
+      <catalog>-style = zcl_smd_common=>c_white.
+      <catalog>-fieldname = ls-name.
+      <catalog>-f4availabl = abap_true.
+
+      IF dd04 IS INITIAL.
+        <catalog>-scrtext_s = <catalog>-scrtext_m = <catalog>-scrtext_l = <catalog>-reptext = <catalog>-fieldname = ls-name.
+      ELSE.
+        MOVE-CORRESPONDING dd04 TO <catalog>.
+      ENDIF.
+    ENDLOOP.
+  endmethod.
+  method CREATE_POPUP.
+    mo_box = create( i_width = 800 i_hight = 150 ).
+    "save new popup ref
+    IF mo_window IS BOUND.
+      APPEND INITIAL LINE TO zcl_smd_appl=>mt_popups ASSIGNING FIELD-SYMBOL(<popup>).
+      <popup>-parent = mo_window->mo_box.
+      <popup>-child = mo_box.
+    ENDIF.
+
+    "on_table_close also drops the viewer and its table copy from
+    "zcl_smd_appl=>mt_obj - otherwise every opened table stays in memory
+    SET HANDLER on_table_close FOR mo_box.
+
+    CREATE OBJECT mo_splitter
+      EXPORTING
+        parent  = mo_box
+        rows    = 1
+        columns = 2
+      EXCEPTIONS
+        OTHERS  = 1.
+
+    mo_splitter->set_column_mode( mode = mo_splitter->mode_absolute ).
+    mo_splitter->set_column_width( id = 1 width = mo_sel_width ).
+
+    CALL METHOD:
+     mo_splitter->get_container(  EXPORTING
+        row       = 1
+        column    = 1
+      RECEIVING
+        container = mo_sel_parent ),
+
+      mo_splitter->get_container
+       EXPORTING
+        row       = 1
+        column    = 2
+       RECEIVING
+        container = mo_alv_parent.
+  endmethod.
+  method CREATE_SEL_ALV.
+    IF mo_sel IS INITIAL.
+      mo_sel     = NEW #( io_viewer = me io_container = mo_sel_parent ).
+      SET HANDLER refresh_table FOR mo_sel.
+    ELSE.
+      mo_sel->update_sel_tab( ).
+    ENDIF.
+  endmethod.
+  method HANDLE_DOUBLECLICK.
+    DATA: o_table_descr TYPE REF TO cl_tpda_script_tabledescr,
+          table_clone   TYPE REF TO data.
+    FIELD-SYMBOLS: <table>  TYPE STANDARD TABLE.
+
+    CHECK es_row_no-row_id IS NOT INITIAL.
+    ASSIGN mr_table->* TO  <table>.
+    READ TABLE <table> INDEX es_row_no-row_id ASSIGNING FIELD-SYMBOL(<row>).
+    ASSIGN COMPONENT e_column-fieldname  OF STRUCTURE <row> TO FIELD-SYMBOL(<val>).
+
+    CASE e_column-fieldname.
+      WHEN 'VALUE'.
+        IF sy-subrc = 0.
+          IF <val> = 'Table'.
+            ASSIGN COMPONENT 'REF'  OF STRUCTURE <row> TO FIELD-SYMBOL(<ref>).
+            zcl_smd_appl=>open_int_table( EXPORTING i_name = CONV #( e_column-fieldname ) it_ref = <ref> io_window = mo_window ).
+          ENDIF.
+        ELSE.
+          TRY.
+              o_table_descr ?= cl_tpda_script_data_descr=>factory( |{ m_additional_name }[ { es_row_no-row_id } ]-{ e_column-fieldname }| ).
+              table_clone = o_table_descr->elem_clone( ).
+              zcl_smd_appl=>open_int_table( EXPORTING i_name = |{ m_additional_name }[ { es_row_no-row_id } ]-{ e_column-fieldname }| it_ref = table_clone io_window = mo_window ).
+            CATCH cx_sy_move_cast_error.
+          ENDTRY.
+        ENDIF.
+      WHEN 'STEP'.
+        CHECK mo_window IS BOUND.
+        MOVE-CORRESPONDING <row> TO mo_window->m_prg.
+        MOVE-CORRESPONDING <row> TO mo_window->mo_debugger->ms_stack.
+
+        mo_window->show_coverage( ).
+        mo_window->mo_debugger->show_step( ).
+      WHEN OTHERS. "check if it is an embedded table.
+        TRY.
+            o_table_descr ?= cl_tpda_script_data_descr=>factory( |{ m_additional_name }[ { es_row_no-row_id } ]-{ e_column-fieldname }| ).
+            table_clone = o_table_descr->elem_clone( ).
+            zcl_smd_appl=>open_int_table( EXPORTING i_name = |{ m_additional_name }[ { es_row_no-row_id } ]-{ e_column-fieldname }| it_ref = table_clone io_window = mo_window ).
+          CATCH cx_sy_move_cast_error.
+        ENDTRY.
+    ENDCASE.
+  endmethod.
+  method HANDLE_TAB_TOOLBAR.
+    IF m_visible IS INITIAL.
+      DATA(toolbar) = VALUE ttb_button(
+       ( function = 'SEL_ON' icon = icon_arrow_left quickinfo = 'Show Select-Options'  butn_type = 0 )
+       ( butn_type = 3 ) ).
+    ENDIF.
+
+    APPEND VALUE #( function = 'TECH' icon = icon_wd_caption quickinfo = 'Tech names'  butn_type = 0 ) TO toolbar.
+
+    LOOP AT zcl_smd_appl=>mt_lang INTO DATA(lang).
+      IF sy-tabix > 10.
+        EXIT.
+      ENDIF.
+      APPEND VALUE #( function = lang-spras icon = icon_foreign_trade quickinfo = lang-sptxt butn_type = 0 text = lang-sptxt ) TO toolbar.
+    ENDLOOP.
+
+    toolbar = VALUE ttb_button( BASE toolbar
+     ( function = 'SHOW'  icon = icon_list  quickinfo = 'Show empty columns'   butn_type = 0  )
+     ( function = 'TBAR' icon = COND #( WHEN m_std_tbar IS INITIAL THEN icon_column_right ELSE icon_column_left )
+        quickinfo = COND #( WHEN m_std_tbar IS INITIAL THEN 'Show standard ALV function'  ELSE 'Hide standard ALV function') )
+     ( butn_type = 3 ) ).
+
+    IF m_std_tbar IS INITIAL.
+      e_object->mt_toolbar =  toolbar.
+    ELSE.
+      e_object->mt_toolbar =  toolbar = VALUE ttb_button( BASE toolbar ( LINES OF e_object->mt_toolbar ) ).
+    ENDIF.
+  endmethod.
+  method HANDLE_USER_COMMAND.
+    DATA: it_fields  TYPE lvc_t_fcat,
+          clause(45),
+          sel_width  TYPE i.
+
+    FIELD-SYMBOLS: <table>  TYPE STANDARD  TABLE.
+    ASSIGN mr_table->* TO <table>.
+    mo_alv->get_frontend_fieldcatalog( IMPORTING et_fieldcatalog = it_fields[] ).
+    IF e_ucomm = 'SEL_ON' AND m_visible IS INITIAL.
+      create_sel_alv( ).
+      m_visible = abap_true.
+      IF mo_sel_width = 0.
+        sel_width = 500.
+      ELSE.
+        sel_width = mo_sel_width.
+      ENDIF.
+
+      mo_splitter->set_column_width( EXPORTING id = 1 width = sel_width ).
+      mo_alv->set_toolbar_interactive( ).
+      RETURN.
+    ELSEIF e_ucomm = 'TBAR'.
+      m_std_tbar = BIT-NOT  m_std_tbar.
+    ELSE.
+      IF e_ucomm = 'SHOW'.
+        IF m_show_empty IS INITIAL.
+          m_show_empty = 1.
+        ELSE.
+          CLEAR m_show_empty.
+        ENDIF.
+      ENDIF.
+
+      LOOP AT it_fields ASSIGNING FIELD-SYMBOL(<fields>) WHERE domname NE 'MANDT'.
+        <fields>-col_pos = sy-tabix.
+        CASE e_ucomm.
+
+          WHEN 'SHOW'.
+            IF m_show_empty = abap_false.
+              <fields>-no_out = ' '.
+            ELSE.
+              clause = |{ <fields>-fieldname } IS NOT INITIAL|.
+              LOOP AT <table> ASSIGNING FIELD-SYMBOL(<line>)  WHERE (clause).
+                EXIT.
+              ENDLOOP.
+              IF sy-subrc NE 0.
+                <fields>-no_out = abap_true.
+              ENDIF.
+            ENDIF.
+
+          WHEN 'TECH'. "technical field name
+            <fields>-scrtext_l = <fields>-scrtext_m = <fields>-scrtext_s =  <fields>-reptext = <fields>-fieldname.
+
+          WHEN OTHERS. "header names translation
+            IF line_exists( zcl_smd_appl=>mt_lang[ spras = e_ucomm ] ).
+              translate_field( EXPORTING i_lang = CONV #( e_ucomm )  CHANGING c_fld = <fields> ).
+              IF mo_sel IS BOUND.
+                READ TABLE mo_sel->mt_sel_tab ASSIGNING FIELD-SYMBOL(<sel>) WITH KEY field_label = <fields>-fieldname.
+                IF sy-subrc = 0.
+                  IF <fields>-scrtext_l IS NOT INITIAL.
+                    <sel>-name = <fields>-scrtext_l.
+                  ENDIF.
+                  IF <sel>-name IS INITIAL.
+                    IF <fields>-reptext IS NOT INITIAL.
+                      <sel>-name = <fields>-reptext.
+                    ENDIF.
+                  ENDIF.
+                ENDIF.
+              ENDIF.
+            ENDIF.
+        ENDCASE.
+      ENDLOOP.
+    ENDIF.
+
+    IF line_exists( zcl_smd_appl=>mt_lang[ spras = e_ucomm ] ).
+      m_lang = e_ucomm.
+      set_header( ).
+      mo_sel->set_value( i_field = 'SPRSL' i_low = m_lang ).
+    ENDIF.
+
+    CALL METHOD mo_alv->set_frontend_fieldcatalog EXPORTING it_fieldcatalog = it_fields[].
+
+    zcl_smd_common=>refresh( mo_alv ).
+    IF mo_sel IS BOUND.
+      IF  e_ucomm = 'HIDE' OR e_ucomm = 'SHOW' OR e_ucomm = 'UPDATE' .
+        mo_sel->update_sel_tab( ).
+      ENDIF.
+      zcl_smd_common=>refresh( mo_sel->mo_sel_alv ).
+      mo_sel->mo_sel_alv->refresh_table_display(  ).
+    ENDIF.
+  endmethod.
+  method ON_NAVIGATED.
+
+    DATA lr_ref TYPE REF TO data.
+    DATA lt_trees TYPE STANDARD TABLE OF REF TO zcl_smd_rtti_tree WITH EMPTY KEY.
+
+    IF mo_window IS NOT BOUND OR mo_window->mo_debugger IS NOT BOUND OR mo_alv IS NOT BOUND.
+      RETURN.
+    ENDIF.
+    DATA(o_debugger) = mo_window->mo_debugger.
+
+    "current value of the variable this popup was opened for; drill-down
+    "popups (NAME[ n ]-COMP) and debugger-internal tables are not in mt_vars
+    "and keep their snapshot
+    APPEND o_debugger->mo_tree_local TO lt_trees.
+    APPEND o_debugger->mo_tree_imp   TO lt_trees.
+    APPEND o_debugger->mo_tree_exp   TO lt_trees.
+
+    LOOP AT lt_trees INTO DATA(o_tree).
+      IF o_tree IS NOT BOUND.
+        CONTINUE.
+      ENDIF.
+      READ TABLE o_tree->mt_vars INTO DATA(var) WITH KEY name = m_additional_name.
+      IF sy-subrc = 0 AND var-ref IS BOUND.
+        lr_ref = var-ref.
+        EXIT.
+      ENDIF.
+    ENDLOOP.
+
+    IF lr_ref IS INITIAL.
+      READ TABLE o_debugger->mt_state INTO DATA(state) WITH KEY name = m_additional_name.
+      IF sy-subrc = 0 AND state-ref IS BOUND.
+        lr_ref = state-ref.
+      ENDIF.
+    ENDIF.
+
+    IF lr_ref IS INITIAL.
+      RETURN. "variable not visible at this step - keep the old snapshot
+    ENDIF.
+
+    TRY.
+        IF cl_abap_typedescr=>describe_by_data_ref( lr_ref )->kind <> cl_abap_typedescr=>kind_table.
+          RETURN.
+        ENDIF.
+      CATCH cx_root.
+        RETURN.
+    ENDTRY.
+
+    update_table( lr_ref ).
+
+  endmethod.
+  method UPDATE_TABLE.
+
+    DATA filter TYPE lvc_t_filt.
+    FIELD-SYMBOLS: <table> TYPE STANDARD TABLE,
+                   <old>   TYPE ANY TABLE,
+                   <new>   TYPE ANY TABLE.
+
+    CHECK ir_tab IS BOUND AND mo_alv IS BOUND.
+
+    "refresh only on a real change: rebinding resets sorting and flickers,
+    "so identical content must leave the grid untouched
+    IF ir_tab = mr_source.
+      RETURN. "same snapshot object (typical during history navigation)
+    ENDIF.
+    TRY.
+        IF mr_source IS BOUND
+        AND cl_abap_typedescr=>describe_by_data_ref( mr_source )->absolute_name
+          = cl_abap_typedescr=>describe_by_data_ref( ir_tab )->absolute_name.
+          ASSIGN mr_source->* TO <old>.
+          ASSIGN ir_tab->* TO <new>.
+          IF <old> = <new>.
+            mr_source = ir_tab. "remember the newest snapshot for the next diff
+            RETURN.
+          ENDIF.
+        ENDIF.
+      CATCH cx_root.
+        "comparison not possible (e.g. type changed) - treat as changed
+    ENDTRY.
+
+    TRY.
+        prepare_table( ir_tab ).
+
+        DATA(catalog) = create_field_cat( m_tabname ).
+        IF catalog IS INITIAL.
+          RETURN.
+        ENDIF.
+        mt_alv_catalog = catalog.
+
+        ASSIGN mr_table->* TO <table>.
+        IF sy-subrc <> 0.
+          RETURN.
+        ENDIF.
+
+        "full rebind: survives a type change of the variable between blocks
+        DATA(layout) = VALUE lvc_s_layo( cwidth_opt = abap_true sel_mode = 'D' ).
+        mo_alv->set_table_for_first_display(
+          EXPORTING
+            i_save          = abap_true
+            i_default       = abap_true
+            is_layout       = layout
+          CHANGING
+            it_fieldcatalog = mt_alv_catalog
+            it_outtab       = <table>
+          EXCEPTIONS
+            OTHERS          = 1 ).
+        IF sy-subrc <> 0.
+          RETURN.
+        ENDIF.
+
+        mo_alv->set_toolbar_interactive( ).
+        set_header( ).
+
+        "keep the select-options panel consistent and re-apply its filter
+        IF mo_sel IS BOUND.
+          mo_sel->update_sel_tab( ).
+          LOOP AT mo_sel->mt_sel_tab ASSIGNING FIELD-SYMBOL(<sel>).
+            LOOP AT <sel>-range INTO DATA(range).
+              APPEND VALUE #( fieldname = <sel>-field_label
+                                    low = range-low
+                                   high = range-high
+                                   sign = range-sign
+                                 option = range-opti ) TO filter.
+            ENDLOOP.
+          ENDLOOP.
+          IF filter IS NOT INITIAL.
+            mo_alv->set_filter_criteria( EXPORTING it_filter = filter EXCEPTIONS OTHERS = 1 ).
+          ENDIF.
+          zcl_smd_common=>refresh( mo_sel->mo_sel_alv ).
+        ENDIF.
+
+        zcl_smd_common=>refresh( mo_alv ).
+        mr_source = ir_tab. "the displayed snapshot - baseline for the next diff
+      CATCH cx_root.
+        "navigation must never dump because of an open popup - keep old content
+    ENDTRY.
+
+  endmethod.
+  method ON_TABLE_CLOSE.
+
+    DATA: tabix LIKE sy-tabix.
+
+    "stop following navigation - the controls are about to be freed
+    IF mo_window IS BOUND.
+      SET HANDLER on_navigated FOR mo_window ACTIVATION space.
+    ENDIF.
+
+    sender->free( EXCEPTIONS cntl_error        = 1
+                             cntl_system_error = 2
+                             OTHERS            = 3 ).
+    DELETE zcl_smd_appl=>mt_popups WHERE child = sender.
+
+    "Free Memory
+    LOOP AT zcl_smd_appl=>mt_obj ASSIGNING FIELD-SYMBOL(<obj>) WHERE alv_viewer IS NOT INITIAL.
+      IF <obj>-alv_viewer->mo_box = sender.
+        tabix = sy-tabix.
+        EXIT.
+      ENDIF.
+    ENDLOOP.
+    IF tabix NE 0.
+      FREE <obj>-alv_viewer->mr_table.
+      FREE <obj>-alv_viewer->mo_alv.
+
+      FREE <obj>-alv_viewer.
+      DELETE zcl_smd_appl=>mt_obj INDEX tabix.
+    ENDIF.
+
+  endmethod.
+  method REFRESH_TABLE.
+    DATA: row    TYPE zcl_smd_sel_opt=>t_sel_row,
+          filter TYPE lvc_t_filt.
+
+    CLEAR filter.
+    set_header( ).
+
+    LOOP AT mo_sel->mt_sel_tab  ASSIGNING FIELD-SYMBOL(<sel>).
+      LOOP AT <sel>-range INTO DATA(range).
+        APPEND VALUE #( fieldname = <sel>-field_label
+                              low = range-low
+                             high = range-high
+                             sign = range-sign
+                           option = range-opti ) TO filter.
+      ENDLOOP.
+    ENDLOOP.
+
+    IF mo_sel->mt_sel_tab IS NOT INITIAL.
+      CALL METHOD mo_alv->set_filter_criteria
+        EXPORTING
+          it_filter = filter.
+      zcl_smd_common=>refresh( mo_sel->mo_sel_alv ).
+      zcl_smd_common=>refresh( mo_alv ).
+      mo_sel->mo_debugger->handle_user_command( 'SHOW' ).
+    ENDIF.
+
+  endmethod.
+  method SET_HEADER.
+    DATA: text       TYPE as4text,
+          header(80) TYPE c.
+
+    SELECT SINGLE ddtext INTO text
+      FROM dd02t
+     WHERE tabname = m_tabname
+       AND ddlanguage = m_lang.
+
+    header = |{ m_tabname } - { text } { m_additional_name }|.
+    mo_box->set_caption( header ).
+  endmethod.
+  method TRANSLATE_FIELD.
+    DATA: dd04 TYPE dd04v.
+
+    READ TABLE mt_fields INTO DATA(field) WITH KEY field = c_fld-fieldname.
+    CHECK field-elem IS NOT INITIAL.
+    CLEAR dd04.
+
+    CALL FUNCTION 'DDIF_DTEL_GET'
+      EXPORTING
+        name          = CONV ddobjname( field-elem )
+        langu         = i_lang
+      IMPORTING
+        dd04v_wa      = dd04
+      EXCEPTIONS
+        illegal_input = 1
+        OTHERS        = 2.
+
+    IF sy-subrc = 0.
+      IF dd04-reptext IS NOT INITIAL.
+        MOVE-CORRESPONDING dd04 TO c_fld.
+      ENDIF.
+    ENDIF.
+  endmethod.
+ENDCLASS.
+
+CLASS zcl_smd_source_parser IMPLEMENTATION.
+
+  METHOD parse_tokens.
+
+    DATA: lr_scan         TYPE REF TO cl_ci_scan,
+          prev            TYPE string,
+          change          TYPE string,
+          split           TYPE TABLE OF string,
+          o_scan          TYPE REF TO cl_ci_scan,
+          o_statement     TYPE REF TO if_ci_kzn_statement_iterator,
+          o_procedure     TYPE REF TO if_ci_kzn_statement_iterator,
+          token           TYPE zcl_smd_window=>ts_kword,
+          calculated_var  TYPE zcl_smd_window=>calculated_var,
+          composed_var    TYPE zcl_smd_window=>composed_vars,
+          tokens          TYPE zcl_smd_window=>tt_kword,
+          calculated_vars TYPE  zcl_smd_window=>tt_calculated,
+          composed        TYPE zcl_smd_window=>tt_composed,
+          call            TYPE zcl_smd_window=>ts_calls,
+          call_line       TYPE zcl_smd_window=>ts_calls_line,
+          int_table       TYPE zcl_smd_window=>ts_int_tabs,
+          int_tables      TYPE zcl_smd_window=>tt_tabs,
+          eventtype       TYPE string,
+          eventname       TYPE string,
+          param           TYPE zcl_smd_window=>ts_params,
+          par             TYPE char1,
+          type            TYPE char1,
+          class           TYPE xfeld,
+          cl_name         TYPE string,
+          preferred       TYPE xfeld.
+
+    "CLEAR mv_step.
+
+    READ TABLE io_debugger->mo_window->mt_source WITH KEY include = i_program INTO DATA(source).
+    IF sy-subrc <> 0.
+
+      source-source = cl_ci_source_include=>create( p_name = i_program ).
+      o_scan = NEW cl_ci_scan( p_include = source-source ).
+
+      source-include = i_program.
+
+      o_statement = cl_cikzn_scan_iterator_factory=>get_statement_iterator( ciscan = o_scan ).
+      o_procedure = cl_cikzn_scan_iterator_factory=>get_procedure_iterator( ciscan = o_scan ).
+
+      TRY.
+          o_statement->next( ).
+        CATCH cx_scan_iterator_reached_end.
+          EXIT.
+      ENDTRY.
+
+      DATA(kw) = o_statement->get_keyword( ).
+
+      DATA(word) = o_statement->get_token( offset = 2 ).
+
+      o_procedure->statement_index = o_statement->statement_index.
+      o_procedure->statement_type = o_statement->statement_type.
+
+      DATA(max) = lines( o_scan->statements ).
+      DO.
+        CLEAR token-tt_calls.
+        TRY.
+            o_procedure->next( ).
+          CATCH cx_scan_iterator_reached_end.
+            "iterator exhausted: statement_index stops moving, so without
+            "EXIT the loop would append the same token forever
+            EXIT.
+        ENDTRY.
+
+        kw = o_procedure->get_keyword( ).
+
+        token-name = kw.
+        token-index = o_procedure->statement_index.
+        READ TABLE o_scan->statements INDEX o_procedure->statement_index INTO DATA(statement).
+        IF sy-subrc <> 0.
+          EXIT.
+        ENDIF.
+
+        READ TABLE o_scan->tokens INDEX statement-from INTO DATA(scan_token).
+        token-line = calculated_var-line = composed_var-line = scan_token-row.
+
+        DATA new TYPE xfeld.
+
+        IF kw = 'CLASS'.
+          class = abap_true.
+        ENDIF.
+
+        IF kw = 'FORM' OR kw = 'METHOD' OR kw = 'METHODS' OR kw = 'CLASS-METHODS'.
+          int_table-eventtype = eventtype = param-event =  kw.
+
+          CLEAR eventname.
+          IF kw = 'FORM'.
+            CLEAR: class, param-class.
+          ELSE.
+            int_table-eventtype = eventtype = param-event =  'METHOD'.
+          ENDIF.
+        ENDIF.
+
+        IF kw = 'ENDFORM' OR kw = 'ENDMETHOD'.
+          CLEAR: eventtype, eventname, int_table.
+          IF param-param IS INITIAL. "No params - save empty row if no params
+            READ TABLE source-t_params WITH KEY event = param-event name = param-name TRANSPORTING NO FIELDS.
+            IF sy-subrc <> 0.
+              CLEAR param-type.
+              APPEND param TO source-t_params.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+
+        CLEAR prev.
+        IF kw = 'ASSIGN' OR kw = 'ADD' OR kw = 'SUBTRACT' .
+          DATA(count) = 0.
+        ENDIF.
+        CLEAR: new, token-to_evname, token-to_evtype .
+        WHILE 1 = 1.
+          IF kw IS INITIAL.
+            EXIT.
+          ENDIF.
+          CLEAR change.
+          word = o_procedure->get_token( offset = sy-index ).
+
+          IF ( word CS '(' AND ( NOT word CS ')' ) ) OR word CS '->' OR word CS '=>'."can be method call
+            call-name = word.
+            call-event = 'METHOD'.
+            REPLACE ALL OCCURRENCES OF '(' IN call-name WITH ''.
+            FIND FIRST OCCURRENCE OF '->' IN  call-name.
+            IF sy-subrc = 0.
+              SPLIT call-name  AT '->' INTO TABLE split.
+              call-name = split[ 2 ].
+            ENDIF.
+
+            FIND FIRST OCCURRENCE OF '=>' IN  call-name.
+            IF sy-subrc = 0.
+              SPLIT call-name  AT '=>' INTO TABLE split.
+              call-name = split[ 2 ].
+            ENDIF.
+            token-to_evname = call-name.
+            token-to_evtype = call-event = 'METHOD'.
+            IF new = abap_true.
+              call-name =  token-to_evname = 'CONSTRUCTOR'.
+            ENDIF.
+          ENDIF.
+
+          IF sy-index = 1 AND token-name = word.
+            CONTINUE.
+          ENDIF.
+
+          IF sy-index = 2 AND ( kw = 'DATA' OR kw = 'PARAMETERS' ).
+            "WRITE: 'var =', token.
+            int_table-name = word.
+          ENDIF.
+
+          IF sy-index = 2 AND kw = 'PERFORM'.
+            token-to_evname = call-name = word.
+            token-to_evtype = call-event = 'FORM'.
+          ENDIF.
+
+          IF sy-index = 2 AND class = abap_true AND param-class IS INITIAL.
+            call_line-class = param-class = word.
+          ENDIF.
+
+          IF sy-index = 2 AND eventtype IS NOT INITIAL AND eventname IS INITIAL.
+            int_table-eventname = eventname = param-name = word.
+
+            MOVE-CORRESPONDING int_table TO call_line.
+            call_line-index = o_procedure->statement_index + 1.
+            "methods in definition should be overwrited by Implementation section
+            READ TABLE source-tt_calls_line WITH KEY eventname = call_line-eventname eventtype = call_line-eventtype ASSIGNING FIELD-SYMBOL(<call_line>).
+            IF sy-subrc = 0.
+              <call_line> = call_line.
+            ELSE.
+              APPEND call_line TO source-tt_calls_line.
+            ENDIF.
+
+          ENDIF.
+
+          IF word = ''.
+            CLEAR call.
+            CASE kw.
+              WHEN 'COMPUTE'.
+                IF  NOT prev CO '0123456789.+-/* '.
+                  composed_var-name = prev.
+                  APPEND  composed_var TO composed.
+                ENDIF.
+              WHEN 'CLEAR' OR 'SORT' OR 'CONDENSE'."no logic
+              WHEN 'FORM'.
+                IF param-name IS NOT INITIAL.
+                  APPEND param TO source-t_params.
+                  CLEAR param.
+                ENDIF.
+            ENDCASE.
+            EXIT.
+          ENDIF.
+
+          IF word = 'USING' OR word = 'IMPORTING'.
+            param-type = 'I'.
+            CLEAR: type, par.
+          ELSEIF word = 'CHANGING' OR word = 'EXPORTING' OR word = 'RETURNING'.
+
+            IF param-param IS NOT INITIAL.
+              APPEND param TO source-t_params.
+              CLEAR: type, par, param-param.
+            ENDIF.
+
+            param-type = 'E'.
+            CLEAR: type, par.
+          ELSEIF word = 'OPTIONAL' OR word = 'PREFERRED'.
+            CONTINUE.
+          ELSEIF word = 'PARAMETER'.
+            preferred = abap_true.
+            CONTINUE.
+          ENDIF.
+
+          IF preferred = abap_true.
+            READ TABLE source-t_params WITH KEY event = 'METHOD' name = param-name param = word ASSIGNING FIELD-SYMBOL(<param>).
+            IF sy-subrc = 0.
+              <param>-preferred = abap_true.
+            ENDIF.
+
+            CLEAR preferred.
+            CONTINUE.
+          ENDIF.
+
+          IF word <> 'CHANGING' AND word <> 'EXPORTING' AND word <> 'RETURNING' AND word <> 'IMPORTING' AND word <> 'USING'.
+            IF kw = 'FORM' OR kw = 'METHODS' OR kw = 'CLASS-METHODS'.
+              IF par = abap_true AND type IS INITIAL AND word NE 'TYPE'.
+
+                APPEND param TO source-t_params.
+                CLEAR: par, param-param.
+              ENDIF.
+
+              IF par IS INITIAL AND sy-index > 3.
+                param-param = word.
+                par = abap_true.
+                CONTINUE.
+              ENDIF.
+              IF par = abap_true AND type IS INITIAL AND word = 'TYPE'.
+                type = abap_true.
+                CONTINUE.
+              ENDIF.
+              IF par = abap_true AND type = abap_true.
+
+                APPEND param TO source-t_params.
+                CLEAR: type, par, param-param.
+              ENDIF.
+            ENDIF.
+          ENDIF.
+
+          DATA temp TYPE char30.
+          temp = word.
+
+          IF temp+0(5) = 'DATA('.
+            SHIFT temp LEFT BY 5 PLACES.
+            REPLACE ALL OCCURRENCES OF ')' IN temp WITH ''.
+          ENDIF.
+
+          IF temp+0(6) = '@DATA('.
+            SHIFT temp LEFT BY 6 PLACES.
+            REPLACE ALL OCCURRENCES OF ')' IN temp WITH ''.
+          ENDIF.
+
+          IF temp+0(13) = 'FIELD-SYMBOL('.
+            SHIFT temp LEFT BY 13 PLACES.
+            REPLACE ALL OCCURRENCES OF ')' IN temp WITH ''.
+          ENDIF.
+
+          IF word = 'NEW'.
+            new = abap_true.
+          ENDIF.
+
+          FIND FIRST OCCURRENCE OF '->' IN word.
+          IF sy-subrc = 0.
+            CLEAR new.
+          ENDIF.
+
+          CASE kw.
+            WHEN 'DATA' OR 'PARAMETERS'.
+              IF (  prev = 'OF' ) AND temp <> 'TABLE' AND temp <> 'OF'.
+                int_table-type = temp.
+                APPEND int_table TO int_tables.
+              ENDIF.
+
+            WHEN 'COMPUTE'.
+              IF temp CA '=' AND new IS INITIAL..
+                change = prev.
+              ENDIF.
+
+              IF ( prev = '=' OR prev CA '+-/*' ) AND temp <> 'NEW'.
+                IF NOT temp  CA '()' .
+                  IF NOT temp  CO '0123456789. '.
+                    composed_var-name = temp.
+                    APPEND  composed_var TO composed.
+                    IF call IS NOT INITIAL.
+                      call-outer = temp.
+                      READ TABLE token-tt_calls WITH KEY event = call-event name = call-name outer = call-outer TRANSPORTING  NO FIELDS.
+                      IF sy-subrc <> 0.
+                        APPEND call TO token-tt_calls.
+                      ENDIF.
+                    ENDIF.
+                  ENDIF.
+                ENDIF.
+              ENDIF.
+
+            WHEN 'PERFORM' .
+
+              IF  temp = 'USING' OR temp = 'CHANGING' .
+                CLEAR prev.
+              ENDIF.
+
+              IF  prev = 'USING' OR prev = 'CHANGING' .
+
+                IF NOT temp  CA '()' .
+                  IF NOT temp  CO '0123456789. '.
+                    call-outer = temp.
+                    READ TABLE token-tt_calls WITH KEY event = call-event name = call-name outer = call-outer TRANSPORTING  NO FIELDS.
+                    IF sy-subrc <> 0.
+                      APPEND call TO token-tt_calls.
+                    ENDIF.
+                    change = temp.
+                  ENDIF.
+                ENDIF.
+              ENDIF.
+
+            WHEN 'CREATE' OR 'CALL'.
+              DATA: import TYPE xfeld,
+                    export.
+
+              IF prev = 'FUNCTION' AND kw = 'CALL'.
+                token-to_evtype =   call-event = 'FUNCTION'.
+                token-to_evname =  call-name = word.
+                REPLACE ALL OCCURRENCES OF '''' IN  token-to_evname WITH ''.
+              ENDIF.
+
+              IF word = 'EXPORTING' OR word = 'CHANGING' OR word = 'TABLES'.
+                export = abap_true.
+                CLEAR import.
+                CONTINUE.
+
+              ELSEIF word = 'IMPORTING'.
+                import = abap_true.
+                CLEAR export.
+                CONTINUE.
+
+              ENDIF.
+
+              IF prev = 'OBJECT'.
+                "WRITE : 'value', temp.
+*          CONTINUE.
+              ENDIF.
+
+              IF  prev = '='.
+                IF NOT temp  CA '()'.
+                  IF NOT temp  CO '0123456789. '.
+                    IF import = abap_true.
+                      call-outer = temp.
+                      READ TABLE token-tt_calls WITH KEY event = call-event name = call-name outer = call-outer TRANSPORTING  NO FIELDS.
+                      IF sy-subrc <> 0.
+                        APPEND call TO token-tt_calls.
+                      ENDIF.
+                      calculated_var-name = temp.
+                      APPEND  calculated_var TO calculated_vars.
+                    ELSEIF export = abap_true.
+                      call-outer = temp.
+                      READ TABLE token-tt_calls WITH KEY event = call-event name = call-name outer = call-outer TRANSPORTING  NO FIELDS.
+                      IF sy-subrc <> 0.
+                        APPEND call TO token-tt_calls.
+                      ENDIF.
+                      composed_var-name = temp.
+                      APPEND  composed_var TO composed.
+                    ENDIF.
+                  ENDIF.
+                ENDIF.
+              ELSE.
+                IF NOT temp  CO '0123456789. ' AND temp <> '=' AND ( import = abap_true OR export = abap_true ).
+                  call-inner = temp.
+                ENDIF.
+              ENDIF.
+
+            WHEN 'CLEAR' OR 'SORT'.
+              change = temp.
+            WHEN  'CONDENSE'.
+
+              IF temp <> 'NO-GAPS'.
+                change = temp.
+              ENDIF.
+            WHEN 'ASSIGN' OR 'UNASSIGN'.
+              ADD 1 TO count.
+              IF count <> 2.
+                change = temp.
+              ENDIF.
+            WHEN 'ADD' OR 'SUBTRACT'.
+              ADD 1 TO count.
+              IF count = 1.
+                IF  NOT temp CO '0123456789.() '.
+                  composed_var-name = temp.
+                  APPEND  composed_var TO composed.
+                ENDIF.
+              ENDIF.
+              IF count = 3.
+                change = temp.
+              ENDIF.
+            WHEN 'READ'.
+              IF prev =  'INTO' OR prev =  'ASSIGNING'.
+                change = temp.
+              ENDIF.
+
+            WHEN 'SELECT'.
+              IF  ( prev =  'INTO' OR prev =  '(' ) AND ( temp <> 'TABLE' AND temp <> '('  AND temp <> ')' AND  temp <> ',' ).
+                change = temp.
+              ENDIF.
+
+            WHEN OTHERS.
+
+          ENDCASE.
+          IF call-event = 'METHOD'.
+            IF word = 'EXPORTING' OR word = 'CHANGING' OR word = 'TABLES'.
+              export = abap_true.
+              CLEAR import.
+              CONTINUE.
+
+            ELSEIF word = 'IMPORTING'.
+              import = abap_true.
+              CLEAR export.
+              CONTINUE.
+            ENDIF.
+
+            IF  temp = 'USING' OR temp = 'CHANGING' .
+              CLEAR prev.
+            ENDIF.
+
+            IF  prev = 'USING' OR prev = 'CHANGING' .
+
+              IF NOT temp  CA '()' .
+                IF NOT temp  CO '0123456789. '.
+                  call-outer = temp.
+                  READ TABLE token-tt_calls WITH KEY event = call-event name = call-name outer = call-outer TRANSPORTING  NO FIELDS.
+                  IF sy-subrc <> 0.
+                    APPEND call TO token-tt_calls.
+                  ENDIF.
+                  change = temp.
+                ENDIF.
+              ENDIF.
+            ENDIF.
+
+            IF  prev = '='.
+              IF NOT temp  CA '()'.
+                IF NOT temp  CO '0123456789. '.
+                  IF import = abap_true.
+                    call-outer = temp.
+                    READ TABLE token-tt_calls WITH KEY event = call-event name = call-name outer = call-outer TRANSPORTING  NO FIELDS.
+                    IF sy-subrc <> 0.
+                      APPEND call TO token-tt_calls.
+                    ENDIF.
+
+                    calculated_var-name = temp.
+                    APPEND  calculated_var TO calculated_vars.
+                  ELSEIF export = abap_true.
+                    call-outer = temp.
+                    READ TABLE token-tt_calls WITH KEY event = call-event name = call-name outer = call-outer TRANSPORTING  NO FIELDS.
+                    IF sy-subrc <> 0.
+                      APPEND call TO token-tt_calls.
+                    ENDIF.
+                    composed_var-name = temp.
+                    APPEND  composed_var TO composed.
+                  ENDIF.
+                ENDIF.
+              ENDIF.
+            ELSE.
+              IF NOT temp  CO '0123456789. ' AND temp <> '=' AND ( import = abap_true OR export = abap_true ).
+                call-inner = temp.
+              ENDIF.
+            ENDIF.
+
+          ENDIF.
+
+          IF temp = '(' .
+            prev = temp.
+            CONTINUE.
+          ENDIF.
+
+          IF  NOT temp  CA '()'.
+            IF temp <> 'TABLE' AND temp <> 'NEW'  AND prev <> '('.
+              IF  kw <> 'PERFORM'.
+                prev = temp.
+              ELSEIF word = 'USING' OR word = 'CHANGING'.
+                prev = temp.
+              ENDIF.
+            ENDIF.
+          ENDIF.
+
+          IF change IS NOT INITIAL.
+            calculated_var-name = change.
+            APPEND calculated_var TO calculated_vars.
+
+            IF change+0(1) = '<'.
+
+              SPLIT change AT '-' INTO TABLE split.
+              change = split[ 1 ].
+              IF eventtype IS INITIAL. "Global fs
+                READ TABLE io_debugger->mo_window->mt_globals_set WITH KEY program = i_program ASSIGNING FIELD-SYMBOL(<globals_set>).
+                IF sy-subrc <> 0.
+                  APPEND INITIAL LINE TO io_debugger->mo_window->mt_globals_set ASSIGNING <globals_set>.
+                  <globals_set>-program = i_program.
+                ENDIF.
+                READ TABLE  <globals_set>-mt_fs WITH KEY name = change TRANSPORTING NO FIELDS.
+                IF sy-subrc <> 0.
+                  APPEND INITIAL LINE TO  <globals_set>-mt_fs ASSIGNING FIELD-SYMBOL(<gl_fs>).
+                  <gl_fs>-name = change.
+                ENDIF.
+
+              ELSE."local fs
+                READ TABLE io_debugger->mo_window->mt_locals_set
+                 WITH KEY program = i_program eventtype = eventtype eventname = eventname
+                 ASSIGNING FIELD-SYMBOL(<locals_set>).
+                IF sy-subrc <> 0.
+                  APPEND INITIAL LINE TO io_debugger->mo_window->mt_locals_set ASSIGNING <locals_set>.
+                  <locals_set>-program = i_program.
+                  <locals_set>-eventname = eventname.
+                  <locals_set>-eventtype = eventtype.
+                ENDIF.
+                READ TABLE <locals_set>-mt_fs WITH KEY name = change TRANSPORTING NO FIELDS.
+                IF sy-subrc <> 0.
+                  APPEND INITIAL LINE TO <locals_set>-mt_fs ASSIGNING FIELD-SYMBOL(<loc_fs>).
+                  <loc_fs>-name = change.
+                ENDIF.
+              ENDIF.
+            ENDIF.
+          ENDIF.
+        ENDWHILE.
+        token-from = statement-from.
+        token-to = statement-to.
+        APPEND token TO tokens.
+        IF o_procedure->statement_index = max.
+          EXIT.
+        ENDIF.
+
+      ENDDO.
+
+      "Fill keyword links for perform
+
+      LOOP AT tokens ASSIGNING FIELD-SYMBOL(<s_token>) WHERE tt_calls IS NOT INITIAL.
+
+        READ TABLE <s_token>-tt_calls INDEX 1 INTO call.
+        DATA(index) = 0.
+        LOOP AT source-t_params INTO param WHERE event = call-event AND name = call-name .
+          ADD 1 TO index.
+          READ TABLE <s_token>-tt_calls INDEX index ASSIGNING FIELD-SYMBOL(<call>).
+          IF sy-subrc = 0.
+            <call>-inner = param-param.
+            IF param-type = 'I'.
+              <call>-type = '>'.
+            ELSE.
+              <call>-type = '<'.
+            ENDIF.
+          ENDIF.
+        ENDLOOP.
+
+      ENDLOOP.
+
+      "clear value(var) to var.
+      LOOP AT source-t_params ASSIGNING <param>.
+        REPLACE ALL OCCURRENCES OF 'VALUE(' IN <param>-param WITH ''.
+        REPLACE ALL OCCURRENCES OF ')' IN <param>-param WITH ''.
+      ENDLOOP.
+
+      source-scan = o_scan.
+      source-t_keytokens = tokens.
+      source-t_calculated = calculated_vars.
+      source-t_composed = composed.
+      source-tt_tabs = int_tables.
+      APPEND source TO io_debugger->mo_window->mt_source.
+
+    ENDIF.
+
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS ZCL_SMD_SEL_OPT IMPLEMENTATION.
+  method CONSTRUCTOR.
+
+    DATA: effect     TYPE i,
+          handle_alv TYPE i.
+
+    mo_debugger = io_viewer.
+    mo_sel_alv = NEW #( i_parent = io_container ).
+    update_sel_tab( ).
+
+    init_fcat( handle_alv ).
+    ms_layout-cwidth_opt = abap_true.
+    ms_layout-col_opt = abap_true.
+    ms_layout-ctab_fname = 'COLOR'.
+    ms_layout-stylefname = 'STYLE'.
+
+    "fields for F4 event handling
+    DATA(gt_f4) = VALUE  lvc_t_f4( register   = abap_true chngeafter = abap_true
+                             ( fieldname  = 'LOW'  )
+                             ( fieldname  = 'HIGH'  ) ).
+
+    mo_sel_alv->register_f4_for_fields( it_f4 = gt_f4 ).
+    mo_sel_alv->register_edit_event( i_event_id = cl_gui_alv_grid=>mc_evt_enter ).
+    mo_sel_alv->register_edit_event( i_event_id = cl_gui_alv_grid=>mc_evt_modified ).
+
+    SET HANDLER handle_user_command
+                handle_sel_toolbar
+                on_data_changed
+                on_data_changed_finished
+                on_grid_button_click
+                handle_context_menu_request
+                handle_doubleclick
+                on_f4 FOR mo_sel_alv.
+
+    CALL METHOD mo_sel_alv->set_table_for_first_display
+      EXPORTING
+        i_save          = abap_true
+        i_default       = abap_true
+        is_layout       = ms_layout
+      CHANGING
+        it_outtab       = mt_sel_tab[]
+        it_fieldcatalog = mt_fcat.
+
+    mo_sel_alv->set_toolbar_interactive( ).
+  endmethod.
+  method HANDLE_CONTEXT_MENU_REQUEST.
+    DATA: func  TYPE ui_func,
+          funcs TYPE ui_functions.
+
+    DATA(index) = zcl_smd_common=>get_selected( mo_sel_alv ).
+
+    IF index IS NOT INITIAL.
+      READ TABLE mt_sel_tab INTO DATA(sel) INDEX index.
+    ENDIF.
+
+    e_object->get_functions( IMPORTING fcodes = DATA(fcodes) ). "Inactivate all standard functions
+
+    LOOP AT fcodes INTO DATA(fcode) WHERE fcode NE '&OPTIMIZE'.
+      func = fcode-fcode.
+      APPEND func TO funcs.
+    ENDLOOP.
+
+    e_object->hide_functions( funcs ).
+    e_object->add_separator( ).
+
+    IF sel-range[]  IS NOT INITIAL OR index IS INITIAL.
+      CALL METHOD e_object->add_function
+        EXPORTING
+          fcode = 'SEL_CLEAR'
+          text  = 'Clear Select-Options'.
+    ENDIF.
+  endmethod.
+  method HANDLE_DOUBLECLICK.
+    DATA: it_bdcdata TYPE TABLE OF  bdcdata.
+
+    CHECK es_row_no-row_id IS NOT INITIAL.
+
+    READ TABLE mt_sel_tab INDEX es_row_no-row_id INTO DATA(sel).
+    APPEND VALUE #( program = 'SAPLSD_ENTRY' dynpro = '1000' dynbegin = abap_true ) TO it_bdcdata.
+    APPEND VALUE #( fnam = 'BDC_OKCODE' fval = 'WB_DISPLAY' ) TO it_bdcdata.
+
+    IF e_column = 'ELEMENT'.
+      SET PARAMETER ID 'DTYP' FIELD sel-element.
+      APPEND VALUE #( fnam = 'RSRD1-DDTYPE' fval = abap_true ) TO it_bdcdata.
+      CALL TRANSACTION 'SE11' USING it_bdcdata MODE 'E'.
+    ELSEIF e_column = 'DOMAIN'.
+      SET PARAMETER ID 'DOM' FIELD sel-domain.
+      APPEND VALUE #( fnam = 'RSRD1-DOMA' fval = abap_true ) TO it_bdcdata.
+      CALL TRANSACTION 'SE11' USING it_bdcdata MODE 'E'.
+    ELSE.
+      CALL FUNCTION 'DOCU_CALL'
+        EXPORTING
+          id                = 'DE'
+          langu             = mo_debugger->m_lang
+          object            = sel-element
+          typ               = 'E'
+          displ             = abap_true
+          displ_mode        = 3
+          use_sec_langu     = abap_true
+          display_shorttext = abap_true.
+    ENDIF.
+  endmethod.
+  method HANDLE_SEL_TOOLBAR.
+    e_object->mt_toolbar[] = VALUE #( butn_type = 0 disabled = ''
+     ( function = 'SEL_OFF' icon = icon_arrow_right    quickinfo = 'Hide' )
+     ( function = 'SEL_CLEAR' icon = icon_delete_row    quickinfo = 'Clear Select-Options' ) ).
+  endmethod.
+  method HANDLE_USER_COMMAND.
+    DATA: sel_width TYPE i.
+
+    IF e_ucomm = 'SEL_OFF'. "Hide select-options alv
+
+      mo_debugger->m_visible = ''.
+
+      sel_width = 0.
+      CALL METHOD mo_debugger->mo_splitter->get_column_width
+        EXPORTING
+          id                = 1
+        IMPORTING
+          result            = mo_debugger->mo_sel_width
+        EXCEPTIONS
+          cntl_error        = 1
+          cntl_system_error = 2
+          OTHERS            = 3.
+
+      CALL METHOD mo_debugger->mo_splitter->set_column_width
+        EXPORTING
+          id    = 1
+          width = sel_width.
+      mo_debugger->mo_alv->set_toolbar_interactive( ).
+      RETURN.
+    ENDIF.
+
+    IF e_ucomm = 'SEL_CLEAR' OR e_ucomm = 'DELR'. "clear all selections
+      mo_sel_alv->get_selected_rows( IMPORTING et_index_rows = DATA(sel_rows) ).
+
+      LOOP AT sel_rows INTO DATA(row).
+        READ TABLE mt_sel_tab ASSIGNING FIELD-SYMBOL(<sel>) INDEX row-index.
+        IF e_ucomm = 'SEL_CLEAR'.
+          CLEAR : <sel>-low, <sel>-high, <sel>-sign, <sel>-opti, <sel>-range.
+        ELSEIF e_ucomm = 'DELR'.
+        ENDIF.
+        update_sel_row( CHANGING c_sel_row = <sel> ).
+      ENDLOOP.
+      RAISE EVENT selection_done.
+    ENDIF.
+
+    zcl_smd_common=>refresh( mo_debugger->mo_alv ).
+    RAISE EVENT selection_done.
+  endmethod.
+  method INIT_FCAT.
+    mt_fcat = VALUE #(
+     ( fieldname = 'IND'         coltext = '№'  outputlen = 3 style = '00000003' )
+     ( fieldname = 'FIELD_LABEL' coltext = 'Label'  outputlen = 30 dragdropid = i_dd_handle )
+     ( fieldname = 'SIGN'        coltext = 'SIGN'   tech = abap_true )
+     ( fieldname = 'OPTI'        coltext = 'Option' tech = abap_true )
+     ( fieldname = 'OPTION_ICON' coltext = 'Option' icon = abap_true outputlen = 4 style = cl_gui_alv_grid=>mc_style_button )
+     ( fieldname = 'LOW'         coltext = 'From data' edit = abap_true lowercase = abap_true outputlen = 45 style = cl_gui_alv_grid=>mc_style_f4 col_opt = abap_true  )
+     ( fieldname = 'HIGH'        coltext = 'To data' edit = abap_true lowercase = abap_true outputlen = 45 style = cl_gui_alv_grid=>mc_style_f4  col_opt = abap_true )
+     ( fieldname = 'MORE_ICON'   coltext = 'Range' icon = abap_true  style = cl_gui_alv_grid=>mc_style_button  )
+     ( fieldname = 'RANGE'   tech = abap_true  )
+     ( fieldname = 'INHERITED'   coltext = 'Inh.' icon = abap_true outputlen = 4 seltext = 'Inherited' style = '00000003')
+     ( fieldname = 'EMITTER'    coltext = 'Emit.' icon = abap_true outputlen = 4 seltext = 'Emitter' style = '00000003')
+     ( fieldname = 'NAME' coltext = 'Field name'  outputlen = 60 style = '00000003')
+     ( fieldname = 'ELEMENT' coltext = 'Data element'  outputlen = 15 style = '00000209' )
+     ( fieldname = 'DOMAIN'  coltext = 'Domain'  outputlen = 15 style = '00000209' )
+     ( fieldname = 'DATATYPE' coltext = 'Type'  outputlen = 5 style = '00000003')
+     ( fieldname = 'LENGTH' coltext = 'Length'  outputlen = 5 style = '00000003')
+     ( fieldname = 'TRANSMITTER'   tech = abap_true  )
+     ( fieldname = 'RECEIVER'    tech = abap_true  )
+     ( fieldname = 'COLOR'    tech = abap_true  ) ).
+  endmethod.
+  method ON_DATA_CHANGED.
+
+    DATA: start TYPE i,
+          time  TYPE sy-uzeit.
+
+    FIELD-SYMBOLS: <field> TYPE any.
+
+    LOOP AT er_data_changed->mt_good_cells ASSIGNING FIELD-SYMBOL(<cells>).
+      READ TABLE mt_sel_tab INDEX <cells>-row_id ASSIGNING FIELD-SYMBOL(<tab>).
+      ASSIGN COMPONENT <cells>-fieldname OF STRUCTURE <tab> TO <field>.
+      READ TABLE mo_debugger->mt_alv_catalog WITH KEY fieldname = <tab>-field_label INTO DATA(cat).
+
+      IF <field> IS NOT INITIAL AND <cells>-value IS INITIAL.
+        READ TABLE <tab>-range INTO DATA(second) INDEX 2.
+        IF sy-subrc = 0.
+          IF ( <cells>-fieldname = 'LOW' AND <tab>-high IS INITIAL ) OR  ( <cells>-fieldname = 'HIGH' AND <tab>-low IS INITIAL  ).
+            DELETE <tab>-range INDEX 1.
+          ELSE.
+            CLEAR second.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+
+      IF cat-convexit = 'ALPHA' AND NOT  <cells>-value CA '+*'.
+        <cells>-value = |{ <cells>-value ALPHA = IN }|.
+        start = 128 - cat-dd_outlen.
+        <cells>-value = <cells>-value+start(cat-dd_outlen).
+      ENDIF.
+
+      IF <cells>-value IS NOT INITIAL.
+        IF <tab>-int_type = 'D'.
+          DATA: date TYPE sy-datum.
+          CALL FUNCTION 'CONVERT_DATE_INPUT'
+            EXPORTING
+              input                     = <cells>-value
+              plausibility_check        = abap_true
+            IMPORTING
+              output                    = date
+            EXCEPTIONS
+              plausibility_check_failed = 1
+              wrong_format_in_input     = 2
+              OTHERS                    = 3.
+
+          IF sy-subrc = 0.
+            <cells>-value = |{ date DATE = USER }|.
+          ENDIF.
+        ELSEIF <tab>-int_type = 'T'.
+          CALL FUNCTION 'CONVERT_TIME_INPUT'
+            EXPORTING
+              input                     = <cells>-value
+            IMPORTING
+              output                    = time
+            EXCEPTIONS
+              plausibility_check_failed = 1
+              wrong_format_in_input     = 2
+              OTHERS                    = 3.
+          <cells>-value = time+0(2) && ':' && time+2(2) && ':' && time+4(2).
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+    CHECK sy-subrc = 0.
+
+    IF second IS INITIAL.
+      <field> = <cells>-value.
+      er_data_changed->modify_cell( EXPORTING i_row_id = <cells>-row_id i_fieldname = <cells>-fieldname i_value = <cells>-value ).
+    ELSE.
+      <tab>-low = second-low.
+      er_data_changed->modify_cell( EXPORTING i_row_id = <cells>-row_id i_fieldname = 'LOW' i_value = second-low ).
+      IF second-high CO '0 '.
+        CLEAR second-high.
+      ENDIF.
+      <tab>-high = second-high.
+      er_data_changed->modify_cell( EXPORTING i_row_id = <cells>-row_id i_fieldname = 'HIGH' i_value = second-high ).
+
+      <tab>-opti = second-opti.
+      er_data_changed->modify_cell( EXPORTING i_row_id = <cells>-row_id i_fieldname = 'OPTI' i_value = second-opti ).
+      <tab>-sign = second-sign.
+      er_data_changed->modify_cell( EXPORTING i_row_id = <cells>-row_id i_fieldname = 'SIGN' i_value = second-sign ).
+    ENDIF.
+
+    update_sel_row( CHANGING c_sel_row = <tab> ).
+    zcl_smd_common=>refresh( EXPORTING i_obj = mo_sel_alv i_layout = ms_layout ).
+    raise_selection_done( ).
+  endmethod.
+  method ON_DATA_CHANGED_FINISHED.
+    CHECK e_modified IS NOT INITIAL.
+    RAISE EVENT selection_done.
+  endmethod.
+  method ON_F4.
+
+    DATA: return_tab TYPE STANDARD TABLE OF ddshretval,
+          objects    TYPE TABLE OF objec,
+          objec      TYPE objec,
+          otype      TYPE otype,
+          plvar      TYPE plvar,
+          multiple   TYPE xfeld,
+          clear      TYPE xfeld.
+
+    IF e_fieldname = 'LOW'.
+      multiple = abap_true.
+    ENDIF.
+
+    READ TABLE mt_sel_tab ASSIGNING FIELD-SYMBOL(<sel>) INDEX es_row_no-row_id.
+    IF sy-subrc <> 0.
+      RETURN. "F4 outside of a data row - let the standard help run
+    ENDIF.
+    DATA(fname) =  <sel>-field_label.
+
+    mt_sel[] = mt_sel_tab[].
+    IF <sel>-element = 'HROBJID'.
+      READ TABLE mt_sel_tab INTO DATA(sel) WITH KEY field_label = 'OTYPE'.
+      otype = sel-low.
+      READ TABLE mt_sel_tab INTO sel WITH KEY field_label = 'PLVAR'.
+      IF sy-subrc = 0 AND sel-low IS NOT INITIAL.
+        plvar = sel-low.
+      ELSE.
+        CALL FUNCTION 'RH_GET_ACTIVE_WF_PLVAR'
+          IMPORTING
+            act_plvar       = plvar
+          EXCEPTIONS
+            no_active_plvar = 1
+            OTHERS          = 2.
+      ENDIF.
+    ELSEIF <sel>-element = 'PERSNO'.
+      otype = 'P'.
+    ENDIF.
+
+    IF otype IS NOT INITIAL.
+      CALL FUNCTION 'RH_OBJID_REQUEST'
+        EXPORTING
+          plvar            = plvar
+          otype            = otype
+          seark_begda      = sy-datum
+          seark_endda      = sy-datum
+          dynpro_repid     = sy-repid
+          dynpro_dynnr     = sy-dynnr
+          set_mode         = multiple
+        IMPORTING
+          sel_object       = objec
+        TABLES
+          sel_hrobject_tab = objects
+        EXCEPTIONS
+          OTHERS           = 6.
+      IF sy-subrc = 0.
+        clear = abap_true.
+        LOOP AT objects INTO objec.
+          IF e_fieldname = 'LOW'.
+            set_value( EXPORTING i_field = <sel>-field_label i_low = objec-objid i_clear = clear ).
+            CLEAR clear.
+          ELSE.
+            set_value( EXPORTING i_field = <sel>-field_label i_high = objec-objid i_clear = clear ).
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+    ELSE.
+
+      CALL FUNCTION 'F4IF_FIELD_VALUE_REQUEST'
+        EXPORTING
+          tabname           = mo_debugger->m_tabname
+          fieldname         = fname
+          callback_program  = sy-repid
+          callback_form     = 'CALLBACK_F4_SEL' "callback_method - doesn't work for local class
+          multiple_choice   = multiple
+        TABLES
+          return_tab        = return_tab
+        EXCEPTIONS
+          field_not_found   = 1
+          no_help_for_field = 2
+          inconsistent_help = 3
+          no_values_found   = 4
+          OTHERS            = 5.
+
+      IF sy-subrc = 0 AND lines( return_tab ) > 0.
+        ASSIGN er_event_data->m_data->* TO FIELD-SYMBOL(<itab>).
+        CLEAR <sel>-range.
+        clear = abap_true.
+        LOOP AT return_tab ASSIGNING FIELD-SYMBOL(<ret>) WHERE fieldname = fname.
+          IF e_fieldname = 'LOW'.
+            set_value( EXPORTING i_field = <sel>-field_label i_low = <ret>-fieldval i_clear = clear ).
+            CLEAR clear.
+          ELSE.
+            set_value( EXPORTING i_field = <sel>-field_label i_high = <ret>-fieldval ).
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+    ENDIF.
+    er_event_data->m_event_handled = abap_true.
+    raise_selection_done( ).
+  endmethod.
+  method ON_GRID_BUTTON_CLICK.
+
+    DATA: tabfield TYPE rstabfield,
+          opt      TYPE rsoptions VALUE 'XXXXXXXXXX',
+          sign     TYPE raldb_sign,
+          option   TYPE raldb_opti.
+
+    READ TABLE mt_sel_tab INDEX es_row_no-row_id ASSIGNING FIELD-SYMBOL(<tab>).
+    IF sy-subrc <> 0.
+      RETURN. "click outside of a data row
+    ENDIF.
+    CASE es_col_id.
+      WHEN 'OPTION_ICON'. "edit select logical expression type
+        CALL FUNCTION 'SELECT_OPTION_OPTIONS'
+          EXPORTING
+            selctext     = 'nnnn'
+            option_list  = opt
+          IMPORTING
+            sign         = sign
+            option       = option
+          EXCEPTIONS
+            delete_line  = 1
+            not_executed = 2
+            illegal_sign = 3
+            OTHERS       = 4.
+        IF sy-subrc = 0.
+          <tab>-sign = sign.
+          <tab>-opti = option.
+        ELSEIF sy-subrc = 1.
+          CLEAR: <tab>-low, <tab>-high,<tab>-sign, <tab>-opti, <tab>-range.
+        ENDIF.
+      WHEN 'MORE_ICON'. "edit ranges
+        tabfield-tablename = mo_debugger->m_tabname.
+        tabfield-fieldname = <tab>-field_label.
+
+        CALL FUNCTION 'COMPLEX_SELECTIONS_DIALOG'
+          EXPORTING
+            title             = 'title'
+            text              = 'text'
+            tab_and_field     = tabfield
+          TABLES
+            range             = <tab>-range
+          EXCEPTIONS
+            no_range_tab      = 1
+            cancelled         = 2
+            internal_error    = 3
+            invalid_fieldname = 4
+            OTHERS            = 5.
+        IF sy-subrc = 0.
+          READ TABLE <tab>-range INDEX 1 INTO DATA(range).
+          MOVE-CORRESPONDING range TO <tab>.
+          IF <tab>-opti NE 'BT'.
+            CLEAR <tab>-high.
+          ENDIF.
+        ENDIF.
+    ENDCASE.
+    update_sel_row( CHANGING c_sel_row = <tab> ).
+    RAISE EVENT selection_done.
+  endmethod.
+  method RAISE_SELECTION_DONE.
+    DATA: row TYPE zcl_smd_sel_opt=>t_sel_row.
+
+    zcl_smd_common=>refresh( mo_sel_alv ).
+    RAISE EVENT selection_done.
+    LOOP AT mt_sel_tab  ASSIGNING FIELD-SYMBOL(<sel>).
+    ENDLOOP.
+  endmethod.
+  method SET_VALUE.
+    READ TABLE mt_sel_tab ASSIGNING FIELD-SYMBOL(<to>) WITH KEY field_label = i_field.
+    CHECK sy-subrc = 0.
+    IF i_low IS SUPPLIED.
+      IF i_clear IS INITIAL.
+        APPEND VALUE #( sign = 'I' opti = 'EQ' low = i_low high = i_high ) TO <to>-range.
+      ELSE.
+        CLEAR:  <to>-opti, <to>-sign,<to>-range.
+        IF i_low IS SUPPLIED.
+          <to>-low = i_low.
+        ENDIF.
+        IF i_high IS SUPPLIED.
+          <to>-high = i_high.
+        ENDIF.
+        update_sel_row( CHANGING c_sel_row = <to> ).
+      ENDIF.
+    ELSE.
+      CLEAR:  <to>-opti, <to>-sign.
+      <to>-high = i_high.
+      update_sel_row( CHANGING c_sel_row = <to> ).
+    ENDIF.
+  endmethod.
+  method UPDATE_SEL_ROW.
+ "select patterns rules
+
+    IF c_sel_row-high IS INITIAL AND c_sel_row-opti = 'BT'.
+      CLEAR c_sel_row-opti.
+    ENDIF.
+
+    IF c_sel_row-low IS NOT INITIAL AND c_sel_row-opti IS INITIAL.
+      c_sel_row-sign = 'I'.
+      c_sel_row-opti = 'EQ'.
+    ENDIF.
+
+    IF c_sel_row-high IS NOT INITIAL AND c_sel_row-opti NE 'NB' .
+      c_sel_row-opti = 'BT'.
+    ENDIF.
+
+    IF c_sel_row-sign IS INITIAL AND c_sel_row-opti IS INITIAL.
+      CLEAR: c_sel_row-low, c_sel_row-high.
+    ENDIF.
+
+    IF c_sel_row-low CA  '*%+&' AND c_sel_row-opti <> 'NP'.
+      c_sel_row-sign = 'I'.
+      c_sel_row-opti = 'CP'.
+    ENDIF.
+
+    IF c_sel_row-opti IS NOT INITIAL AND c_sel_row-sign IS INITIAL.
+      c_sel_row-sign = 'I'.
+    ENDIF.
+
+    TRY.
+        c_sel_row-option_icon = m_option_icons[ sign = c_sel_row-sign option = c_sel_row-opti ]-icon_name.
+      CATCH cx_sy_itab_line_not_found.                  "#EC NO_HANDLER
+    ENDTRY.
+
+    IF c_sel_row-sign IS NOT INITIAL.
+      READ TABLE c_sel_row-range ASSIGNING FIELD-SYMBOL(<range>) INDEX 1.
+      IF sy-subrc NE 0.
+        APPEND INITIAL LINE TO c_sel_row-range ASSIGNING <range>.
+      ENDIF.
+      MOVE-CORRESPONDING c_sel_row TO <range>.
+      IF c_sel_row-opti NE 'BT' AND c_sel_row-opti NE 'NB' .
+        CLEAR c_sel_row-high.
+      ENDIF.
+      IF c_sel_row-int_type = 'D' OR c_sel_row-int_type = 'T' .
+        DO 2 TIMES.
+          ASSIGN COMPONENT  COND string( WHEN sy-index = 1 THEN 'LOW' ELSE 'HIGH'  ) OF STRUCTURE <range> TO FIELD-SYMBOL(<field>).
+          IF <field> IS INITIAL.
+            CONTINUE.
+          ENDIF.
+
+          IF c_sel_row-int_type = 'D'.
+            CALL FUNCTION 'CONVERT_DATE_TO_INTERNAL'
+              EXPORTING
+                date_external            = <field>
+              IMPORTING
+                date_internal            = <field>
+              EXCEPTIONS
+                date_external_is_invalid = 1
+                OTHERS                   = 2.
+          ELSE.
+            REPLACE ALL OCCURRENCES OF ':' IN <field> WITH ''.
+          ENDIF.
+        ENDDO.
+      ENDIF.
+    ENDIF.
+    c_sel_row-more_icon = COND #( WHEN c_sel_row-range IS INITIAL THEN icon_enter_more    ELSE icon_display_more  ).
+  endmethod.
+  method UPDATE_SEL_TAB.
+    IF mt_sel_tab[] IS NOT INITIAL.
+      DATA(sel_tab_copy) = mt_sel_tab.
+    ENDIF.
+    CLEAR mt_sel_tab[].
+    mo_debugger->mo_alv->get_frontend_fieldcatalog( IMPORTING et_fieldcatalog = mo_debugger->mt_alv_catalog ).
+    LOOP AT mo_debugger->mt_alv_catalog INTO DATA(catalog) WHERE domname NE 'MANDT'.
+      DATA(ind) = sy-tabix.
+      APPEND INITIAL LINE TO mt_sel_tab ASSIGNING FIELD-SYMBOL(<sel_tab>).
+      READ TABLE sel_tab_copy INTO DATA(copy) WITH KEY field_label = catalog-fieldname.
+
+      IF sy-subrc = 0.
+        MOVE-CORRESPONDING copy TO <sel_tab>.
+      ELSE.
+        <sel_tab>-option_icon = icon_led_inactive.
+        <sel_tab>-more_icon = icon_enter_more.
+      ENDIF.
+
+      <sel_tab>-ind = ind.
+      <sel_tab>-field_label = catalog-fieldname.
+      <sel_tab>-int_type = catalog-inttype.
+      <sel_tab>-element = catalog-rollname.
+      <sel_tab>-domain =  catalog-domname.
+      <sel_tab>-datatype = catalog-datatype.
+      <sel_tab>-length = catalog-outputlen.
+      zcl_smd_common=>translate_field( EXPORTING i_lang = mo_debugger->m_lang CHANGING c_fld = catalog ).
+      <sel_tab>-name = catalog-scrtext_l.
+    ENDLOOP.
+  endmethod.
+ENDCLASS.
+
+CLASS zcl_smd_rtti_tree IMPLEMENTATION.
+
+  METHOD constructor.
+
+    super->constructor( ).
+    mo_debugger = i_debugger.
+
+    cl_salv_tree=>factory(
+      EXPORTING
+        r_container = i_cont
+      IMPORTING
+        r_salv_tree = m_tree
+      CHANGING
+        t_table     = tree_table ).
+
+    DATA(o_setting) =  m_tree->get_tree_settings( ).
+    o_setting->set_hierarchy_header( i_header ).
+    o_setting->set_hierarchy_size( 30 ).
+    o_setting->set_hierarchy_icon( CONV #( icon_tree ) ).
+
+    DATA(o_columns) = m_tree->get_columns( ).
+    o_columns->set_optimize( abap_true ).
+
+    o_columns->get_column( 'VALUE' )->set_short_text( 'Value' ).
+    o_columns->get_column( 'INSTANCE' )->set_short_text( 'Instance' ).
+    o_columns->get_column( 'FULLNAME' )->set_visible( abap_false ).
+    o_columns->get_column( 'PATH' )->set_visible( abap_false ).
+    o_columns->get_column( 'TYPENAME' )->set_short_text( 'Type' ).
+    o_columns->get_column( 'TYPENAME' )->set_medium_text( 'Absolute Type' ).
+
+    add_buttons( i_type ).
+
+    DATA(o_event) = m_tree->get_event( ) .
+    SET HANDLER hndl_double_click
+                hndl_user_command FOR o_event.
+
+    m_globals = '01'.
+    m_tree->display( ).
+
+  ENDMETHOD.
+
+  METHOD add_buttons.
+
+    DATA(o_functions) = m_tree->get_functions( ).
+    o_functions->set_all( ).
+
+    o_functions->set_group_layout( abap_false ).
+    o_functions->set_group_aggregation( abap_false ).
+    o_functions->set_group_print( abap_false ).
+
+    CHECK mo_debugger IS NOT INITIAL AND i_type = 'L'.
+
+    o_functions->add_function(
+      name     = 'INITIALS'
+      icon     = CONV #( icon_start_viewer )
+      text     = 'Initials'
+      tooltip  = 'Show/hide initial values'
+      position = if_salv_c_function_position=>right_of_salv_functions ).
+
+    o_functions->add_function(
+      name     = 'LOCALS'
+      icon     = CONV #( icon_foreign_trade )
+      text     = 'Locals'
+      tooltip  = 'Show/hide locals variables'
+      position = if_salv_c_function_position=>right_of_salv_functions ).
+
+    o_functions->add_function(
+      name     = 'GLOBALS'
+      icon     = CONV #( icon_foreign_trade )
+      text     = 'Globals'
+      tooltip  = 'Show/hide global variables'
+      position = if_salv_c_function_position=>right_of_salv_functions ).
+
+    o_functions->add_function(
+      name     = 'SYST'
+      icon     = CONV #( icon_foreign_trade )
+      text     = 'SYST'
+      tooltip  = 'Show/hide SY sructure'
+      position = if_salv_c_function_position=>right_of_salv_functions ).
+
+    o_functions->add_function(
+      name     = 'CLASS_DATA'
+      icon     = CONV #( icon_oo_class_attribute )
+      text     = 'CLASS-DATA'
+      tooltip  = 'Show/hide Class-Data variables (global)'
+      position = if_salv_c_function_position=>right_of_salv_functions ).
+
+    o_functions->add_function(
+      name     = 'LDB'
+      icon     = CONV #( icon_biw_report_view )
+      text     = 'LDB'
+      tooltip  = 'Show/hide Local Data Base variables (global)'
+      position = if_salv_c_function_position=>right_of_salv_functions ).
+
+    o_functions->add_function(
+      name     = 'REFRESH'
+      icon     = CONV #( icon_refresh )
+      text     = ''
+      tooltip  = 'Refresh'
+      position = if_salv_c_function_position=>left_of_salv_functions ).
+
+  ENDMETHOD.
+
+  METHOD clear.
+
+    m_tree->get_nodes( )->delete_all( ).
+
+    CLEAR: m_globals_key,
+           m_locals_key,
+           m_syst_key,
+           m_ldb_key,
+           m_class_key,
+           mt_vars,
+           mt_classes_leaf.
+
+  ENDMETHOD.
+
+  METHOD traverse.
+
+    ASSIGN ir_up->* TO FIELD-SYMBOL(<new>).
+    IF <new> IS INITIAL AND mo_debugger->m_hide IS NOT INITIAL.
+      me->del_variable( CONV #( is_var-name )  ).
+      RETURN.
+    ENDIF.
+
+    CASE io_type_descr->kind.
+      WHEN c_kind-struct.
+        IF i_struc_name IS SUPPLIED.
+          e_root_key = traverse_struct( io_type_descr  = io_type_descr
+                                        i_parent_key  = i_parent_key
+                                        i_rel         = i_rel
+                                        is_var         = is_var
+                                        ir_up          = ir_up
+                                        i_parent_calculated = i_parent_calculated
+                                        i_struc_name  = i_struc_name ).
+        ELSE.
+          e_root_key = traverse_struct( io_type_descr  = io_type_descr
+                                        i_parent_key  = i_parent_key
+                                        i_rel         = i_rel
+                                        is_var         = is_var
+                                        ir_up          = ir_up
+                                        i_parent_calculated = i_parent_calculated ).
+        ENDIF.
+
+      WHEN c_kind-table.
+        e_root_key = traverse_table( io_type_descr  = io_type_descr
+                                     i_parent_key  = i_parent_key
+                                     i_rel         = i_rel
+                                     is_var         = is_var
+                                     ir_up          = ir_up
+                                     i_parent_calculated = i_parent_calculated ).
+      WHEN c_kind-elem.
+        e_root_key = traverse_elem( io_type_descr  = io_type_descr
+                                    i_parent_key  = i_parent_key
+                                    i_rel         = i_rel
+                                    is_var         = is_var
+                                    i_parent_calculated = i_parent_calculated ).
+
+    ENDCASE.
+
+  ENDMETHOD.
+
+  METHOD traverse_struct.
+    DATA: component      TYPE abap_component_tab,
+          o_struct_descr TYPE REF TO cl_abap_structdescr,
+          tree           TYPE ts_table,
+          text           TYPE lvc_value,
+          key            TYPE salv_de_node_key,
+          rel            TYPE salv_de_node_relation,
+          icon           TYPE salv_de_tree_image.
+
+    ASSIGN is_var-ref->* TO FIELD-SYMBOL(<new_value>).
+    rel = i_rel.
+    o_struct_descr ?= io_type_descr.
+    tree-ref =  ir_up.
+    IF is_var-instance NE '{A:initial}'.
+      "ls_tree-typename = o_struct_descr->absolute_name.
+      "REPLACE FIRST OCCURRENCE OF '\TYPE=' IN tree-typename+0(6) WITH ''.
+      DATA: split TYPE TABLE OF string.
+      SPLIT o_struct_descr->absolute_name AT '\TYPE=' INTO TABLE split.
+      tree-typename = split[ lines( split ) ].
+
+      IF tree-typename+0(1) = '%'.
+        tree-typename = |{ o_struct_descr->type_kind }({ o_struct_descr->length / 2 })|.
+      ENDIF.
+    ENDIF.
+
+    tree-kind = o_struct_descr->type_kind.
+
+    IF m_icon IS INITIAL.
+      icon = icon_structure.
+    ELSE.
+      icon = m_icon.
+    ENDIF.
+
+    text = is_var-short.
+    tree-fullname = is_var-name.
+    tree-path = is_var-path.
+
+    "own new method
+    IF is_var-cl_leaf IS NOT INITIAL.
+
+      add_obj_nodes( EXPORTING is_var = is_var ).
+
+      READ TABLE mt_classes_leaf WITH KEY name = is_var-parent type = is_var-cl_leaf INTO DATA(leaf).
+      IF sy-subrc = 0.
+        key = leaf-key.
+      ENDIF.
+    ELSE.
+      key = i_parent_key.
+    ENDIF.
+
+    IF key IS INITIAL.
+      key = i_parent_key.
+      rel = i_rel.
+    ENDIF.
+
+    IF  ( i_struc_name IS SUPPLIED AND i_struc_name IS NOT INITIAL ) OR i_struc_name IS NOT SUPPLIED.
+      IF text IS NOT INITIAL.
+
+        DATA(nodes) = m_tree->get_nodes( )->get_all_nodes( ).
+        LOOP AT nodes INTO DATA(node).
+          DATA(lr_row) = node-node->get_data_row( ).
+          FIELD-SYMBOLS <row> TYPE ts_table.
+          ASSIGN lr_row->* TO <row>.
+          IF <row>-fullname = is_var-name.
+            DATA(o_node) = node-node.
+            EXIT.
+          ENDIF.
+        ENDLOOP.
+
+        IF o_node IS NOT INITIAL.
+          READ TABLE mt_vars WITH KEY name = is_var-name INTO DATA(var).
+          IF sy-subrc = 0.
+            IF o_node IS NOT INITIAL.
+              TRY.
+                  FIELD-SYMBOLS: <old_value> TYPE any.
+                  ASSIGN var-ref->* TO <old_value>.
+                  IF sy-subrc = 0.
+                    IF is_var-type = var-type.
+                      RETURN.
+                    ELSE.
+                      key = var-key.
+                      rel = if_salv_c_node_relation=>next_sibling.
+                      DELETE mt_vars WHERE name = is_var-name.
+                    ENDIF.
+                  ENDIF.
+                CATCH cx_root.
+                  DELETE mt_vars WHERE name = is_var-name.
+              ENDTRY.
+
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+
+      TRY.
+          e_root_key = m_tree->get_nodes( )->add_node(
+                 related_node   = key
+                 relationship   = rel
+                 data_row       = tree
+                 collapsed_icon = icon
+                 expanded_icon  = icon
+                 text           = text
+                 folder         = abap_false )->get_key( ).
+        CATCH cx_root.
+          "stale sibling key (tree rebuilt too fast between steps) - retry as a fresh
+          "node directly under the parent instead of dumping the whole debug session
+          rel = i_rel.
+          TRY.
+              e_root_key = m_tree->get_nodes( )->add_node(
+                     related_node   = i_parent_key
+                     relationship   = rel
+                     data_row       = tree
+                     collapsed_icon = icon
+                     expanded_icon  = icon
+                     text           = text
+                     folder         = abap_false )->get_key( ).
+            CATCH cx_root.
+              "give up on this single node rather than crash the session
+              RETURN.
+          ENDTRY.
+      ENDTRY.
+
+      APPEND INITIAL LINE TO mt_vars ASSIGNING FIELD-SYMBOL(<vars>).
+      <vars>-key = e_root_key.
+      <vars>-stack = mo_debugger->ms_stack-stacklevel.
+      <vars>-step  = mo_debugger->m_step - mo_debugger->m_step_delta.
+      <vars>-program   = mo_debugger->mo_window->m_prg-program.
+      <vars>-eventtype = mo_debugger->mo_window->m_prg-eventtype.
+      <vars>-eventname = mo_debugger->mo_window->m_prg-eventname.
+      <vars>-leaf  = m_leaf.
+      <vars>-name  = is_var-name.
+      <vars>-short = is_var-short.
+      <vars>-ref  = ir_up.
+      <vars>-cl_leaf = is_var-cl_leaf.
+      <vars>-path = is_var-path.
+      <vars>-type = o_struct_descr->absolute_name.
+
+    ENDIF.
+
+    IF rel = if_salv_c_node_relation=>next_sibling AND o_node IS NOT INITIAL.
+      "purge also removes subtree keys (components, class leafs) from the tables
+      purge_node( o_node ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD traverse_elem.
+
+    DATA: o_elem_descr TYPE REF TO cl_abap_elemdescr,
+          tree         TYPE ts_table,
+          text         TYPE lvc_value,
+          icon         TYPE salv_de_tree_image,
+          key          TYPE salv_de_node_key,
+          rel          TYPE salv_de_node_relation.
+
+    o_elem_descr ?= io_type_descr.
+    tree-ref = is_var-ref.
+    rel = i_rel.
+
+    IF is_var-instance NE '{A:initial}'.
+      tree-typename = o_elem_descr->absolute_name.
+      REPLACE FIRST OCCURRENCE OF '\TYPE=' IN tree-typename WITH ''.
+      IF tree-typename+0(1) = '%'.
+        tree-typename = |{ o_elem_descr->type_kind }({ o_elem_descr->length / 2 })|.
+      ENDIF.
+    ENDIF.
+
+    tree-kind = o_elem_descr->type_kind.
+
+    ASSIGN is_var-ref->* TO FIELD-SYMBOL(<new_value>).
+    IF i_value IS SUPPLIED.
+      tree-value = i_value.
+    ELSE.
+      IF <new_value> IS NOT INITIAL.
+        tree-value = <new_value>.
+      ENDIF.
+    ENDIF.
+
+    CASE o_elem_descr->type_kind.
+      WHEN 'D'.
+        icon = icon_date.
+      WHEN 'T'.
+        icon = icon_bw_time_sap.
+      WHEN 'C'.
+        icon = icon_wd_input_field.
+      WHEN 'P'.
+        icon = icon_increase_decimal.
+      WHEN 'g'.
+        icon = icon_text_act.
+      WHEN 'N' OR 'I'.
+        icon = icon_pm_order.
+      WHEN OTHERS.
+        icon = icon_element.
+    ENDCASE.
+
+    text = is_var-short.
+    tree-fullname = is_var-name."is_var-path.
+    tree-path = is_var-path.
+
+    "own new method
+    IF is_var-cl_leaf IS NOT INITIAL.
+
+      add_obj_nodes( EXPORTING is_var = is_var ).
+
+      READ TABLE mt_classes_leaf WITH KEY name = is_var-parent type = is_var-cl_leaf INTO DATA(leaf).
+      IF sy-subrc = 0.
+        key = leaf-key.
+      ENDIF.
+    ELSE.
+      key = i_parent_key.
+    ENDIF.
+
+    IF key IS INITIAL.
+      key = i_parent_key.
+      rel = i_rel.
+    ENDIF.
+
+    DATA(nodes) = m_tree->get_nodes( )->get_all_nodes( ).
+    LOOP AT nodes INTO DATA(node).
+      DATA(name) = node-node->get_text( ).
+      DATA(lr_row) = node-node->get_data_row( ).
+      FIELD-SYMBOLS <row> TYPE ts_table.
+      ASSIGN lr_row->* TO <row>.
+      IF <row>-fullname = is_var-name.
+        DATA(o_node) = node-node.
+        EXIT.
+      ENDIF.
+    ENDLOOP.
+
+    IF mo_debugger->m_debug IS NOT INITIAL. BREAK-POINT. ENDIF.
+
+    IF o_node IS NOT INITIAL.
+      READ TABLE mt_vars WITH KEY name = is_var-name INTO DATA(var).
+      IF sy-subrc = 0.
+        TRY.
+            FIELD-SYMBOLS: <old_value> TYPE any.
+            ASSIGN var-ref->* TO <old_value>.
+            IF sy-subrc = 0.
+              IF is_var-type = var-type.
+                IF <old_value> NE <new_value>.
+                  key = var-key.
+                  rel = if_salv_c_node_relation=>next_sibling.
+                  DELETE mt_vars WHERE name = is_var-name.
+                ELSE.
+                  IF ( <new_value> IS INITIAL AND mo_debugger->m_hide IS NOT INITIAL ).
+                  ELSE.
+                    RETURN.
+                  ENDIF.
+                ENDIF.
+              ELSE.
+                key = var-key.
+                rel = if_salv_c_node_relation=>next_sibling.
+                DELETE mt_vars WHERE name = is_var-name.
+              ENDIF.
+            ENDIF.
+          CATCH cx_root.
+            DELETE mt_vars WHERE name = is_var-name.
+        ENDTRY.
+      ENDIF.
+    ENDIF.
+
+    DATA(o_nodes) = m_tree->get_nodes( ).
+
+    "o_node is overwritten by RECEIVING below - keep the old node to delete it,
+    "otherwise the fresh node gets deleted and its key stays in mt_vars (stale key -> dump)
+    DATA(o_old_node) = o_node.
+
+    TRY.
+        CALL METHOD o_nodes->add_node
+          EXPORTING
+            related_node   = key
+            relationship   = rel
+            data_row       = tree
+            collapsed_icon = icon
+            expanded_icon  = icon
+            text           = text
+            folder         = abap_false
+          RECEIVING
+            node           = o_node.
+
+        IF sy-subrc = 0.
+          e_root_key = o_node->get_key( ).
+
+          APPEND INITIAL LINE TO mt_vars ASSIGNING FIELD-SYMBOL(<vars>).
+          <vars>-stack = mo_debugger->ms_stack-stacklevel.
+          <vars>-step = mo_debugger->m_step - mo_debugger->m_step_delta.
+          <vars>-program = mo_debugger->mo_window->m_prg-program.
+          <vars>-eventtype = mo_debugger->mo_window->m_prg-eventtype.
+          <vars>-eventname = mo_debugger->mo_window->m_prg-eventname.
+          <vars>-leaf = m_leaf.
+          <vars>-name = is_var-name.
+          <vars>-short = is_var-short.
+          <vars>-key = e_root_key.
+          <vars>-ref = is_var-ref.
+          <vars>-cl_leaf = is_var-cl_leaf.
+          <vars>-type = o_elem_descr->absolute_name.
+          <vars>-path = is_var-path.
+
+          IF rel = if_salv_c_node_relation=>next_sibling AND o_old_node IS NOT INITIAL.
+            purge_node( o_old_node ).
+          ENDIF.
+        ENDIF.
+      CATCH cx_salv_msg.
+    ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD traverse_obj.
+    DATA: tree TYPE ts_table,
+          text TYPE lvc_value,
+          icon TYPE salv_de_tree_image,
+          key  TYPE salv_de_node_key,
+          rel  TYPE salv_de_node_relation.
+
+    READ TABLE mt_vars WITH KEY name = is_var-name INTO DATA(var).
+    IF mo_debugger->m_debug IS NOT INITIAL.BREAK-POINT.ENDIF.
+    IF sy-subrc = 0.
+      DATA(o_nodes) = m_tree->get_nodes( ).
+      TRY.
+          DATA(o_node) = o_nodes->get_node( var-key ).
+        CATCH cx_salv_msg.
+          "stale key of an already deleted node - drop it instead of dumping
+          DELETE mt_vars WHERE key = var-key.
+          DELETE mt_classes_leaf WHERE key = var-key.
+          CLEAR o_node.
+      ENDTRY.
+
+      IF o_node IS NOT INITIAL AND var-ref = ir_up.
+        RETURN.
+      ENDIF.
+
+    ELSE.
+      rel = i_rel.
+    ENDIF.
+
+    icon = icon_oo_object.
+    text = is_var-short.
+    tree-fullname = is_var-name.
+    tree-path = is_var-path.
+
+    DATA(string) = is_var-instance.
+    DATA: split TYPE TABLE OF string.
+
+    IF is_var-instance IS NOT INITIAL.
+      string = is_var-instance.
+      REPLACE ALL OCCURRENCES OF REGEX '[*{}]' IN string WITH ''.
+      REPLACE ALL OCCURRENCES OF '\CLASS' IN string WITH ''.
+      REPLACE ALL OCCURRENCES OF '\PROGRAM' IN string WITH ''.
+      SPLIT string AT '=' INTO TABLE split.
+      tree-instance = |{ split[ lines( split ) ] }({ split[ 1 ] })|.
+    ENDIF.
+    "own new method
+    IF is_var-cl_leaf IS NOT INITIAL.
+
+      add_obj_nodes( EXPORTING is_var = is_var ).
+
+      READ TABLE mt_classes_leaf WITH KEY name = is_var-parent type = is_var-cl_leaf INTO DATA(leaf).
+      IF sy-subrc = 0.
+        key = leaf-key.
+      ENDIF.
+    ENDIF.
+
+    IF key IS INITIAL.
+      key = i_parent_key.
+      rel = i_rel.
+    ENDIF.
+
+    TRY.
+        e_root_key = m_tree->get_nodes( )->add_node(
+         related_node   = key
+         relationship   = rel
+         data_row       = tree
+         collapsed_icon = icon
+         expanded_icon  = icon
+         text           = text
+         folder         = abap_false )->get_key( ).
+      CATCH cx_root.
+        "stale sibling/parent key (tree rebuilt too fast between steps) - retry
+        "as a fresh node directly under the parent instead of dumping the session
+        TRY.
+            e_root_key = m_tree->get_nodes( )->add_node(
+             related_node   = i_parent_key
+             relationship   = i_rel
+             data_row       = tree
+             collapsed_icon = icon
+             expanded_icon  = icon
+             text           = text
+             folder         = abap_false )->get_key( ).
+          CATCH cx_root.
+            "give up on this single node rather than crash the session
+            RETURN.
+        ENDTRY.
+    ENDTRY.
+
+    "the old entry must go before appending the replacement, otherwise READ TABLE
+    "keeps finding the stale row with the key of the node deleted below
+    DELETE mt_vars WHERE name = is_var-name.
+
+    APPEND INITIAL LINE TO mt_vars ASSIGNING FIELD-SYMBOL(<vars>).
+    <vars>-stack = mo_debugger->ms_stack-stacklevel.
+    <vars>-step = mo_debugger->m_step - mo_debugger->m_step_delta.
+    <vars>-program = mo_debugger->mo_window->m_prg-program.
+    <vars>-eventtype = mo_debugger->mo_window->m_prg-eventtype.
+    <vars>-eventname = mo_debugger->mo_window->m_prg-eventname.
+    <vars>-leaf = m_leaf.
+    <vars>-name = is_var-name.
+    <vars>-short = is_var-short.
+    <vars>-key = e_root_key.
+    <vars>-cl_leaf = is_var-cl_leaf.
+    <vars>-path = is_var-path.
+
+    purge_node( o_node ).
+  ENDMETHOD.
+
+  METHOD traverse_table.
+    DATA: o_table_descr TYPE REF TO cl_abap_tabledescr,
+          tree          TYPE ts_table,
+          text          TYPE lvc_value,
+          icon          TYPE salv_de_tree_image,
+          key           TYPE salv_de_node_key,
+          rel           TYPE salv_de_node_relation.
+
+    FIELD-SYMBOLS: <tab> TYPE ANY TABLE.
+
+    ASSIGN ir_up->* TO <tab>.
+    DATA(lines) = lines( <tab> ).
+    tree-ref = ir_up.
+    key = i_parent_key.
+
+    o_table_descr ?= io_type_descr.
+
+    tree-fullname = |{ is_var-short } ({ lines })|.
+    tree-kind = o_table_descr->type_kind.
+    IF is_var-instance NE '{A:initial}'.
+
+      READ TABLE mo_debugger->mo_window->mt_source WITH KEY include = mo_debugger->ms_stack-include INTO DATA(source).
+      READ TABLE source-tt_tabs WITH KEY name = is_var-short INTO DATA(tab).
+      IF sy-subrc <> 0.
+        DATA: split TYPE TABLE OF string.
+        SPLIT o_table_descr->absolute_name AT '\TYPE=' INTO TABLE split.
+        tree-typename = split[ lines( split ) ].
+      ELSE.
+        tree-typename = tab-type.
+      ENDIF.
+    ENDIF.
+    icon = icon_view_table.
+
+    IF is_var-name IS NOT INITIAL.
+      text = tree-fullname.
+    ELSE.
+      text = tree-typename.
+    ENDIF.
+
+    rel = i_rel.
+    ASSIGN ir_up->* TO FIELD-SYMBOL(<new_value>).
+    IF mo_debugger->m_debug IS NOT INITIAL. BREAK-POINT. ENDIF.
+
+    READ TABLE mt_vars WITH KEY name = is_var-name INTO DATA(var).
+    DATA(nodes) = m_tree->get_nodes( )->get_all_nodes( ).
+    LOOP AT nodes INTO DATA(node).
+      DATA(lr_row) = node-node->get_data_row( ).
+      FIELD-SYMBOLS <row> TYPE ts_table.
+      ASSIGN lr_row->* TO <row>.
+      IF <row>-fullname = is_var-name.
+        DATA(o_node) = node-node.
+        EXIT.
+      ENDIF.
+    ENDLOOP.
+
+    IF o_node IS NOT INITIAL.
+      TRY.
+          FIELD-SYMBOLS: <old_value> TYPE any.
+          ASSIGN var-ref->* TO <old_value>.
+          IF sy-subrc = 0.
+            IF var-type IS NOT INITIAL AND var-type <> o_table_descr->absolute_name.
+              "same name but another table type (variable of another block) -
+              "comparing the values would dump, just replace the node
+              key = var-key.
+              rel = if_salv_c_node_relation=>next_sibling.
+              DELETE mt_vars WHERE name = is_var-name.
+            ELSEIF <old_value> NE <new_value>.
+              key = var-key.
+              rel = if_salv_c_node_relation=>next_sibling.
+              DELETE mt_vars WHERE name = is_var-name.
+            ELSE.
+              IF ( <new_value> IS INITIAL AND mo_Debugger->m_hide IS NOT INITIAL ).
+                me->del_variable( CONV #( is_var-name )  ).
+              ENDIF.
+            ENDIF.
+          ENDIF.
+
+          IF <new_value> IS INITIAL AND mo_debugger->m_hide IS NOT INITIAL.
+            me->del_variable( CONV #( is_var-name ) ).
+            RETURN.
+          ENDIF.
+        CATCH cx_root.
+          me->del_variable( CONV #( is_var-name )  ).
+      ENDTRY.
+    ELSE.
+
+      IF <new_value> IS INITIAL AND mo_Debugger->m_hide IS NOT INITIAL.
+        RETURN.
+      ENDIF.
+    ENDIF.
+
+    IF is_var-cl_leaf IS NOT INITIAL.
+
+      add_obj_nodes( EXPORTING is_var = is_var ).
+
+      READ TABLE mt_classes_leaf WITH KEY name = is_var-parent type = is_var-cl_leaf INTO DATA(leaf).
+      IF sy-subrc = 0.
+        key = leaf-key.
+      ENDIF.
+    ELSE.
+      key = i_parent_key.
+    ENDIF.
+
+    READ TABLE mt_vars WITH KEY name = i_parent_calculated TRANSPORTING NO FIELDS.
+    IF sy-subrc NE 0.
+
+      tree-fullname = is_var-name.
+
+      TRY.
+          e_root_key =
+            m_tree->get_nodes( )->add_node(
+              related_node   = key
+              relationship   = i_rel
+              collapsed_icon = icon
+              expanded_icon  = icon
+              data_row       = tree
+              text           = text
+              folder         = abap_true
+            )->get_key( ).
+        CATCH cx_root.
+          "stale sibling/parent key (tree rebuilt too fast between steps) - retry
+          "as a fresh node directly under the parent instead of dumping the session
+          TRY.
+              e_root_key =
+                m_tree->get_nodes( )->add_node(
+                  related_node   = i_parent_key
+                  relationship   = i_rel
+                  collapsed_icon = icon
+                  expanded_icon  = icon
+                  data_row       = tree
+                  text           = text
+                  folder         = abap_true
+                )->get_key( ).
+            CATCH cx_root.
+              "give up on this single node rather than crash the session
+              RETURN.
+          ENDTRY.
+      ENDTRY.
+
+      APPEND INITIAL LINE TO mt_vars ASSIGNING FIELD-SYMBOL(<vars>).
+      <vars>-stack = mo_debugger->ms_stack-stacklevel.
+      <vars>-leaf = m_leaf.
+      <vars>-name = is_var-name.
+      <vars>-program = mo_debugger->mo_window->m_prg-program.
+      <vars>-eventtype = mo_debugger->mo_window->m_prg-eventtype.
+      <vars>-eventname = mo_debugger->mo_window->m_prg-eventname.
+      <vars>-short = is_var-short.
+      <vars>-key = e_root_key.
+      <vars>-ref = ir_up.
+      <vars>-step = mo_debugger->m_step - mo_debugger->m_step_delta.
+      <vars>-cl_leaf = is_var-cl_leaf.
+      <vars>-path = is_var-path.
+      <vars>-type = o_table_descr->absolute_name.
+
+      IF rel = if_salv_c_node_relation=>next_sibling AND o_node IS NOT INITIAL.
+        "purge also removes subtree keys from the tables
+        purge_node( o_node ).
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD add_node.
+    TRY.
+        main_node_key =
+              m_tree->get_nodes( )->add_node(
+                related_node   = ''
+                collapsed_icon = i_icon
+                expanded_icon = i_icon
+                relationship   = if_salv_c_node_relation=>last_child
+                row_style = if_salv_c_tree_style=>intensified
+                text           = CONV #( i_name )
+                folder         = abap_true
+              )->get_key( ).
+      CATCH cx_root.
+        "avoid dumping the whole debug session if the tree is mid-rebuild
+        RETURN.
+    ENDTRY.
+
+    CASE i_name.
+      WHEN 'Locals'.
+        m_locals_key = main_node_key.
+      WHEN 'Globals'.
+        m_globals_key = main_node_key.
+      WHEN 'LDB'.
+        m_ldb_key = main_node_key.
+
+      WHEN 'Class-data global variables'.
+        m_class_key = main_node_key.
+
+      WHEN 'System variables'.
+        m_syst_key = main_node_key.
+    ENDCASE.
+  ENDMETHOD.
+
+  METHOD add_obj_nodes.
+    DATA match TYPE match_result_tab.
+    FIND ALL OCCURRENCES OF  '-' IN is_var-name RESULTS match. "Only first level of instance should be here
+    IF lines( match ) > 1.
+      RETURN.
+    ENDIF.
+
+    DATA text TYPE lvc_value.
+    DATA node_key TYPE salv_de_node_key.
+    DATA icon TYPE salv_de_tree_image.
+
+    CASE is_var-cl_leaf.
+      WHEN 1.
+        icon = icon_led_green.
+        text = 'Public'.
+      WHEN 2.
+        icon = icon_led_red.
+        text = 'Private'.
+      WHEN 3.
+        icon = icon_led_yellow.
+        text = 'Protected'.
+    ENDCASE.
+
+    READ TABLE mt_classes_leaf WITH KEY name = is_var-parent type = is_var-cl_leaf ASSIGNING FIELD-SYMBOL(<class>).
+    IF sy-subrc NE 0.
+
+      READ TABLE mt_vars WITH KEY path = is_var-parent INTO DATA(var).
+
+      TRY.
+          node_key =
+            m_tree->get_nodes( )->add_node(
+              related_node   = var-key
+              relationship   = if_salv_c_node_relation=>last_child
+              collapsed_icon = icon
+              expanded_icon  = icon
+              text           = text
+              folder         = abap_true
+            )->get_key( ).
+        CATCH cx_root.
+          "stale parent key (tree rebuilt too fast) - skip this leaf node
+          "rather than dumping the whole debug session
+          RETURN.
+      ENDTRY.
+
+      APPEND INITIAL LINE TO mt_classes_leaf ASSIGNING <class>.
+      <class>-name = is_var-parent.
+      <class>-key = node_key.
+      <class>-type = is_var-cl_leaf.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD delete_node.
+
+    DATA(o_nodes) = m_tree->get_nodes( ).
+    TRY.
+        DATA(o_node) = o_nodes->get_node( i_key ).
+      CATCH cx_salv_msg.
+        "node already gone - just drop its stale keys from the tables
+        CLEAR o_node.
+    ENDTRY.
+    purge_node( o_node ).
+    DELETE mt_vars WHERE key = i_key.
+    DELETE mt_classes_leaf WHERE key = i_key.
+
+  ENDMETHOD.
+
+  METHOD purge_node.
+
+    CHECK io_node IS NOT INITIAL.
+    TRY.
+        DATA(subtree) = io_node->get_subtree( ).
+        LOOP AT subtree INTO DATA(sub).
+          DATA(sub_key) = sub-node->get_key( ).
+          DELETE mt_vars WHERE key = sub_key.
+          DELETE mt_classes_leaf WHERE key = sub_key.
+        ENDLOOP.
+        DATA(node_key) = io_node->get_key( ).
+        DELETE mt_vars WHERE key = node_key.
+        DELETE mt_classes_leaf WHERE key = node_key.
+        io_node->delete( ).
+      CATCH cx_root.
+        "node was already deleted from the tree - table entries are purged above
+    ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD display.
+
+    DATA(o_columns) = m_tree->get_columns( ).
+    o_columns->get_column( 'KIND' )->set_visible( abap_false ).
+
+    DATA(o_nodes) = m_tree->get_nodes( ).
+    DATA(nodes) =  o_nodes->get_all_nodes( ).
+    DATA sub TYPE salv_t_nodes.
+    LOOP AT nodes INTO DATA(node).
+      READ TABLE sub WITH KEY node = node-node TRANSPORTING NO FIELDS. "expanding only first level nodes.
+      IF sy-subrc NE 0.
+        TRY.
+            node-node->expand( ).
+            sub = node-node->get_subtree( ).
+          CATCH cx_root.
+        ENDTRY.
+      ENDIF.
+    ENDLOOP.
+    m_tree->display( ).
+
+  ENDMETHOD.
+
+  METHOD hndl_user_command.
+
+    CONSTANTS: c_mask TYPE x VALUE '01'.
+
+    CASE e_salv_function.
+
+      WHEN 'REFRESH'."
+        m_refresh = abap_true.
+        mo_debugger->run_script_hist( mo_debugger->m_hist_step ).
+        mo_debugger->mo_tree_local->display( ).
+        mo_debugger->mo_window->raise_navigated( ). "refresh open table popups too
+        RETURN.
+
+      WHEN 'INITIALS'."Show/hide empty variables
+        mo_debugger->m_hide = mo_debugger->m_hide BIT-XOR c_mask.
+        m_clear = abap_true.
+
+      WHEN 'LOCALS'."Show/hide locals variables
+        m_locals = m_locals BIT-XOR c_mask.
+        m_refresh = abap_true.
+      WHEN 'GLOBALS'."Show/hide global variables
+        m_globals = m_globals BIT-XOR c_mask.
+        m_refresh = abap_true.
+      WHEN 'SYST'."Show/hide sy structure
+        m_syst = m_syst BIT-XOR c_mask.
+        m_refresh = abap_true.
+      WHEN 'CLASS_DATA'."Show/hide CLASS-DATA variables (globals)
+        m_class_data = m_class_data BIT-XOR c_mask.
+
+      WHEN 'LDB'."Show/hide LDB variables (globals)
+        m_ldb = m_ldb BIT-XOR c_mask.
+    ENDCASE.
+
+    m_refresh = abap_true.
+    mo_debugger->mo_tree_local->clear( ).
+    mo_debugger->mo_tree_exp->clear( ).
+    mo_debugger->mo_tree_imp->clear( ).
+
+    "mo_debugger->run_script_hist( mo_debugger->m_hist_step ).
+    "mo_debugger->mo_tree_local->display( ).
+
+    "RETURN.
+
+    mo_debugger->m_update = abap_true.
+
+    mo_debugger->mo_tree_local->display( ).
+
+    CLEAR mo_debugger->mo_window->m_debug_button.
+    IF mo_debugger->m_hist_step = mo_debugger->m_step.
+      CLEAR mo_debugger->is_history.
+    ENDIF.
+    IF e_salv_function NE 'TEST'.
+
+      IF mo_debugger->is_history = abap_true.
+
+        mo_debugger->run_script_hist( ).
+      ELSE.
+        mo_debugger->run_script( ).
+        mo_debugger->hndl_script_buttons( mo_debugger->mv_stack_changed ).
+      ENDIF.
+      mo_debugger->show_step( ).
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD hndl_double_click.
+
+    DATA(o_nodes) = m_tree->get_nodes( ).
+    DATA(o_node) =  o_nodes->get_node( node_key ).
+    DATA r_row TYPE REF TO data.
+
+    r_row = o_node->get_data_row( ).
+    ASSIGN r_row->* TO FIELD-SYMBOL(<row>).
+    ASSIGN COMPONENT 'REF' OF STRUCTURE <row> TO FIELD-SYMBOL(<ref>).
+    ASSIGN COMPONENT 'KIND' OF STRUCTURE <row> TO FIELD-SYMBOL(<kind>).
+    ASSIGN COMPONENT 'FULLNAME' OF STRUCTURE <row> TO FIELD-SYMBOL(<fullname>).
+    ASSIGN COMPONENT 'PATH' OF STRUCTURE <row> TO FIELD-SYMBOL(<path>).
+
+    IF <fullname> IS NOT INITIAL.
+      READ TABLE mo_debugger->mt_selected_var WITH KEY name =  <fullname> TRANSPORTING NO FIELDS.
+      IF sy-subrc = 0.
+        DELETE mo_debugger->mt_selected_var WHERE name = <fullname>.
+        o_node->set_row_style( if_salv_c_tree_style=>default ).
+      ELSE.
+        o_node->set_row_style( if_salv_c_tree_style=>emphasized_b ).
+        APPEND INITIAL LINE TO mo_debugger->mt_selected_var ASSIGNING FIELD-SYMBOL(<sel>).
+        <sel>-name = <fullname>.
+        <sel>-is_sel = abap_true.
+      ENDIF.
+
+      CASE <kind>.
+        WHEN cl_abap_datadescr=>typekind_table.
+          zcl_smd_appl=>open_int_table( i_name = <fullname> it_ref = <ref> io_window = mo_debugger->mo_window ).
+        WHEN cl_abap_datadescr=>typekind_string.
+          NEW zcl_smd_text_viewer( <ref> ).
+      ENDCASE.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD del_variable.
+
+    IF mo_debugger->m_debug IS NOT INITIAL. BREAK-POINT. ENDIF.
+    DATA(vars_hist) = mo_debugger->mt_vars_hist.
+    SORT vars_hist BY step DESCENDING.
+    LOOP AT vars_hist INTO DATA(hist) WHERE name = i_full_name.
+      IF hist-del IS INITIAL.
+        CLEAR: hist-ref, hist-first, hist-is_delta, hist-delta_from, hist-delta_del.
+        hist-del = abap_true.
+        hist-step = mo_debugger->m_hist_step - 1.
+        INSERT hist INTO mo_debugger->mt_vars_hist INDEX 1.
+      ENDIF.
+    ENDLOOP.
+
+    DATA(o_nodes) = m_tree->get_nodes( ).
+    READ TABLE mo_debugger->mt_state WITH KEY name = i_full_name ASSIGNING FIELD-SYMBOL(<var>).
+    IF sy-subrc = 0.
+
+      TRY.
+          DATA(o_node) =  o_nodes->get_node( <var>-key ).
+        CATCH cx_salv_msg.
+      ENDTRY.
+
+      DELETE mt_vars WHERE name = i_full_name.
+      DELETE mt_classes_leaf WHERE name = i_full_name.
+      IF i_state = abap_true.
+        DELETE mo_debugger->mt_state WHERE name = i_full_name.
+      ENDIF.
+
+      DATA(nam) = i_full_name && '-'.
+      DELETE mt_vars WHERE name CS nam.
+      DELETE mt_classes_leaf WHERE name  CS nam.
+      IF i_state = abap_true.
+        DELETE mo_debugger->mt_state WHERE name CS nam.
+      ENDIF.
+      purge_node( o_node ).
+    ENDIF.
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+CLASS ZCL_SMD_RTTI IMPLEMENTATION.
+  method CREATE_STRUC_HANDLE.
+
+    cl_abap_typedescr=>describe_by_name( EXPORTING  p_name         = i_tname
+                                         RECEIVING  p_descr_ref    = DATA(o_descr)
+                                         EXCEPTIONS type_not_found = 1 ).
+    IF sy-subrc = 0.
+      e_handle ?= o_descr.
+    ELSE.
+      RETURN.
+    ENDIF.
+  endmethod.
+  method CREATE_TABLE_BY_NAME.
+    DATA: o_new_tab  TYPE REF TO cl_abap_tabledescr,
+          o_new_type TYPE REF TO cl_abap_structdescr.
+
+    create_struc_handle( EXPORTING i_tname = i_tname IMPORTING e_handle = o_new_type ).
+    o_new_tab = cl_abap_tabledescr=>create(
+      p_line_type  = o_new_type
+      p_table_kind = cl_abap_tabledescr=>tablekind_std
+      p_unique     = abap_false ).
+    CREATE DATA c_table TYPE HANDLE o_new_tab.  "Create a New table type
+
+  endmethod.
+ENDCLASS.
+
+CLASS ZCL_SMD_POPUP IMPLEMENTATION.
+  method CONSTRUCTOR.
+
+    m_additional_name = i_additional_name.
+  endmethod.
+  method CREATE.
+    DATA: top  TYPE i,
+          left TYPE i.
+
+    ADD 1 TO m_counter.
+    top  = left = 1 + 2 * ( m_counter DIV 5 ) +  ( m_counter MOD 5 ) * 10.
+
+    CREATE OBJECT ro_box
+      EXPORTING
+        width                       = i_width
+        height                      = i_hight
+        top                         = top
+        left                        = left
+        caption                     = i_name
+        lifetime                    = 2
+      EXCEPTIONS
+        cntl_error                  = 1
+        cntl_system_error           = 2
+        create_error                = 3
+        lifetime_error              = 4
+        lifetime_dynpro_dynpro_link = 5
+        event_already_registered    = 6
+        error_regist_event          = 7
+        OTHERS                      = 8.
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+  endmethod.
+  method ON_BOX_CLOSE.
+
+    "close dependent child popups of this box and drop finished entries,
+    "otherwise children stay open orphaned and mt_popups grows forever
+    LOOP AT zcl_smd_appl=>mt_popups ASSIGNING FIELD-SYMBOL(<popup>) WHERE parent = sender.
+      IF <popup>-child IS BOUND.
+        <popup>-child->free( EXCEPTIONS cntl_error        = 1
+                                        cntl_system_error = 2
+                                        OTHERS            = 3 ).
+        CLEAR <popup>-child.
+      ENDIF.
+    ENDLOOP.
+    DELETE zcl_smd_appl=>mt_popups WHERE child = sender OR child IS INITIAL.
+
+    sender->free( EXCEPTIONS cntl_error        = 1
+                             cntl_system_error = 2
+                             OTHERS            = 3 ).
+
+  endmethod.
+ENDCLASS.
+
+CLASS ZCL_SMD_PASSWORD_POPUP IMPLEMENTATION.
+  method CONSTRUCTOR.
+
+    super->constructor( ).
+    mr_password = ir_password.
+    mr_open = ir_open.
+
+    mo_box = create(
+      i_name  = 'AI key password'
+      i_width = 450
+      i_hight = 80 ).
+
+    CREATE OBJECT mo_splitter
+      EXPORTING
+        parent  = mo_box
+        rows    = 1
+        columns = 1
+      EXCEPTIONS
+        OTHERS  = 1.
+
+    mo_splitter->get_container(
+      EXPORTING
+        row       = 1
+        column    = 1
+      RECEIVING
+        container = mo_variables_container ).
+
+    SET HANDLER on_box_close FOR mo_box.
+
+    CREATE OBJECT mo_text
+      EXPORTING
+        parent                 = mo_variables_container
+      EXCEPTIONS
+        error_cntl_create      = 1
+        error_cntl_init        = 2
+        error_cntl_link        = 3
+        error_dp_create        = 4
+        gui_type_not_supported = 5
+        OTHERS                 = 6.
+    IF sy-subrc <> 0.
+      on_box_close( mo_box ).
+      RETURN.
+    ENDIF.
+
+    mo_text->set_toolbar_mode( toolbar_mode = 0 ).
+    mo_text->set_statusbar_mode( statusbar_mode = 0 ).
+    mo_text->set_focus( mo_box ).
+    cl_gui_cfw=>flush( ).
+
+  endmethod.
+  method ON_BOX_CLOSE.
+
+    DATA lt_text TYPE STANDARD TABLE OF char255.
+    DATA lv_password TYPE string.
+
+    IF mo_text IS BOUND.
+      mo_text->get_text_as_r3table(
+        IMPORTING
+          table = lt_text
+        EXCEPTIONS
+          OTHERS = 1 ).
+
+      READ TABLE lt_text INDEX 1 INTO DATA(lv_line).
+      IF sy-subrc = 0.
+        lv_password = lv_line.
+      ENDIF.
+    ENDIF.
+
+    IF mr_password IS BOUND.
+      mr_password->* = lv_password.
+    ENDIF.
+
+    IF mr_open IS BOUND.
+      CLEAR mr_open->*.
+    ENDIF.
+
+    super->on_box_close( sender ).
+
+  endmethod.
+ENDCLASS.
+
+CLASS zcl_smd_mermaid IMPLEMENTATION.
+
+  METHOD constructor.
+
+    DATA text TYPE text100.
+
+    super->constructor( ).
+
+    mo_debugger = io_debugger.
+    mv_type = i_type.
+
+    CHECK zcl_smd_appl=>is_mermaid_active = abap_true.
+
+    DATA: lv_width TYPE i VALUE 1000,
+          lv_hight TYPE i VALUE 300.
+
+    CASE mv_type.
+      WHEN 'DIAG'.
+        text = 'Calls flow'.
+      WHEN 'SMART'.
+        text = 'Calculations sequence'.
+      WHEN 'LIVE'.
+        DATA lv_parts TYPE TABLE OF string.
+        DATA(ls) = mo_debugger->ms_stack.
+        DATA lv_loc TYPE string.
+        IF ls-eventtype = 'METHOD'.
+          SPLIT ls-program AT '=' INTO TABLE lv_parts.
+          lv_loc = |{ lv_parts[ 1 ] }->{ ls-eventname }|.
+        ELSEIF ls-eventtype = 'FUNCTION'.
+          lv_loc = |FUNCTION { ls-eventname }|.
+        ELSE.
+          lv_loc = |{ ls-program }:{ ls-eventname }|.
+        ENDIF.
+        text = |Live calls graph - step { mo_debugger->m_step }, stack { ls-stacklevel }, { lv_loc }|.
+        lv_width = 1200.
+        lv_hight = 600.
+    ENDCASE.
+
+    IF mo_box IS INITIAL.
+      mo_box = create( i_name = text i_width = lv_width i_hight = lv_hight ).
+      "save new popup ref
+      APPEND INITIAL LINE TO zcl_smd_appl=>mt_popups ASSIGNING FIELD-SYMBOL(<popup>).
+      <popup>-parent = mo_debugger->mo_window->mo_box.
+      <popup>-child = mo_box.
+
+      SET HANDLER on_box_close FOR mo_box.
+
+      CREATE OBJECT mo_splitter
+        EXPORTING
+          parent  = mo_box
+          rows    = 2
+          columns = 1
+        EXCEPTIONS
+          OTHERS  = 1.
+
+      mo_splitter->get_container(
+        EXPORTING
+          row       = 2
+          column    = 1
+        RECEIVING
+          container = mo_mm_container ).
+
+      mo_splitter->get_container(
+        EXPORTING
+          row       = 1
+          column    = 1
+        RECEIVING
+          container = mo_mm_toolbar ).
+
+      mo_splitter->set_row_height( id = 1 height = '3' ).
+      mo_splitter->set_row_height( id = 2 height = '70' ).
+
+      mo_splitter->set_row_sash( id    = 1
+                                 type  = 0
+                                 value = 0 ).
+
+      CREATE OBJECT mo_toolbar EXPORTING parent = mo_mm_toolbar.
+      add_toolbar_buttons( ).
+      mo_toolbar->set_visible( 'X' ).
+    ENDIF.
+    CASE mv_type.
+      WHEN 'DIAG'.
+        steps_flow( ).
+      WHEN 'SMART'.
+        magic_search( ).
+      WHEN 'LIVE'.
+        "own close handler so the debugger can drop its persistent reference
+        SET HANDLER me->hnd_live_close FOR mo_box.
+        steps_flow( ).
+    ENDCASE.
+
+  ENDMETHOD.
+
+  METHOD refresh.
+    "re-render the live graph from the current step trace (frame changed)
+    CHECK mo_box IS NOT INITIAL.
+    steps_flow( ).
+  ENDMETHOD.
+
+  METHOD hnd_live_close.
+    "user closed the live-graph window: drop the debugger's reference so the
+    "next long F6/F8 run recreates it instead of refreshing a freed control
+    CLEAR mo_box.
+    IF mo_debugger IS BOUND.
+      CLEAR mo_debugger->mo_live_graph.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD steps_flow.
+
+    TYPES: BEGIN OF lty_entity,
+             event TYPE string,
+             name  TYPE string,
+           END OF lty_entity,
+           BEGIN OF t_ind,
+             from TYPE i,
+             to   TYPE i,
+           END OF t_ind  .
+
+    DATA: mm_string TYPE string,
+          name      TYPE string,
+          entities  TYPE TABLE OF lty_entity,
+          entity    TYPE lty_entity,
+*          ind1      TYPE i,
+*          ind2      TYPE i,
+          parts     TYPE TABLE OF string,
+          step      LIKE LINE OF mo_debugger->mt_steps,
+          ind       TYPE t_ind,
+          indexes   TYPE TABLE OF t_ind.
+    DATA(copy) = mo_debugger->mt_steps.
+
+    "LIVE graph: skip standard SAP classes / function modules - we step straight
+    "out of them (F7), so they only clutter the call graph with transient nodes
+    IF mv_type = 'LIVE'.
+      DATA lt_keep LIKE copy.
+      LOOP AT copy INTO DATA(cstep).
+        IF mo_debugger->is_z_or_custom_code( cstep-program ) = abap_true.
+          APPEND cstep TO lt_keep.
+        ENDIF.
+      ENDLOOP.
+      copy = lt_keep.
+    ENDIF.
+
+    LOOP AT copy ASSIGNING FIELD-SYMBOL(<copy>).
+      IF <copy>-eventtype = 'METHOD'.
+        SPLIT <copy>-program AT '=' INTO TABLE parts.
+        <copy>-eventname = entity-name = |"{ parts[ 1 ] }->{ <copy>-eventname }"|.
+        entity-event = <copy>-eventtype.
+
+      ELSEIF <copy>-eventtype = 'FUNCTION'.
+        <copy>-eventname = entity-name = |"{ <copy>-eventtype }:{ <copy>-eventname }"|.
+      ELSE.
+        <copy>-eventname = entity-name = |"{ <copy>-program }:{ <copy>-eventname }"|.
+      ENDIF.
+
+      COLLECT entity INTO entities.
+    ENDLOOP.
+
+    CLEAR step.
+
+    IF i_direction IS INITIAL.
+      mm_string = |graph TD\n |.
+    ELSE.
+      mm_string = |graph { i_direction }\n |.
+    ENDIF.
+
+    "build call edges via a real frame stack so an edge is only drawn from the
+    "actual parent frame (one level up); this avoids the spurious "back" arrows
+    "that appear when the textually-previous step is a sibling that already
+    "returned (especially after standard-code frames were filtered out)
+    TYPES: BEGIN OF lty_frame,
+             level TYPE i,
+             name  TYPE string,
+           END OF lty_frame.
+    DATA: lt_frame TYPE TABLE OF lty_frame,
+          ls_frame TYPE lty_frame,
+          ls_top   TYPE lty_frame.
+
+    LOOP AT copy INTO DATA(step2).
+      DATA(lv_lvl) = step2-stacklevel.
+
+      "drop frames that have already returned (deeper than the current level)
+      DELETE lt_frame WHERE level > lv_lvl.
+
+      READ TABLE lt_frame INDEX lines( lt_frame ) INTO ls_top.
+      IF sy-subrc = 0 AND ls_top-level = lv_lvl AND ls_top-name = step2-eventname.
+        CONTINUE. "same frame, just another statement - no new edge
+      ENDIF.
+
+      "a different frame now occupies this level: drop the stale sibling first
+      IF sy-subrc = 0 AND ls_top-level = lv_lvl.
+        DELETE lt_frame INDEX lines( lt_frame ).
+      ENDIF.
+
+      "caller = whatever frame is now on top (the real parent, one level up)
+      READ TABLE lt_frame INDEX lines( lt_frame ) INTO DATA(ls_caller).
+      IF sy-subrc = 0.
+        READ TABLE entities WITH KEY name = ls_caller-name TRANSPORTING NO FIELDS.
+        ind-from = sy-tabix.
+        READ TABLE entities WITH KEY name = step2-eventname TRANSPORTING NO FIELDS.
+        ind-to = sy-tabix.
+        READ TABLE indexes WITH KEY from = ind-from to = ind-to TRANSPORTING NO FIELDS.
+        "skip self-loops (same node id on both ends - e.g. recursion or a name
+        "collision) and already-drawn edges
+        IF sy-subrc <> 0 AND ind-from <> ind-to.
+          mm_string = |{ mm_string }{ ind-from }({ ls_caller-name }) --> { ind-to }({ step2-eventname })\n|.
+          APPEND ind TO indexes.
+        ENDIF.
+      ENDIF.
+
+      "push the newly entered frame
+      ls_frame-level = lv_lvl.
+      ls_frame-name  = step2-eventname.
+      APPEND ls_frame TO lt_frame.
+    ENDLOOP.
+    mm_string = |{  mm_string }\n|.
+
+    "LIVE mode: header with live counters + green "active" node. The window
+    "caption is not redrawn mid-run (only the mermaid HTML refreshes), so the
+    "step/stack are shown as a header node inside the graph.
+    IF mv_type = 'LIVE'.
+      DATA(cs) = mo_debugger->ms_stack.
+
+      "header node with the live step counter (id 'hdr' never collides with the
+      "numeric node ids used for the call nodes)
+      mm_string = |{ mm_string }hdr["Step { mo_debugger->m_step } &#124; stack { cs-stacklevel }"]\n|.
+      mm_string = |{ mm_string }classDef hdrcls fill:#fff3cd,stroke:#856404,color:#000\n|.
+      mm_string = |{ mm_string }class hdr hdrcls\n|.
+
+      "green = the most recent custom-code frame that is actually drawn; the
+      "true stack top may be standard code, which is filtered out of the graph
+      READ TABLE copy INDEX lines( copy ) INTO DATA(last_step).
+      IF sy-subrc = 0.
+        READ TABLE entities WITH KEY name = last_step-eventname TRANSPORTING NO FIELDS.
+        IF sy-subrc = 0.
+          mm_string = |{ mm_string }classDef active fill:#4caf50,stroke:#2e7d32,color:#fff\n|.
+          mm_string = |{ mm_string }class { sy-tabix } active\n|.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+    open_mermaid( mm_string ).
+
+  ENDMETHOD.
+
+  METHOD magic_search.
+
+    " Control-structure scheme of the include on display. The former
+    " implementation paired IF/ENDIF and counted nesting by hand; the
+    " scanner already carries that information, so it is read from there.
+    READ TABLE mo_debugger->mo_window->mt_source
+      WITH KEY include = mo_debugger->mo_window->m_prg-include INTO DATA(ls_src).
+    IF sy-subrc <> 0.
+      READ TABLE mo_debugger->mo_window->mt_source INDEX 1 INTO ls_src.
+    ENDIF.
+    CHECK ls_src-source IS BOUND.
+
+    DATA(lv_mm) = zcl_smd_code_scheme=>build(
+      it_source = ls_src-source->lines
+      it_kw     = ls_src-t_keytokens
+      io_scan   = ls_src-scan
+      i_title   = CONV string( ls_src-include ) ).
+
+    IF i_direction = 'TB'.
+      REPLACE FIRST OCCURRENCE OF 'flowchart LR' IN lv_mm WITH 'flowchart TD'.
+    ENDIF.
+
+    open_mermaid( lv_mm ).
+  ENDMETHOD.
+
+  METHOD parse_call.
+    DATA: statement TYPE i,
+          stack     TYPE i.
+
+    stack = i_stack + 1.
+    statement = i_index.
+    READ TABLE mo_debugger->mo_window->mt_source WITH KEY include = i_program INTO DATA(source).
+    DO.
+      READ TABLE source-t_keytokens WITH KEY index =  statement INTO DATA(key).
+      IF key-name = 'DATA'.
+        ADD 1 TO statement.
+        CONTINUE.
+      ENDIF.
+      ADD 1 TO mv_step.
+      APPEND INITIAL LINE TO mt_steps ASSIGNING FIELD-SYMBOL(<step>).
+
+      <step>-step = mv_step.
+      <step>-line = key-line.
+      <step>-eventname = i_event.
+      <step>-eventtype = 'FORM'.
+      <step>-stacklevel = stack.
+      <step>-program = i_program.
+      <step>-include = i_program.
+
+      IF key-to_evname IS NOT INITIAL.
+        READ TABLE source-tt_calls_line WITH KEY eventname = key-to_evname eventtype = key-to_evtype INTO DATA(call_line).
+
+        parse_call( EXPORTING i_index = call_line-index
+                                                 i_event = call_line-eventname
+                                                 i_program = i_program
+                                                 i_stack   = stack
+                                                  ).
+
+      ENDIF.
+
+      IF key-name = 'ENDFORM' OR key-name = 'ENDMETHOD'.
+        RETURN.
+      ENDIF.
+
+      ADD 1 TO statement.
+    ENDDO.
+  ENDMETHOD.
+  METHOD code_execution_scanner.
+    "code execution scanner
+    DATA: max       TYPE i,
+          step      TYPE i,
+          call_line TYPE zcl_smd_window=>ts_calls_line.
+
+    READ TABLE mo_debugger->mo_window->mt_source INDEX 1 INTO DATA(source).
+
+    DATA: structure LIKE source-scan->structures.
+
+    READ TABLE source-scan->structures WITH KEY type = 'E' TRANSPORTING  NO FIELDS.
+    IF sy-subrc = 0.
+      structure = source-scan->structures.
+      DELETE structure WHERE type <> 'E'.
+      SORT structure BY stmnt_type ASCENDING.
+    ELSE.
+      CLEAR max.
+      LOOP AT source-scan->structures INTO DATA(str) WHERE type <> 'P' AND type <> 'C' .
+        IF max < str-stmnt_to.
+          max = str-stmnt_to.
+          APPEND str TO structure.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+
+    DATA: event     TYPE string,
+          stack     TYPE i VALUE 1,
+          statement TYPE i.
+    CLEAR mv_step.
+    LOOP AT structure INTO str.
+
+      READ TABLE source-t_keytokens WITH KEY index =  statement INTO DATA(key).
+
+      IF str-type = 'E'.
+        statement = str-stmnt_from + 1.
+        event = key-name.
+      ELSE.
+        statement = str-stmnt_from.
+      ENDIF.
+
+      WHILE statement <= str-stmnt_to.
+        READ TABLE source-t_keytokens WITH KEY index =  statement INTO key.
+
+        IF key-name = 'DATA' OR key-name = 'CONSTANTS' OR sy-subrc <> 0.
+          ADD 1 TO statement.
+          CONTINUE.
+        ENDIF.
+        ADD 1 TO mv_step.
+        APPEND INITIAL LINE TO mt_steps ASSIGNING FIELD-SYMBOL(<step>).
+
+        <step>-step = mv_step.
+        <step>-line = key-line.
+        <step>-eventname = event.
+        <step>-eventtype = 'EVENT'.
+        <step>-stacklevel = stack.
+        <step>-program = source-include.
+        <step>-include = source-include.
+
+        IF key-to_evname IS NOT INITIAL.
+          READ TABLE source-tt_calls_line WITH KEY eventname = key-to_evname eventtype = key-to_evtype INTO call_line.
+
+          parse_call( EXPORTING i_index = call_line-index
+                                           i_event = call_line-eventname
+                                           i_program = source-include
+                                           i_stack   = stack
+                                            ).
+        ENDIF.
+
+        ADD 1 TO statement.
+      ENDWHILE.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+  METHOD add_toolbar_buttons.
+
+    DATA: button TYPE ttb_button,
+          steps  TYPE ttb_button,
+          events TYPE cntl_simple_events,
+          event  LIKE LINE OF events.
+
+    "Live-debug window drives the debugger itself with a single auto-run button:
+    "it single-steps (F5 into Z/custom code, F7 out of standard code), stops at
+    "breakpoints, and refreshes this graph on every stack change (see live_run)
+    IF mv_type = 'LIVE'.
+      steps = VALUE #(
+       ( function = 'LIVERUN' icon = CONV #( icon_execute_object ) quickinfo = 'Run and trace calls (stops at breakpoints)' text = 'Run' )
+       ( butn_type = 3  ) ).
+    ENDIF.
+
+    button  = VALUE #(
+     ( LINES OF steps )
+     ( function = 'TD' icon = CONV #( icon_view_expand_vertical ) quickinfo = 'Vertical' text = '' )
+     ( function = 'LR' icon = CONV #( icon_view_expand_horizontal ) quickinfo = 'Horizontal' text = '' )
+     ( butn_type = 3  )
+     ( function = 'TEXT' icon = CONV #( icon_wd_caption ) quickinfo = 'Mermaid Diagram text' text = '' )
+                    ).
+
+    mo_toolbar->add_button_group( button ).
+
+*   Register events
+    event-eventid = cl_gui_toolbar=>m_id_function_selected.
+    event-appl_event = space.
+    APPEND event TO events.
+
+    mo_toolbar->set_registered_events( events = events ).
+    SET HANDLER me->hnd_toolbar FOR mo_toolbar.
+
+  ENDMETHOD.
+
+  METHOD hnd_toolbar.
+
+    "auto-run button of the live-debug window: trace calls, refreshing the graph
+    "on every stack change, until a breakpoint or the end of the program
+    IF fcode = 'LIVERUN'.
+      mo_debugger->live_run( ).
+      RETURN.
+    ENDIF.
+
+    IF fcode = 'TEXT'.
+      DATA: mm_string TYPE string,
+            ref       TYPE REF TO data.
+      CALL METHOD mo_diagram->('GET_SOURCE_CODE_STRING') RECEIVING result = mm_string.
+      GET REFERENCE OF mm_string INTO ref.
+      NEW zcl_smd_text_viewer( ref ).
+
+      RETURN.
+    ENDIF.
+
+    CASE mv_type.
+      WHEN 'DIAG'.
+        steps_flow( fcode ).
+      WHEN 'SMART'.
+        magic_search( fcode ).
+
+    ENDCASE.
+
+  ENDMETHOD.
+
+  METHOD open_mermaid.
+
+    CHECK zcl_smd_appl=>is_mermaid_active = abap_true.
+
+    TRY.
+        IF mo_diagram IS INITIAL.
+          CREATE OBJECT mo_diagram TYPE ('ZCL_WD_GUI_MERMAID_JS_DIAGRAM') EXPORTING parent = mo_mm_container
+                                                                                    hide_scrollbars = abap_false.
+        ENDIF.
+        CALL METHOD mo_diagram->('SET_SOURCE_CODE_STRING') EXPORTING source_code = i_mm_string.
+        CALL METHOD mo_diagram->('DISPLAY').
+
+      CATCH cx_root INTO DATA(error).
+        MESSAGE error TYPE 'E'.
+    ENDTRY.
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+CLASS zcl_smd_markdown_html IMPLEMENTATION.
+
+  METHOD to_html.
+
+    DATA lt_lines TYPE STANDARD TABLE OF string.
+    DATA lv_line TYPE string.
+    DATA lv_trim TYPE string.
+    DATA lv_text TYPE string.
+    DATA lv_cr TYPE c LENGTH 1.
+    DATA lv_prefix2 TYPE c LENGTH 2.
+    DATA lv_prefix3 TYPE c LENGTH 3.
+    DATA lv_prefix4 TYPE c LENGTH 4.
+    DATA lv_prefix5 TYPE c LENGTH 5.
+    DATA lv_in_code TYPE abap_bool.
+
+    SPLIT i_markdown AT cl_abap_char_utilities=>newline INTO TABLE lt_lines.
+    lv_cr = cl_abap_char_utilities=>cr_lf.
+
+    rv_html =
+      `<html><head><meta http-equiv="content-type" content="text/html; charset=utf-8">` &&
+      `<style>` &&
+      `body{font-family:Segoe UI,Arial,sans-serif;font-size:13px;line-height:1.35;margin:8px;color:#111827;background:#ffffff;}` &&
+      `h1,h2,h3,h4{margin:10px 0 6px 0;font-weight:650;color:#111827;}` &&
+      `h1{font-size:18px;}h2{font-size:16px;}h3{font-size:15px;}h4{font-size:14px;}` &&
+      `p{margin:5px 0 8px 0;}` &&
+      `.li{margin:3px 0 3px 14px;text-indent:-12px;}` &&
+      `.num{margin:3px 0 3px 18px;text-indent:-16px;}` &&
+      `pre{font-family:Consolas,monospace;font-size:12px;line-height:1.3;margin:6px 0;padding:6px;border:1px solid #d1d5db;background:#f9fafb;white-space:pre-wrap;}` &&
+      `code{font-family:Consolas,monospace;background:#f3f4f6;border:1px solid #e5e7eb;padding:0 2px;}` &&
+      `strong{font-weight:700;}` &&
+      `.deletebp{margin:4px 0 4px 18px;text-indent:-16px;padding:4px 6px;border-left:4px solid #dc2626;background:#fee2e2;color:#7f1d1d;}` &&
+      `.rule{border-top:1px solid #d1d5db;margin:8px 0;}` &&
+      `</style></head><body>`.
+
+    LOOP AT lt_lines INTO lv_line.
+      REPLACE ALL OCCURRENCES OF lv_cr IN lv_line WITH ``.
+
+      lv_trim = lv_line.
+      SHIFT lv_trim LEFT DELETING LEADING space.
+      lv_prefix2 = lv_trim.
+      lv_prefix3 = lv_trim.
+      lv_prefix4 = lv_trim.
+      lv_prefix5 = lv_trim.
+
+      IF lv_trim CP '```*'.
+        IF lv_in_code = abap_true.
+          rv_html = rv_html && `</pre>`.
+          lv_in_code = abap_false.
+        ELSE.
+          rv_html = rv_html && `<pre>`.
+          lv_in_code = abap_true.
+        ENDIF.
+        CONTINUE.
+      ENDIF.
+
+      IF lv_in_code = abap_true.
+        rv_html = rv_html && escape_html( lv_line ) && cl_abap_char_utilities=>newline.
+        CONTINUE.
+      ENDIF.
+
+      IF lv_trim IS INITIAL.
+        CONTINUE.
+      ENDIF.
+
+      IF lv_trim = '---' OR lv_trim = '***'.
+        rv_html = rv_html && `<div class="rule"></div>`.
+      ELSEIF lv_trim CP '!DELETE_BP!*'.
+        lv_text = lv_trim+11.
+        rv_html = rv_html && `<div class="deletebp">` && inline_markdown( lv_text ) && `</div>`.
+      ELSEIF lv_prefix5 = '#### '.
+        lv_text = lv_trim+5.
+        rv_html = rv_html && `<h4>` && inline_markdown( lv_text ) && `</h4>`.
+      ELSEIF lv_prefix4 = '### '.
+        lv_text = lv_trim+4.
+        rv_html = rv_html && `<h3>` && inline_markdown( lv_text ) && `</h3>`.
+      ELSEIF lv_prefix3 = '## '.
+        lv_text = lv_trim+3.
+        rv_html = rv_html && `<h2>` && inline_markdown( lv_text ) && `</h2>`.
+      ELSEIF lv_prefix2 = '# '.
+        lv_text = lv_trim+2.
+        rv_html = rv_html && `<h1>` && inline_markdown( lv_text ) && `</h1>`.
+      ELSEIF lv_prefix2 = '- ' OR lv_prefix2 = '* '.
+        lv_text = lv_trim+2.
+        rv_html = rv_html && `<div class="li">&bull; ` && inline_markdown( lv_text ) && `</div>`.
+      ELSEIF strlen( lv_trim ) >= 3
+          AND lv_prefix3+0(1) CO '0123456789'
+          AND lv_prefix3+1(2) = '. '.
+        lv_text = lv_trim+3.
+        rv_html = rv_html && `<div class="num">` && lv_prefix3 && inline_markdown( lv_text ) && `</div>`.
+      ELSEIF strlen( lv_trim ) >= 4
+          AND lv_prefix4+0(1) CO '0123456789'
+          AND lv_prefix4+1(1) CO '0123456789'
+          AND lv_prefix4+2(2) = '. '.
+        lv_text = lv_trim+4.
+        rv_html = rv_html && `<div class="num">` && lv_prefix4 && inline_markdown( lv_text ) && `</div>`.
+      ELSE.
+        rv_html = rv_html && `<p>` && inline_markdown( lv_trim ) && `</p>`.
+      ENDIF.
+    ENDLOOP.
+
+    IF lv_in_code = abap_true.
+      rv_html = rv_html && `</pre>`.
+    ENDIF.
+
+    rv_html = rv_html && `</body></html>`.
+
+  ENDMETHOD.
+
+  METHOD escape_html.
+
+    rv_html = i_text.
+    REPLACE ALL OCCURRENCES OF `&` IN rv_html WITH `&amp;`.
+    REPLACE ALL OCCURRENCES OF `<` IN rv_html WITH `&lt;`.
+    REPLACE ALL OCCURRENCES OF `>` IN rv_html WITH `&gt;`.
+    REPLACE ALL OCCURRENCES OF `"` IN rv_html WITH `&quot;`.
+
+  ENDMETHOD.
+
+  METHOD inline_markdown.
+
+    DATA lv_tag TYPE string.
+    DATA lv_open TYPE abap_bool.
+
+    rv_html = escape_html( i_text ).
+
+    lv_open = abap_true.
+    WHILE rv_html CS '**'.
+      IF lv_open = abap_true.
+        lv_tag = `<strong>`.
+        lv_open = abap_false.
+      ELSE.
+        lv_tag = `</strong>`.
+        lv_open = abap_true.
+      ENDIF.
+      REPLACE FIRST OCCURRENCE OF '**' IN rv_html WITH lv_tag.
+    ENDWHILE.
+
+    IF lv_open = abap_false.
+      rv_html = rv_html && `</strong>`.
+    ENDIF.
+
+    lv_open = abap_true.
+    WHILE rv_html CS '`'.
+      IF lv_open = abap_true.
+        lv_tag = `<code>`.
+        lv_open = abap_false.
+      ELSE.
+        lv_tag = `</code>`.
+        lv_open = abap_true.
+      ENDIF.
+      REPLACE FIRST OCCURRENCE OF '`' IN rv_html WITH lv_tag.
+    ENDWHILE.
+
+    IF lv_open = abap_false.
+      rv_html = rv_html && `</code>`.
+    ENDIF.
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+CLASS ZCL_SMD_HTML_VIEWER IMPLEMENTATION.
+  method CONSTRUCTOR.
+
+    DATA lt_html TYPE STANDARD TABLE OF w3html.
+    DATA ls_html TYPE w3html.
+    DATA lv_html TYPE string.
+    DATA lv_offset TYPE i.
+    DATA lv_url TYPE c LENGTH 255.
+
+    super->constructor( ).
+    mo_box = create( i_name = i_title i_width = 900 i_hight = 500 ).
+
+    CREATE OBJECT mo_splitter
+      EXPORTING
+        parent  = mo_box
+        rows    = 1
+        columns = 1
+      EXCEPTIONS
+        OTHERS  = 1.
+
+    mo_splitter->get_container(
+      EXPORTING
+        row       = 1
+        column    = 1
+      RECEIVING
+        container = mo_variables_container ).
+
+    SET HANDLER on_box_close FOR mo_box.
+
+    CREATE OBJECT mo_html
+      EXPORTING
+        parent = mo_variables_container
+      EXCEPTIONS
+        OTHERS = 1.
+    IF sy-subrc <> 0.
+      on_box_close( mo_box ).
+      RETURN.
+    ENDIF.
+
+    lv_html = zcl_smd_markdown_html=>to_html( i_markdown ).
+
+    WHILE lv_offset < strlen( lv_html ).
+      CLEAR ls_html.
+      ls_html-line = substring(
+        val = lv_html
+        off = lv_offset
+        len = nmin( val1 = 255 val2 = strlen( lv_html ) - lv_offset ) ).
+      APPEND ls_html TO lt_html.
+      lv_offset = lv_offset + 255.
+    ENDWHILE.
+
+    mo_html->load_data(
+      EXPORTING
+        type         = 'text'
+        subtype      = 'html'
+      IMPORTING
+        assigned_url = lv_url
+      CHANGING
+        data_table   = lt_html
+      EXCEPTIONS
+        OTHERS       = 1 ).
+
+    mo_html->show_url(
+      EXPORTING
+        url = lv_url
+      EXCEPTIONS
+        OTHERS = 1 ).
+
+    cl_gui_cfw=>flush( ).
+
+  endmethod.
+ENDCLASS.
+
+CLASS zcl_smd_debugger_base IMPLEMENTATION.
+
+  METHOD create_simple_var.
+
+    DATA: lr_symbsimple TYPE REF TO tpda_sys_symbsimple,
+          o_elem        TYPE REF TO cl_abap_elemdescr.
+
+    CALL METHOD cl_tpda_script_data_descr=>get_quick_info
+      EXPORTING
+        p_var_name   = i_name
+      RECEIVING
+        p_symb_quick = DATA(quick).
+
+    ASSIGN quick-quickdata TO FIELD-SYMBOL(<lv_value>).
+    lr_symbsimple ?= <lv_value>.
+    ASSIGN lr_symbsimple->* TO FIELD-SYMBOL(<simple>).
+
+    CALL METHOD cl_abap_complexdescr=>describe_by_name
+      EXPORTING
+        p_name         = quick-abstypename
+      RECEIVING
+        p_descr_ref    = DATA(o_type)
+      EXCEPTIONS
+        type_not_found = 1.
+
+    o_elem ?= o_type.
+    CREATE DATA er_var TYPE HANDLE o_elem.
+    ASSIGN er_var->* TO FIELD-SYMBOL(<new_elem>).
+    <new_elem> = <simple>-valstring.
+
+  ENDMETHOD.
+
+  METHOD create_simple_string.
+
+    DATA: lr_string TYPE REF TO tpda_sys_symbstring,
+          lr_struc  TYPE REF TO data,
+          o_elem    TYPE REF TO cl_abap_elemdescr,
+          depth     TYPE i VALUE 0.
+
+    FIELD-SYMBOLS: <string>   TYPE tpda_sys_symbstring,
+                   <lv_value> TYPE any.
+
+    e_string = 'Unknown'.  " Default value
+
+    TRY.
+        CALL METHOD cl_tpda_script_data_descr=>get_quick_info
+          EXPORTING
+            p_var_name   = i_name
+          RECEIVING
+            p_symb_quick = DATA(quick).
+
+        ASSIGN quick-quickdata TO <lv_value>.
+
+        " Handle only direct strings, not references
+        IF quick-typid = 'g'. " Regular string
+          lr_string ?= <lv_value>.
+          ASSIGN lr_string->* TO <string>.
+          e_string = <string>-valstring.
+        ELSE.
+          " For references and other types, just return a descriptive text
+          e_string = |[{ quick-typid }:{ i_name }]|.
+        ENDIF.
+
+      CATCH cx_root.
+        e_string = |Error: { i_name }|.
+    ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD create_struc.
+
+    DATA: o_new_type    TYPE REF TO cl_abap_structdescr,
+          comp_descr    TYPE abap_componentdescr,
+          components    TYPE abap_component_tab,
+          lr_symbsimple TYPE REF TO tpda_sys_symbsimple,
+          o_struc_descr TYPE REF TO cl_tpda_script_structdescr,
+          comp_full     TYPE  tpda_scr_struct_comp_it,
+          comp_it       TYPE tpda_script_struc_componentsit.
+
+    FIELD-SYMBOLS: <lv_value> TYPE any,
+                   <simple>   TYPE tpda_sys_symbsimple.
+
+    CLEAR er_struc.
+    CALL METHOD cl_tpda_script_data_descr=>get_quick_info
+      EXPORTING
+        p_var_name   = i_name
+      RECEIVING
+        p_symb_quick = DATA(quick).
+
+    o_struc_descr ?= cl_tpda_script_data_descr=>factory( i_name ).
+    o_struc_descr->components( IMPORTING p_components_it = comp_it p_components_full_it = comp_full ).
+
+    zcl_smd_rtti=>create_struc_handle( EXPORTING i_tname = CONV #( replace( val = quick-abstypename sub = '/TYPE=' with = '' ) ) IMPORTING e_handle = o_new_type ).
+    IF o_new_type IS NOT INITIAL.
+      CREATE DATA er_struc TYPE HANDLE o_new_type.
+    ELSE.
+
+      LOOP AT comp_full INTO DATA(comp).
+        comp_descr-name = comp-compname.
+
+        ASSIGN comp-symbquick-quickdata TO <lv_value>.
+        lr_symbsimple ?= <lv_value>.
+        ASSIGN lr_symbsimple->* TO <simple>.
+
+        CALL METHOD cl_tpda_script_data_descr=>get_quick_info
+          EXPORTING
+            p_var_name   = |{ i_name }-{ comp-compname }|
+          RECEIVING
+            p_symb_quick = DATA(quick_sub).
+
+        CALL METHOD cl_abap_complexdescr=>describe_by_name
+          EXPORTING
+            p_name         = quick_sub-abstypename
+          RECEIVING
+            p_descr_ref    = DATA(o_type)
+          EXCEPTIONS
+            type_not_found = 1.
+
+        IF sy-subrc = 0.
+          comp_descr-type ?= o_type.
+          APPEND comp_descr TO components.
+        ENDIF.
+      ENDLOOP.
+      o_new_type  = cl_abap_structdescr=>create( components ).
+      CREATE DATA er_struc TYPE HANDLE o_new_type.
+    ENDIF.
+
+    ASSIGN er_struc->* TO FIELD-SYMBOL(<new_struc>).
+
+    LOOP AT comp_full INTO comp.
+      ASSIGN comp-symbquick-quickdata TO <lv_value>.
+      lr_symbsimple ?= <lv_value>.
+      ASSIGN COMPONENT comp-compname OF STRUCTURE <new_struc> TO FIELD-SYMBOL(<new>).
+      <new> = lr_symbsimple->valstring.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD get_deep_struc.
+
+    DATA: lr_struc      TYPE REF TO data,
+          o_struc_descr TYPE REF TO cl_tpda_script_structdescr,
+          comp_full     TYPE  tpda_scr_struct_comp_it,
+          comp_it       TYPE tpda_script_struc_componentsit,
+          lr_symbsimple TYPE REF TO tpda_sys_symbsimple,
+          lr_symbstring TYPE REF TO tpda_sys_symbstring,
+          lr_symbstruc  TYPE REF TO tpda_sys_symbstruct,
+          r_data        TYPE REF TO data.
+
+    FIELD-SYMBOLS: <lv_value> TYPE any.
+
+    ASSIGN r_obj->* TO FIELD-SYMBOL(<new_deep>).
+    o_struc_descr ?= cl_tpda_script_data_descr=>factory( i_name ).
+    o_struc_descr->components( IMPORTING p_components_it = comp_it p_components_full_it = comp_full ).
+
+    LOOP AT comp_full INTO DATA(comp).
+      CASE comp-symbquick-metatype.
+        WHEN cl_tpda_script_data_descr=>mt_simple.
+          ASSIGN comp-symbquick-quickdata TO <lv_value>.
+          lr_symbsimple ?= <lv_value>.
+          ASSIGN COMPONENT comp-compname OF STRUCTURE <new_deep> TO FIELD-SYMBOL(<new>).
+          <new> = lr_symbsimple->valstring.
+
+        WHEN cl_tpda_script_data_descr=>mt_string.
+          ASSIGN comp-symbquick-quickdata TO <lv_value>.
+          lr_symbstring ?= <lv_value>.
+          ASSIGN COMPONENT comp-compname OF STRUCTURE <new_deep> TO <new>.
+          <new> = lr_symbstring->valstring.
+
+        WHEN cl_tpda_script_data_descr=>mt_struct.
+          ASSIGN comp-symbquick-quickdata TO <lv_value>.
+          ASSIGN COMPONENT comp-compname OF STRUCTURE <new_deep> TO <new>.
+          GET REFERENCE OF <new> INTO lr_struc.
+          lr_symbstruc ?= <lv_value>.
+          get_deep_struc( EXPORTING i_name = |{ i_name }-{ comp-compname }|
+                                    r_obj  = lr_struc ).
+
+        WHEN cl_tpda_script_data_descr=>mt_tab.
+          FIELD-SYMBOLS: <new_table> TYPE ANY TABLE.
+          ASSIGN COMPONENT comp-compname OF STRUCTURE <new_deep> TO <new_table>.
+          GET REFERENCE OF <new_table> INTO r_data.
+          get_table( EXPORTING i_name = |{ i_name }-{ comp-compname }|
+                     CHANGING  c_obj  = r_data ).
+      ENDCASE.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD get_table. "construct deep tables
+
+    DATA: r_data        TYPE REF TO data,
+          o_table_descr TYPE REF TO cl_tpda_script_tabledescr,
+          table_clone   TYPE REF TO data,
+          o_tabl        TYPE REF TO cl_abap_tabledescr,
+          o_struc       TYPE REF TO cl_abap_structdescr,
+          r_struc       TYPE REF TO data.
+
+    FIELD-SYMBOLS: <f>         TYPE ANY TABLE,
+                   <new_table> TYPE ANY TABLE.
+
+    ASSIGN c_obj->* TO <new_table>.
+    o_tabl ?= cl_abap_typedescr=>describe_by_data( <new_table> ).
+
+    TRY.
+        o_struc ?= o_tabl->get_table_line_type( ).
+        CREATE DATA r_data TYPE HANDLE o_struc.
+        ASSIGN r_data->* TO FIELD-SYMBOL(<new_line>).
+
+        o_table_descr ?= cl_tpda_script_data_descr=>factory( i_name ).
+        table_clone = o_table_descr->elem_clone( ).
+        ASSIGN table_clone->* TO <f>.
+        DATA: count TYPE i.
+
+        LOOP AT <f> ASSIGNING FIELD-SYMBOL(<fs>).
+          count = sy-tabix.
+          CLEAR <new_line>.
+
+          DO.
+            ASSIGN COMPONENT sy-index OF STRUCTURE <fs> TO FIELD-SYMBOL(<from>).
+            IF sy-subrc NE 0.
+              EXIT.
+            ENDIF.
+
+            ASSIGN COMPONENT sy-index OF STRUCTURE <new_line> TO FIELD-SYMBOL(<to>).
+            DESCRIBE FIELD <from> TYPE DATA(from_type).
+            DESCRIBE FIELD   <to> TYPE DATA(to_type).
+
+            IF from_type = to_type.
+              <to> = <from>.
+            ELSEIF to_type = 'h'.
+              o_struc ?= cl_abap_typedescr=>describe_by_data( <fs> ).
+              READ TABLE o_struc->components INDEX sy-index INTO DATA(comp_descr).
+              GET REFERENCE OF <to> INTO r_data.
+              get_table( EXPORTING i_name = |{ i_name }[ { count } ]-{ comp_descr-name }|
+                         CHANGING  c_obj  = r_data ).
+            ENDIF.
+          ENDDO.
+          INSERT <new_line> INTO TABLE <new_table>.
+        ENDLOOP.
+      CATCH cx_root.
+        "DATA(cnt) = o_table_descr->linecnt( ).
+        "DO cnt TIMES.
+        "  r_struc = create_struc( i_name = |{ i_name }[{ sy-index }]| ).
+        "  ASSIGN r_struc->* TO <new_line>.
+        "  INSERT <new_line> INTO TABLE <new_table>.
+        "ENDDO.
+    ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD transfer_variable.
+
+    DATA: lr_struc      TYPE REF TO data,
+          o_table_descr TYPE REF TO cl_tpda_script_tabledescr,
+          table_clone   TYPE REF TO data,
+          name          TYPE string,
+          full_name     TYPE string,
+          o_deep_handle TYPE REF TO cl_abap_datadescr,
+          deep_ref      TYPE REF TO cl_abap_typedescr,
+          o_tabl        TYPE REF TO cl_abap_tabledescr,
+          o_struc       TYPE REF TO cl_abap_structdescr,
+          r_header      TYPE REF TO data,
+          r_elem        TYPE REF TO data.
+
+    DATA: len TYPE i.
+    FIELD-SYMBOLS: <lv_value> TYPE any.
+
+    full_name = i_name.
+
+    IF i_name NE '{A:initial}'.
+      TRY.
+          CALL METHOD cl_tpda_script_data_descr=>get_quick_info
+            EXPORTING
+              p_var_name   = i_name
+            RECEIVING
+              p_symb_quick = m_quick.
+        CATCH cx_tpda_varname .
+
+          mo_tree_local->del_variable( EXPORTING i_full_name = i_name i_state = 'X' ).
+          RETURN.
+      ENDTRY.
+    ELSE.
+      m_quick-typid = 'g'.
+    ENDIF.
+
+    IF i_shortname IS NOT INITIAL.
+      name = i_shortname.
+    ELSE.
+      name = i_name.
+    ENDIF.
+
+    TRY.
+        IF i_name NE '{A:initial}'.
+          ASSIGN m_quick-quickdata->* TO <lv_value>.
+        ENDIF.
+
+        IF m_quick-typid = 'h'."internal table
+          READ TABLE mo_window->mt_source WITH KEY include = ms_stack-include INTO DATA(source).
+          READ TABLE source-tt_tabs WITH KEY name = i_name INTO DATA(var).
+          o_table_descr ?= cl_tpda_script_data_descr=>factory( i_name ).
+
+*          DATA(comp_tpda) = o_table_descr->components( ).
+*
+*          DATA: comp TYPE abap_component_tab,
+*                comp_descr TYPE abap_componentdescr.
+*
+*          LOOP AT comp_tpda INTO DATA(comp_descr_tpda).
+*            REPLACE ALL OCCURRENCES OF '\TYPE-POOL=ABAP\TYPE=' IN comp_descr_tpda-abstypename WITH ''.
+*            REPLACE ALL OCCURRENCES OF '\TYPE=' IN comp_descr_tpda-abstypename WITH ''.
+*            REPLACE ALL OCCURRENCES OF '\TYPE-POOL=' IN comp_descr_tpda-abstypename WITH ''.
+*
+*            IF comp_descr_tpda-abstypename+0(3) = '%_T' OR
+*              comp_descr_tpda-abstypename+0(11) = '\INTERFACE=' OR
+*              comp_descr_tpda-abstypename+0(7) = '\CLASS='.
+*              DATA(old_generation) = abap_true.
+*              EXIT.
+*            ENDIF.
+*
+*            DATA(o_descr) = cl_abap_typedescr=>describe_by_name( comp_descr_tpda-abstypename ).
+*            IF o_descr IS INSTANCE OF cl_abap_elemdescr.
+*              DATA(o_elem) = CAST cl_abap_elemdescr( o_descr ).
+*              CLEAR comp_descr.
+*              comp_descr-name = comp_descr_tpda-compname.
+*              comp_descr-type = o_elem.
+*              APPEND comp_descr TO comp.
+*            ENDIF.
+*          ENDLOOP.
+*
+*          old_generation = abap_true.
+*          IF old_generation IS INITIAL.
+*            "--- Create a structure based on component_tab
+*            DATA(o_struct) = cl_abap_structdescr=>create( comp ).
+*
+*            "--- Create a table type for this structure
+*            DATA(o_table)  = cl_abap_tabledescr=>create( o_struct ).
+*
+*            "--- Create the actual table object
+*            DATA lr_table TYPE REF TO data.
+*            CREATE DATA lr_table TYPE HANDLE o_table.
+*
+*            ASSIGN lr_table->* TO FIELD-SYMBOL(<lt_dyn>).
+*          ENDIF.
+
+          table_clone = o_table_descr->elem_clone( ).
+          "ASSIGN table_clone->* TO FIELD-SYMBOL(<f>).
+
+*          IF old_generation IS INITIAL.
+*            MOVE-CORRESPONDING <f> TO <lt_dyn>.
+*          ELSE.
+          ASSIGN table_clone->* TO FIELD-SYMBOL(<lt_dyn>).
+*          ENDIF.
+
+          "check header area
+          DATA td       TYPE sydes_desc.
+          DESCRIBE FIELD <lt_dyn> INTO td.
+
+          READ TABLE td-names INTO DATA(names) INDEX 1.
+          IF sy-subrc = 0.
+            TRY.
+                CALL METHOD cl_tpda_script_data_descr=>get_quick_info
+                  EXPORTING
+                    p_var_name   = |{ i_name }-{ names-name }|
+                  RECEIVING
+                    p_symb_quick = DATA(quick).
+
+                o_tabl ?= cl_abap_typedescr=>describe_by_data( <lt_dyn> ).
+
+                o_struc ?= o_tabl->get_table_line_type( ).
+                CREATE DATA r_header TYPE HANDLE o_struc.
+                ASSIGN r_header->* TO FIELD-SYMBOL(<header>).
+
+                traverse( io_type_descr  = cl_abap_typedescr=>describe_by_data_ref( r_header )
+                          i_name        = name
+                          i_fullname    = i_name
+                          i_type        = i_type
+                          i_parent_calculated = i_parent_calculated
+                          i_instance     = i_instance
+                          i_cl_leaf      = i_cl_leaf
+                          ir_up          = r_header ).
+
+                name = name && '[]'.
+                full_name = i_name && '[]'.
+              CATCH cx_tpda_varname .
+            ENDTRY.
+          ENDIF.
+          GET REFERENCE OF <lt_dyn> INTO lr_struc.
+
+          traverse( io_type_descr  = cl_abap_typedescr=>describe_by_data_ref( lr_struc )
+                    i_name        = name
+                    i_fullname    = full_name
+                    i_type        = i_type
+                    i_instance     = i_instance
+                    i_parent_calculated = i_parent_calculated
+                    i_cl_leaf      = i_cl_leaf
+                    ir_up          = lr_struc ).
+
+        ELSEIF m_quick-typid = 'l'. "data ref
+
+          DATA: info TYPE tpda_scr_quick_info.
+
+          FIELD-SYMBOLS: <symbdatref> TYPE tpda_sys_symbdatref.
+          info = cl_tpda_script_data_descr=>get_quick_info( i_name ).
+          ASSIGN info-quickdata->* TO <symbdatref>.
+
+          " Check if the referenced object exists
+          IF <symbdatref>-instancename IS NOT INITIAL AND
+             <symbdatref>-instancename <> '{R:initial}' AND
+             <symbdatref>-instancename <> '{A:initial}'.
+
+            TRY." Try to get info about the referenced object
+                DATA(ref_info) = cl_tpda_script_data_descr=>get_quick_info( <symbdatref>-instancename  ).
+
+                " Handle string references specially
+                IF ref_info-typid = 'g'. "string
+                  " Create a string variable directly on the heap - garbage
+                  " collected once no history entry references it anymore
+                  DATA lr_new_string TYPE REF TO data.
+                  FIELD-SYMBOLS <m_string_ref> TYPE string.
+                  CREATE DATA lr_new_string TYPE string.
+                  ASSIGN lr_new_string->* TO <m_string_ref>.
+                  <m_string_ref> = create_simple_string( <symbdatref>-instancename ).
+                  m_variable = lr_new_string.
+
+                  traverse( io_type_descr  = cl_abap_typedescr=>describe_by_data_ref( m_variable )
+                            i_name        = name
+                            i_type        = i_type
+                            i_fullname    = i_name
+                            i_parent_calculated = i_parent_calculated
+                            i_instance     = i_instance
+                            i_cl_leaf      = i_cl_leaf
+                            ir_up          = m_variable ).
+                ELSE.
+                  " Handle other reference types as before
+                  transfer_variable( EXPORTING i_name =  <symbdatref>-instancename
+                                               i_type = i_type
+                                               i_shortname = i_name
+                                               i_parent_calculated = i_parent_calculated
+                                               i_cl_leaf = i_cl_leaf
+                                               i_instance = <symbdatref>-instancename ).
+                ENDIF.
+              CATCH cx_tpda_varname.
+                " Handle error - show as unresolved reference
+                CREATE DATA lr_new_string TYPE string.
+                ASSIGN lr_new_string->* TO <m_string_ref>.
+                <m_string_ref> = |Unresolved reference: { <symbdatref>-instancename }|.
+                m_variable = lr_new_string.
+
+                traverse( io_type_descr  = cl_abap_typedescr=>describe_by_data_ref( m_variable )
+                          i_name        = name
+                          i_type        = i_type
+                          i_fullname    = i_name
+                          i_parent_calculated = i_parent_calculated
+                          i_instance     = i_instance
+                          i_cl_leaf      = i_cl_leaf
+                          ir_up          = m_variable ).
+            ENDTRY.
+          ENDIF.
+
+        ELSEIF m_quick-typid = 'r'. "reference
+          FIELD-SYMBOLS: <symobjref> TYPE tpda_sys_symbobjref.
+          ASSIGN m_quick-quickdata->* TO <symobjref>.
+
+          save_hist( EXPORTING i_fullname    = i_name
+                               i_name        = i_shortname
+                               i_parent_calculated = i_parent_calculated
+                               i_type        = i_type
+                               i_cl_leaf     = i_cl_leaf
+                               i_instance     = <symobjref>-instancename ).
+
+          create_reference( EXPORTING i_name      = name
+                                      i_type      = i_type
+                                      i_shortname = name
+                                      i_parent    = i_parent_calculated
+                                      i_quick     = m_quick ).
+
+        ELSEIF m_quick-typid = 'v' OR m_quick-typid = 'u'."deep structure or structure
+
+          CALL METHOD cl_abap_complexdescr=>describe_by_name
+            EXPORTING
+              p_name         = m_quick-abstypename
+            RECEIVING
+              p_descr_ref    = deep_ref
+            EXCEPTIONS
+              type_not_found = 1.
+
+          IF sy-subrc = 0.
+            o_deep_handle ?= deep_ref.
+            CREATE DATA lr_struc TYPE HANDLE o_deep_handle.
+            get_deep_struc( EXPORTING i_name = i_name r_obj = lr_struc ).
+            ASSIGN lr_struc->* TO FIELD-SYMBOL(<new_deep>).
+
+            traverse( io_type_descr  = cl_abap_typedescr=>describe_by_data_ref( lr_struc )
+                      i_name        = name
+                      i_fullname    = i_name
+                      i_type        = i_type
+                      i_parent_calculated = i_parent_calculated
+                      i_instance     = i_instance
+                      i_cl_leaf      = i_cl_leaf
+                      ir_up          = lr_struc ).
+          ELSE.
+            create_struc2( EXPORTING i_name = i_name i_shortname = name ).
+          ENDIF.
+
+        ELSEIF m_quick-typid = 'g'."string
+          CREATE DATA lr_new_string TYPE string.
+          ASSIGN lr_new_string->* TO <m_string_ref>.
+          IF i_name NE '{A:initial}'.
+            <m_string_ref> = create_simple_string( i_name ).
+          ELSE.
+            <m_string_ref> = '{A:initial}'.
+          ENDIF.
+          m_variable = lr_new_string.
+          traverse( io_type_descr  = cl_abap_typedescr=>describe_by_data_ref( m_variable )
+                    i_name        = name
+                    i_type        = i_type
+                    i_fullname    = i_name
+                    i_parent_calculated = i_parent_calculated
+                    i_instance     = i_instance
+                    i_cl_leaf      = i_cl_leaf
+                    ir_up          = m_variable ).
+        ELSE.
+          lr_struc = create_simple_var( i_name ).
+          ASSIGN lr_struc->* TO FIELD-SYMBOL(<new_elem>).
+
+          traverse( io_type_descr  = cl_abap_typedescr=>describe_by_data_ref( lr_struc )
+                    i_name        = name
+                    i_fullname    = i_name
+                    i_type        = i_type
+                    i_parent_calculated = i_parent_calculated
+                    ir_up          = lr_struc
+                    i_cl_leaf      = i_cl_leaf
+                    i_instance     = i_instance ).
+        ENDIF.
+      CATCH cx_root.
+    ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD get_class_name.
+
+    DATA: o_object TYPE REF TO cl_tpda_script_objectdescr,
+          o_descr  TYPE REF TO cl_tpda_script_data_descr.
+
+    FIELD-SYMBOLS: <symobjref> TYPE tpda_sys_symbobjref.
+
+    TRY.
+        CALL METHOD cl_tpda_script_data_descr=>get_quick_info
+          EXPORTING
+            p_var_name   = i_name
+          RECEIVING
+            p_symb_quick = DATA(quick).
+
+        ASSIGN quick-quickdata->* TO <symobjref>.
+        IF <symobjref>-instancename <> '{O:initial}'.
+
+          o_descr = cl_tpda_script_data_descr=>factory( <symobjref>-instancename ).
+          o_object ?= o_descr.
+
+          e_name = o_object->classname( ).
+        ENDIF.
+      CATCH cx_tpda_varname .
+    ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD create_reference.
+
+    DATA: obj        LIKE LINE OF mt_obj,
+          lr_struc   TYPE REF TO data,
+          o_object   TYPE REF TO cl_tpda_script_objectdescr,
+          o_descr    TYPE REF TO cl_tpda_script_data_descr,
+          attributes TYPE tpda_script_object_attribut_it.
+
+    FIELD-SYMBOLS: <symobjref> TYPE tpda_sys_symbobjref.
+    ASSIGN i_quick-quickdata->* TO <symobjref>.
+    IF <symobjref>-instancename <> '{O:initial}'.
+
+      obj-name = i_name.
+      obj-obj = <symobjref>-instancename.
+      COLLECT obj INTO mt_obj.
+
+      TRY.
+          o_descr = cl_tpda_script_data_descr=>factory( <symobjref>-instancename ).
+          o_object ?= o_descr.
+
+          attributes = o_object->attributes( ).
+          DELETE attributes WHERE instantiation = 1.
+          SORT attributes BY acckind name.
+
+          DATA(name) = o_object->classname( ).
+          DATA(obj_ind) =  get_obj_index( <symobjref>-instancename ).
+
+          READ TABLE mt_classes_types WITH KEY full = obj_ind TRANSPORTING NO FIELDS.
+          IF sy-subrc NE 0.
+            LOOP AT attributes ASSIGNING FIELD-SYMBOL(<attribute>).
+              AT NEW acckind.
+                APPEND INITIAL LINE TO mt_classes_types ASSIGNING FIELD-SYMBOL(<cl_type>).
+                <cl_type>-name = i_name.
+                <cl_type>-full = obj_ind.
+                <cl_type>-type = <attribute>-acckind.
+              ENDAT.
+            ENDLOOP.
+          ENDIF.
+
+          DATA: parent TYPE string.
+          IF i_parent IS NOT INITIAL.
+            parent = |{ i_parent }-{ i_name }|.
+          ELSE.
+            parent = i_name.
+          ENDIF.
+
+          LOOP AT attributes ASSIGNING <attribute>.
+
+            transfer_variable( EXPORTING i_name        = |{ <symobjref>-instancename  }-{ <attribute>-name }|
+                                         i_shortname   = <attribute>-name
+                                         i_type       = i_type
+                                         i_instance    = <symobjref>-instancename
+                                         i_cl_leaf     = <attribute>-acckind
+                                         i_parent_calculated = parent ).
+
+            READ TABLE mt_state WITH KEY path = |{ parent  }-{ <attribute>-name }| ASSIGNING FIELD-SYMBOL(<state>).
+            IF sy-subrc = 0.
+              <state>-cl_leaf = <attribute>-acckind.
+            ENDIF.
+          ENDLOOP.
+        CATCH cx_tpda_varname.
+      ENDTRY.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD create_struc2.
+
+    DATA: o_struc_descr TYPE REF TO cl_tpda_script_structdescr,
+          components    TYPE abap_component_tab,
+          comp_full     TYPE  tpda_scr_struct_comp_it,
+          comp_descr    TYPE abap_componentdescr,
+          comp_it       TYPE tpda_script_struc_componentsit,
+          structdescr   TYPE REF TO cl_abap_structdescr,
+          r_data        TYPE REF TO data.
+
+    FIELD-SYMBOLS: <str> TYPE any.
+
+    o_struc_descr ?= cl_tpda_script_data_descr=>factory( i_name ).
+    o_struc_descr->components( IMPORTING p_components_it = comp_it p_components_full_it = comp_full ).
+
+    LOOP AT comp_it INTO DATA(comp).
+      comp_descr-name = comp-compname.
+      IF comp-typid = 'u'.
+        r_data = create_struc( EXPORTING i_name = |{ comp-longname }| ).
+      ELSE.
+        r_data = create_simple_var( EXPORTING i_name = |{ comp-longname }| ).
+      ENDIF.
+      ASSIGN r_data->* TO FIELD-SYMBOL(<item>).
+
+      CALL METHOD cl_abap_complexdescr=>describe_by_data
+        EXPORTING
+          p_data      = <item>
+        RECEIVING
+          p_descr_ref = DATA(o_type).
+
+      comp_descr-type ?= o_type.
+      APPEND comp_descr TO components.
+    ENDLOOP.
+
+    structdescr = cl_abap_structdescr=>create( components ).
+    CREATE DATA r_data TYPE HANDLE structdescr.
+    ASSIGN r_data->* TO <str>.
+
+    get_deep_struc( EXPORTING i_name = i_name r_obj = r_data ).
+    ASSIGN r_data->* TO FIELD-SYMBOL(<new_deep>).
+
+  ENDMETHOD.
+
+  METHOD run_script_hist.
+
+    DATA: vars_history LIKE mt_vars_hist_view,
+          hist_step    TYPE i,
+          old_step     TYPE i.
+
+    CLEAR mv_recurse.
+    is_history = abap_true.
+    IF m_debug IS NOT INITIAL. BREAK-POINT. ENDIF.
+    IF i_step IS NOT INITIAL.
+      hist_step = i_step.
+      READ TABLE mt_steps WITH KEY step = i_step INTO DATA(steps).
+
+    ELSE.
+      IF ( mo_window->m_debug_button = 'F6BEG' OR mo_window->m_debug_button = 'F6END' ) AND m_target_stack IS INITIAL.
+        READ TABLE mt_steps INTO steps INDEX m_hist_step.
+        m_target_stack = steps-stacklevel.
+      ENDIF.
+
+      IF mo_window->m_direction IS NOT INITIAL AND m_hist_step = 1 AND mo_window->m_debug_button IS NOT INITIAL.
+        es_stop = abap_true.
+      ENDIF.
+
+      IF mo_window->m_direction IS INITIAL AND m_hist_step = m_step AND mo_window->m_debug_button IS NOT INITIAL.
+        es_stop = abap_true.
+      ENDIF.
+
+      old_step = m_hist_step.
+      IF mo_window->m_direction IS NOT INITIAL AND m_hist_step > 1 AND mo_window->m_debug_button IS NOT INITIAL.
+        SUBTRACT 1 FROM m_hist_step.
+      ENDIF.
+
+      IF mo_window->m_direction IS INITIAL AND m_hist_step < m_step AND mo_window->m_debug_button IS NOT INITIAL.
+        ADD 1  TO m_hist_step.
+      ENDIF.
+
+      hist_step = m_hist_step.
+
+      READ TABLE mt_steps INTO steps WITH KEY step =  m_hist_step.
+      READ TABLE mt_steps INTO DATA(step_old) WITH KEY step =  old_step.
+
+      IF steps-stacklevel <> step_old-stacklevel.
+        m_refresh = abap_true.
+      ENDIF.
+
+      mo_window->set_program( steps-include ).
+      mo_window->set_program_line( steps-line ).
+
+      IF ( mo_window->m_debug_button = 'F6BEG' OR mo_window->m_debug_button = 'F6END' ) AND m_target_stack =  steps-stacklevel.
+        CLEAR m_target_stack.
+        es_stop = abap_true.
+      ENDIF.
+
+      READ TABLE mo_window->mt_stack INTO DATA(stack) INDEX 1.
+
+      MOVE-CORRESPONDING stack TO mo_window->m_prg.
+
+      IF mo_window->m_debug_button = 'F6' AND m_stop_stack IS INITIAL.
+        m_stop_stack = stack-stacklevel.
+      ENDIF.
+
+    ENDIF.
+
+    IF mo_window->m_debug_button = 'F5'.
+      es_stop = abap_true.
+    ENDIF.
+
+    IF mo_window->m_debug_button = 'F6' AND m_stop_stack = stack-stacklevel.
+
+      es_stop = abap_true.
+      CLEAR m_stop_stack.
+    ENDIF.
+
+    IF ( mo_window->m_debug_button = 'F6BEG' AND steps-first = abap_true AND m_target_stack = stack-stacklevel ) OR
+       ( mo_window->m_debug_button = 'F6END' AND steps-last = abap_true  AND m_target_stack = stack-stacklevel ).
+      CLEAR m_target_stack.
+      es_stop = abap_true.
+    ENDIF.
+
+    IF i_step IS INITIAL.
+      READ TABLE mo_window->mt_breaks WITH KEY inclnamesrc = steps-include linesrc = steps-line INTO DATA(break).
+      IF sy-subrc = 0.
+
+        es_stop = abap_true.
+      ENDIF.
+    ENDIF.
+
+    IF  i_step IS NOT INITIAL.
+      es_stop = abap_true.
+    ENDIF.
+
+    IF es_stop = abap_true.
+
+      "history state find refactoring
+      DATA(vars_hist) = mt_vars_hist.
+      SORT vars_hist BY step ASCENDING first DESCENDING.
+
+      CLEAR vars_history.
+
+      LOOP AT mt_steps INTO DATA(hist_steps) WHERE step <= hist_step.
+        IF hist_steps-stacklevel < steps-stacklevel.
+          DELETE vars_history WHERE leaf = 'LOCAL'.
+        ENDIF.
+        LOOP AT vars_hist INTO DATA(hist) WHERE step = hist_steps-step.
+          IF m_debug IS NOT INITIAL. BREAK-POINT. ENDIF.
+          IF  mo_tree_local->m_globals IS INITIAL AND hist-leaf = 'GLOBAL' OR hist-program <> steps-program.
+            CONTINUE.
+          ENDIF.
+          IF  mo_tree_local->m_class_data IS INITIAL AND hist-leaf = 'CLASS'.
+            CONTINUE.
+          ENDIF.
+          IF ( hist-leaf = 'LOCAL' OR hist-leaf = 'IMP' OR hist-leaf = 'EXP' ) AND hist-stack <> steps-stacklevel.
+            CONTINUE.
+          ENDIF.
+
+          IF hist-step = hist_step AND hist-first IS INITIAL.
+            CONTINUE.
+          ENDIF.
+
+          IF hist-del IS INITIAL.
+            READ TABLE vars_history WITH KEY name = hist-name ASSIGNING FIELD-SYMBOL(<hist>).
+            IF sy-subrc = 0.
+              <hist> = hist.
+              CLEAR <hist>-done.
+            ELSE.
+              "check initial.
+              IF m_hide IS NOT INITIAL.
+                IF hist-is_delta IS NOT INITIAL.
+                  "the initial-check below needs the real table, not the delta block
+                  hist-ref = restore_tab_hist( hist ).
+                  CLEAR: hist-is_delta, hist-delta_from, hist-delta_del.
+                  IF hist-ref IS INITIAL.
+                    CONTINUE. "snapshot chain broken - skip rather than dump
+                  ENDIF.
+                ENDIF.
+                ASSIGN hist-ref->* TO FIELD-SYMBOL(<new>).
+                IF <new> IS NOT INITIAL.
+                  APPEND INITIAL LINE TO vars_history ASSIGNING <hist>.
+                  <hist> = hist.
+                  CLEAR <hist>-done.
+                ENDIF.
+              ELSE.
+                APPEND INITIAL LINE TO vars_history ASSIGNING <hist>.
+                <hist> = hist.
+                CLEAR <hist>-done.
+              ENDIF.
+            ENDIF.
+          ELSE.
+            IF m_debug IS NOT INITIAL. BREAK-POINT. ENDIF.
+            mo_tree_local->clear( ).
+            mo_tree_exp->clear( ).
+            mo_tree_imp->clear( ).
+          ENDIF.
+        ENDLOOP.
+      ENDLOOP.
+      IF m_debug IS NOT INITIAL. BREAK-POINT. ENDIF.
+
+      SORT vars_history BY name.
+
+      "rebuild full table states for the delta entries that survived the loop -
+      "this runs once per displayed variable instead of once per history record
+      LOOP AT vars_history ASSIGNING FIELD-SYMBOL(<delta_var>) WHERE is_delta IS NOT INITIAL.
+        <delta_var>-ref = restore_tab_hist( <delta_var> ).
+        CLEAR: <delta_var>-is_delta, <delta_var>-delta_from, <delta_var>-delta_del.
+        IF <delta_var>-ref IS INITIAL.
+          DELETE vars_history. "snapshot chain broken - hide rather than dump
+        ENDIF.
+      ENDLOOP.
+
+      IF step_old-stacklevel <> steps-stacklevel OR m_refresh = abap_true.
+        mo_tree_local->clear( ).
+        mo_tree_exp->clear( ).
+        mo_tree_imp->clear( ).
+      ENDIF.
+      IF vars_history IS NOT INITIAL.
+        show_variables( CHANGING it_var = vars_history ).
+
+        set_selected_vars( ).
+        CLEAR m_refresh.
+      ENDIF.
+
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD run_script.
+
+    DATA: type TYPE string.
+    ADD 1 TO m_counter.
+    TRY.
+        cl_tpda_script_abapdescr=>get_abap_src_info( IMPORTING p_prg_info = mo_window->m_prg ).
+        DATA(stack) = cl_tpda_script_abapdescr=>get_abap_stack( ).
+        READ TABLE mo_window->mt_stack INDEX 1 INTO ms_stack_prev.
+
+        MOVE-CORRESPONDING stack TO mo_window->mt_stack.
+        READ TABLE mo_window->mt_stack INDEX 1 ASSIGNING FIELD-SYMBOL(<stack>).
+        <stack>-step = m_step.
+        ms_stack = <stack>.
+
+        CALL METHOD cl_tpda_script_bp_services=>get_all_bps RECEIVING p_bps_it = mo_window->mt_breaks.
+
+        IF is_step = abap_true.
+          ADD 1 TO m_step.
+          m_hist_step = m_step.
+          GET TIME.
+          "add missed ELSE/ENDIF/ENDCASE
+          IF m_step > 2.
+            READ TABLE mt_steps INDEX m_step - 1 INTO DATA(one_step).
+
+            IF ms_stack-line > one_step-line.
+              READ TABLE mo_window->mt_source WITH KEY include = ms_stack-include INTO DATA(source).
+              READ TABLE source-t_keytokens WITH KEY line = ms_stack-line INTO DATA(key).
+              READ TABLE source-t_keytokens INDEX sy-tabix - 1 INTO key.
+              READ TABLE source-t_keytokens WITH KEY line = one_step-line INTO DATA(key_prev).
+
+              IF key_prev-name <> 'DO' AND key_prev-name <> 'LOOP' AND key_prev-name <> 'WHILE'.
+
+                IF key-name = 'ELSE' OR key-name = 'ENDIF' OR key-name = 'ENDCASE'.
+
+                  APPEND INITIAL LINE TO mt_steps ASSIGNING FIELD-SYMBOL(<step>).
+                  MOVE-CORRESPONDING ms_stack TO <step>.
+                  <step>-line = key-line.
+                  <step>-step = m_step.
+                  ADD 1 TO m_step.
+                ENDIF.
+              ENDIF.
+            ENDIF.
+          ENDIF.
+
+          APPEND INITIAL LINE TO mt_steps ASSIGNING <step>.
+          MOVE-CORRESPONDING ms_stack TO <step>.
+          <step>-time = sy-uzeit.
+          <step>-step = m_step.
+          CLEAR is_step.
+          IF mv_stack_changed = abap_true AND  ms_stack_prev-stacklevel < ms_stack-stacklevel.
+            <step>-first = abap_true.
+          ENDIF.
+          IF mo_window->m_prg-flag_eoev = abap_true.
+            <step>-last = abap_true.
+          ENDIF.
+        ENDIF.
+
+        IF mo_window->m_prg-program NE mo_tree_local->m_prg_info-program OR
+          mo_window->m_prg-event-eventname NE mo_tree_local->m_prg_info-event-eventname OR
+          mo_window->m_prg-event-eventtype NE mo_tree_local->m_prg_info-event-eventtype.
+
+          CLEAR: m_step_delta,
+                 mt_ret_exp,
+                 mt_obj,
+                 mt_ret_exp.
+
+          mv_stack_changed = abap_true.
+
+          DATA: step TYPE i.
+          step = m_step - 1.
+          IF mo_window->m_varhist IS NOT INITIAL.
+            mo_tree_local->clear( ).
+            mo_tree_exp->clear( ).
+            mo_tree_imp->clear( ).
+            IF ms_stack_prev-program <> ms_stack-program.
+              CLEAR mt_state.
+            ELSE.
+              DELETE mt_state WHERE leaf NE 'GLOBAL'. "AND leaf NE 'SYST'.
+            ENDIF.
+          ENDIF.
+        ELSE.
+          CLEAR mv_stack_changed.
+          m_step_delta = 1.
+        ENDIF.
+      CATCH cx_tpda_src_info.
+    ENDTRY.
+
+    mo_tree_local->m_prg_info = mo_window->m_prg.
+
+    IF mo_window->m_version IS INITIAL.
+      DATA: optimize TYPE xfeld.
+      READ TABLE mo_window->mt_source WITH KEY include = ms_stack_prev-include INTO source.
+      IF sy-subrc = 0.
+        READ TABLE source-t_keytokens WITH KEY line = ms_stack_prev-line INTO DATA(oper).
+        IF mv_stack_changed IS INITIAL.
+          IF oper-name = 'COMPUTE' OR oper-name = 'SELECT' OR oper-name = 'CLEAR' OR  oper-name = 'LOOP' OR oper-name = 'SORT'
+             OR oper-name = 'DELETE' OR oper-name = 'READ' OR  oper-name = 'CONCATENATE' OR oper-name = 'CONDENSE'
+             OR oper-name = 'APPEND' OR oper-name = 'MODIFY' OR  oper-name = 'CREATE' OR oper-name = 'SHIFT'
+             OR oper-name = 'ASSIGN' OR oper-name = 'UNASSIGN' OR oper-name = 'TRANSLATE' OR  oper-name = 'REPLACE'
+             OR  oper-name = 'ADD' OR  oper-name = 'SUBTRACT'.
+            optimize = abap_true.
+
+            IF oper-name = 'UNASSIGN'.
+              mo_tree_local->clear( ).
+              mo_tree_exp->clear( ).
+              mo_tree_imp->clear( ).
+              DELETE mt_state WHERE leaf NE 'GLOBAL'.
+            ENDIF.
+
+          ENDIF.
+        ENDIF.
+      ELSE.
+        zcl_smd_source_parser=>parse_tokens( i_program = mo_window->m_prg-include io_debugger = me ).
+        READ TABLE mo_window->mt_source WITH KEY include = ms_stack-include INTO source.
+      ENDIF.
+    ENDIF.
+
+    IF mo_window->m_varhist IS NOT INITIAL.
+      IF mo_tree_local->m_globals IS NOT INITIAL AND mo_tree_local->m_ldb IS NOT INITIAL.
+        DATA: name(40),
+              inc       TYPE TABLE OF  d010inc.
+        name = abap_source->program( ).
+
+        CALL FUNCTION 'RS_PROGRAM_INDEX'
+          EXPORTING
+            pg_name      = name
+          TABLES
+            compo        = mt_compo
+            inc          = inc
+          EXCEPTIONS
+            syntax_error = 1
+            OTHERS       = 2.
+      ENDIF.
+
+      IF mv_stack_changed = abap_true.
+        IF mo_tree_local->m_locals IS NOT INITIAL.
+          READ TABLE mo_window->mt_locals_set WITH KEY program = ms_stack-program
+                                                       eventname = ms_stack-eventname
+                                                       eventtype = ms_stack-eventtype
+             INTO DATA(local_set).
+
+          IF sy-subrc = 0 AND local_set-loc_fill = abap_true.
+            mt_locals = local_set-locals_tab.
+          ELSE.
+
+            CALL METHOD cl_tpda_script_data_descr=>locals RECEIVING p_locals_it = mt_locals.
+
+            IF ms_stack-eventtype = 'METHOD'.
+              APPEND INITIAL LINE TO mt_locals ASSIGNING FIELD-SYMBOL(<loc>).
+              <loc>-name = 'ME'.
+            ENDIF.
+            IF ms_stack-eventtype = 'FUNCTION'.
+              DATA: fname              TYPE rs38l_fnam,
+                    exception_list     TYPE TABLE OF  rsexc,
+                    export_parameter   TYPE TABLE OF  rsexp,
+                    import_parameter   TYPE TABLE OF  rsimp,
+                    changing_parameter TYPE TABLE OF    rscha,
+                    tables_parameter   TYPE TABLE OF    rstbl.
+
+              fname = ms_stack-eventname.
+              CALL FUNCTION 'FUNCTION_IMPORT_INTERFACE'
+                EXPORTING
+                  funcname           = fname
+                TABLES
+                  exception_list     = exception_list
+                  export_parameter   = export_parameter
+                  import_parameter   = import_parameter
+                  changing_parameter = changing_parameter
+                  tables_parameter   = tables_parameter
+                EXCEPTIONS
+                  error_message      = 1
+                  function_not_found = 2
+                  invalid_name       = 3
+                  OTHERS             = 4.
+              IF sy-subrc = 0.
+                LOOP AT export_parameter INTO DATA(exp).
+                  APPEND INITIAL LINE TO mt_locals ASSIGNING <loc>.
+                  <loc>-name = exp-parameter.
+                  <loc>-parkind = 2.
+                ENDLOOP.
+                LOOP AT import_parameter INTO DATA(imp).
+                  APPEND INITIAL LINE TO mt_locals ASSIGNING <loc>.
+                  <loc>-name = imp-parameter.
+                  <loc>-parkind = 1.
+                ENDLOOP.
+                LOOP AT changing_parameter INTO DATA(change).
+                  APPEND INITIAL LINE TO mt_locals ASSIGNING <loc>.
+                  <loc>-name = change-parameter.
+                  <loc>-parkind = 2.
+                ENDLOOP.
+                LOOP AT tables_parameter INTO DATA(table).
+                  APPEND INITIAL LINE TO mt_locals ASSIGNING <loc>.
+                  <loc>-name = table-parameter.
+                  <loc>-parkind = 2.
+                ENDLOOP.
+              ENDIF.
+            ENDIF.
+
+            IF mo_window->m_prg-event-eventtype = 'FORM'.
+              LOOP AT source-t_params INTO DATA(params) WHERE name = mo_window->m_prg-event-eventname AND class IS INITIAL.
+                READ TABLE mt_locals WITH KEY name = params-param ASSIGNING FIELD-SYMBOL(<local>).
+                IF sy-subrc = 0.
+                  IF params-type = 'I'.
+                    <local>-parkind = '1'.
+                  ELSEIF params-type = 'E'.
+                    <local>-parkind = '2'.
+                  ENDIF.
+                ENDIF.
+              ENDLOOP.
+              "get_form_parameters( i_prg = mo_window->m_prg i_form = ms_stack-eventname ).
+            ENDIF.
+
+            SORT mt_locals.
+
+            local_set-program = ms_stack-program.
+            local_set-eventname = ms_stack-eventname.
+            local_set-eventtype = ms_stack-eventtype.
+            local_set-loc_fill = abap_true.
+            local_set-locals_tab = mt_locals.
+            APPEND local_set TO mo_window->mt_locals_set.
+          ENDIF.
+        ENDIF.
+
+        IF ( mo_tree_local->m_globals IS NOT INITIAL OR  mo_tree_local->m_ldb IS NOT INITIAL ) AND ms_stack_prev-program <> ms_stack-program.
+
+          READ TABLE mo_window->mt_globals_set WITH KEY program = ms_stack-program INTO DATA(global_set).
+
+          IF sy-subrc = 0 AND global_set-glob_fill = abap_true.
+            mt_globals = global_set-globals_tab.
+          ELSE.
+
+            CALL METHOD cl_tpda_script_data_descr=>globals RECEIVING p_globals_it = mt_globals.
+            SORT mt_globals.
+            IF mo_tree_local->m_globals IS NOT INITIAL AND  mo_tree_local->m_ldb IS NOT INITIAL.
+              LOOP AT mt_globals ASSIGNING FIELD-SYMBOL(<global>).
+                READ TABLE mt_compo WITH KEY name = <global>-name TRANSPORTING NO FIELDS.
+                IF sy-subrc NE 0.
+                  <global>-parisval = 'L'.
+                ENDIF.
+              ENDLOOP.
+            ENDIF.
+            global_set-program = ms_stack-program.
+            global_set-globals_tab = mt_globals.
+            global_set-glob_fill = abap_true.
+            APPEND global_set TO mo_window->mt_globals_set.
+          ENDIF.
+        ENDIF.
+
+        IF mo_tree_local->m_class_data IS NOT INITIAL.
+          read_class_globals( ).
+        ENDIF.
+
+      ENDIF.
+
+      DATA: lr_names TYPE RANGE OF string,
+            temp     TYPE char30.
+
+      DATA(globals) = mt_globals.
+      DATA(locals) = mt_locals.
+
+      IF optimize = abap_true AND m_update IS INITIAL.
+
+        LOOP AT source-t_calculated INTO DATA(param) WHERE line = ms_stack_prev-line.
+          temp = param-name.
+          lr_names = VALUE #( BASE lr_names ( sign = 'I' option = 'EQ' low = temp ) ).
+        ENDLOOP.
+
+        DELETE lr_names WHERE low = 'CORRESPONDING'. "to refactor
+        IF sy-subrc = 0.
+          DELETE globals WHERE name NOT IN lr_names.
+          DELETE locals WHERE name NOT IN lr_names.
+        ENDIF.
+
+      ENDIF.
+
+      IF mo_tree_local->m_locals IS NOT INITIAL.
+        "BREAK-POINT.
+        LOOP AT locals INTO DATA(local).
+
+          CASE local-parkind.
+            WHEN 0.
+              type = 'LOCAL'.
+            WHEN 1.
+              type = 'IMP'.
+            WHEN OTHERS.
+              type = 'EXP'.
+          ENDCASE.
+
+          transfer_variable( EXPORTING i_name = local-name i_type = type ).
+        ENDLOOP.
+
+        READ TABLE mo_window->mt_locals_set
+         WITH KEY program = ms_stack-program eventtype = ms_stack-eventtype eventname = ms_stack-eventname
+         INTO DATA(locals_set).
+        LOOP AT locals_set-mt_fs INTO DATA(fs).
+          transfer_variable( EXPORTING i_name = fs-name i_type = 'LOCAL' ).
+        ENDLOOP.
+      ENDIF.
+
+      IF mo_tree_local->m_globals IS NOT INITIAL.
+
+        LOOP AT globals INTO DATA(global)  WHERE parisval NE 'L'.
+          transfer_variable( EXPORTING i_name = global-name i_type = 'GLOBAL' ).
+        ENDLOOP.
+        READ TABLE mo_window->mt_globals_set WITH KEY program = ms_stack-program INTO DATA(globals_set).
+        LOOP AT globals_set-mt_fs INTO fs.
+          transfer_variable( EXPORTING i_name = fs-name i_type = 'GLOBAL' ).
+        ENDLOOP.
+
+      ENDIF.
+    ENDIF.
+
+    "SYST / LDB variable snapshots are also heavy transfer_variable calls -
+    "skip them too when Vars History is off, so the run does no per-step
+    "variable value computation at all (this is the residual cost that made
+    "the visualization run slow even with history switched off)
+    IF mo_window->m_varhist IS NOT INITIAL.
+      IF mo_tree_local->m_syst IS NOT INITIAL.
+        transfer_variable( EXPORTING i_name = 'SYST' i_type = 'SYST' ).
+      ELSE.
+        DELETE mo_tree_local->mt_vars WHERE leaf = 'SYST'.
+        DELETE mt_state WHERE leaf = 'SYST'.
+      ENDIF.
+
+      IF mo_tree_local->m_ldb IS NOT INITIAL.
+        LOOP AT globals INTO global WHERE parisval = 'L'.
+          transfer_variable( EXPORTING i_name = global-name i_type = 'LDB' ).
+        ENDLOOP.
+      ENDIF.
+    ENDIF.
+
+    LOOP AT mt_state ASSIGNING FIELD-SYMBOL(<state>).
+      CLEAR <state>-done.
+    ENDLOOP.
+
+    "check dependents variables.
+    IF mt_selected_var IS NOT INITIAL.
+      READ TABLE source-t_keytokens WITH KEY line = ms_stack_prev-line INTO DATA(keyword).
+      LOOP AT keyword-tt_calls INTO DATA(call) WHERE event = 'FORM' AND name =  ms_stack-eventname.
+        READ TABLE mt_selected_var WITH KEY name = call-outer TRANSPORTING NO FIELDS.
+        IF sy-subrc = 0.
+          APPEND INITIAL LINE TO mt_selected_var ASSIGNING FIELD-SYMBOL(<selected>).
+          <selected>-name = call-inner.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+
+    CLEAR: mo_window->m_show_step.
+    mo_tree_imp->m_prg_info = mo_window->m_prg.
+
+  ENDMETHOD.
+
+  METHOD show_variables.
+    FIELD-SYMBOLS: <hist> TYPE any,
+                   <new>  TYPE any.
+
+    DATA: rel     TYPE salv_de_node_relation,
+          key     TYPE salv_de_node_key,
+          o_tree  TYPE REF TO  zcl_smd_rtti_tree,
+          var     TYPE zcl_smd_appl=>var_table,
+          is_skip TYPE xfeld.
+    ADD 1 TO mv_recurse.
+
+    " Always rebuild the variable trees from scratch instead of diffing
+    " against previously added nodes. The old incremental path looked up
+    " an existing node by name and re-inserted the changed value as its
+    " NEXT_SIBLING using the OLD node's key as related_node. If that key
+    " had already gone stale (tree rebuilt again before the ALV control
+    " fully settled - routine during fast automated AI-agent stepping),
+    " CL_ALV_TREE_BASE=>TREE_ADD_NODE raises a classic (non-class-based)
+    " exception via RAISE that TRY/CATCH cannot intercept, dumping the
+    " whole debug session. A full clear+rebuild never references an old
+    " node key, so that race is structurally impossible.
+    mo_tree_local->clear( ).
+    mo_tree_exp->clear( ).
+    mo_tree_imp->clear( ).
+    CLEAR mo_tree_local->m_clear.
+
+    " Since the trees are now empty, every variable must be retraversed -
+    " reset the incremental "already added" marker on all of them so the
+    " loop below picks everything up again.
+    LOOP AT it_var ASSIGNING FIELD-SYMBOL(<reset>).
+      CLEAR <reset>-done.
+    ENDLOOP.
+
+    mo_tree_imp->m_leaf =  'IMP'.
+    mo_tree_exp->m_leaf =  'EXP'.
+
+    rel = if_salv_c_node_relation=>last_child.
+
+    LOOP AT it_var ASSIGNING FIELD-SYMBOL(<var>) WHERE done = abap_false.
+
+      CASE <var>-leaf.
+
+        WHEN 'LOCAL'.
+          IF mo_tree_local->m_locals IS NOT INITIAL.
+            mo_tree_local->m_leaf =  'LOCAL'.
+            IF mo_tree_local->m_locals_key IS INITIAL.
+              mo_tree_local->add_node( i_name = 'Locals' i_icon = CONV #( icon_life_events ) ).
+            ELSE.
+              mo_tree_local->main_node_key = mo_tree_local->m_locals_key.
+            ENDIF.
+          ELSE.
+            CONTINUE.
+          ENDIF.
+
+        WHEN 'GLOBAL'.
+          IF mo_tree_local->m_globals IS NOT INITIAL.
+            mo_tree_local->m_leaf =  'GLOBAL'.
+            IF mo_tree_local->m_globals_key IS INITIAL.
+              mo_tree_local->add_node( i_name = 'Globals' i_icon = CONV #( icon_life_events ) ).
+            ELSE.
+              mo_tree_local->main_node_key = mo_tree_local->m_globals_key.
+            ENDIF.
+          ELSE.
+            CONTINUE.
+          ENDIF.
+
+        WHEN 'LDB'.
+          IF mo_tree_local->m_ldb IS NOT INITIAL.
+            mo_tree_local->m_leaf =  'LDB'.
+            IF mo_tree_local->m_ldb_key IS INITIAL.
+              mo_tree_local->add_node( i_name = 'LDB' i_icon = CONV #( icon_life_events ) ).
+            ELSE.
+              mo_tree_local->main_node_key = mo_tree_local->m_ldb_key.
+            ENDIF.
+          ELSE.
+            CONTINUE.
+          ENDIF.
+
+        WHEN 'SYST'.
+          IF mo_tree_local->m_syst IS NOT INITIAL.
+            mo_tree_local->m_leaf =  'SYST'.
+            IF mo_tree_local->m_syst_key IS INITIAL.
+              mo_tree_local->add_node( i_name = 'System variables' i_icon = CONV #( icon_life_events ) ).
+            ENDIF.
+          ELSE.
+            CONTINUE.
+          ENDIF.
+        WHEN 'CLASS'.
+          IF mo_tree_local->m_class_data IS NOT INITIAL.
+            mo_tree_local->m_leaf =  'CLASS'.
+            IF mo_tree_local->m_class_key IS INITIAL.
+              mo_tree_local->add_node( i_name = 'Class-data global variables' i_icon = CONV #( icon_life_events ) ).
+            ENDIF.
+          ELSE.
+            CONTINUE.
+          ENDIF.
+      ENDCASE.
+
+      READ TABLE mt_selected_var WITH KEY name = <var>-name ASSIGNING FIELD-SYMBOL(<sel>).
+      IF sy-subrc = 0.
+
+        IF <sel>-refval IS BOUND.
+          ASSIGN <sel>-refval->* TO <hist>.
+          ASSIGN <var>-ref->* TO <new>.
+
+          IF <new> <> <hist>.
+            <sel>-refval = <var>-ref.
+            stop = abap_true.
+          ENDIF.
+        ELSE.
+          <sel>-refval = <var>-ref.
+        ENDIF.
+      ENDIF.
+
+      CASE <var>-leaf.
+        WHEN 'IMP'.
+          o_tree = mo_tree_imp.
+        WHEN 'EXP'.
+          o_tree = mo_tree_exp.
+        WHEN OTHERS.
+          o_tree = mo_tree_local.
+      ENDCASE.
+
+      IF <var>-parent IS NOT INITIAL.
+        READ TABLE o_tree->mt_vars WITH KEY path = <var>-parent TRANSPORTING NO FIELDS.
+        IF sy-subrc = 0.
+          <var>-done = abap_true.
+        ELSE.
+          IF m_hide IS INITIAL.
+
+            is_skip = abap_true.
+            CONTINUE.
+          ENDIF.
+        ENDIF.
+      ELSE.
+        <var>-done = abap_true.
+      ENDIF.
+
+      READ TABLE o_tree->mt_vars WITH KEY path = <var>-parent INTO var.
+      IF sy-subrc = 0.
+        key = var-key.
+      ELSE.
+        key = o_tree->main_node_key.
+      ENDIF.
+
+      IF <var>-ref IS NOT INITIAL.
+        o_tree->traverse(
+          io_type_descr  = cl_abap_typedescr=>describe_by_data_ref( <var>-ref )
+          i_parent_key  = key
+          i_rel         = rel
+          is_var         = <var>
+          ir_up          = <var>-ref
+          i_parent_calculated = CONV #( <var>-name ) ).
+      ELSE.
+        o_tree->traverse_obj(
+          i_parent_key  = key
+          i_rel         = rel
+          is_var         = <var>
+          ir_up          = <var>-ref
+          i_parent_calculated = CONV #( <var>-name ) ).
+      ENDIF.
+
+    ENDLOOP.
+
+    IF is_skip = abap_true.
+      CLEAR is_skip.
+      IF mv_recurse < 5.
+        show_variables( CHANGING it_var = it_var ).
+      ENDIF.
+      set_selected_vars( ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD set_selected_vars.
+
+    DATA(nodes) = mo_tree_local->m_tree->get_nodes( )->get_all_nodes( ).
+    LOOP AT nodes INTO DATA(node).
+      DATA(name) = node-node->get_text( ).
+      READ TABLE mt_selected_var WITH KEY name = name TRANSPORTING NO FIELDS.
+      IF sy-subrc = 0.
+        node-node->set_row_style( if_salv_c_tree_style=>emphasized_b ).
+      ENDIF.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD hndl_script_buttons.
+
+    IF m_is_find = abap_true.
+      stop = abap_true.
+      CLEAR m_is_find.
+      RETURN.
+    ENDIF.
+
+    IF mo_window->m_debug_button = 'F5'.
+      stop = abap_true.
+
+    ELSEIF mo_window->m_debug_button = 'F6'.
+      IF m_f6_level IS NOT INITIAL AND m_f6_level = ms_stack-stacklevel OR mo_window->m_history IS INITIAL.
+        CLEAR m_f6_level.
+        stop = abap_true.
+      ENDIF.
+
+    ELSEIF mo_window->m_debug_button = 'F6END'.
+      IF mo_window->m_prg-flag_eoev IS NOT INITIAL AND m_target_stack = ms_stack-stacklevel.
+        stop = abap_true.
+      ENDIF.
+    ELSEIF mo_window->m_debug_button = 'F7'.
+
+      IF m_target_stack = ms_stack-stacklevel.
+        CLEAR m_target_stack.
+        stop = abap_true.
+      ENDIF.
+
+    ELSEIF mo_window->m_debug_button IS NOT INITIAL.
+      READ TABLE mo_window->mt_breaks WITH KEY inclnamesrc = mo_window->m_prg-include linesrc = mo_window->m_prg-line INTO DATA(gs_break).
+      IF sy-subrc = 0.
+        stop = abap_true.
+      ELSE.
+
+        IF mo_window->m_debug_button = 'F6BEG' AND m_target_stack = ms_stack-stacklevel.
+          stop = abap_true.
+        ELSE.
+          IF mo_window->m_history IS NOT INITIAL.
+            IF ms_stack-stacklevel = mo_window->m_hist_depth +  mo_window->m_start_stack.
+              "f6( )."to refactor
+            ELSE.
+              "f5( )."to refactor
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ELSE.
+      stop = abap_true.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD is_z_or_custom_code.
+
+    "Z/Y local development, customer/partner namespaces (/NAMESPACE/...) and
+    "their function pools (SAPLZ.../SAPLY...) all count as "own" code that
+    "the "Z & Standard" filter should not skip over - only genuine SAP
+    "standard (unnamespaced, non-Z/Y) programs are filtered out.
+    rv_custom = boolc(    i_program+0(1) = 'Z'
+                        OR i_program+0(1) = 'Y'
+                        OR i_program+0(1) = '/'
+                        OR i_program+0(5) = 'SAPLZ'
+                        OR i_program+0(5) = 'SAPLY' ).
+
+  ENDMETHOD.
+
+  METHOD f5.
+
+    READ TABLE mo_window->mt_stack INTO DATA(stack) INDEX 1.
+
+    IF mo_window->m_debug_button NE 'F5' AND mo_window->m_zcode IS NOT INITIAL.
+      IF is_z_or_custom_code( stack-program ) = abap_false AND m_f6_level <> stack-stacklevel.
+        f7( ).
+        RETURN.
+      ENDIF.
+    ENDIF.
+
+*    IF ( mo_window->m_debug_button = 'F6BEG' OR mo_window->m_debug_button = 'F6END' ) AND m_target_stack IS INITIAL.
+*      m_target_stack = stack-stacklevel.
+*    ENDIF.
+
+    IF mo_window->m_debug_button = 'F7' AND m_target_stack IS INITIAL.
+      m_target_stack = stack-stacklevel - 1.
+    ENDIF.
+
+    TRY.
+        CALL METHOD debugger_controller->debug_step
+          EXPORTING
+            p_command = cl_tpda_script_debugger_ctrl=>debug_step_into.
+        is_step = abap_true.
+      CATCH cx_tpda_scr_rtctrl_status .
+      CATCH cx_tpda_scr_rtctrl .
+    ENDTRY.
+    "step out and not save history for standard code if it is swithed off
+    IF  mo_window->m_zcode IS NOT INITIAL.
+
+      cl_tpda_script_abapdescr=>get_abap_src_info( IMPORTING p_prg_info = mo_window->m_prg ).
+      "bounded: without a cap this spins forever/dumps if the whole call
+      "stack above us is non-Z (e.g. a customer-namespace entry point that
+      "used to be misclassified as "standard") - a real call stack never
+      "gets anywhere near this deep, so hitting the cap just means "give up
+      "stepping out, stay where we are" instead of crashing.
+      DO 200 TIMES.
+        IF is_z_or_custom_code( mo_window->m_prg-program ) = abap_false.
+          f7( ).
+        ELSE.
+          EXIT.
+        ENDIF.
+        cl_tpda_script_abapdescr=>get_abap_src_info( IMPORTING p_prg_info = mo_window->m_prg ).
+      ENDDO.
+    ENDIF.
+
+    IF mv_f7_stop = abap_true.
+      CLEAR m_counter.
+      stop = abap_true.
+      m_is_find = abap_true.
+    ENDIF.
+    IF m_counter >= 50000."very deep history - to stop
+      CLEAR m_counter.
+      stop = abap_true.
+    ENDIF.
+
+    "visualization: when the VIS button is on, follow execution with only a
+    "LIGHT per-step update - move the code view to the current line. The full
+    "show_step (variables, cl_salv_tree, stack ALV, live graph) must NOT run on
+    "every step: during a continuous run it is far too slow and, worse, mutating
+    "the debugger's own GUI controls while the debuggee is creating GUI controls
+    "(CREATE OBJECT cl_gui_*) deadlocks the frontend -> the "hang" on F8.
+    IF mo_window->m_visualization IS NOT INITIAL.
+      cl_tpda_script_abapdescr=>get_abap_src_info( IMPORTING p_prg_info = mo_window->m_prg ).
+      "reload the whole source into the editor (SET_TEXT) ONLY when the include
+      "changed - doing it every step was the ST12 hot spot; within the same
+      "include just move the current line. No explicit cl_gui_cfw=>flush: the
+      "per-step frontend roundtrip it forced was 94% of the runtime.
+      IF mo_window->m_prg-include <> mv_vis_include.
+        mo_window->set_program( mo_window->m_prg-include ).
+        mv_vis_include = mo_window->m_prg-include.
+      ENDIF.
+      mo_window->set_program_line( mo_window->m_prg-line ).
+    ELSEIF m_counter MOD 10000 = 0 AND mv_live_running IS INITIAL.
+      "periodic full refresh - but NOT during a live_run: there the graph is the
+      "visualization and the main window (variables, trees, stack ALV) must stay
+      "untouched until the run stops
+      show_step( ).
+    ENDIF.
+
+    IF mo_window->m_debug_button = 'F5'.
+      stop = abap_true.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD f6.
+
+    TRY.
+        CALL METHOD debugger_controller->debug_step
+          EXPORTING
+            p_command = cl_tpda_script_debugger_ctrl=>debug_step_over.
+        is_step = abap_true.
+      CATCH cx_tpda_scr_rtctrl_status .
+      CATCH cx_tpda_scr_rtctrl .
+    ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD f7.
+
+    TRY.
+        CALL METHOD debugger_controller->debug_step
+          EXPORTING
+            p_command = cl_tpda_script_debugger_ctrl=>debug_step_out.
+        is_step = abap_true.
+      CATCH cx_tpda_scr_rtctrl_status .
+      CATCH cx_tpda_scr_rtctrl .
+    ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD f8.
+
+    TRY.
+        CALL METHOD debugger_controller->debug_step
+          EXPORTING
+            p_command = cl_tpda_script_debugger_ctrl=>debug_continue.
+        is_step = abap_true.
+      CATCH cx_tpda_scr_rtctrl_status .
+      CATCH cx_tpda_scr_rtctrl .
+    ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD make_step.
+
+    DATA: stop    TYPE xfeld,
+          lv_ops  TYPE i.
+
+    READ TABLE mo_window->mt_stack INDEX 1 INTO DATA(stack).
+    IF mo_window->m_debug_button = 'F6' AND mo_window->m_history IS NOT INITIAL.
+      m_f6_level = stack-stacklevel.
+    ENDIF.
+
+    "suppress the bottom stack ALV refresh while stepping through the run;
+    "it is refreshed once at the final stop below (avoids per-step ALV redraw
+    "slowness, especially on F8 which single-steps to record history)
+    mv_suppress_stack = abap_true.
+
+    WHILE stop IS INITIAL.
+
+      CASE mo_window->m_debug_button.
+
+        WHEN 'F5' OR 'F6END' OR 'F6BEG'.
+          stop = f5( ).
+        WHEN 'F6'.
+          IF mo_window->m_history IS INITIAL.
+            stop = f6( ).
+          ELSE.
+            stop = f5( ).
+          ENDIF.
+
+        WHEN 'F7'.
+          IF mo_window->m_history IS INITIAL.
+            stop = f7( ).
+          ELSE.
+            stop = f5( ).
+          ENDIF.
+
+        WHEN 'F8'.
+          IF mo_window->m_history IS INITIAL.
+            stop = f8( ).
+          ELSE.
+            "always dive with F5 (which itself steps OUT of standard code via
+            "F7 only). The former depth cap did F6 (step over) beyond
+            "m_hist_depth, which stepped over - and thus dropped - Z methods
+            "deeper than the limit, leaving gaps in the call graph.
+            stop = f5( ).
+          ENDIF.
+
+      ENDCASE.
+      run_script( ).
+      stop = hndl_script_buttons( mv_stack_changed ).
+      READ TABLE mo_window->mt_stack INDEX 1 INTO stack.
+
+      "long uninterrupted runs (F6/F8) can spin through huge numbers of
+      "statements; every 1000 operations pause and ask whether to keep going
+      ADD 1 TO lv_ops.
+      IF stop IS INITIAL AND lv_ops MOD 1000 = 0.
+        stop = checkpoint_1000( lv_ops ).
+      ENDIF.
+
+    ENDWHILE.
+    CLEAR mv_suppress_stack. "final stop: allow the stack ALV to refresh once
+    show_step( ).
+    me->break( ).
+
+  ENDMETHOD.
+
+  METHOD get_obj_index.
+
+    FIND FIRST OCCURRENCE OF '*' IN i_name MATCH OFFSET DATA(offset).
+    e_index =  i_name+0(offset).
+
+  ENDMETHOD.
+
+  METHOD show_step.
+
+    "when the Vars History (VARHIST) button is off, do not touch the variable
+    "trees at all - neither recompute them nor refresh the cl_salv_tree controls
+    IF mo_window->m_varhist IS NOT INITIAL.
+      show_variables( CHANGING it_var = mt_state ).
+      set_selected_vars( ).
+    ENDIF.
+    mo_window->set_program( mo_window->m_prg-include ).
+    mo_window->set_program_line( mo_window->m_prg-line ).
+    mo_window->show_stack( ).
+    IF mo_window->m_varhist IS NOT INITIAL.
+      mo_tree_imp->display( ).
+      mo_tree_local->display( ).
+      mo_tree_exp->display( ).
+    ENDIF.
+    IF mo_window->m_debug_button NE 'F5'.
+      mo_window->m_show_step = abap_true.
+    ENDIF.
+    mo_window->raise_navigated( ). "let open table popups refresh their content
+    maybe_show_live_graph( ).
+
+  ENDMETHOD.
+
+  METHOD maybe_show_live_graph.
+    " F6 (step over) / F8 (continue) can run through thousands of statements in
+    " one click, so the source view alone hides what actually executed. When such
+    " a run covered many steps and the call stack changed, surface (or refresh)
+    " the live calls-flow graph so the user can see the dynamics as a graph.
+    CHECK zcl_smd_appl=>is_mermaid_active = abap_true.
+
+    "window already open (opened via the Live Debug button): keep it live on
+    "every stop, regardless of how far this step went
+    IF mo_live_graph IS NOT INITIAL.
+      mo_live_graph->refresh( ).
+      RETURN.
+    ENDIF.
+
+    "not open: auto-surface it after a long F6/F8 run that changed the frame
+    CHECK mo_window->m_debug_button = 'F6' OR mo_window->m_debug_button = 'F8'.
+    CHECK mo_window->m_direction IS INITIAL. "forward execution only, not history replay
+    CHECK m_step - m_action_start_step > 10.
+    CHECK ms_stack-stacklevel <> m_action_start_stack.
+
+    "constructor renders the first graph; on box close the handler nulls the ref
+    mo_live_graph = NEW zcl_smd_mermaid( io_debugger = me i_type = 'LIVE' ).
+  ENDMETHOD.
+
+  METHOD live_run.
+
+    DATA: stop        TYPE xfeld,
+          lv_last_key TYPE string,
+          guard       TYPE i.
+
+    "force "dive into Z only" behaviour so f5() steps into custom code and
+    "steps out of standard code; restore the user's setting afterwards
+    DATA(save_zcode) = mo_window->m_zcode.
+    mo_window->m_zcode = 'X'.
+    mo_window->m_debug_button = 'F5'.
+    mv_live_running = abap_true. "keep the main window quiet during the trace
+
+    WHILE stop IS INITIAL.
+      f5( ).          "advance one logical step (dive Z / step out standard)
+
+      "f5 sets is_step only when debug_step actually advanced; if it stays
+      "initial the debugger raised (end of program) - stop without recording
+      IF is_step IS INITIAL.
+        stop = abap_true.
+        EXIT.
+      ENDIF.
+
+      run_script( ).  "read the new position/stack and record the step
+
+      ADD 1 TO guard.
+
+      "stop when we land on a user breakpoint
+      READ TABLE mo_window->mt_breaks
+        WITH KEY inclnamesrc = mo_window->m_prg-include
+                 linesrc     = mo_window->m_prg-line TRANSPORTING NO FIELDS.
+      IF sy-subrc = 0.
+        stop = abap_true.
+      ENDIF.
+
+      "refresh only when the CURRENT Z/custom method changes (the graph's green
+      "active node). Wandering inside the same method, or in/through standard
+      "code (filtered out of the graph), leaves the active node unchanged - so
+      "we skip those refreshes/flushes. Entering a new method or returning to a
+      "different one changes the key and updates the graph.
+      IF mo_live_graph IS NOT INITIAL AND is_z_or_custom_code( ms_stack-program ) = abap_true.
+        DATA(lv_key) = |{ ms_stack-program }\|{ ms_stack-eventtype }\|{ ms_stack-eventname }|.
+        IF lv_key <> lv_last_key.
+          mo_live_graph->refresh( ).
+          cl_gui_cfw=>flush( ).
+          lv_last_key = lv_key.
+        ENDIF.
+      ENDIF.
+
+      "hard guard against a runaway trace
+      IF guard >= 100000.
+        stop = abap_true.
+      ENDIF.
+    ENDWHILE.
+
+    mo_window->m_zcode = save_zcode.
+    CLEAR mv_live_running. "run finished - allow the final full refresh
+    show_step( ).
+    me->break( ).
+
+  ENDMETHOD.
+
+  METHOD checkpoint_1000.
+
+    DATA: lv_answer TYPE c LENGTH 1,
+          lv_q      TYPE string,
+          lv_title  TYPE char70,
+          lv_loc    TYPE string,
+          lv_parts  TYPE TABLE OF string.
+
+    READ TABLE mo_window->mt_stack INDEX 1 INTO DATA(stack).
+
+    "current class->method (or program:event) for the title/question
+    IF stack-eventtype = 'METHOD'.
+      SPLIT stack-program AT '=' INTO TABLE lv_parts.
+      lv_loc = |{ lv_parts[ 1 ] }->{ stack-eventname }|.
+    ELSEIF stack-eventtype = 'FUNCTION'.
+      lv_loc = |FUNCTION { stack-eventname }|.
+    ELSE.
+      lv_loc = |{ stack-program }:{ stack-eventname }|.
+    ENDIF.
+
+    lv_title = |step { m_step }, stack { stack-stacklevel }, { lv_loc }|.
+
+    lv_q = |Executed { i_ops } operations.\n|
+        && |Now in { lv_loc }, line { mo_window->m_prg-line } (stack level { stack-stacklevel }).\n|
+        && |Continue running?|.
+
+    CALL FUNCTION 'POPUP_TO_CONFIRM'
+      EXPORTING
+        titlebar              = lv_title
+        text_question         = lv_q
+        text_button_1         = 'Continue'
+        text_button_2         = 'Stop here'
+        default_button        = '1'
+        display_cancel_button = space
+      IMPORTING
+        answer                = lv_answer
+      EXCEPTIONS
+        text_not_found        = 1
+        OTHERS                = 2.
+
+    "anything other than an explicit "Continue" stops the run at the current line
+    IF sy-subrc = 0 AND lv_answer <> '1'.
+      r_stop = abap_true.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD read_class_globals.
+
+    DATA: compo_tmp TYPE TABLE OF scompo,
+          class     TYPE seu_name.
+
+    mo_tree_local->m_leaf = 'Class-data global variables'.
+    IF mo_tree_local->m_class_data IS NOT INITIAL.
+
+      "global classes
+      CALL METHOD cl_tpda_script_abapdescr=>get_loaded_programs
+        IMPORTING
+          p_progs_it = DATA(progs).
+
+      DELETE progs WHERE sys = abap_true.
+
+      LOOP AT progs INTO DATA(prog) WHERE name+30(2) = 'CP' AND ( name+0(1) = 'Z' OR name+0(1) = 'Y' OR name+0(1) = '/' ) .
+
+        CLEAR prog-name+30(2).
+        REPLACE ALL OCCURRENCES OF '=' IN prog-name WITH ''.
+
+        DATA refc TYPE REF TO cl_abap_objectdescr.
+        CALL METHOD cl_abap_classdescr=>describe_by_name
+          EXPORTING
+            p_name         = prog-name
+          RECEIVING
+            p_descr_ref    = DATA(ref)
+          EXCEPTIONS
+            type_not_found = 1
+            OTHERS         = 2.
+        IF sy-subrc <> 0 OR ref IS INITIAL.
+          CONTINUE. "class not describable - accessing attributes would dump
+        ENDIF.
+
+        TRY.
+            refc ?= ref.
+          CATCH cx_sy_move_cast_error.
+            CONTINUE.
+        ENDTRY.
+
+        READ TABLE mt_obj WITH KEY name = prog-name TRANSPORTING NO FIELDS.
+        IF sy-subrc NE 0.
+          APPEND INITIAL LINE TO mt_obj ASSIGNING FIELD-SYMBOL(<obj>).
+          <obj>-name = prog-name.
+        ENDIF.
+
+        save_hist( EXPORTING i_fullname    = CONV #( prog-name )
+                             i_name        = CONV #( prog-name )
+                             i_parent_calculated = ''
+                             i_type        = 'CLASS'
+                             i_cl_leaf     = 0
+                             i_instance     = CONV #( prog-name ) ).
+        LOOP AT refc->attributes INTO DATA(atr).
+          transfer_variable( EXPORTING i_name =  CONV #( |{ prog-name }=>{ atr-name }| )
+                             i_shortname = CONV #( atr-name )
+                             i_parent_calculated = CONV #( prog-name )
+                              i_type = 'CLASS' ).
+        ENDLOOP.
+      ENDLOOP.
+
+    ENDIF.
+
+    compo_tmp = mt_compo.
+    DELETE compo_tmp WHERE  type NE 'D'.
+
+  ENDMETHOD.
+
+  METHOD save_hist.
+
+    DATA: add        TYPE xfeld,
+          add_hist   TYPE xfeld,
+          name2(100),
+          full_name  TYPE string.
+
+    CHECK m_hist_step = m_step AND mo_window->m_direction IS INITIAL.
+    IF ir_up IS SUPPLIED.
+      ASSIGN ir_up->* TO FIELD-SYMBOL(<ir_up>).
+      IF sy-subrc <> 0.
+        RETURN.
+      ENDIF.
+    ENDIF.
+
+    IF i_instance IS INITIAL.
+      full_name = i_fullname.
+    ELSE.
+      IF i_parent_calculated IS INITIAL.
+        IF i_name IS NOT INITIAL.
+          full_name = i_name.
+        ELSE.
+          full_name = i_fullname.
+        ENDIF.
+      ELSE.
+        IF i_fullname+0(3) = '{O:'.
+          full_name = i_fullname.
+        ELSE.
+          full_name =  |{ i_parent_calculated }-{ i_name }|.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+    "ms_stack instead of mt_stack[ 1 ]: the window's stack table is replaced by
+    "a pseudo-stack while the coverage view is active and dumps when empty
+    IF i_instance IS INITIAL.
+      READ TABLE mt_state
+           WITH KEY name = full_name
+                    program = ms_stack-program
+            ASSIGNING FIELD-SYMBOL(<state>).
+    ELSE.
+      READ TABLE mt_state
+          WITH KEY name = full_name
+                   program = ms_stack-program
+                   instance = i_instance
+           ASSIGNING <state>.
+    ENDIF.
+
+    IF sy-subrc <> 0.
+      APPEND INITIAL LINE TO mt_state ASSIGNING <state>.
+      <state>-stack = ms_stack-stacklevel.
+      <state>-step  = m_step - m_step_delta.
+      <state>-program   = mo_window->m_prg-program.
+      <state>-eventtype = mo_window->m_prg-eventtype.
+      <state>-eventname = mo_window->m_prg-eventname.
+      <state>-name = full_name.
+
+      IF i_name IS NOT INITIAL.
+        <state>-short = i_name.
+      ELSE.
+        <state>-short = i_fullname.
+      ENDIF.
+
+      <state>-leaf = i_type.
+      <state>-is_appear = abap_true.
+      <state>-parent = i_parent_calculated.
+      <state>-instance = i_instance.
+
+      IF i_parent_calculated IS NOT INITIAL.
+        IF i_name IS NOT INITIAL.
+          <state>-path =  |{ i_parent_calculated }-{ i_name }|.
+        ELSE.
+          <state>-path =  |{ i_parent_calculated }-{ i_fullname }|.
+        ENDIF.
+      ELSE.
+        IF i_instance IS INITIAL.
+          <state>-path = i_fullname.
+        ELSE.
+          IF i_parent_calculated IS INITIAL.
+            IF i_name IS NOT INITIAL.
+              <state>-path = i_name.
+            ELSE.
+              <state>-path = i_fullname.
+            ENDIF.
+          ELSE.
+
+            IF i_name IS NOT INITIAL.
+              <state>-path =  |{ i_parent_calculated }-{ i_name }|.
+            ELSE.
+              <state>-path =  |{ i_parent_calculated }-{ i_fullname }|.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+    IF m_hist_step > 1.
+      <state>-step = m_hist_step - 1."m_step - m_step_delta.
+    ELSE.
+      <state>-step = m_hist_step.
+    ENDIF.
+    <state>-instance = i_instance.
+
+    IF ir_up IS SUPPLIED.
+      <state>-ref = ir_up.
+
+      DATA(o_elem) = cl_abap_typedescr=>describe_by_data_ref( <state>-ref ).
+
+      name2 = i_fullname.
+
+      IF name2+0(2) NE '{O'.
+
+        "program is part of the identity: same-named variables of different
+        "programs/methods are different variables and must never be compared
+        IF <state>-leaf NE 'GLOBAL' AND <state>-leaf NE 'CLASS'.
+          READ TABLE mt_vars_hist_view
+           WITH KEY stack = <state>-stack
+                    name = i_fullname
+                    program = <state>-program
+                    eventtype = <state>-eventtype
+                    eventname = <state>-eventname
+                    INTO DATA(hist).
+        ELSE.
+          READ TABLE mt_vars_hist_view
+           WITH KEY name = i_fullname
+                    program = <state>-program
+                    INTO hist.
+        ENDIF.
+
+        IF sy-subrc NE 0.
+          add_hist = add = abap_on.
+        ELSE.
+          add_hist = add = hist_value_changed( ir_old = hist-ref ir_new = <state>-ref ).
+        ENDIF.
+      ELSE.
+        READ TABLE mt_vars_hist_view WITH KEY name = <state>-name INTO hist.
+        IF sy-subrc = 0.
+          add_hist = add = hist_value_changed( ir_old = hist-ref ir_new = <state>-ref ).
+        ELSE.
+          add_hist = add = abap_on.
+        ENDIF.
+
+      ENDIF.
+      IF mv_stack_changed = abap_true.
+        add = abap_on.
+      ENDIF.
+
+      o_elem = cl_abap_typedescr=>describe_by_data_ref( <state>-ref ).
+      "always refresh: mt_state rows are reused by name, so a re-appearing
+      "same-named variable of another block would otherwise keep the old type
+      <state>-type = o_elem->absolute_name.
+
+      IF add = abap_on.
+
+        CLEAR <state>-first.
+
+        IF  ms_stack_prev-stacklevel IS INITIAL OR
+         ms_stack-stacklevel > ms_stack_prev-stacklevel.
+          <state>-first = 'X'.
+        ENDIF.
+
+        <state>-cl_leaf = i_cl_leaf.
+
+        "the view table only needs the latest full value per variable (it is used
+        "for change detection above) - drop superseded entries to save memory
+        IF <state>-leaf NE 'GLOBAL' AND <state>-leaf NE 'CLASS'.
+          DELETE mt_vars_hist_view WHERE name      = <state>-name
+                                     AND stack     = <state>-stack
+                                     AND program   = <state>-program
+                                     AND eventtype = <state>-eventtype
+                                     AND eventname = <state>-eventname.
+        ELSE.
+          DELETE mt_vars_hist_view WHERE name    = <state>-name
+                                     AND program = <state>-program.
+        ENDIF.
+        INSERT <state> INTO mt_vars_hist_view INDEX 1.
+
+        IF  add_hist = abap_true.
+          DATA(hist_entry) = <state>.
+          "for tables store only the changed block on top of the previous value
+          "instead of a full copy per step; hist holds the previous full value
+          IF hist-ref IS NOT INITIAL.
+            build_tab_delta( EXPORTING ir_old  = hist-ref
+                             CHANGING  cs_hist = hist_entry ).
+          ENDIF.
+          INSERT hist_entry INTO mt_vars_hist INDEX 1.
+          READ TABLE mt_selected_var WITH KEY name = <state>-name TRANSPORTING NO FIELDS.
+          IF sy-subrc = 0.
+            m_is_find = abap_true.
+          ENDIF.
+        ENDIF.
+
+      ENDIF.
+    ELSE. "main node without data
+      IF m_hist_step > 1.
+        <state>-step = m_hist_step - 1.
+      ELSE.
+        <state>-step = m_hist_step.
+      ENDIF.
+
+      READ TABLE mt_vars_hist WITH KEY name = <state>-name INTO DATA(var_hist).
+      IF sy-subrc = 0.
+        IF <state>-instance <> var_hist-instance.
+          <state>-del = abap_true.
+          INSERT <state> INTO mt_vars_hist INDEX 1.
+        ENDIF.
+      ELSE.
+        <state>-first = 'X'.
+        INSERT <state> INTO mt_vars_hist INDEX 1.
+      ENDIF.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD hist_same_var.
+
+    "identity must mirror the previous-value lookup in save_hist: object
+    "instances and globals are unique by name, everything else lives per
+    "stack frame/event - otherwise delta chains of different frames get mixed
+    r_same = abap_true.
+    IF is_a-name(3) = '{O:'.
+      RETURN. "object instance handles are globally unique
+    ENDIF.
+    IF is_a-program <> is_b-program.
+      CLEAR r_same. "same name in another program = another variable
+      RETURN.
+    ENDIF.
+    IF is_a-type IS NOT INITIAL AND is_b-type IS NOT INITIAL
+    AND is_a-type <> is_b-type.
+      CLEAR r_same. "same name but different type = another variable
+      RETURN.
+    ENDIF.
+    IF is_a-leaf = 'GLOBAL' OR is_a-leaf = 'CLASS'.
+      RETURN.
+    ENDIF.
+    IF is_a-stack     <> is_b-stack
+    OR is_a-eventtype <> is_b-eventtype
+    OR is_a-eventname <> is_b-eventname.
+      CLEAR r_same.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD hist_value_changed.
+
+    FIELD-SYMBOLS: <old> TYPE any,
+                   <new> TYPE any.
+
+    IF ir_old IS INITIAL OR ir_new IS INITIAL.
+      r_changed = abap_true.
+      RETURN.
+    ENDIF.
+
+    TRY.
+        "different actual types = different variable incarnation = changed;
+        "never compare the values themselves in that case (dump!)
+        IF cl_abap_typedescr=>describe_by_data_ref( ir_old )->absolute_name
+        <> cl_abap_typedescr=>describe_by_data_ref( ir_new )->absolute_name.
+          r_changed = abap_true.
+          RETURN.
+        ENDIF.
+
+        ASSIGN ir_old->* TO <old>.
+        ASSIGN ir_new->* TO <new>.
+        IF <old> NE <new>.
+          r_changed = abap_true.
+        ENDIF.
+      CATCH cx_root.
+        "comparison not possible - treat as changed, correctness over dumps
+        r_changed = abap_true.
+    ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD build_tab_delta.
+
+    "replaces cs_hist-ref (full table copy) with only the changed block of rows,
+    "described by delta_from/delta_del. On any doubt the full copy is kept.
+    CONSTANTS c_max_chain TYPE i VALUE 20. "full checkpoint every n deltas
+
+    FIELD-SYMBOLS: <old>   TYPE STANDARD TABLE,
+                   <new>   TYPE STANDARD TABLE,
+                   <delta> TYPE STANDARD TABLE.
+
+    IF ir_old IS INITIAL OR cs_hist-ref IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    TRY.
+        DATA(o_new_descr) = cl_abap_typedescr=>describe_by_data_ref( cs_hist-ref ).
+        DATA(o_old_descr) = cl_abap_typedescr=>describe_by_data_ref( ir_old ).
+        IF o_new_descr->kind <> cl_abap_typedescr=>kind_table
+        OR o_old_descr->kind <> cl_abap_typedescr=>kind_table.
+          RETURN.
+        ENDIF.
+        "different table types (same-named variable of another block) -
+        "row-wise comparison would dump, keep the full copy
+        IF o_new_descr->absolute_name <> o_old_descr->absolute_name.
+          RETURN.
+        ENDIF.
+        DATA(o_tab_descr) = CAST cl_abap_tabledescr( o_new_descr ).
+        IF o_tab_descr->table_kind <> cl_abap_tabledescr=>tablekind_std.
+          RETURN.
+        ENDIF.
+
+        "keep a full snapshot every c_max_chain deltas so replay stays cheap
+        DATA(chain) = 0.
+        LOOP AT mt_vars_hist INTO DATA(prev) WHERE name = cs_hist-name. "newest first
+          IF hist_same_var( is_a = prev is_b = cs_hist ) IS INITIAL.
+            CONTINUE.
+          ENDIF.
+          IF prev-is_delta IS INITIAL.
+            EXIT.
+          ENDIF.
+          ADD 1 TO chain.
+          IF chain >= c_max_chain.
+            RETURN.
+          ENDIF.
+        ENDLOOP.
+
+        ASSIGN ir_old->* TO <old>.
+        ASSIGN cs_hist-ref->* TO <new>.
+        DATA(n) = lines( <old> ).
+        DATA(m) = lines( <new> ).
+
+        "common prefix
+        DATA(p) = 0.
+        WHILE p < n AND p < m.
+          READ TABLE <old> INDEX p + 1 ASSIGNING FIELD-SYMBOL(<o_row>).
+          READ TABLE <new> INDEX p + 1 ASSIGNING FIELD-SYMBOL(<n_row>).
+          IF <o_row> <> <n_row>.
+            EXIT.
+          ENDIF.
+          p = p + 1.
+        ENDWHILE.
+
+        "common suffix (not overlapping the prefix)
+        DATA(s) = 0.
+        WHILE s < n - p AND s < m - p.
+          READ TABLE <old> INDEX n - s ASSIGNING <o_row>.
+          READ TABLE <new> INDEX m - s ASSIGNING <n_row>.
+          IF <o_row> <> <n_row>.
+            EXIT.
+          ENDIF.
+          s = s + 1.
+        ENDWHILE.
+
+        DATA(changed) = m - s - p. "rows the delta has to carry
+        IF changed >= m.
+          RETURN. "delta would not be smaller than the full copy
+        ENDIF.
+
+        DATA lr_delta TYPE REF TO data.
+        CREATE DATA lr_delta LIKE <new>.
+        ASSIGN lr_delta->* TO <delta>.
+        IF changed > 0.
+          APPEND LINES OF <new> FROM p + 1 TO m - s TO <delta>.
+        ENDIF.
+
+        cs_hist-is_delta   = abap_true.
+        cs_hist-delta_from = p + 1.
+        cs_hist-delta_del  = n - p - s.
+        cs_hist-ref        = lr_delta.
+
+      CATCH cx_root.
+        "anything unexpected -> keep the full copy, correctness over memory
+        CLEAR: cs_hist-is_delta, cs_hist-delta_from, cs_hist-delta_del.
+    ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD restore_tab_hist.
+
+    "rebuilds the full table state for a delta history entry: walks back to the
+    "nearest full snapshot and re-applies the deltas on a fresh copy
+    DATA lt_chain TYPE STANDARD TABLE OF zcl_smd_appl=>var_table.
+
+    FIELD-SYMBOLS: <tab> TYPE STANDARD TABLE,
+                   <ins> TYPE STANDARD TABLE.
+
+    LOOP AT mt_vars_hist INTO DATA(hist). "newest first
+      IF hist-name <> is_hist-name OR hist-step > is_hist-step OR hist-del IS NOT INITIAL.
+        CONTINUE.
+      ENDIF.
+      IF hist_same_var( is_a = hist is_b = is_hist ) IS INITIAL.
+        CONTINUE.
+      ENDIF.
+      APPEND hist TO lt_chain.
+      IF hist-is_delta IS INITIAL.
+        EXIT. "reached the full snapshot
+      ENDIF.
+    ENDLOOP.
+
+    DATA(base_idx) = lines( lt_chain ).
+    IF base_idx = 0.
+      RETURN.
+    ENDIF.
+    READ TABLE lt_chain INDEX base_idx INTO DATA(base).
+    IF base-is_delta IS NOT INITIAL OR base-ref IS INITIAL.
+      RETURN. "no full snapshot found - cannot reconstruct
+    ENDIF.
+
+    TRY.
+        ASSIGN base-ref->* TO FIELD-SYMBOL(<base>).
+        CREATE DATA rr_tab LIKE <base>.
+        ASSIGN rr_tab->* TO <tab>.
+        <tab> = <base>.
+
+        DATA(idx) = base_idx - 1. "apply deltas from oldest to newest
+        WHILE idx >= 1.
+          READ TABLE lt_chain INDEX idx INTO DATA(delta).
+          IF delta-delta_del > 0.
+            DELETE <tab> FROM delta-delta_from TO delta-delta_from + delta-delta_del - 1.
+          ENDIF.
+          IF delta-ref IS NOT INITIAL.
+            ASSIGN delta-ref->* TO <ins>.
+            IF lines( <ins> ) > 0.
+              INSERT LINES OF <ins> INTO <tab> INDEX delta-delta_from.
+            ENDIF.
+          ENDIF.
+          idx = idx - 1.
+        ENDWHILE.
+      CATCH cx_root.
+        CLEAR rr_tab.
+    ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD traverse.
+
+    "ir_up already points to a fresh per-step copy built by transfer_variable
+    "(create_simple_var / elem_clone / get_deep_struc). The former code here
+    "pretended to deep-copy tables, but DESCRIBE FIELD on a REF TO data always
+    "returns 'l', so the table branch was dead and the rest just re-derived
+    "the same reference.
+    m_variable = ir_up.
+
+    CASE io_type_descr->kind.
+      WHEN c_kind-struct.
+        IF i_struc_name IS SUPPLIED.
+          traverse_struct( io_type_descr  = io_type_descr
+                           i_name        = i_name
+                           i_fullname    = i_fullname
+                           i_type        = i_type
+                           ir_up          = ir_up
+                           i_parent_calculated = i_parent_calculated
+                           i_instance     = i_instance
+                           i_cl_leaf      = i_cl_leaf
+                           i_struc_name  = i_struc_name
+                           i_suffix       = i_suffix ).
+        ELSE.
+          traverse_struct( io_type_descr  = io_type_descr
+                           i_name        = i_name
+                           i_fullname    = i_fullname
+                           i_type        = i_type
+                           ir_up          = ir_up
+                           i_instance     = i_instance
+                           i_cl_leaf      = i_cl_leaf
+                           i_parent_calculated = i_parent_calculated ).
+        ENDIF.
+
+      WHEN c_kind-elem.
+        traverse_elem( i_name        = i_name
+                       i_fullname    = i_fullname
+                       i_type        = i_type
+                       ir_up          = ir_up
+                       i_instance     = i_instance
+                       i_cl_leaf      = i_cl_leaf
+                       i_parent_calculated = i_parent_calculated ).
+
+      WHEN c_kind-table.
+        traverse_elem( i_name        = i_name
+                       i_fullname    = i_fullname
+                       i_type        = i_type
+                       ir_up          = ir_up
+                       i_instance     = i_instance
+                       i_cl_leaf      = i_cl_leaf
+                       i_parent_calculated = i_parent_calculated ).
+    ENDCASE.
+
+  ENDMETHOD.
+
+  METHOD traverse_struct.
+
+    DATA: component       TYPE abap_component_tab,
+          comp_descronent LIKE LINE OF component,
+          o_struct_descr  TYPE REF TO cl_abap_structdescr,
+          string          TYPE string,
+          parent          TYPE string.
+
+    o_struct_descr ?= io_type_descr.
+
+    IF  ( i_struc_name IS SUPPLIED AND i_struc_name IS NOT INITIAL ) OR i_struc_name IS NOT SUPPLIED.
+      IF i_name IS NOT INITIAL.
+        save_hist( EXPORTING ir_up          = ir_up
+                             i_fullname    = i_fullname
+                             i_name        = i_name
+                             i_type        = i_type
+                             i_parent_calculated = i_parent_calculated
+                             i_cl_leaf     = i_cl_leaf
+                             i_instance     = i_instance ).
+
+      ENDIF.
+    ENDIF.
+
+    component = o_struct_descr->get_components( ).
+
+    LOOP AT component INTO comp_descronent.
+      IF comp_descronent-name IS INITIAL AND comp_descronent-suffix IS NOT INITIAL.
+        DATA(suffix) =  comp_descronent-suffix.
+      ENDIF.
+
+      IF i_suffix IS NOT INITIAL.
+        comp_descronent-name = comp_descronent-name && i_suffix.
+      ENDIF.
+      DATA: lr_new_struc TYPE REF TO data.
+      ASSIGN ir_up->* TO FIELD-SYMBOL(<up>).
+      IF comp_descronent-name IS INITIAL.
+        lr_new_struc = ir_up.
+      ELSE.
+        ASSIGN COMPONENT comp_descronent-name OF STRUCTURE <up> TO FIELD-SYMBOL(<new>).
+        GET REFERENCE OF <new> INTO lr_new_struc.
+      ENDIF.
+
+      IF comp_descronent-name IS NOT INITIAL.
+        string = |{ i_fullname }-{ comp_descronent-name }|.
+      ELSE.
+        string = i_fullname.
+      ENDIF.
+
+      TRY.
+          CALL METHOD cl_tpda_script_data_descr=>get_quick_info
+            EXPORTING
+              p_var_name   = string
+            RECEIVING
+              p_symb_quick = DATA(quick).
+        CATCH cx_tpda_varname .
+      ENDTRY.
+
+      IF quick-typid = 'r'.
+        DATA: lr_variable TYPE REF TO data. "need to refaktor
+        lr_variable = m_variable.
+
+        FIELD-SYMBOLS: <symobjref> TYPE tpda_sys_symbobjref.
+        ASSIGN quick-quickdata->* TO <symobjref>.
+
+        save_hist( EXPORTING i_fullname    = string
+                             i_name        = comp_descronent-name
+                             i_parent_calculated = i_fullname
+                             i_type        = i_type
+                             i_cl_leaf     = i_cl_leaf
+                             i_instance     = <symobjref>-instancename ).
+
+        create_reference( EXPORTING i_name      = string
+                                    i_type      = i_type
+                                    i_shortname = comp_descronent-name
+                                    i_quick     = quick ).
+
+        m_variable = lr_variable.
+      ELSE.
+        IF i_name IS NOT INITIAL.
+          IF i_parent_calculated IS NOT INITIAL.
+            parent = |{ i_parent_calculated }-{ i_name }|.
+          ELSE.
+            parent = i_name.
+          ENDIF.
+        ELSE.
+          parent = i_parent_calculated.
+        ENDIF.
+        traverse( io_type_descr  = comp_descronent-type
+                  i_name        = comp_descronent-name
+                  i_fullname    = string
+                  i_type        = i_type
+                  ir_up          = lr_new_struc
+                  i_parent_calculated = parent
+                  i_struc_name  = comp_descronent-name
+                  i_cl_leaf      = i_cl_leaf
+                  i_instance     = i_instance
+                  i_suffix       = suffix ).
+      ENDIF.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD traverse_elem.
+
+    save_hist( EXPORTING ir_up          = ir_up
+                         i_fullname    = i_fullname
+                         i_name        = i_name
+                         i_parent_calculated = i_parent_calculated
+                         i_type        = i_type
+                         i_cl_leaf     = i_cl_leaf
+                         i_instance     = i_instance ).
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+CLASS ZCL_SMD_DDIC IMPLEMENTATION.
+  method GET_TEXT_TABLE.
+
+    CALL FUNCTION 'DDUT_TEXTTABLE_GET'
+      EXPORTING
+        tabname   = i_tname
+      IMPORTING
+        texttable = e_tab.
+
+  endmethod.
+ENDCLASS.
+
+CLASS ZCL_SMD_COMMON IMPLEMENTATION.
+  method GET_SELECTED.
+    i_obj->get_selected_cells( IMPORTING et_cell = DATA(sel_cells) ).
+    IF lines( sel_cells ) > 0.
+      e_index = sel_cells[ 1 ]-row_id.
+    ELSE.
+      i_obj->get_selected_rows( IMPORTING et_index_rows = DATA(sel_rows) ).
+      IF lines( sel_rows ) > 0.
+        e_index = sel_rows[ 1 ]-index.
+      ENDIF.
+    ENDIF.
+  endmethod.
+  method REFRESH.
+    DATA stable TYPE lvc_s_stbl.
+    stable = 'XX'.
+    IF i_layout IS SUPPLIED.
+      i_obj->set_frontend_layout( i_layout ).
+    ENDIF.
+    i_obj->refresh_table_display( EXPORTING is_stable = stable i_soft_refresh = i_soft ).
+  endmethod.
+  method TRANSLATE_FIELD.
+    DATA: field_info TYPE TABLE OF dfies.
+
+    CALL FUNCTION 'DDIF_FIELDINFO_GET'
+      EXPORTING
+        tabname        = c_fld-tabname
+        fieldname      = c_fld-fieldname
+        langu          = i_lang
+      TABLES
+        dfies_tab      = field_info
+      EXCEPTIONS
+        not_found      = 1
+        internal_error = 2
+        OTHERS         = 3.
+
+    IF sy-subrc = 0.
+      READ TABLE field_info INDEX 1 INTO DATA(info).
+      IF info-scrtext_l IS INITIAL AND info-scrtext_m IS INITIAL AND info-scrtext_s IS INITIAL.
+        IF info-fieldtext IS NOT INITIAL.
+          MOVE info-fieldtext TO: c_fld-reptext, c_fld-scrtext_l, c_fld-scrtext_m, c_fld-scrtext_s .
+        ELSE.
+          MOVE info-fieldname TO: c_fld-reptext, c_fld-scrtext_l, c_fld-scrtext_m, c_fld-scrtext_s .
+        ENDIF.
+      ELSE.
+        c_fld-scrtext_l = info-scrtext_l.
+        c_fld-scrtext_m = info-scrtext_m.
+        c_fld-scrtext_s = info-scrtext_s.
+        IF info-reptext IS NOT INITIAL.
+          c_fld-reptext   = info-reptext.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  endmethod.
+ENDCLASS.
+
+CLASS zcl_smd_code_scheme IMPLEMENTATION.
+  METHOD build.
+
+    DATA lv_edges TYPE string.
+    " Condition of the branch just entered, waiting to be put on its arrow
+    DATA lv_lbl TYPE string.
+    " classDef / class lines, emitted after everything they refer to
+    DATA lv_styles TYPE string.
+
+    TYPES: BEGIN OF ts_sub,
+             endline TYPE i,
+           END OF ts_sub.
+    DATA lt_sub TYPE STANDARD TABLE OF ts_sub WITH EMPTY KEY.
+
+    " Open IF/CASE blocks, innermost first: the header every branch fans out
+    " from, and the tail of each branch already walked, so that they can be
+    " joined back together on the closing statement.
+    TYPES: BEGIN OF ts_cond,
+             closeline TYPE i,
+             depth     TYPE i,
+             word      TYPE string,
+             header    TYPE string,
+             seen      TYPE abap_bool,   " first branch already passed
+             tails     TYPE string_table,
+           END OF ts_cond.
+    DATA lt_cond TYPE STANDARD TABLE OF ts_cond WITH EMPTY KEY.
+
+    DATA(lt_lines) = analyze( it_source = it_source it_kw = it_kw io_scan = io_scan ).
+
+    " Running count of plain statements, so the number of operations between
+    " two lines is one subtraction rather than a scan.
+    DATA lt_ops TYPE int4_table.
+    DATA(lv_run) = 0.
+    LOOP AT lt_lines INTO DATA(ls_cnt).
+      IF ls_cnt-kind = 'P' AND ls_cnt-word IS NOT INITIAL
+        AND c_decls NS | { ls_cnt-word } |.
+        lv_run = lv_run + 1.
+      ENDIF.
+      APPEND lv_run TO lt_ops.
+    ENDLOOP.
+
+    rv_mm = |flowchart LR\n|.
+
+    " A METHOD/FORM line is the root and carries the qualified name
+    DATA(lv_root) = 0.
+    LOOP AT lt_lines INTO DATA(ls_root)
+      WHERE kind = 'O' AND ( word = 'METHOD' OR word = 'FORM' OR word = 'MODULE' ).
+      lv_root = ls_root-line.
+      EXIT.
+    ENDLOOP.
+
+    DATA(lv_prev_node)  = ||.
+    DATA(lv_prev_depth) = 0.
+    DATA(lv_prev_line)  = 0.
+    IF lv_root = 0.
+      rv_mm = rv_mm && |  start(["{ scheme_label( i_title ) }"])\n|.
+      lv_prev_node = |start|.
+    ENDIF.
+
+    LOOP AT lt_lines INTO DATA(ls_line).
+
+      " Join the branches of every IF/CASE that closes on this line, so the
+      " block visibly ends instead of running on as one chain.
+      WHILE lines( lt_cond ) > 0.
+        READ TABLE lt_cond INTO DATA(ls_cond) INDEX 1.
+        IF ls_cond-closeline <> ls_line-line. EXIT. ENDIF.
+        " Statements after the last structure of the branch still belong to
+        " it — without this they fall out of the picture entirely.
+        APPEND ops_node( EXPORTING i_from  = lv_prev_line
+                                   i_to    = ls_line-line
+                                   i_id    = |x{ ls_line-line }|
+                                   i_prev  = lv_prev_node
+                                   i_label = lv_lbl
+                                   it_ops  = lt_ops
+                                   it_lines = lt_lines
+                         CHANGING  cv_mm    = rv_mm
+                                   cv_edges = lv_edges ) TO ls_cond-tails.
+        CLEAR lv_lbl.
+        " The closing statement is worth a node of its own — unlike ENDLOOP,
+        " where the frame around the body already shows where it ends.
+        DATA(lv_join) = |j{ ls_line-line }|.
+        rv_mm = rv_mm && |  { lv_join }("{ scheme_label( ls_line-text ) }")\n|.
+        LOOP AT ls_cond-tails INTO DATA(lv_tail).
+          CHECK lv_tail IS NOT INITIAL.
+          lv_edges = lv_edges && |  { lv_tail } --> { lv_join }\n|.
+        ENDLOOP.
+        lv_prev_node  = lv_join.
+        lv_prev_line  = ls_line-line.
+        lv_prev_depth = ls_cond-depth.
+        DELETE lt_cond INDEX 1.
+      ENDWHILE.
+
+      " Close every frame whose block ended before this line
+      WHILE lines( lt_sub ) > 0.
+        READ TABLE lt_sub INTO DATA(ls_sub) INDEX 1.
+        IF ls_sub-endline >= ls_line-line. EXIT. ENDIF.
+        rv_mm = rv_mm && |  end\n|.
+        DELETE lt_sub INDEX 1.
+      ENDWHILE.
+
+      CHECK ls_line-kind = 'O' OR ls_line-kind = 'B' OR ls_line-kind = 'S'.
+
+      DATA(lv_node)  = |n{ ls_line-line }|.
+      DATA(lv_label) = COND string(
+        WHEN ls_line-line = lv_root AND i_title IS NOT INITIAL
+        THEN scheme_label( i_title )
+        ELSE scheme_label( ls_line-text ) ).
+
+      " A loop becomes the frame around its body — but only if that body
+      " holds structure of its own. A loop over plain statements would give
+      " an empty frame with no edge reaching it, left floating on the canvas;
+      " those stay ordinary nodes.
+      " TRY gets a frame of its own too: its CATCH blocks are separate paths
+      " out of the protected code, and a frame is what makes that readable.
+      DATA(lv_is_loop) = xsdbool(
+        ls_line-kind = 'O' AND ls_line-all > ls_line-line
+        AND ( ls_line-word = 'LOOP' OR ls_line-word = 'DO' OR ls_line-word = 'WHILE'
+           OR ls_line-word = 'TRY' ) ).
+
+      IF lv_is_loop = abap_true.
+        DATA(lv_inner) = 0.
+        LOOP AT lt_lines TRANSPORTING NO FIELDS
+          WHERE line > ls_line-line AND line <= ls_line-all
+            AND ( kind = 'O' OR kind = 'B' OR kind = 'S' ).
+          lv_inner = 1.
+          EXIT.
+        ENDLOOP.
+        IF lv_inner = 0. lv_is_loop = abap_false. ENDIF.
+      ENDIF.
+
+      IF lv_is_loop = abap_true.
+        rv_mm = rv_mm && |  subgraph g{ ls_line-line }["{ lv_label }"]\n|.
+        rv_mm = rv_mm && |  direction LR\n|.
+        " A protected block is coloured apart from a loop
+        IF ls_line-word = 'TRY'.
+          lv_styles = lv_styles && |class g{ ls_line-line } tryblk\n|.
+        ENDIF.
+        INSERT VALUE #( endline = ls_line-all ) INTO lt_sub INDEX 1.
+        CONTINUE.
+      ENDIF.
+
+      " A branch is not a box of its own: its condition rides on the arrow
+      " leaving the IF/CASE, which is both shorter and how the flow reads.
+      FIELD-SYMBOLS <ls_br> TYPE ts_cond.
+      UNASSIGN <ls_br>.
+      IF ls_line-kind = 'B'.
+        READ TABLE lt_cond ASSIGNING <ls_br> INDEX 1.
+        " Only when the branch really belongs to that IF/CASE. A CATCH sits
+        " one level down inside its TRY and used to grab the enclosing IF —
+        " that is how TRY/CATCH ended up tangled with the conditions.
+        IF sy-subrc = 0 AND <ls_br>-depth <> ls_line-depth.
+          UNASSIGN <ls_br>.
+        ENDIF.
+        IF <ls_br> IS ASSIGNED.
+          " The branch just walked ends here: its trailing statements first,
+          " then its tail is kept for the join at the closing statement.
+          DATA(lv_tail_node) = ops_node( EXPORTING i_from  = lv_prev_line
+                                                   i_to    = ls_line-line
+                                                   i_id    = |y{ ls_line-line }|
+                                                   i_prev  = lv_prev_node
+                                                   i_label = lv_lbl
+                                                   it_ops  = lt_ops
+                                                   it_lines = lt_lines
+                                         CHANGING  cv_mm    = rv_mm
+                                                   cv_edges = lv_edges ).
+          IF <ls_br>-word = 'CASE' AND <ls_br>-seen = abap_false.
+            " Statements between CASE and its first WHEN run unconditionally,
+            " before the dispatch — so they are not a branch, and every WHEN
+            " has to fan out from the end of them rather than from the CASE.
+            IF lv_tail_node <> <ls_br>-header.
+              <ls_br>-header = lv_tail_node.
+            ENDIF.
+          ELSEIF lv_tail_node <> <ls_br>-header.
+            " Still standing on the header means the branch was empty, and an
+            " empty path only adds an arrow that says nothing.
+            APPEND lv_tail_node TO <ls_br>-tails.
+          ENDIF.
+          <ls_br>-seen = abap_true.
+          lv_lbl        = lv_label.
+          lv_prev_node  = <ls_br>-header.
+          lv_prev_line  = ls_line-line.
+          lv_prev_depth = ls_line-depth.
+          CONTINUE.
+        ENDIF.
+      ENDIF.
+
+      DATA(lv_shape) = SWITCH string( ls_line-word
+        WHEN 'IF' OR 'CASE'                 THEN |{ lv_node }\{"{ lv_label }"\}|
+        WHEN 'LOOP' OR 'DO' OR 'WHILE'      THEN |{ lv_node }[/"{ lv_label }"/]|
+        WHEN 'METHOD' OR 'FORM' OR 'MODULE' THEN |{ lv_node }[["{ lv_label }"]]|
+        ELSE                                     |{ lv_node }("{ lv_label }")| ).
+      rv_mm = rv_mm && |  { lv_shape }\n|.
+
+      DATA(lv_from)      = lv_prev_node.
+      DATA(lv_from_line) = lv_prev_line.
+
+      IF lv_from IS NOT INITIAL.
+        " One and the same builder everywhere, so a stretch of statements
+        " looks the same wherever it sits.
+        DATA(lv_after_ops) = ops_node( EXPORTING i_from   = lv_from_line
+                                                 i_to     = ls_line-line
+                                                 i_id     = |o{ ls_line-line }|
+                                                 i_prev   = lv_from
+                                                 i_label  = lv_lbl
+                                                 it_ops   = lt_ops
+                                                 it_lines = lt_lines
+                                       CHANGING  cv_mm    = rv_mm
+                                                 cv_edges = lv_edges ).
+        IF lv_after_ops <> lv_from.
+          CLEAR lv_lbl.
+          lv_edges = lv_edges && |  { lv_after_ops } --> { lv_node }\n|.
+        ELSE.
+          lv_edges = lv_edges && |  { lv_from }{ arrow( lv_lbl ) }{ lv_node }\n|.
+          CLEAR lv_lbl.
+        ENDIF.
+      ENDIF.
+
+      " An IF/CASE opens a fan-out that has to be closed again
+      IF ls_line-kind = 'O' AND ls_line-all > ls_line-line
+        AND ( ls_line-word = 'IF' OR ls_line-word = 'CASE' ).
+        INSERT VALUE #( closeline = ls_line-all + 1
+                        depth     = ls_line-depth
+                        word      = ls_line-word
+                        header    = lv_node ) INTO lt_cond INDEX 1.
+      ENDIF.
+
+      lv_prev_node  = lv_node.
+      lv_prev_depth = ls_line-depth.
+      lv_prev_line  = ls_line-line.
+    ENDLOOP.
+
+    WHILE lines( lt_sub ) > 0.
+      rv_mm = rv_mm && |  end\n|.
+      DELETE lt_sub INDEX 1.
+    ENDWHILE.
+
+    " Edges last: an edge written inside a subgraph pulls its nodes into
+    " that subgraph and the nesting falls apart.
+    IF lv_styles IS NOT INITIAL.
+      rv_mm = rv_mm && |classDef tryblk fill:#eaf6ea,stroke:#2e7d32,color:#000\n| && lv_styles.
+    ENDIF.
+    rv_mm = rv_mm && lv_edges.
+
+  ENDMETHOD.
+  METHOD analyze.
+
+    FIELD-SYMBOLS <lv_src> TYPE any.
+    DATA lt_stmt  TYPE tt_stmt.
+    DATA lt_block TYPE tt_block.
+    DATA lv_depth TYPE i.
+
+    LOOP AT it_source ASSIGNING <lv_src>.
+      APPEND INITIAL LINE TO rt_lines ASSIGNING FIELD-SYMBOL(<ls_line>).
+      <ls_line>-line = sy-tabix.
+      <ls_line>-text = <lv_src>.
+      " 'P' rather than a blank: a string template drops trailing blanks
+      <ls_line>-kind = 'P'.
+    ENDLOOP.
+
+    " One entry per statement, in program order — several statements can
+    " share a line ("IF x. y. ENDIF." written on one line).
+    LOOP AT it_kw INTO DATA(ls_kw).
+      CHECK ls_kw-line > 0 AND ls_kw-line <= lines( rt_lines ).
+      APPEND VALUE #( index = ls_kw-index
+                      line  = ls_kw-line
+                      word  = to_upper( ls_kw-name ) ) TO lt_stmt.
+    ENDLOOP.
+    SORT lt_stmt BY index.
+
+    " The line's own word is the first statement starting on it
+    LOOP AT lt_stmt INTO DATA(ls_first).
+      READ TABLE rt_lines ASSIGNING <ls_line> INDEX ls_first-line.
+      CHECK sy-subrc = 0.
+      IF <ls_line>-word IS INITIAL. <ls_line>-word = ls_first-word. ENDIF.
+    ENDLOOP.
+
+    CHECK io_scan IS BOUND.
+
+    " Blocks straight from the scanner
+    LOOP AT io_scan->structures INTO DATA(ls_struc).
+      READ TABLE lt_stmt INTO DATA(ls_sf) WITH KEY index = ls_struc-stmnt_from.
+      CHECK sy-subrc = 0.
+      READ TABLE lt_stmt INTO DATA(ls_st) WITH KEY index = ls_struc-stmnt_to.
+      CHECK sy-subrc = 0.
+      " KEY_START is a flag (domain BOOLEAN), not the keyword — the opening
+      " word comes from the statement itself, which also filters out the
+      " structures that are not blocks at all.
+      DATA(lv_key) = ls_sf-word.
+      CHECK closer_of( lv_key ) IS NOT INITIAL.
+      " A block on one line holds nothing to fold but is still a branch
+      IF ls_sf-line = ls_st-line.
+        READ TABLE rt_lines ASSIGNING <ls_line> INDEX ls_sf-line.
+        IF sy-subrc = 0 AND <ls_line>-kind = 'P'. <ls_line>-kind = 'S'. ENDIF.
+        CONTINUE.
+      ENDIF.
+      APPEND VALUE #( open = ls_sf-line close = ls_st-line word = lv_key ) TO lt_block.
+    ENDLOOP.
+
+    " Depth as a running sum over the blocks, plus the opener/closer marks
+    DATA lt_delta TYPE STANDARD TABLE OF i WITH EMPTY KEY.
+    DO lines( rt_lines ) TIMES.
+      APPEND 0 TO lt_delta.
+    ENDDO.
+    LOOP AT lt_block INTO DATA(ls_block).
+      READ TABLE rt_lines ASSIGNING <ls_line> INDEX ls_block-open.
+      IF sy-subrc = 0. <ls_line>-kind = 'O'. ENDIF.
+      READ TABLE rt_lines ASSIGNING <ls_line> INDEX ls_block-close.
+      IF sy-subrc = 0. <ls_line>-kind = 'C'. ENDIF.
+      READ TABLE lt_delta ASSIGNING FIELD-SYMBOL(<lv_d>) INDEX ls_block-open + 1.
+      IF sy-subrc = 0. <lv_d> = <lv_d> + 1. ENDIF.
+      READ TABLE lt_delta ASSIGNING <lv_d> INDEX ls_block-close.
+      IF sy-subrc = 0. <lv_d> = <lv_d> - 1. ENDIF.
+    ENDLOOP.
+
+    LOOP AT rt_lines ASSIGNING <ls_line>.
+      READ TABLE lt_delta INTO DATA(lv_step) INDEX sy-tabix.
+      IF sy-subrc = 0. lv_depth = lv_depth + lv_step. ENDIF.
+      IF lv_depth < 0. lv_depth = 0. ENDIF.
+      <ls_line>-depth = lv_depth.
+    ENDLOOP.
+
+    " Branches, attached to the block that encloses them
+    DATA lt_owner TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+    LOOP AT rt_lines ASSIGNING <ls_line>.
+      DATA(lv_line_no) = sy-tabix.
+      LOOP AT lt_block INTO ls_block WHERE open = lv_line_no.
+        INSERT ls_block-word INTO lt_owner INDEX 1.
+      ENDLOOP.
+      LOOP AT lt_block INTO ls_block WHERE close = lv_line_no.
+        DELETE lt_owner INDEX 1.
+      ENDLOOP.
+
+      CHECK <ls_line>-kind = 'P'.
+      CHECK <ls_line>-word IS NOT INITIAL.
+      CHECK c_branches CS | { <ls_line>-word } |.
+      READ TABLE lt_owner INDEX 1 INTO DATA(lv_owner).
+      CHECK sy-subrc = 0.
+      " ELSEIF/ELSE belong to IF, WHEN to CASE, CATCH/CLEANUP to TRY
+      DATA(lv_ok) = xsdbool(
+        (    ( <ls_line>-word = 'ELSEIF' OR <ls_line>-word = 'ELSE' ) AND lv_owner = 'IF' )
+        OR ( <ls_line>-word = 'WHEN' AND lv_owner = 'CASE' )
+        OR ( ( <ls_line>-word = 'CATCH' OR <ls_line>-word = 'CLEANUP' ) AND lv_owner = 'TRY' ) ).
+      CHECK lv_ok = abap_true.
+      <ls_line>-kind  = 'B'.
+      <ls_line>-depth = <ls_line>-depth - 1.
+      IF <ls_line>-depth < 0. <ls_line>-depth = 0. ENDIF.
+    ENDLOOP.
+
+    " For every header, the segment ends before the next line at the same
+    " depth that is a branch or a closer.
+    LOOP AT rt_lines ASSIGNING <ls_line> WHERE kind = 'O' OR kind = 'B'.
+      DATA(lv_start) = sy-tabix.
+      DATA(lv_end)   = <ls_line>-line.
+      DATA(lv_from)  = lv_start + 1.
+      LOOP AT rt_lines ASSIGNING FIELD-SYMBOL(<ls_next>) FROM lv_from.
+        IF <ls_next>-depth <= <ls_line>-depth
+          AND ( <ls_next>-kind = 'B' OR <ls_next>-kind = 'C' ).
+          EXIT.
+        ENDIF.
+        lv_end = <ls_next>-line.
+      ENDLOOP.
+      <ls_line>-end = lv_end.
+    ENDLOOP.
+
+    " Openers also get the whole-block extent
+    LOOP AT rt_lines ASSIGNING <ls_line> WHERE kind = 'O'.
+      DATA(lv_ostart) = sy-tabix.
+      DATA(lv_ofrom)  = lv_ostart + 1.
+      LOOP AT rt_lines ASSIGNING <ls_next> FROM lv_ofrom.
+        IF <ls_next>-kind = 'C' AND <ls_next>-depth = <ls_line>-depth.
+          <ls_line>-all = <ls_next>-line - 1.
+          EXIT.
+        ENDIF.
+      ENDLOOP.
+      IF <ls_line>-all < <ls_line>-line. <ls_line>-all = <ls_line>-line. ENDIF.
+    ENDLOOP.
+
+  ENDMETHOD.
+  METHOD closer_of.
+    CASE i_word.
+      WHEN 'IF'.      r_closer = 'ENDIF'.
+      WHEN 'CASE'.    r_closer = 'ENDCASE'.
+      WHEN 'LOOP'.    r_closer = 'ENDLOOP'.
+      WHEN 'DO'.      r_closer = 'ENDDO'.
+      WHEN 'WHILE'.   r_closer = 'ENDWHILE'.
+      WHEN 'TRY'.     r_closer = 'ENDTRY'.
+      WHEN 'METHOD'.  r_closer = 'ENDMETHOD'.
+      WHEN 'FORM'.    r_closer = 'ENDFORM'.
+      WHEN 'MODULE'.  r_closer = 'ENDMODULE'.
+      WHEN 'SELECT'.  r_closer = 'ENDSELECT'.
+      WHEN 'AT'.      r_closer = 'ENDAT'.
+      WHEN 'PROVIDE'. r_closer = 'ENDPROVIDE'.
+    ENDCASE.
+  ENDMETHOD.
+  METHOD arrow.
+    IF i_label IS INITIAL.
+      r_text = ` --> `.
+    ELSE.
+      " Quoted: an unquoted edge label ends at the first bracket, and
+      " conditions like m_tabname+0(3) = 'HRP' are full of them.
+      r_text = | -->\|"{ i_label }"\| |.
+    ENDIF.
+  ENDMETHOD.
+  METHOD ops_node.
+
+    r_node = i_prev.
+    CHECK i_prev IS NOT INITIAL.
+    CHECK i_from > 0 AND i_to > i_from + 1.
+
+    READ TABLE it_ops INTO DATA(lv_to_cnt) INDEX i_to - 1.
+    CHECK sy-subrc = 0.
+    READ TABLE it_ops INTO DATA(lv_fr_cnt) INDEX i_from.
+    CHECK sy-subrc = 0.
+
+    DATA(lv_ops) = lv_to_cnt - lv_fr_cnt.
+    CHECK lv_ops > 0.
+
+    " A single statement is shown in full: hiding one line behind
+    " "1 operation" saves no space and tells the reader less.
+    IF lv_ops = 1.
+      LOOP AT it_lines INTO DATA(ls_op)
+        WHERE line > i_from AND line < i_to
+          AND kind = 'P' AND word IS NOT INITIAL.
+        CHECK c_decls NS | { ls_op-word } |.
+        cv_mm = cv_mm && |  { i_id }("{ scheme_label( ls_op-text ) }")\n|.
+        cv_edges = cv_edges && |  { i_prev }{ arrow( i_label ) }{ i_id }\n|.
+        r_node = i_id.
+        RETURN.
+      ENDLOOP.
+    ENDIF.
+
+    cv_mm = cv_mm && |  { i_id }["{ lv_ops } { COND string(
+      WHEN lv_ops = 1 THEN 'operation' ELSE 'operations' ) }"]\n|.
+    cv_edges = cv_edges && |  { i_prev } --> { i_id }\n|.
+    r_node = i_id.
+
+  ENDMETHOD.
+  METHOD scheme_label.
+    r_text = condense( i_text ).
+    " The diagram source passes through HTML twice, so angle brackets are
+    " read as tags: FIELD-SYMBOL(<WATCH>) loses everything from the '<' on.
+    " Entities do not survive either — they decode back on the second pass —
+    " so the brackets are replaced outright.
+    REPLACE ALL OCCURRENCES OF '<>' IN r_text WITH ' NE '.
+    REPLACE ALL OCCURRENCES OF '<=' IN r_text WITH ' LE '.
+    REPLACE ALL OCCURRENCES OF '>=' IN r_text WITH ' GE '.
+    REPLACE ALL OCCURRENCES OF '->' IN r_text WITH '.'.
+    REPLACE ALL OCCURRENCES OF '=>' IN r_text WITH '.'.
+    REPLACE ALL OCCURRENCES OF '<' IN r_text WITH '('.
+    REPLACE ALL OCCURRENCES OF '>' IN r_text WITH ')'.
+    " Characters that would end a mermaid node or its label
+    REPLACE ALL OCCURRENCES OF '"' IN r_text WITH c_apos.
+    REPLACE ALL OCCURRENCES OF '[' IN r_text WITH '('.
+    REPLACE ALL OCCURRENCES OF ']' IN r_text WITH ')'.
+    REPLACE ALL OCCURRENCES OF '{' IN r_text WITH '('.
+    REPLACE ALL OCCURRENCES OF '}' IN r_text WITH ')'.
+    REPLACE ALL OCCURRENCES OF '|' IN r_text WITH '/'.
+    REPLACE ALL OCCURRENCES OF ';' IN r_text WITH ' '.
+    IF strlen( r_text ) > 80.
+      r_text = |{ r_text(77) }...|.
+    ENDIF.
+  ENDMETHOD.
+
+ENDCLASS.
+
+CLASS zcl_smd_appl IMPLEMENTATION.
+
+  METHOD init_icons_table.
+
+    zcl_smd_sel_opt=>m_option_icons = VALUE #(
+     ( sign = space option = space  icon_name = icon_led_inactive )
+     ( sign = 'I'   option = 'EQ'   icon_name = icon_equal_green )
+     ( sign = 'I'   option = 'NE'   icon_name = icon_not_equal_green )
+     ( sign = 'I'   option = 'LT'   icon_name = icon_less_green )
+     ( sign = 'I'   option = 'LE'   icon_name = icon_less_equal_green )
+     ( sign = 'I'   option = 'GT'   icon_name = icon_greater_green )
+     ( sign = 'I'   option = 'GE'   icon_name = icon_greater_equal_green )
+     ( sign = 'I'   option = 'CP'   icon_name = icon_pattern_include_green )
+     ( sign = 'I'   option = 'NP'   icon_name = icon_pattern_exclude_green )
+     ( sign = 'I'   option = 'BT'   icon_name = icon_interval_include_green )
+     ( sign = 'I'   option = 'NB'   icon_name = icon_interval_exclude_green )
+     ( sign = 'E'   option = 'EQ'   icon_name = icon_equal_red )
+     ( sign = 'E'   option = 'NE'   icon_name = icon_not_equal_red )
+     ( sign = 'E'   option = 'LT'   icon_name = icon_less_red )
+     ( sign = 'E'   option = 'LE'   icon_name = icon_less_equal_red )
+     ( sign = 'E'   option = 'GT'   icon_name = icon_greater_red )
+     ( sign = 'E'   option = 'GE'   icon_name = icon_greater_equal_red )
+     ( sign = 'E'   option = 'CP'   icon_name = icon_pattern_include_red )
+     ( sign = 'E'   option = 'NP'   icon_name = icon_pattern_exclude_red )
+     ( sign = 'E'   option = 'BT'   icon_name = icon_interval_include_red )
+     ( sign = 'E'   option = 'NB'   icon_name = icon_interval_exclude_red ) ).
+
+  ENDMETHOD.
+
+  METHOD init_lang.
+    "ladatum/lauzeit are selected too: ORDER BY on columns missing from the
+    "field list fails the strict-mode syntax check on newer releases
+    SELECT c~spras t~sptxt c~ladatum c~lauzeit
+      INTO CORRESPONDING FIELDS OF TABLE mt_lang
+      FROM t002c AS c
+      INNER JOIN t002t AS t
+      ON c~spras = t~sprsl
+      WHERE t~spras = sy-langu
+      ORDER BY c~ladatum DESCENDING c~lauzeit DESCENDING.
+  ENDMETHOD.
+
+  METHOD check_mermaid.
+
+    CALL FUNCTION 'SEO_CLASS_EXISTENCE_CHECK'
+      EXPORTING
+        clskey        = 'ZCL_WD_GUI_MERMAID_JS_DIAGRAM '
+      EXCEPTIONS
+        not_specified = 1
+        not_existing  = 2
+        is_interface  = 3
+        no_text       = 4
+        inconsistent  = 5
+        OTHERS        = 6.
+
+    IF sy-subrc = 0.
+      is_mermaid_active = abap_true.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD open_int_table.
+
+    DATA r_tab TYPE REF TO data.
+    IF it_ref IS BOUND.
+      r_tab = it_ref.
+    ELSE.
+      GET REFERENCE OF it_tab INTO r_tab.
+    ENDIF.
+    APPEND INITIAL LINE TO zcl_smd_appl=>mt_obj ASSIGNING FIELD-SYMBOL(<obj>).
+    <obj>-alv_viewer = NEW #(  i_additional_name = i_name ir_tab = r_tab io_window = io_window ).
+    <obj>-alv_viewer->mo_sel->raise_selection_done( ).
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+"REPORT smart_debugger_Script.
+*  & Smart  Debugger (Project ARIADNA - Advanced Reverse Ingeneering Abap Debugger with New Analytycs )
+*  & Multi-windows program for viewing all objects and data structures in debug
+*  &---------------------------------------------------------------------*
+*  & version: beta 0.9.600
+*  & Git https://github.com/ysichov/SDDE
+*  & RU description - https://ysychov.wordpress.com/2020/07/27/abap-simple-debugger-data-explorer/
+*  & EN description - https://github.com/ysichov/SDDE/wiki
+
+*  & Written by Yurii Sychov
+*  & e-mail:   ysichov@gmail.com
+*  & blog:     https://ysychov.wordpress.com/blog/
+*  & LinkedIn: https://www.linkedin.com/in/ysychov/
+*  &---------------------------------------------------------------------*
+
+*  & External resources
+*  & https://github.com/WegnerDan/abapMermaid
+*  & https://github.com/ysichov/abapMermaid - should be used this fork with scroll enabled
+*  & https://gist.github.com/AtomKrieg/7f4ec2e2f49b82def162e85904b7e25b - data object visualizer
+
+*  & Inspired by
+*  & https://habr.com/ru/articles/504908/
+*  & https://github.com/larshp/ABAP-Object-Visualizer - Abap Object Visualizer
+*  & https://github.com/ysichov/SDE_abapgit - Simple Data Explorer
+
+CLASS lcl_debugger_script DEFINITION DEFERRED.
+
+CLASS lcl_debugger_script DEFINITION INHERITING FROM zcl_smd_debugger_base.
+
+  PUBLIC SECTION.
+    METHODS: prologue  REDEFINITION,
+             init      REDEFINITION,
+             script    REDEFINITION,
+             end       REDEFINITION.
+
+ENDCLASS.
+
+CLASS lcl_debugger_script IMPLEMENTATION.
+
+  METHOD prologue.
+    super->prologue( ).
+  ENDMETHOD.                    "prolog
+
+  METHOD init.
+
+    CONSTANTS: c_mask TYPE x VALUE '01'.
+
+    is_step = abap_on.
+    zcl_smd_appl=>check_mermaid( ).
+    zcl_smd_appl=>init_lang( ).
+    zcl_smd_appl=>init_icons_table( ).
+
+    mo_window = NEW zcl_smd_window( me ).
+
+    mo_tree_imp = NEW zcl_smd_rtti_tree( i_header   = 'Importing parameters'
+                                     i_type     = 'I'
+                                     i_cont     = mo_window->mo_importing_container
+                                     i_debugger = me ).
+
+    mo_tree_local = NEW zcl_smd_rtti_tree( i_header   = 'Variables'
+                                       i_type     = 'L'
+                                       i_cont     = mo_window->mo_locals_container
+                                       i_debugger = me ).
+
+    mo_tree_exp = NEW zcl_smd_rtti_tree( i_header   = 'Exporting & Returning parameters'
+                                     i_type     = 'E'
+                                     i_cont     = mo_window->mo_exporting_container
+                                     i_debugger = me ).
+
+    mo_tree_local->m_locals = mo_tree_local->m_locals BIT-XOR c_mask.
+
+  ENDMETHOD.
+
+  METHOD script.
+
+    run_script( ).
+    show_step( ).
+    me->break( ).
+
+  ENDMETHOD.
+
+  METHOD end. "dummy method
+  ENDMETHOD.
+
+ENDCLASS.                    "lcl_debugger_script IMPLEMENTATION
+*</SCRIPT:SCRIPT_CLASS>
+
+*</SCRIPT:PERSISTENT>
+
+****************************************************
+INTERFACE lif_abapmerge_marker.
+* abapmerge 0.16.7 - 2026-07-24T17:15:36.938Z
+  CONSTANTS c_merge_timestamp TYPE string VALUE `2026-07-24T17:15:36.938Z`.
+  CONSTANTS c_abapmerge_version TYPE string VALUE `0.16.7`.
+ENDINTERFACE.
+****************************************************
