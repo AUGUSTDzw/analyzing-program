@@ -6,7 +6,7 @@
 ## 目录
 
 ```
-SKILL.md                       规则本体（约 200 行）
+SKILL.md                       规则本体（250 行）
 scripts/report_qc.py           格式闸门：逐条列出违规位置，可自动修两类
 scripts/evaluate.py            内容评分：对冻结缺陷清单判分，算召回与错误论断
 references/example-report.md   完整范例（真实报告，逐字未改，闸门零缺陷）
@@ -37,8 +37,8 @@ schemas/report-contract.json   闸门规则与 skill 教学锚点的唯一来源
 ```bash
 python tests/test_skill.py                # 38 项，自足
 python tests/test_contract_drift.py       # 35 项，契约 <-> SKILL.md 双向对齐
-python scripts/report_qc.py REPORT [SOURCE]                    # 格式
-python scripts/report_qc.py --fix REPORT SOURCE -o OUT         # 格式 + 自动修两类
+python scripts/report_qc.py REPORT SOURCE.abap            # 格式，源码必须带 .abap 后缀
+python scripts/report_qc.py --fix REPORT SOURCE -o OUT   # 格式 + 自动修两类
 python scripts/evaluate.py tasks  --defects evals/zcl_fi_toolkit.defects.json
 python scripts/evaluate.py score --defects D.json --verdicts MY.json
 python scripts/evaluate.py compare --defects D.json --a V1.json --b V2.json
@@ -50,6 +50,19 @@ python scripts/evaluate.py compare --defects D.json --a V1.json --b V2.json
 在默认 cp936 的 Windows 控制台上打印会抛 `UnicodeEncodeError`，
 而且是从缺陷循环里抛的，诊断信息会被 traceback 顶掉。
 Windows 上不需要设 `PYTHONUTF8`。
+
+**三种"没检查"长得不一样，其中一种和通过一模一样。** 这三条是实测的，
+SKILL.md「闸门输出」一节照抄：
+
+| 情况 | 实际输出 | 退出码 |
+|---|---|---|
+| 不传源码，或源码路径不存在 | `PASS <报告名>`，**一条 note 都没有** —— 密度与忠实度静默跳过 | `0` |
+| 源码参数不以 `.abap` 结尾 | 那个路径被**当成一份报告**去检查：`FAIL 源码.txt (N defect(s))`，而报告仍然 `PASS` | `1` |
+| 报告文件不存在 | Python traceback（闸门不预检报告路径） | `1` |
+| `--fidelity-only` 的源码读不到 | `note fidelity needs a source path: ...`，一个字都没查 | `2` |
+
+所以：形状检查的 `0` 只能读作「形状对」，不能读作「查过了」；
+把「没检查」读成「检查过了」，唯一症状就是第一行那个不带 note 的 `PASS`。
 
 自动修只做两类改不动的判断：位置标签写成行号 → 改成最近的前置构造名；
 Mermaid 标签里的裸 `<` `>` `#` → 改成全角。三层缺失**只报位置不修**，
