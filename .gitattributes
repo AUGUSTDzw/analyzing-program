@@ -17,6 +17,11 @@
 *.sh   text eol=lf
 *.mjs  text eol=lf
 
+# The checksum manifest is the one tracked file with no extension. Written by
+# .NET on Windows it comes back CRLF, which is exactly the silent-mismatch this
+# file exists to prevent.
+SHA256SUMS text eol=lf
+
 # Not text. The zips are the shipped artifacts; treating one as text would
 # re-encode it and invalidate its SHA256.
 *.zip -text
