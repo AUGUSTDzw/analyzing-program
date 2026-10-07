@@ -729,7 +729,7 @@ def fix_lang_note(s):
 
 
 def fix_mislabel_note(s, src):
-    """Advisory: an abap-fix fence whose statements all occur in the source.
+    """Advisory: an abap-fix fence that repeats a contiguous run of the source.
 
     The abap / abap-fix pair locked in one direction only. A fix left in an abap
     fence is probed against the source and reads as fabricated, so it is caught.
@@ -738,9 +738,18 @@ def fix_mislabel_note(s, src):
     exists to catch invented quotes. A one-directional fence is how this class
     of bug appears: the exemption is the hole.
 
-    Every statement must occur, not any: an abap-fix fence may legitimately quote
-    the line it is about to change. Reported, not enforced, like the other three
-    advisories -- it is a question for the writer, not a gate.
+    THE TEST IS CONTIGUITY, NOT MEMBERSHIP. The first version asked whether every
+    statement occurs somewhere in the source. It fired on five times across nine
+    real reports, and every one of those five was a genuine fix: a CALL FUNCTION
+    with EXCEPTIONS added, a DELETE followed by an sy-subrc check, each line of
+    which exists somewhere in a 1600-line file. Quoting the line you are about to
+    change is legitimate -- the contract says so -- so membership cannot be the
+    test. A mislabeled quote is a verbatim copy, and a verbatim copy is
+    contiguous. Flatten the statements, join them with the single space that
+    flattening leaves between lines, and look for that run.
+
+    Reported, not enforced, like the other three advisories -- it is a question
+    for the writer, not a gate.
     """
     if not src:
         return None
@@ -749,24 +758,35 @@ def fix_mislabel_note(s, src):
     for st, bs, be, _en, lang in fence_spans(s):
         if lang != FIX_LANG.lower():
             continue
-        probes = []
+        flat = []
+        flat_nodot = []
+        first_text = None
         for _i, l in _claims(s[bs:be]):
-            p = l.strip().rstrip(".")
-            if p:
-                probes.append((_flat(p), l.strip()))
-        if not probes:
+            raw = l.strip()
+            if not raw:
+                continue
+            if first_text is None:
+                first_text = raw
+            # Two spellings of the same run. Flattening keeps the sentence stops,
+            # so joining the statements verbatim reproduces a contiguous run; the
+            # run also has to be findable when the writer dropped the stops, which
+            # is why the second variant exists.
+            flat.append(_flat(raw))
+            flat_nodot.append(_flat(raw.rstrip(".")))
+        if not flat:
             continue
-        if not all(f in sf for f, _t in probes):
+        if not any(" ".join(v) in sf for v in (flat, flat_nodot)):
             continue
-        hits.append((line_of(s, st), probes[0][1]))
+        hits.append((line_of(s, st), first_text))
     if not hits:
         return None
     first = hits[0]
     more = " (+%d more)" % (len(hits) - 1) if len(hits) > 1 else ""
     return ("%d %s fence(s) repeat the source verbatim%s, first at line %d: %r. "
-            "An %s fence is exempt from the fidelity check, so a mislabeled "
-            "quote is never compared with the source at all. If this is a "
-            "quotation, tag it %s.") % (
+            "Contiguous, not assembled from elsewhere -- so this reads as a "
+            "quotation rather than a proposed fix. An %s fence is exempt from "
+            "the fidelity check, so a mislabeled quote is never compared with "
+            "the source at all. If this is a quotation, tag it %s.") % (
         len(hits), FIX_LANG, more, first[0], first[1][:60], FIX_LANG, QUOTE_LANG)
 
 

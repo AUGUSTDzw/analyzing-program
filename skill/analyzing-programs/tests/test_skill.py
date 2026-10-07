@@ -756,6 +756,46 @@ def main():
           "a genuine abap-fix fence is not called out")
     check(r.returncode == 0, "an abap-fix fence needs no three layers")
 
+    # The criterion is contiguity, not membership. Asking whether every statement
+    # occurs somewhere in the source fired five times across nine real reports and
+    # every one of those five was a genuine fix -- a CALL FUNCTION with EXCEPTIONS
+    # added, a DELETE followed by an sy-subrc check, a restructured TRY block --
+    # each line of which exists somewhere in a 1600-line file. Quoting the line
+    # you are about to change is legitimate, so membership cannot be the test. A
+    # mislabeled quote is a verbatim copy, and a verbatim copy is contiguous.
+    # These two cases are what decides it, so they are the ones that must fail
+    # loudly if the criterion is reverted.
+    asm = os.path.join(tmp, "assembled.abap")
+    io.open(asm, "w", encoding="utf-8").write(
+        "FUNCTION z_foo.\n"
+        "  DELETE FROM d021t.\n"
+        "ENDFUNCTION.\n"
+        "FUNCTION z_bar.\n"
+        "  IF sy-subrc <> 0.\n"
+        "    RETURN.\n"
+        "  ENDIF.\n"
+        "ENDFUNCTION.\n")
+
+    p = os.path.join(tmp, "assembled.md")
+    io.open(p, "w", encoding="utf-8").write(
+        brief_report().replace(
+            block,
+            "```abap-fix\nDELETE FROM d021t.\nIF sy-subrc <> 0.\n  RETURN.\n"
+            "ENDIF.\n```"))
+    r = run(QC, p, asm)
+    check("repeat the source verbatim" not in r.stdout,
+          "a fix whose lines each exist but are not adjacent is not called out")
+
+    p = os.path.join(tmp, "contiguous.md")
+    io.open(p, "w", encoding="utf-8").write(
+        brief_report().replace(
+            block,
+            "```abap-fix\nIF sy-subrc <> 0.\n  RETURN.\n  ENDIF.\n```"))
+    r = run(QC, p, asm)
+    check("repeat the source verbatim" in r.stdout,
+          "a contiguous multi-line copy is still called out")
+    check(r.returncode == 0, "that is still a note, not a failure")
+
     print()
     print("-" * 72)
     if FAILS:

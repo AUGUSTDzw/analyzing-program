@@ -145,6 +145,7 @@
       "id": "fix-mislabel",
       "enforcement": "note",
       "why": "abap and abap-fix locked in only one direction: a fix left in an abap fence is probed and reads as fabricated, but source pasted into an abap-fix fence is never compared with the source at all, so the language tag could be used to opt a quote out of the check that exists to catch invented quotes",
+      "criterion": "contiguity, not membership. An abap-fix fence is called out when its statements, flattened and joined, occur as one adjacent run in the source. The first version asked whether every statement occurs anywhere; it fired five times across nine real reports and all five were genuine fixes (a CALL FUNCTION with EXCEPTIONS added, a DELETE followed by an sy-subrc check, a restructured TRY block) whose lines each exist somewhere in a 1600-line file. Quoting the line you are about to change is legitimate, so membership cannot be the test; a mislabeled quote is a verbatim copy, and a verbatim copy is adjacent.",
       "skill_anchor": "贴错了围栏的真引用"
     }
   ],
