@@ -68,6 +68,40 @@
     "skill_anchor": "Mermaid 标签安全"
   },
 
+  "gate_io": {
+    "_comment": [
+      "How to read the checker. Recorded here because the ways of NOT being",
+      "checked look exactly like passing: same first line, same exit code.",
+      "",
+      "These are properties of report_qc.py's own control flow, written down so",
+      "SKILL.md cannot quietly drift away from them. test_contract_drift.py only",
+      "asserts the skill_anchor values below appear in SKILL.md -- it does not",
+      "re-derive them from the checker, so a change to main() has to be made",
+      "here by hand."
+    ],
+    "exit_codes": {
+      "0": "every report was checked and no shape defect was found; notes may accompany it and never change it",
+      "1": "the check ran and found defects. In shape mode the defect lines come first and `FAIL  <name>  (N defect(s))` is last; --fidelity-only prints `FAIL  <name>` plus one note and no prefixed defect lines",
+      "2": "refused to run, nothing was inspected: no arguments, or --fidelity-only could not read the source, or --fix was given fewer than two paths"
+    },
+    "exit_2_is_not_a_pass": "a refusal must never be read as 'nothing to fix'",
+    "source_argument": {
+      "must_end_with": ".abap",
+      "why": "that suffix is the only thing that marks a path as source; any other path is taken for another report to check, so the run prints FAIL for that path while the report still prints PASS",
+      "if_absent_or_unreadable": "density and fidelity are skipped silently -- the run prints PASS and exits 0 with no note at all, which is the quietest way to mistake 'not checked' for 'checked'",
+      "diagnostics_needing_source": ["density", "fidelity", "fix-lang"],
+      "skill_anchor": "源码参数必须以"
+    },
+    "report_argument": {
+      "missing_file": "not exit 2: the checker does not pre-check the report path and raises a Python traceback (process exit code 1)",
+      "skill_anchor": "报告文件不存在不是退出码"
+    },
+    "defect_line_prefixes": ["sec", "prow", "buck", "ln", "mm", "A8-cc", "A8-pt"],
+    "note_line_prefix": "  note  ",
+    "conclusion_lines": ["PASS  <name>", "FAIL  <name>  (N defect(s))"],
+    "skill_anchor": "退出码是唯一的机器判据"
+  },
+
   "advisories": [
     {
       "id": "density",
