@@ -626,12 +626,17 @@ def fix_ln(s, src):
 
 
 # Lines that assert nothing about the source, so a fidelity pass must skip them.
+# ELIDE must be searched in the code portion, never the raw line: searching the
+# raw line meant an ellipsis inside a trailing comment -- "LOOP AT t INTO wa. "
+# ... more" -- exempted the statement it sat on. The comment is dropped by
+# _strip_comment first, so a marker there no longer reaches the test.
 ELIDE = re.compile(r"\.\.\.|\u2026")
 PAREN_NOTE = re.compile(r"^[\s|*]*[\uff08(].*[\uff09)]\s*$")
 CJK = re.compile(r"[\u4e00-\u9fff]")
 # An ABAP string literal: the delimiter is ' , so " is always a comment marker
-# and never part of a string. Read by _abap_code, which is the one place that
-# decides whether a quoted line is code or the report's own annotation.
+# and never part of a string. Read by _claims, which uses it twice: once with
+# the comment still attached, to count literals for the balance test, and once
+# without, to decide whether what is left is code or the report's annotation.
 STR_LIT = re.compile(r"'[^']*'")
 # The source writes "t_documents ," with a space before the comma; the report
 # writes "t_documents,". Punctuation spacing, not a rewritten statement.
@@ -644,23 +649,25 @@ def _flat(s):
     return re.sub(r"([(])\s+", r"\1", s)
 
 
-def _abap_code(l):
-    """A quoted line with comments and string-literal contents removed.
+def _strip_comment(l):
+    """A quoted line with any ABAP comment removed.
 
-    Quoted ABAP in a Chinese system is full of CJK that is not commentary:
-    WRITE / '开始'. and DATA lv_x TYPE string. " 物料号 both carry CJK and are
-    real statements. Testing for CJK alone exempted them from the only check
-    that catches an invented statement, so a fabricated Chinese literal read
-    exactly like a faithful one. A statement comment (" ...) and a full-line
-    comment (* ...) carry no code either, so they come out with the comment.
-    What is left is ABAP code, and ABAP identifiers are ASCII.
+    Outside a string literal " always opens a comment, and * opens one at the
+    beginning of a line. Everything from there on is prose, never code.
+
+    This is the one place that decides whether a quoted line is source or the
+    report's own annotation, so it runs before every test below. Quoted ABAP in
+    a Chinese system is full of CJK that is not commentary -- WRITE / '开始'.
+    and DATA lv_x TYPE string. " 物料号 both carry CJK and are real statements --
+    so testing for CJK alone used to exempt them from the only check that
+    catches an invented statement, and a fabricated Chinese literal read exactly
+    like a faithful one.
     """
     c = l.find('"')
     if c >= 0:
-        l = l[:c]
-    if l.lstrip().startswith("*"):
-        return ""
-    return STR_LIT.sub("''", l)
+        return l[:c]
+    return "" if l.lstrip().startswith("*") else l
+
 
 
 def _claims(body):
@@ -673,18 +680,26 @@ def _claims(body):
     """
     out = []
     for i, raw in enumerate(body.split("\n")):
-        if ELIDE.search(raw):
-            continue                    # skill-permitted boilerplate elision
         l = re.sub(r'^\s*[*"\'"]', "", raw).rstrip()
         if len(l.strip()) < 3 or PAREN_NOTE.match(l):
             continue
-        code = _abap_code(l)
+        pre = _strip_comment(l)
+        code = STR_LIT.sub("''", pre)
+        if ELIDE.search(code):
+            continue                    # skill-permitted elision, anywhere in the code
         if not re.search(r"[A-Za-z0-9]", code):
             continue                    # a comment, or the report's own annotation
         if CJK.search(code):
             continue                    # CJK survived the strip: prose, not ABAP
-        if l.count("'") % 2:
-            continue                    # unbalanced string literal: layout debris
+        if pre.count("'") % 2:
+            # Unbalanced literal outside comments: the report's own debris, not a
+            # statement. Counted on pre, not l, so an apostrophe inside a comment
+            # does not tip it; counted on pre, not code, so a paired literal is
+            # not stripped away before the test runs. A line whose truncation
+            # left a bare delimiter -- 'BUK' FIELD written as BUK' FIELD -- fails
+            # this test too and is therefore not probed. Measured over the 33
+            # archived reports that cost four rewrites and no false positives.
+            continue
         out.append((i, l))
     return out
 

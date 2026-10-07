@@ -291,6 +291,40 @@ def main():
     check("do not occur in the source" not in (r.stdout or ""),
           "the report's own Chinese line inside a block is not probed")
 
+    # regression: the elision exemption was searched anywhere in the line, so a
+    # "..." inside a trailing comment exempted the whole statement. The fix must
+    # still honour the three elision shapes the skill permits: a bare marker, a
+    # marker with an explaining comment, and a partial statement opened by one.
+    p = os.path.join(tmp, "elide_backdoor.md")
+    io.open(p, "w", encoding="utf-8").write(brief_report().replace(
+        SEL, "  LOOP AT some_t INTO wa.  \" ... then more"))
+    r = run(QC, p, csrc)
+    check("LOOP AT some_t INTO wa." in (r.stdout or ""),
+          "an ellipsis inside a comment no longer exempts the statement")
+    for shape, label in (
+            ("  ...\n", "a bare elision marker is exempt"),
+            ("  ...  \" FNC / PCK / DLS 同类\n", "an elision with a note is exempt"),
+            ("  ... SELECT SINGLE strkorr FROM e070 ...\n",
+             "a partial statement opened by an ellipsis is exempt")):
+        p = os.path.join(tmp, "elide_ok.md")
+        io.open(p, "w", encoding="utf-8").write(
+            brief_report().replace(SEL, "  WRITE / '开始'.\n" + shape))
+        r = run(QC, p, csrc)
+        check("do not occur in the source" not in (r.stdout or ""), label)
+
+    # the balance test counts on the comment-stripped line, so an apostrophe the
+    # report wrote inside a comment cannot tip it; and an apostrophe inside the
+    # report's own prose reads as an unbalanced literal, so that line is skipped
+    # rather than reported as a fabricated statement.
+    for shape, label in (
+            ('" it\'s a note\n', "an apostrophe inside a comment is not a literal"),
+            ("  RS_CMP can't see this.\n", "an apostrophe in report prose is not a literal")):
+        p = os.path.join(tmp, "apos_ok.md")
+        io.open(p, "w", encoding="utf-8").write(
+            brief_report().replace(SEL, "  WRITE / '开始'.\n" + shape))
+        r = run(QC, p, csrc)
+        check("do not occur in the source" not in (r.stdout or ""), label)
+
     # Fence language decides what is probed; position exempts nothing. A fix
     # nested in the risk layer used to be skipped by position, which skipped the
     # next sub-step's real quote as well. Label it abap-fix and neither gate
