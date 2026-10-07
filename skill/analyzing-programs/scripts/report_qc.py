@@ -101,8 +101,19 @@ FENCE_MARK = re.compile(r"^[ \t]*`{3,}([^\n]*)$", re.M)
 # the contract and the prose cannot drift apart either.
 CONTRACT_PATH = os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "schemas", "report-contract.json")
-with io.open(CONTRACT_PATH, encoding="utf-8") as _fh:
-    CONTRACT = json.load(_fh)
+try:
+    with io.open(CONTRACT_PATH, encoding="utf-8") as _fh:
+        CONTRACT = json.load(_fh)
+except (OSError, ValueError) as _e:
+    # The rule set is read before the script can run, so a missing or corrupt
+    # contract dies here -- before main(), before every exit-2 guard below.
+    # An unhandled exception exits 1, which SKILL.md defines as "the check ran
+    # and found defects". The caller then goes and fixes defects that do not
+    # exist, or loops on step 7 forever: the one false reassurance this script
+    # is not allowed to give arrives from the wrong door. Refuse instead.
+    sys.stdout.write("error  cannot read the rule set at %s (%s), so nothing "
+                     "was checked\n" % (CONTRACT_PATH, _e))
+    sys.exit(2)
 
 SEC = ["## " + s["id"] for s in CONTRACT["sections"]]
 # The gate must find a section at level two, not merely contain its string.

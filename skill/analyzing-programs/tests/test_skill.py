@@ -22,6 +22,7 @@ import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -119,6 +120,29 @@ def main():
     check(os.path.exists(QC), "scripts/report_qc.py present")
     check(os.path.exists(EVAL), "scripts/evaluate.py present")
     check(os.path.exists(EXEMPLAR), "references/example-report.md present")
+
+    # The rule set is loaded before main() can run, so a skill installed with
+    # its schemas/ directory missing used to die with a bare traceback and exit
+    # code 1 -- the code SKILL.md defines as "the check ran and found
+    # defects". Nothing was inspected, but the caller read it as a verdict, and
+    # step 7's "rerun until clean" loop could never go quiet. Refuse instead.
+    for kind in ("missing", "corrupt"):
+        root = os.path.join(tmp, kind)
+        os.makedirs(os.path.join(root, "scripts"))
+        if kind == "corrupt":
+            os.makedirs(os.path.join(root, "schemas"))
+            io.open(os.path.join(root, "schemas", "report-contract.json"),
+                    "w", encoding="utf-8").write("{ not json")
+        shutil.copy(QC, os.path.join(root, "scripts", "report_qc.py"))
+        rep = os.path.join(tmp, kind + ".md")
+        io.open(rep, "w", encoding="utf-8").write(brief_report())
+        r = run(os.path.join(root, "scripts", "report_qc.py"), rep)
+        check(r.returncode == 2,
+              "an %s rule set exits 2, not 1" % kind)
+        check("Traceback" not in r.stderr and "Traceback" not in r.stdout,
+              "an %s rule set says so, it does not raise" % kind)
+        check("error" in r.stdout and "nothing was checked" in r.stdout,
+              "an %s rule set announces that nothing was checked" % kind)
 
     print()
     print("report_qc.py")
