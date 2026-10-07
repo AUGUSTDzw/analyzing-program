@@ -216,6 +216,57 @@ def main():
     check("do not occur in the source" in (r.stdout or ""),
           "a rewritten second block raises a fidelity note")
 
+    # regression: _claims decided a quoted line was the report's own annotation
+    # whenever it contained CJK. Chinese ABAP carries CJK in string literals and
+    # in statement comments, so WRITE / '开始'. was exempted from the only check
+    # that catches an invented statement, and a fabricated Chinese literal read
+    # exactly like a faithful one. The corpus check is that the count of flagged
+    # statements across 33 real reports did not rise (208 vs 210) while the
+    # probed set grew by about 1200 lines.
+    csrc = os.path.join(tmp, "cjk.abap")
+    io.open(csrc, "w", encoding="utf-8").write(
+        "REPORT zr.\n"
+        "DATA lv_msg TYPE string. \" 提示文本\n"
+        "FORM init.\n"
+        "  WRITE / '开始'.\n"
+        "ENDFORM.\n")
+    SEL = "SELECT foo FROM bar INTO @DATA(ls_foo)."
+    cjk = brief_report().replace(SEL, "  WRITE / '开始'.")
+    p = os.path.join(tmp, "cjk_ok.md")
+    io.open(p, "w", encoding="utf-8").write(cjk)
+    r = run(QC, p, csrc)
+    check("do not occur in the source" not in (r.stdout or ""),
+          "a faithful quote with a Chinese literal is not flagged")
+    p = os.path.join(tmp, "cjk_bad.md")
+    io.open(p, "w", encoding="utf-8").write(
+        brief_report().replace(SEL, "  WRITE / '编造的中文提示'."))
+    r = run(QC, p, csrc)
+    check("do not occur in the source" in (r.stdout or ""),
+          "a fabricated Chinese literal is flagged, not exempted")
+
+    # a statement comment is prose, so rewording only the comment is not a
+    # rewritten statement; the code part before the " is what gets compared
+    p = os.path.join(tmp, "cjk_comment.md")
+    io.open(p, "w", encoding="utf-8").write(brief_report().replace(
+        SEL, "DATA lv_msg TYPE string. \" 改写过的注释"))
+    r = run(QC, p, csrc)
+    check("do not occur in the source" not in (r.stdout or ""),
+          "a rewritten statement comment is not called a fabrication")
+    p = os.path.join(tmp, "cjk_code.md")
+    io.open(p, "w", encoding="utf-8").write(brief_report().replace(
+        SEL, "DATA lv_msg TYPE i. \" 同一条注释"))
+    r = run(QC, p, csrc)
+    check("do not occur in the source" in (r.stdout or ""),
+          "a rewritten statement with an untouched comment is still flagged")
+
+    # the report's own Chinese line inside a block is annotation, not code
+    p = os.path.join(tmp, "cjk_prose.md")
+    io.open(p, "w", encoding="utf-8").write(brief_report().replace(
+        SEL, " 取一行\n  WRITE / '开始'."))
+    r = run(QC, p, csrc)
+    check("do not occur in the source" not in (r.stdout or ""),
+          "the report's own Chinese line inside a block is not probed")
+
     # Fence language decides what is probed; position exempts nothing. A fix
     # nested in the risk layer used to be skipped by position, which skipped the
     # next sub-step's real quote as well. Label it abap-fix and neither gate

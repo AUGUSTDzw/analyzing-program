@@ -618,6 +618,10 @@ def fix_ln(s, src):
 ELIDE = re.compile(r"\.\.\.|\u2026")
 PAREN_NOTE = re.compile(r"^[\s|*]*[\uff08(].*[\uff09)]\s*$")
 CJK = re.compile(r"[\u4e00-\u9fff]")
+# An ABAP string literal: the delimiter is ' , so " is always a comment marker
+# and never part of a string. Read by _abap_code, which is the one place that
+# decides whether a quoted line is code or the report's own annotation.
+STR_LIT = re.compile(r"'[^']*'")
 # The source writes "t_documents ," with a space before the comma; the report
 # writes "t_documents,". Punctuation spacing, not a rewritten statement.
 PUNCT = re.compile(r"\s+([,;:)])")
@@ -627,6 +631,25 @@ def _flat(s):
     s = re.sub(r"\s+", " ", s).strip().lower()
     s = PUNCT.sub(r"\1", s)
     return re.sub(r"([(])\s+", r"\1", s)
+
+
+def _abap_code(l):
+    """A quoted line with comments and string-literal contents removed.
+
+    Quoted ABAP in a Chinese system is full of CJK that is not commentary:
+    WRITE / '开始'. and DATA lv_x TYPE string. " 物料号 both carry CJK and are
+    real statements. Testing for CJK alone exempted them from the only check
+    that catches an invented statement, so a fabricated Chinese literal read
+    exactly like a faithful one. A statement comment (" ...) and a full-line
+    comment (* ...) carry no code either, so they come out with the comment.
+    What is left is ABAP code, and ABAP identifiers are ASCII.
+    """
+    c = l.find('"')
+    if c >= 0:
+        l = l[:c]
+    if l.lstrip().startswith("*"):
+        return ""
+    return STR_LIT.sub("''", l)
 
 
 def _claims(body):
@@ -644,10 +667,13 @@ def _claims(body):
         l = re.sub(r'^\s*[*"\'"]', "", raw).rstrip()
         if len(l.strip()) < 3 or PAREN_NOTE.match(l):
             continue
-        if CJK.search(l) and "|" not in l:
-            continue                    # the report's own commentary
-        if l.count('"') % 2:
-            continue                    # unbalanced quote: layout debris
+        code = _abap_code(l)
+        if not re.search(r"[A-Za-z0-9]", code):
+            continue                    # a comment, or the report's own annotation
+        if CJK.search(code):
+            continue                    # CJK survived the strip: prose, not ABAP
+        if l.count("'") % 2:
+            continue                    # unbalanced string literal: layout debris
         out.append((i, l))
     return out
 
@@ -680,7 +706,11 @@ def fidelity_note(s, src):
         base = line_of(s, st)
         for i, l in _claims(s[bs:be]):
             n += 1
-            probe = l.strip().rstrip(".")
+            probe = l.strip()
+            c = probe.find('"')
+            if c >= 0:
+                probe = probe[:c]      # a statement comment is prose, not code
+            probe = probe.rstrip(".")
             if probe and _flat(probe) not in sf:
                 bad.append((base + 1 + i, l.strip()))
     if not bad:
