@@ -1,0 +1,87 @@
+{
+ "_schema": [
+  "Defect reference for one ABAP source. Report-agnostic: it describes the",
+  "source, not any report, so it stays valid as reports change.",
+  "",
+  "source   the file these defects were read out of, relative to Test-source/real",
+  "defects  one entry per defect:",
+  "           id        stable identifier, referenced by verdict files",
+  "           area      which part of the program the defect lives in",
+  "           question  phrased so a judge can decide yes/partial/no from the",
+  "                     report text alone, without guessing at intent",
+  "           anchor    the source text that makes the defect checkable; some",
+  "                     defects carry `anchors` (a list) instead",
+  "",
+  "Score a report with:  python scripts/evaluate.py score --defects THIS.json \\",
+  "                                                --verdicts YOURVERDICTS.json"
+ ],
+ "source": "Test-source/real/PacktPublishing__Mastering-SAP-ABAP__Chapter04__ZMSA_R_CHAPTER4_8.abap",
+ "defects": [
+  {
+   "id": "D1",
+   "area": "okcode plumbing",
+   "question": "Does the report flag DATA lv_okcode TYPE syst_ucomm never being assigned from any okcode source, so both CASE statements never match and OPEN/CLOSE/STOP are unreachable?",
+   "anchor": "L23, L81, L149 vs L23/L144"
+  },
+  {
+   "id": "D2",
+   "area": "guard idiom",
+   "question": "Does the report flag CHECK NOT lv_closed IS INITIAL (continue only when the doc is destroyed) as an easily-inverted guard, inconsistent with CLOSE's IF lv_closed IS INITIAL for the same predicate?",
+   "anchor": "L88 vs L119"
+  },
+  {
+   "id": "D3",
+   "area": "error handling",
+   "question": "Does the report flag zero exception/success handling anywhere: no TRY/CATCH, no sy-subrc, no reference checks, and c_oi_errors=>show_message called with a hardcoded 'E' whose result is unusable for branching?",
+   "anchor": "L47, L65, L74, L111, L126"
+  },
+  {
+   "id": "D4",
+   "area": "events",
+   "question": "Does the report flag register_on_close_event/register_on_custom_event = abap_true with no SET HANDLER / event class registered, so closing Word directly desynchronises ABAP state?",
+   "anchor": "L61-L62"
+  },
+  {
+   "id": "D5",
+   "area": "OLE buffer / GUI teardown",
+   "question": "Does the report flag the missing GUI flush discipline: NO_FLUSH is never 'X' and the exit path calls close_document/destroy_control then LEAVE PROGRAM with no cl_gui_cfw=>flush (pending destroy never reaches the frontend, orphan Word window)?",
+   "anchor": "L152-L159 vs L136-L156"
+  },
+  {
+   "id": "D6",
+   "area": "cleanup symmetry",
+   "question": "Does the report flag lo_container being the only one of the three references never freed/destroyed in the exit module?",
+   "anchor": "L148-L158 vs L151-L157"
+  },
+  {
+   "id": "D7",
+   "area": "hardcoding",
+   "question": "Does the report flag hardcoded literals with no constants: 'CUSTOMCONTAINER' control name, 'Word.Document.8' ProgID, 'R/3 Basis', 'DOI Test Document', '0100' status/title, screen 100, and mixed ' ' / abap_true booleans?",
+   "anchor": "L40-L41, L51, L57, L69, L99, L122"
+  },
+  {
+   "id": "D8",
+   "area": "document buffer",
+   "question": "Does the report flag TYPES ty_row TYPE x LENGTH 2048 as a hardcoded OI row-width contract with lv_doc_size semantics and no document size cap?",
+   "anchor": "L29-L31, L95-L99"
+  },
+  {
+   "id": "D9",
+   "area": "one-shot init",
+   "question": "Does the report flag lv_init = abap_true being set unconditionally at the end of init without verifying lo_control/lo_proxy, permanently closing the retry path?",
+   "anchor": "L76 vs L43-L74"
+  },
+  {
+   "id": "D10",
+   "area": "PBO re-entry",
+   "question": "Does the report flag SET PF-STATUS/SET TITLEBAR sitting AFTER CHECK lv_init = abap_false, so they are never re-set on any later PBO (status bar lost) - it only mentions TITLEBAR staleness?",
+   "anchor": "L36-L41"
+  },
+  {
+   "id": "D11",
+   "area": "external contract",
+   "question": "Does the report treat PROCESS BEFORE OUTPUT / PROCESS AFTER INPUT, screen 100 and the PAI module order as outside this file (not shown as its own code), since only MODULE ... OUTPUT/INPUT exist here?",
+   "anchor": "L34-L36, L80, L148 (no PROCESS statement in file)"
+  }
+ ]
+}

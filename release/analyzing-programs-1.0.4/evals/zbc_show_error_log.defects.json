@@ -1,0 +1,81 @@
+{
+ "_schema": [
+  "Defect reference for one ABAP source. Report-agnostic: it describes the",
+  "source, not any report, so it stays valid as reports change.",
+  "",
+  "source   the file these defects were read out of, relative to Test-source/real",
+  "defects  one entry per defect:",
+  "           id        stable identifier, referenced by verdict files",
+  "           area      which part of the program the defect lives in",
+  "           question  phrased so a judge can decide yes/partial/no from the",
+  "                     report text alone, without guessing at intent",
+  "           anchor    the source text that makes the defect checkable; some",
+  "                     defects carry `anchors` (a list) instead",
+  "",
+  "Score a report with:  python scripts/evaluate.py score --defects THIS.json \\",
+  "                                                --verdicts YOURVERDICTS.json"
+ ],
+ "source": "Test-source/real/hardyp__AbapToTheFuture03__src__zmonsters_p01_enablers__zmonsters_c04_exceptions__zbc_show_error_log.fugr.zbc_show_error_log.abap",
+ "defects": [
+  {
+   "id": "D1",
+   "area": "interface",
+   "question": "Does the report flag IMPORTING REFERENCE(ID_TITLE) TYPE STRING OPTIONAL being declared but never referenced in the body (hardcoded 'Show Error Log'(001) used instead)?",
+   "anchor": "L5 vs L9-L24"
+  },
+  {
+   "id": "D2",
+   "area": "interface/TABLES",
+   "question": "Does the report flag obsolete TABLES ... STRUCTURE ZBC_S_ERROR_LOG (implicit header line, by-reference, no typed table param)?",
+   "anchor": "L6-L7"
+  },
+  {
+   "id": "D3",
+   "area": "global state",
+   "question": "Does the report flag the FM reading/writing the function-group global gd_end_line without initializing or restoring it (non-reproducible height)?",
+   "anchor": "L13-L15"
+  },
+  {
+   "id": "D4",
+   "area": "magic numbers",
+   "question": "Does the report flag hardcoded 6 / 35 with the cap hidden inside the loop condition and a non-idempotent growth across repeated calls?",
+   "anchor": "L13"
+  },
+  {
+   "id": "D5",
+   "area": "cross-include dependency",
+   "question": "Does the report state that PERFORM start_list_viewer lives outside this file, so the FM's whole output is unverifiable here, and that PERFORM offers no result channel?",
+   "anchor": "L18"
+  },
+  {
+   "id": "D6",
+   "area": "error handling",
+   "question": "Does the report flag the total absence of EXCEPTIONS / RETURNING / any success indicator (caller cannot tell success from silent failure)?",
+   "anchor": "L1-L24"
+  },
+  {
+   "id": "D7",
+   "area": "message text",
+   "question": "Does the report flag text symbol 'Show Error Log'(001) depending on a message class that is invisible in the source (silent literal fallback on transfer)?",
+   "anchor": "L9"
+  },
+  {
+   "id": "D8",
+   "area": "efficiency",
+   "question": "Does the report flag the O(n) LOOP AT that reads no field and exists only to count rows (lines() is O(1))?",
+   "anchor": "L12-L16"
+  },
+  {
+   "id": "D9",
+   "area": "robustness",
+   "question": "Does the report flag that an empty it_error_log is not short-circuited (still pops the message and opens an empty viewer)?",
+   "anchor": "L9-L18"
+  },
+  {
+   "id": "D10",
+   "area": "code hygiene",
+   "question": "Does the report note the 5 trailing blank lines before ENDFUNCTION?",
+   "anchor": "L19-L24"
+  }
+ ]
+}
