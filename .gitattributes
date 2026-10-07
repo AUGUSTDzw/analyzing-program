@@ -1,0 +1,23 @@
+# Line endings.
+#
+# Without this file git uses core.autocrlf, which on this machine is `input`:
+# it never converts on checkout, so a file saved by a Windows editor keeps its
+# CRLF in the working tree while the blob stays LF. `git status` then reports
+# clean, because the normalization round-trip looks identical -- and the packed
+# zip (built from the LF blob) quietly disagrees with the extracted directory
+# (built from the CRLF worktree). Every `git diff --no-index` against
+# release/ used to warn about exactly this.
+#
+# Declaring the endings here makes the choice explicit and identical on every
+# checkout, so a repackaged zip and its extracted directory compare byte-clean.
+*.md   text eol=lf
+*.py   text eol=lf
+*.json text eol=lf
+*.abap text eol=lf
+*.sh   text eol=lf
+*.mjs  text eol=lf
+
+# Not text. The zips are the shipped artifacts; treating one as text would
+# re-encode it and invalidate its SHA256.
+*.zip -text
+*.pyc -text

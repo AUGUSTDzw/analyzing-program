@@ -6,7 +6,7 @@
 ## 目录
 
 ```
-SKILL.md                       规则本体（325 行）
+SKILL.md                       规则本体（357 行）
 scripts/report_qc.py           格式闸门：逐条列出违规位置，可自动修两类
 scripts/evaluate.py            内容评分：对冻结缺陷清单判分，算召回与错误论断
 references/example-report.md   完整范例（真实报告，逐字未改，闸门零缺陷）
@@ -15,7 +15,7 @@ references/README.md           范例的出处与局限
 evals/README.md                缺陷参考的格式、用法与边界
 evals/*.defects.json           112 条缺陷 / 6 个真实源码
 tests/test_skill.py            自足检查，不依赖项目数据
-tests/test_contract_drift.py   契约与 SKILL.md 的双向对齐检查
+tests/test_contract_drift.py   契约 <-> SKILL.md <-> 闸门 三方对齐检查
 schemas/report-contract.json   闸门规则与 skill 教学锚点的唯一来源
 ```
 
@@ -35,8 +35,8 @@ schemas/report-contract.json   闸门规则与 skill 教学锚点的唯一来源
 ## 跑一遍
 
 ```bash
-python tests/test_skill.py                # 98 项，自足；全过打印 N checks passed
-python tests/test_contract_drift.py       # 104 项，契约 <-> SKILL.md 双向对齐
+python tests/test_skill.py                # 115 项，自足；全过打印 N checks passed
+python tests/test_contract_drift.py       # 105 项，契约 <-> SKILL.md <-> 闸门 三方对齐
 python scripts/report_qc.py REPORT SOURCE                # 格式；报告须 .md/.markdown，其余当源码
 python scripts/report_qc.py --fix REPORT SOURCE -o OUT   # 格式 + 自动修两类
 python scripts/evaluate.py tasks  --defects evals/zcl_fi_toolkit.defects.json
@@ -65,8 +65,9 @@ SKILL.md「闸门输出」一节照抄：
 所以：形状检查的 `0` 只能读作「形状对」，**看到那条 skip note 就等于三项诊断没跑**。
 这一版的闸门在源码路径写错时会**拒绝运行**而不是打印 PASS —— 上一版不是那样的，
 上一版会照跑、照打印 `PASS`、零 note。这三条语义已经改过两轮，
-全部记在 `schemas/report-contract.json` 的 `gate_io` 里（19 个锚点，
-`test_contract_drift.py` 逐条查它们在不在 SKILL.md 里）。
+全部记在 `schemas/report-contract.json` 里，闸门行为集中在 `gate_io` 段
+（该段 4 个锚点，契约合计 20 个），
+`test_contract_drift.py` 逐条查它们在不在 SKILL.md 里。
 
 自动修只做两类改不动的判断：位置标签写成行号 → 改成最近的前置构造名；
 Mermaid 标签里的裸 `<` `>` `#` → 改成全角。三层缺失**只报位置不修**，
@@ -97,7 +98,7 @@ Mermaid 标签里的裸 `<` `>` `#` → 改成全角。三层缺失**只报位�
 ### 先说版本：下面的数字不是出货版本的数字
 
 iteration-8 的全部数字都是在 **`b8f84e8`**（162 行）上测出来的。
-**出货版本是 `9a013e47`（325 行）。形状一致性有 n=9 的证据（见下），**效果**从未被测过。**
+**出货版本是 `5b1241c`（1.0.6，357 行）。形状一致性有 n=9 的证据（见下），**效果**从未被测过。**
 
 版本谱系（每一版都已归档在 `release/`，digest 见 `release/SHA256SUMS`）：
 
@@ -110,6 +111,14 @@ iteration-8 的全部数字都是在 **`b8f84e8`**（162 行）上测出来的�
 | `fac4d5a3` | 280 | `fac4d5a3` | **1.0.3**。闸门 / 评分脚本 / 契约 / 两个测试**整组**换成未发布开发线那份；SKILL.md 补 `fence`、`fix-mislabel`、密度与三层窗口的定义，并按新闸门的实测行为重写退出码一节 |
 | `d3c55463` | 321 | `d3c55463` | **1.0.4**。纯文档：Mermaid HTML 子集例外、教 `--fix`、大输入章节指向 `references/large-inputs.md`、修三处事实陈述（22 个百分点改为只留方向并标注幅度未测量 / 转写错误归属改正 / 失败形态补上静默） |
 | `9a013e47` | 325 | `9a013e47` | **1.0.5**。唯一一处闸门改动：`fix-mislabel` 的判据从「每条语句都在源码某处出现过」改成「整块逐字**连续**出现在源码里」。旧判据在九份真实报告上误报 5 次、全部是真改法；新判据 5 次全消，同时保留对真引用贴错围栏的检出（测试从 95 项增至 98 项，新增的负向用例就是"各行都存在但不相邻"这一例） |
+| `5b1241c` | 357 | `5b1241c` | **1.0.6**。三处闸门修复 + 文档对齐。P0-1：忠实度不再对整行中文静默放行（`WRITE / '开始'.` 被当成点评跳过，注释与字面量里的中文仍是代码）；P0-1b：省略放行只认代码部分，注释里的 `...` 不再是后门；P0-2：规则集读不到时以退出码 `2` 拒绝运行（原来未捕获异常退 `1`，而 `1` 被 SKILL.md 定义为"查过了、有缺陷"）。SKILL.md 补齐与这三处对应的说法；契约补上 `gate_start_refuses_without_a_rule_set`（1.2.3 → 1.2.4）；frontmatter 加 `version` / `contract`；测试从 98 项增至 115 项，drift 从 104 项增至 105 项 |
+
+**契约版本与发布版本是两条独立的轴。** 契约 `version` 只在该文件自己的规则、
+阈值或 `gate_io` 行变化时递增；发布版本对措辞和闸门行为的变化也递增。
+所以两者只在契约恰好一起动的时候才相等——1.0.5 与 1.0.6 都带契约 1.2.3/1.2.4。
+这个映射记在契约的 `release.ships_with` 里，否则光看数字分不出
+`1.2.4` 比 `1.0.6` 新还是旧。已部署的副本要能自报版本，
+所以 frontmatter 也带 `version` 与 `contract` 两个字段。
 
 | | b8f84e8（已测） | 9a013e47（出货） |
 |---|---|---|

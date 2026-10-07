@@ -1,5 +1,27 @@
 {
-  "version": "1.2.3",
+  "version": "1.2.4",
+  "release": {
+    "ships_with": "1.0.6",
+    "_comment": [
+      "Two version numbers, and they are independent axes. `version` is this",
+      "contract: it bumps when a rule, a threshold or a gate_io row changes.",
+      "`release.ships_with` is the release line of the skill package that",
+      "bundles this contract. The release bumps for prose and gate-behaviour",
+      "changes too, so the two only coincide when the contract happens to move.",
+      "",
+      "Recorded here because nobody can tell from the numbers alone whether",
+      "1.2.4 is newer or older than 1.0.6. A deployed copy that can name both",
+      "can prove it matches the release the README describes.",
+      "",
+      "1.2.3 -> 1.2.4: exit_codes[\"2\"] gained the rule-set trigger, and",
+      "gate_io.gate_start_refuses_without_a_rule_set was added. report_qc.py",
+      "already refused; SKILL.md already taught it. The contract, which this",
+      "file exists to be the single copy of, was the only place still missing",
+      "it. test_contract_drift.py cannot catch that class of gap -- it only",
+      "asserts that skill_anchor strings appear in SKILL.md -- so a drift this",
+      "wide needs a reader, not a test."
+    ]
+  },
   "_comment": [
     "Machine-readable contract for what a report must contain.",
     "",
@@ -95,7 +117,15 @@
     "exit_codes": {
       "0": "every report was checked and no shape defect was found; notes may accompany it and never change it",
       "1": "the check ran and found defects. Shape mode prints the defect lines first and `FAIL  <name>  (N defect(s))` last; --fidelity-only prints `FAIL  <name>` plus one note and no prefixed lines; --fix prints `FAIL  <name>  (N defect(s) need the model)`",
-      "2": "refused to run, nothing was inspected. Every trigger prints a line starting with `error`: no arguments; no .md/.markdown path among the arguments; more than one source; report or source path does not exist; source is empty; --fix given fewer than two paths; -o with no output path"
+      "2": "refused to run, nothing was inspected. Every trigger prints a line starting with `error`: no arguments; no .md/.markdown path among the arguments; more than one source; report or source path does not exist; source is empty; --fix given fewer than two paths; -o with no output path; the rule set cannot be read or is corrupt. The last is special: it fires before main() at all, because the rules are loaded at import, so it needed its own try/except. Unhandled, it is an uncaught exception and exits 1 -- the code SKILL.md defines as 'the check ran and found defects' -- and the caller then goes and fixes defects that do not exist, or loops step 7 forever."
+    },
+    "gate_start_refuses_without_a_rule_set": {
+      "where": "module import, before main() and before every exit-2 guard",
+      "trigger": "schemas/report-contract.json is missing or not parseable JSON",
+      "prints": "error  cannot read the rule set at <path> (<cause>), so nothing was checked",
+      "exit": 2,
+      "why_not_1": "an unhandled exception exits 1, which is the defect verdict; refusing by exception is the one false reassurance this script is not allowed to give, arriving through the wrong door",
+      "skill_anchor": "规则集"
     },
     "argument_roles": {
       "rule": "a report is any path ending .md or .markdown; every other path on the command line is a source",
