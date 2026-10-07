@@ -1,0 +1,368 @@
+{
+ "Test-result\\arm\\v1fid_Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md": {
+  "lines": 1754,
+  "source": "test-source\\real\\keremkoseoglu__abap-library__functional__fi__zcl_fi_toolkit.abap",
+  "exit": 0,
+  "fidelity_notes": [],
+  "bad_of_total": null
+ },
+ "Test-result\\arm\\v1gate_Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md": {
+  "lines": 1661,
+  "source": "test-source\\real\\keremkoseoglu__abap-library__functional__fi__zcl_fi_toolkit.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  7 quoted statement(s) of 746 do not occur in the source. First at line 318: 'INNER JOIN lnbk ON lnbk~kunnr = kna1~kunnr' (+6 more). Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   7,
+   746
+  ]
+ },
+ "Test-result\\arm\\v1two2_Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md": {
+  "lines": 2149,
+  "source": "test-source\\real\\keremkoseoglu__abap-library__functional__fi__zcl_fi_toolkit.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  1 quoted statement(s) of 1081 do not occur in the source. First at line 1814: 'DATA lv_blart TYPE bkpf-blart.'. Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   1,
+   1081
+  ]
+ },
+ "Test-result\\arm\\v1two3_Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md": {
+  "lines": 2073,
+  "source": "test-source\\real\\keremkoseoglu__abap-library__functional__fi__zcl_fi_toolkit.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  6 quoted statement(s) of 958 do not occur in the source. First at line 1195: 'INNER JOIN lnbk ON lnbk~kunnr = kna1~lifnr' (+5 more). Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   6,
+   958
+  ]
+ },
+ "Test-result\\arm\\v1two_Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md": {
+  "lines": 2280,
+  "source": "test-source\\real\\keremkoseoglu__abap-library__functional__fi__zcl_fi_toolkit.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  9 quoted statement(s) of 1123 do not occur in the source. First at line 249: \"ASSIGN ('(RFITEMAR)X_AISEL') TO <lv_vari>).\" (+8 more). Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   9,
+   1123
+  ]
+ },
+ "Test-result\\isolated\\slice2_Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md": {
+  "lines": 1444,
+  "source": "test-source\\real\\keremkoseoglu__abap-library__functional__fi__zcl_fi_toolkit.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  12 quoted statement(s) of 816 do not occur in the source. First at line 202: 'INNER JOIN lnbk ON lnbk~kunnr = kna1~kunnr' (+11 more). Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   12,
+   816
+  ]
+ },
+ "Test-result\\isolated\\slice_ave.skill.md": {
+  "lines": 4270,
+  "source": "test-source\\real\\ysichov__ave__src__z_ave_standalone.prog.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  14 quoted statement(s) of 1951 do not occur in the source. First at line 969: 'THEN |{ ls_raw-class }=＞{ lv_row_display_unit }|' (+13 more). Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   14,
+   1951
+  ]
+ },
+ "Test-result\\isolated\\slice_Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md": {
+  "lines": 1858,
+  "source": "test-source\\real\\keremkoseoglu__abap-library__functional__fi__zcl_fi_toolkit.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  1 quoted statement(s) of 801 do not occur in the source. First at line 1198: 'DATA lv_blart TYPE bkpf-blart.'. Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   1,
+   801
+  ]
+ },
+ "Test-result\\real\\abapgit_flow_logic.skill.md": {
+  "lines": 1599,
+  "source": "test-source\\real\\abapgit__abapgit__zcl_abapgit_flow_logic.clas.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  2 quoted statement(s) of 667 do not occur in the source. First at line 489: 'LOOP AT lt_repos ASSIGNING li_repo.' (+1 more). Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   2,
+   667
+  ]
+ },
+ "Test-result\\real\\abapgit_forms.skill.md": {
+  "lines": 833,
+  "source": "test-source\\real\\abapgit__abapgit__zabapgit_forms.prog.abap",
+  "exit": 0,
+  "fidelity_notes": [],
+  "bad_of_total": null
+ },
+ "Test-result\\real\\abapgit_password_dialog.skill.md": {
+  "lines": 609,
+  "source": "test-source\\real\\abapgit__abapgit__zabapgit_password_dialog.prog.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  4 quoted statement(s) of 145 do not occur in the source. First at line 114: 'PARAMETERS p_user TYPE string LOWER CASE VISIBLE LENGTH 60 #' (+3 more). Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   4,
+   145
+  ]
+ },
+ "Test-result\\real\\hardyp__AbapToTheFuture03__src__zmonsters_p02_transactional__zmonsters_c10_salv__zsalv_csqt_screen_manager.fugr.lzsalv_csqt_screen_managero01.skill.md": {
+  "lines": 405,
+  "source": "test-source\\real\\hardyp__abaptothefuture03__src__zmonsters_p02_transactional__zmonsters_c10_salv__zsalv_csqt_screen_manager.fugr.lzsalv_csqt_screen_managero01.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  12 quoted statement(s) of 64 do not occur in the source. First at line 82: 'FUNCTION ZSALV_CSQT_CREATE_CONTAINER.' (+11 more). Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   12,
+   64
+  ]
+ },
+ "Test-result\\real\\hardyp__AbapToTheFuture03__zbc_show_error_log.skill.md": {
+  "lines": 329,
+  "source": "test-source\\real\\hardyp__abaptothefuture03__src__zmonsters_p01_enablers__zmonsters_c04_exceptions__zbc_show_error_log.fugr.zbc_show_error_log.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  7 quoted statement(s) of 24 do not occur in the source. First at line 119: 'IF id_title IS INITIAL.' (+6 more). Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   7,
+   24
+  ]
+ },
+ "Test-result\\real\\Keremkoseoglu__ABAP-Library__ZCL_FI_TOOLKIT.skill.md": {
+  "lines": 1738,
+  "source": "test-source\\real\\keremkoseoglu__abap-library__functional__fi__zcl_fi_toolkit.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  5 quoted statement(s) of 812 do not occur in the source. First at line 145: 'TYPES tt_devir TYPE STANDARD TABLE OF ty_devir .' (+4 more). Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   5,
+   812
+  ]
+ },
+ "Test-result\\real\\PacktPublishing__Mastering-SAP-ABAP__Chapter04__ZMSA_R_CHAPTER4_8.skill.md": {
+  "lines": 508,
+  "source": "test-source\\real\\packtpublishing__mastering-sap-abap__chapter04__zmsa_r_chapter4_8.abap",
+  "exit": 0,
+  "fidelity_notes": [],
+  "bad_of_total": null
+ },
+ "Test-result\\real\\ysichov__AVE__z_ave_standalone.skill.md": {
+  "lines": 3257,
+  "source": "test-source\\real\\ysichov__ave__src__z_ave_standalone.prog.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  12 quoted statement(s) of 1463 do not occur in the source. First at line 740: 'WHEN gc_type-class.   result = NEW zcl_ave_object_clas( CONV' (+11 more). Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   12,
+   1463
+  ]
+ },
+ "Test-result\\real\\zcl_demo_abap_dynamic_prog.skill.md": {
+  "lines": 872,
+  "source": "test-source\\real\\sap-samples__abap-cheat-sheets__zcl_demo_abap_dynamic_prog.clas.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  17 quoted statement(s) of 300 do not occur in the source. First at line 285: 'SELECT * FROM zdemo_abap_carr INTO TABLE NEW @DATA(dref_c7) ' (+16 more). Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   17,
+   300
+  ]
+ },
+ "Test-result\\real2\\AbapToTheFuture03__screen_managero01.skill.md": {
+  "lines": 313,
+  "source": "test-source\\real\\hardyp__abaptothefuture03__src__zmonsters_p02_transactional__zmonsters_c10_salv__zsalv_csqt_screen_manager.fugr.lzsalv_csqt_screen_managero01.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  7 quoted statement(s) of 52 do not occur in the source. First at line 124: 'TRY' (+6 more). Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   7,
+   52
+  ]
+ },
+ "Test-result\\real2\\AbapToTheFuture03__zbc_show_error_log.skill.md": {
+  "lines": 261,
+  "source": "test-source\\real\\hardyp__abaptothefuture03__src__zmonsters_p01_enablers__zmonsters_c04_exceptions__zbc_show_error_log.fugr.zbc_show_error_log.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  7 quoted statement(s) of 26 do not occur in the source. First at line 84: 'TYPES tt_it_error_log TYPE STANDARD TABLE OF zbc_s_error_log' (+6 more). Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   7,
+   26
+  ]
+ },
+ "Test-result\\real2\\Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md": {
+  "lines": 1603,
+  "source": "test-source\\real\\keremkoseoglu__abap-library__functional__fi__zcl_fi_toolkit.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  13 quoted statement(s) of 789 do not occur in the source. First at line 114: 'TYPES tt_blart TYPE HASHED TABLE OF blart' (+12 more). Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   13,
+   789
+  ]
+ },
+ "Test-result\\real2\\Mastering-SAP-ABAP__ZMSA_R_CHAPTER4_8.skill.md": {
+  "lines": 563,
+  "source": "test-source\\real\\packtpublishing__mastering-sap-abap__chapter04__zmsa_r_chapter4_8.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  7 quoted statement(s) of 130 do not occur in the source. First at line 107: 'INTERFACES soi.' (+6 more). Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   7,
+   130
+  ]
+ },
+ "Test-result\\real2\\ysichov__AVE__z_ave_standalone.skill.md": {
+  "lines": 465,
+  "source": "test-source\\real\\ysichov__ave__src__z_ave_standalone.prog.abap",
+  "exit": 0,
+  "fidelity_notes": [],
+  "bad_of_total": null
+ },
+ "Test-result\\real3\\_truncated\\r1_ysichov__AVE__z_ave_standalone.skill.md": {
+  "lines": 1465,
+  "source": "test-source\\real\\ysichov__ave__src__z_ave_standalone.prog.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  4 quoted statement(s) of 600 do not occur in the source. First at line 464: 'PARAMETERS p_ve RADIOBUTTON GROUP mode .' (+3 more). Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   4,
+   600
+  ]
+ },
+ "Test-result\\real3\\_truncated\\r2_ysichov__AVE__z_ave_standalone.skill.md": {
+  "lines": 1784,
+  "source": "test-source\\real\\ysichov__ave__src__z_ave_standalone.prog.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  26 quoted statement(s) of 1216 do not occur in the source. First at line 225: 'TYPES ty_t_part TYPE STANDARD TABLE OF ty_part WITH DEFAULT ' (+25 more). Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   26,
+   1216
+  ]
+ },
+ "Test-result\\real3\\r1_Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md": {
+  "lines": 1988,
+  "source": "test-source\\real\\keremkoseoglu__abap-library__functional__fi__zcl_fi_toolkit.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  8 quoted statement(s) of 1169 do not occur in the source. First at line 576: 'ENDIF;' (+7 more). Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   8,
+   1169
+  ]
+ },
+ "Test-result\\real3\\r2_Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md": {
+  "lines": 2079,
+  "source": "test-source\\real\\keremkoseoglu__abap-library__functional__fi__zcl_fi_toolkit.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  7 quoted statement(s) of 1206 do not occur in the source. First at line 493: 'ENDIF;' (+6 more). Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   7,
+   1206
+  ]
+ },
+ "Test-result\\real4\\_truncated\\v4_r1_Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md": {
+  "lines": 137,
+  "source": "test-source\\real\\keremkoseoglu__abap-library__functional__fi__zcl_fi_toolkit.abap",
+  "exit": 0,
+  "fidelity_notes": [],
+  "bad_of_total": null
+ },
+ "Test-result\\real4\\_truncated\\v4_r2_Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md": {
+  "lines": 392,
+  "source": "test-source\\real\\keremkoseoglu__abap-library__functional__fi__zcl_fi_toolkit.abap",
+  "exit": 0,
+  "fidelity_notes": [],
+  "bad_of_total": null
+ },
+ "Test-result\\real4\\v4_zbc_show_error_log.skill.md": {
+  "lines": 305,
+  "source": "test-source\\real\\hardyp__abaptothefuture03__src__zmonsters_p01_enablers__zmonsters_c04_exceptions__zbc_show_error_log.fugr.zbc_show_error_log.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  7 quoted statement(s) of 18 do not occur in the source. First at line 135: 'IF id_title IS INITIAL.' (+6 more). Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   7,
+   18
+  ]
+ },
+ "Test-result\\real4\\v4_ZMSA_R_CHAPTER4_8.skill.md": {
+  "lines": 755,
+  "source": "test-source\\real\\packtpublishing__mastering-sap-abap__chapter04__zmsa_r_chapter4_8.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  4 quoted statement(s) of 117 do not occur in the source. First at line 44: 'PROCESS BEFORE OUTPUT.' (+3 more). Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   4,
+   117
+  ]
+ },
+ "Test-result\\staged\\st1_Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md": {
+  "lines": 1505,
+  "source": "test-source\\real\\keremkoseoglu__abap-library__functional__fi__zcl_fi_toolkit.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  3 quoted statement(s) of 568 do not occur in the source. First at line 753: 'iv_belnr = <ls_xblnr>-belr' (+2 more). Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   3,
+   568
+  ]
+ },
+ "Test-result\\staged\\st2_Keremkoseoglu__ZCL_FI_TOOLKIT.skill.md": {
+  "lines": 925,
+  "source": "test-source\\real\\keremkoseoglu__abap-library__functional__fi__zcl_fi_toolkit.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  1 quoted statement(s) of 461 do not occur in the source. First at line 536: 'DATA lv_blart TYPE bkpf-blart.'. Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   1,
+   461
+  ]
+ },
+ "Test-result\\staged\\st_ave.skill.md": {
+  "lines": 1974,
+  "source": "test-source\\real\\ysichov__ave__src__z_ave_standalone.prog.abap",
+  "exit": 1,
+  "fidelity_notes": [
+   "note  5 quoted statement(s) of 1067 do not occur in the source. First at line 694: 'lo_split_outer->set_row_height( id = 2 height = 100 ).' (+4 more). Check whether the report rewrote the source."
+  ],
+  "bad_of_total": [
+   5,
+   1067
+  ]
+ }
+}
