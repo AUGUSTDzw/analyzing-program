@@ -59,7 +59,12 @@ def die(msgs, title):
 def load_defects(path):
     if not os.path.exists(path):
         die([f"no such defect reference: {path}"], "defect reference")
-    d = json.load(io.open(path, encoding="utf-8"))
+    try:
+        d = json.load(io.open(path, encoding="utf-8"))
+    except (ValueError, OSError) as e:
+        # A traceback exits 1, the code a real recall shortfall gets, so a
+        # broken reference read as a bad report.
+        die([f"not parseable json: {e}"], path)
     defs = d.get("defects")
     if not isinstance(defs, list) or not defs:
         die(["`defects` is missing or empty"], path)
@@ -112,7 +117,12 @@ def _anchor(x):
 def load_verdicts(path, defects, title, need_evidence=True):
     if not os.path.exists(path):
         die([f"no such verdict file: {path}"], title)
-    v = json.load(io.open(path, encoding="utf-8"))
+    try:
+        v = json.load(io.open(path, encoding="utf-8"))
+    except (ValueError, OSError) as e:
+        die([f"not parseable json: {e}"], path)
+    if not isinstance(v, dict):
+        die(["the verdict file must be a json object"], path)
     rep = v.get("report")
     got = v.get("verdicts")
     if not isinstance(got, dict):
@@ -123,6 +133,12 @@ def load_verdicts(path, defects, title, need_evidence=True):
     extra = sorted(have - want)
     wrong = sorted(f"{k}={got[k]!r}" for k in have & want if got[k] not in SCORE)
     msgs = []
+    if rep is not None and not isinstance(rep, str):
+        # os.path.exists on a list raises TypeError. That is a crash, not a
+        # rejection, and the rejection is the whole point of this file.
+        msgs.append(f"`report` must be a path string, got "
+                    f"{type(rep).__name__}")
+        rep = None
     if missing:
         msgs.append(f"{len(missing)} defect(s) never judged: {', '.join(missing)}")
     if extra:
@@ -139,6 +155,16 @@ def load_verdicts(path, defects, title, need_evidence=True):
     if ev is not None and not isinstance(ev, dict):
         msgs.append("`evidence` must be an object keyed by defect id")
         ev = {}
+    rep_body = None
+    if rep and os.path.exists(rep):
+        rep_body = io.open(rep, encoding="utf-8").read().split("\n")
+    elif need_evidence and any(v in ("yes", "partial") for v in (got or {}).values()):
+        # Without the report, report_line and quote cannot be checked, so a
+        # citation requirement would be accepted without being verified. It read
+        # as a clean pass: verdicts citing lines that were made up still scored.
+        why = f"`report` {rep} does not exist" if rep else "`report` is missing"
+        msgs.append(why + ", so report_line and quote cannot be checked; pass "
+                     "--legacy for files that predate citations")
     for k, verdict in (got or {}).items():
         if verdict not in ("yes", "partial"):
             continue
@@ -147,6 +173,8 @@ def load_verdicts(path, defects, title, need_evidence=True):
             # Historical verdict files predate the citation requirement. Their
             # recall is comparable; their auditability is not, and --legacy says
             # so out loud rather than quietly treating them as equivalent.
+            continue
+        if rep_body is None:
             continue
         if not isinstance(e, dict) or not e.get("report_line"):
             msgs.append(f"{k} is `{verdict}` with no evidence: "
@@ -157,18 +185,23 @@ def load_verdicts(path, defects, title, need_evidence=True):
         except (TypeError, ValueError):
             msgs.append(f"evidence.{k}.report_line is not a line number")
             continue
-        if rep and os.path.exists(rep):
-            body = io.open(rep, encoding="utf-8").read().split("\n")
-            if not (1 <= ln <= len(body)):
-                msgs.append(f"evidence.{k}.report_line {ln} is outside the "
-                            f"report ({len(body)} lines)")
-                continue
-            q = e.get("quote")
-            if q:
-                norm = lambda t: re.sub(r"\s+", " ", t).strip().lower()
-                if norm(q) not in norm(body[ln - 1]):
-                    msgs.append(f"evidence.{k}.quote does not appear on "
-                                f"report line {ln}")
+        if not (1 <= ln <= len(rep_body)):
+            msgs.append(f"evidence.{k}.report_line {ln} is outside the "
+                        f"report ({len(rep_body)} lines)")
+            continue
+        q = e.get("quote")
+        if not q or not str(q).strip():
+            # A line number alone is an assertion with nothing to check: it is
+            # what makes a fabricated citation score clean. --legacy waives the
+            # requirement for files that predate it, and says so.
+            msgs.append(f"{k} is `{verdict}` but cites no quote: add "
+                        f"evidence.{k}.quote, or pass --legacy for files that "
+                        f"predate citations")
+            continue
+        norm = lambda t: re.sub(r"\s+", " ", t).strip().lower()
+        if norm(str(q)) not in norm(rep_body[ln - 1]):
+            msgs.append(f"evidence.{k}.quote does not appear on "
+                        f"report line {ln}")
     fc = v.get("false_claims")
     if fc is not None and not isinstance(fc, list):
         # Some older judge files stored a count here. A count cannot be audited
@@ -204,6 +237,11 @@ def cmd_score(a):
     print(f"report   : {rep or a.report or '-'}")
     if rep and not os.path.exists(rep):
         print(f"           WARNING  report path does not exist: {rep}")
+    if a.legacy:
+        # The flag is the whole story here: with it on, no verdict is bound to
+        # anything in the report, and a scored file reads as auditable.
+        print(f"           WARNING  --legacy: citations were not verified, so "
+              f"every verdict is an uncheckable assertion")
     if a.report and rep and os.path.basename(a.report) != os.path.basename(rep):
         print(f"           WARNING  verdict file names a different report than --report")
     print(f"defects  : {len(d['defects'])}")

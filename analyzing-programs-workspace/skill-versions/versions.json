@@ -13,10 +13,10 @@
     "source": "git show 2cced57:skill/analyzing-programs/SKILL.md"
   },
   "new": {
-    "label": "006719f",
+    "label": "fac4d5a",
     "commit": "HEAD",
     "path": "skill/analyzing-programs/SKILL.md",
-    "sha256": "006719f80f372041eb248bf58dc73bfda9825d22d381c3d1afbeece14316857e",
+    "sha256": "fac4d5a3589ca9e09e95177b5a9ad55d1bc32bbbc2d9788dfa303f456cb2c0eb",
     "source": "the live tree; this is the version that ships"
   }
 }

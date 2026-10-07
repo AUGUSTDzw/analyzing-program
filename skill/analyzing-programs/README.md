@@ -6,7 +6,7 @@
 ## 目录
 
 ```
-SKILL.md                       规则本体（250 行）
+SKILL.md                       规则本体（280 行）
 scripts/report_qc.py           格式闸门：逐条列出违规位置，可自动修两类
 scripts/evaluate.py            内容评分：对冻结缺陷清单判分，算召回与错误论断
 references/example-report.md   完整范例（真实报告，逐字未改，闸门零缺陷）
@@ -35,9 +35,9 @@ schemas/report-contract.json   闸门规则与 skill 教学锚点的唯一来源
 ## 跑一遍
 
 ```bash
-python tests/test_skill.py                # 自足；全过打印 all checks passed，失败逐条列出
-python tests/test_contract_drift.py       # 契约 <-> SKILL.md 双向对齐；打印 no drift 或失败清单
-python scripts/report_qc.py REPORT SOURCE.abap            # 格式，源码必须带 .abap 后缀
+python tests/test_skill.py                # 95 项，自足；全过打印 N checks passed
+python tests/test_contract_drift.py       # 104 项，契约 <-> SKILL.md 双向对齐
+python scripts/report_qc.py REPORT SOURCE                # 格式；报告须 .md/.markdown，其余当源码
 python scripts/report_qc.py --fix REPORT SOURCE -o OUT   # 格式 + 自动修两类
 python scripts/evaluate.py tasks  --defects evals/zcl_fi_toolkit.defects.json
 python scripts/evaluate.py score --defects D.json --verdicts MY.json
@@ -51,18 +51,22 @@ python scripts/evaluate.py compare --defects D.json --a V1.json --b V2.json
 而且是从缺陷循环里抛的，诊断信息会被 traceback 顶掉。
 Windows 上不需要设 `PYTHONUTF8`。
 
-**三种"没检查"长得不一样，其中一种和通过一模一样。** 这三条是实测的，
+**四种「没检查」的样子，其中一种仍然和通过只差一行 note。** 下表全部实测，
 SKILL.md「闸门输出」一节照抄：
 
 | 情况 | 实际输出 | 退出码 |
 |---|---|---|
-| 不传源码，或源码路径不存在 | `PASS <报告名>`，**一条 note 都没有** —— 密度与忠实度静默跳过 | `0` |
-| 源码参数不以 `.abap` 结尾 | 那个路径被**当成一份报告**去检查：`FAIL 源码.txt (N defect(s))`，而报告仍然 `PASS` | `1` |
-| 报告文件不存在 | Python traceback（闸门不预检报告路径） | `1` |
-| `--fidelity-only` 的源码读不到 | `note fidelity needs a source path: ...`，一个字都没查 | `2` |
+| 形状模式不传源码 | `PASS <报告名>` + `note no source recognised, so density, fidelity and fix-mislabel were not run` | `0` |
+| 源码路径不存在 | `error no such source: ...`，一个字都没查 | `2` |
+| 报告路径不存在 | `error no such report: ...` | `2` |
+| 给了多于一个源码 | `error more than one source: ...`（不是静默取最后一个） | `2` |
+| 报告存成非 `.md` / `.markdown` | `error no report path: ...` —— 闸门认为你没给报告 | `2` |
 
-所以：形状检查的 `0` 只能读作「形状对」，不能读作「查过了」；
-把「没检查」读成「检查过了」，唯一症状就是第一行那个不带 note 的 `PASS`。
+所以：形状检查的 `0` 只能读作「形状对」，**看到那条 skip note 就等于三项诊断没跑**。
+这一版的闸门在源码路径写错时会**拒绝运行**而不是打印 PASS —— 上一版不是那样的，
+上一版会照跑、照打印 `PASS`、零 note。这三条语义已经改过两轮，
+全部记在 `schemas/report-contract.json` 的 `gate_io` 里（19 个锚点，
+`test_contract_drift.py` 逐条查它们在不在 SKILL.md 里）。
 
 自动修只做两类改不动的判断：位置标签写成行号 → 改成最近的前置构造名；
 Mermaid 标签里的裸 `<` `>` `#` → 改成全角。三层缺失**只报位置不修**，
@@ -84,7 +88,7 @@ Mermaid 标签里的裸 `<` `>` `#` → 改成全角。三层缺失**只报位�
 ### 先说版本：下面的数字不是出货版本的数字
 
 iteration-8 的全部数字都是在 **`b8f84e8`**（162 行）上测出来的。
-**出货版本是 `006719f8`（250 行），它从未被端到端测过。**
+**出货版本是 `fac4d5a3`（280 行），它从未被端到端测过。**
 
 版本谱系（每一版都已归档在 `release/`，digest 见 `release/SHA256SUMS`）：
 
@@ -94,8 +98,9 @@ iteration-8 的全部数字都是在 **`b8f84e8`**（162 行）上测出来的�
 | `718f5988` | 215 | `718f5988` | 加第 6 步修复轮、事实性纪律、范例引用 |
 | `0dc9f17e` | 215 | `0dc9f17e` | 1.0.0。相对上一版只改了节标题与少量措辞 |
 | `006719f8` | 250 | `006719f8` | 1.0.1。加「闸门输出」一节、粘贴源码先落盘、形状闸门拆成第 7 步 |
+| `fac4d5a3` | 280 | `fac4d5a3` | **1.0.3**。闸门 / 评分脚本 / 契约 / 两个测试**整组**换成未发布开发线那份；SKILL.md 补 `fence`、`fix-mislabel`、密度与三层窗口的定义，并按新闸门的实测行为重写退出码一节 |
 
-| | b8f84e8（已测） | 006719f8（出货，未测） |
+| | b8f84e8（已测） | fac4d5a3（出货，未测） |
 |---|---|---|
 | 六节结构 / 三层格式 | 有 | 有（原样保留并扩充） |
 | 第 6 步：写完后只修引文的独立一轮 | 无 | 有 |
@@ -103,10 +108,17 @@ iteration-8 的全部数字都是在 **`b8f84e8`**（162 行）上测出来的�
 | 逐字符忠实、不展省略的代码块规则 | 部分 | 有 |
 | 范例报告 / schemas / 评分脚本引用 | 无 | 有 |
 
-结构类规则从 `718f5988` 到 `006719f8` 是原样保留再加码的，所以下面的结构结论
-**很可能**仍然成立；但严格说它属于前一个版本。1.0.1 新增的内容只涉及闸门怎么判读，
-而那些说法是逐条对着 `scripts/report_qc.py` 的控制流核过的（见契约 `gate_io`），
-**这不是效果证据**：没有任何一轮测过模型照着新指令写会不会更好。
+结构类规则从 `718f5988` 到 `fac4d5a3` 是原样保留再加码的，所以下面的结构结论
+**很可能**仍然成立；但严格说它属于前一个版本。1.0.1 与 1.0.3 新增的内容只涉及
+闸门怎么判读，而那些说法是逐条对着 `scripts/report_qc.py` 的控制流**实测**出来的
+（见契约 `gate_io`），**这不是效果证据**：符合性探针只证明模型照着做了，
+没有一轮测过照做之后报告会不会更好。
+
+1.0.3 的闸门比 1.0.2 严在三处，且都是 1.0.2 的缺陷：源码路径写错时**拒绝运行**
+（原来照跑并打印 `PASS`、零 note）、不带源码时**明说**三项诊断没跑（原来静默跳过）、
+报告与源码按扩展名分工而不是靠 `.abap` 后缀猜（原来会把 `.txt` 源码当报告检查，
+报出一堆不存在的缺陷）。这一版还多两类检查：`fence`（未闭合围栏会吞掉后续全部内容）
+与 `fix-mislabel`（`abap-fix` 围栏里逐字出自源码的语句 = 贴错围栏的真引用）。
 
 `b8f84e8` → `718f5988` 的对比（迭代 9）回答的正是"形状缺陷有没有减少"，
 判据已在生成之前预注册在上游仓库 `analyzing-programs-workspace/iteration-9-plan.md`
