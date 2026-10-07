@@ -1,360 +1,161 @@
-# Analyzing Programs
+# analyzing-programs
 
-A Skill for producing structured analysis reports of ABAP/SAP source code. Given an ABAP program file, it automatically generates a well-structured Chinese analysis report.
+给 ABAP/SAP 源码生成结构化中文分析报告：固定六节结构，每个引用源码的代码块后面
+跟三层（做什么 / 为什么 / 风险与改进），问题按 P0–P3 分桶。
 
-## What It Does
-
-For an ABAP program (report, FORM/event block, OO class, function group, ALV, etc.), the skill generates a Chinese analysis report with a fixed **6-chapter** structure:
-
-| Chapter | Content |
-|---------|---------|
-| 1. Program Positioning & Business Context | Problem statement, business background, design paradigm classification |
-| 2. Execution Flow Overview | Mermaid flowchart + responsibility-chain table |
-| 3. Grouped Analysis | Per subprogram: what it does / why / risks (three-layer format) |
-| 4. Full Execution Panorama | Mermaid sequence diagram showing data flow |
-| 5. Issue List & Improvement Suggestions | P0–P3 graded issues, each tagged with its subprogram name |
-| 6. Overall Assessment & Takeaways | Strengths, gaps, distilled design lessons |
-
-## Directory Structure
+## 目录
 
 ```
-analyzing-programs/
-├── skill/analyzing-programs/
-│   └── SKILL.md                      # Skill definition (prompt rules)
-├── evals/                            # Evaluation material
-│   ├── evals.json                    # Eval definitions (prompt, files).
-│   │                                 #   Triggers are NOT stored — grade_v2.py
-│   │                                 #   derives them from source at grading time.
-│   ├── judge-defects.json            # 77 planted defects across 13 evals
-│   ├── planted-defects.md            # Evals 1-5, human-readable, with fairness notes
-│   ├── ztest7.abap                   # Eval 1: procedural report, editable ALV + totals
-│   ├── zmmr_vend_list.abap           # Eval 2: procedural vendor report
-│   ├── zcl_stock_check.clas.abap     # Eval 3: global OO class, 9 methods, ALV grid
-│   ├── zfg_material_price.fg.abap    # Eval 4: function group main program
-│   ├── lzfg_material_pacetop.abap    # Eval 4: function group global data
-│   ├── lzfg_material_pacu01.abap     # Eval 4: function group FM implementations
-│   ├── zreport_bapi_upload.abap      # Eval 5: report calling BAPI + remote RFC
-│   ├── zsalv_po_list.abap            # Eval 6: OO ALV, aggregations, events, popup
-│   ├── zcl_grade_calc.clas.abap      # Eval 7: abstract superclass, inheritance,
-│   │                                 #   polymorphism, locking, number range
-│   ├── zorder_dialog.abap            # Eval 8: dynpro PBO/PAI, AT SELECTION-SCREEN
-    │   ├── zsales_synch.abap            # Eval 9: CDS consumer + CL_HTTP_CLIENT + JSON
-    │   ├── zi_vbak_open.asddls         # Eval 9: the CDS view DDL source it consumes
-    │   ├── zprice_batch.abap            # Eval 10: SY-BATCH branching, conditional COMMIT
-    │   ├── zcl_price_watch.clas.abap    # Eval 11: CLASS-EVENTS publish + two subscribers
-    │   ├── zvendor_notify.abap          # Eval 12: ENQUEUE/DEQUEUE, MESSAGE ID
-    │   └── zmodern_lo.abap              # Eval 13: inline DATA(), FILTER, REDUCE, VALUE #
-├── Test-source/                      # Ad-hoc analysis inputs (not part of the eval set)
-│   └── real/                         # Real open-source ABAP, provenance in MANIFEST.json
-│                                     #   abapGit (MIT) + SAP-samples (Apache-2.0); up to 1598
-│                                     #   lines, adds FIELD-SYMBOL / INCLUDE layers / RAP+BDL
-├── Test-result/                      # Reports produced from Test-source
-│   ├── generality-audit.md           # Generality + correctness evidence for real-world input
-│   ├── judge-zvend.json              # Independent judge's own 21-defect list + 2-run scores
-│   ├── zr.*                          # zr.abap run 3x on the SAME skill version to measure
-│   │                                 #   stability: baseline 72% / skill 75% / skill 100%
-│   │                                 #   of 32 defect fingerprints
-│   └── real/*.skill.md               # Reports over the fetched real-world corpus
-└── analyzing-programs-workspace/     # Iteration artifacts
-    ├── grade.py                      # Scoring driver (iteration-1)
-    ├── grade3.py                     # Scoring driver (iteration-3..6, 4 hardcoded evals)
-    ├── grade_v2.py                   # Scoring driver (iteration-7+): N evals x N runs,
-    │                                 #   source-derived triggers, A13 coverage, McNemar
-    ├── check_fixtures.py             # Dry-run: files exist, A13 inventory non-trivial,
-    │                                 #   ≥1 content trigger fires. Imports its
-    │                                 #   derivations from grade_v2.py (no duplicated regexes)
-    ├── coverage_audit.py             # Maps 41 ABAP constructs onto the eval set; prints gaps
-    ├── merge_judge.py                # Folds judge/*.json into grading_summary.json
-    ├── validate_judge.py             # Invariants on the judge merge (coverage, arithmetic,
-    │                                 #   sign-test pairing — counts derived, never hardcoded)
-    ├── build_benchmark4.py           # Cross-iteration compare (rounds 3-6)
-    ├── build_benchmark7.py           # iteration-7 benchmark.json, honest measurement notes
-    ├── build_benchmark7_html.py      # iteration-7 benchmark.html (two verdict layers)
-    ├── smoke_benchmark7.js           # Executes the page JS against a stub DOM/ECharts
-    ├── build_benchmark8.py           # iteration-8 benchmark.json; findings + discrimination
-    │                                 #   analysis are COMPUTED from data, not hardcoded prose
-    ├── build_benchmark8_html.py      # iteration-8 benchmark.html; all counts injected from
-    │                                 #   benchmark.json and asserted fully substituted
-    ├── smoke_benchmark8.js           # Row counts + defect-key coverage derived from payload
-    ├── build_html.py                 # Renders benchmark.html + review.html (rounds 3-6)
-    ├── validate_html.py              # Static checks on generated HTML
-    ├── smoke_benchmark.js            # Executes benchmark.html JS (rounds 3-6)
-    ├── smoke_review.js               # Executes review.html markdown render loop
-    ├── verify_review_embed.js        # Proves embedded reports match report.md byte-for-byte
-    ├── iteration-1/ … iteration-7/   # Earlier rounds (see Iteration History)
-    └── iteration-8/                  # Latest: 13 program types, 41 constructs, 77 defects,
-        ├── benchmark.json            #   2 runs, paired tests, judge + discrimination
-        ├── benchmark.html            # Two verdict layers, side by side
-        ├── grading_summary.json      # Per-run assertions + merged judge verdicts
-        ├── judge/                    # Raw LLM judge output, one file per eval x config
-        └── eval-<id>-<name>/{with_skill,without_skill}/run-<k>/outputs/report.md
+SKILL.md                       规则本体（约 200 行）
+scripts/report_qc.py           格式闸门：逐条列出违规位置，可自动修两类
+scripts/evaluate.py            内容评分：对冻结缺陷清单判分，算召回与错误论断
+references/example-report.md   完整范例（真实报告，逐字未改，闸门零缺陷）
+references/large-inputs.md     大输入索引：三条实测事实 + 指向下面五个文件
+references/budget-exhaustion.md  为什么写不完（观察，不是规则）
+references/delivery-methods.md   试过的交付方式，都没用（观察，不是规则）
+references/slice-and-write.md    唯一一份通过闸门的超大报告，n=1
+references/output-rate.md        行/子程序速率与「没有深度档位」（观察）
+references/truncated-reports.md  残篇怎么被误算，以及 465 行事故（观察）
+references/README.md           范例的出处与局限
+evals/README.md                缺陷参考的格式、用法与边界
+evals/*.defects.json           112 条缺陷 / 6 个真实源码
+tests/test_skill.py            自足检查，不依赖项目数据
+tests/test_contract_drift.py   契约 <-> SKILL.md <-> 闸门 三方对齐检查
+schemas/report-contract.json   闸门规则与 skill 教学锚点的唯一来源
 ```
 
-### Report and corpus tooling
+## 三件工具各管什么
 
-Kept flat in `analyzing-programs-workspace/`. Every one is runnable from the repo
-root and takes its paths as `argv` — nothing hardcodes a machine-specific path.
-
-| Script | Purpose |
-|---|---|
-| `skill/analyzing-programs/scripts/report_qc.py <report.md …>` | The gate the skill ships: checks reports against the skill's own rules — six sections, three-layer labels after every `abap` block, Mermaid label safety, no line-number locators, priority buckets. Two A8 sub-patterns are counted separately (consecutive blocks vs group-level `风险与改进`). Exit status carries the verdict, including for `--fidelity-only` and `--fix`, because SKILL.md step 6 loops on them. |
-| `summarise_judges.py <Test-result>` | Aggregates `judge-*.json` / `ab-judge-*.json` into one table with weighted recall and a false-claim count. |
-| `preflight.py <corpus> <file …>` | Encoding gate run **before** handing a source to an analyser: valid UTF-8, no `U+FFFD`, no NULs, ABAP keywords present, sha256 for cross-checking. Added after a UTF-16 file was stored as mojibake. |
-| `verify_corpus.py <corpus>` | Re-hashes every corpus file against `MANIFEST.json`, checks line counts, rejects non-UTF-8 and replacement characters, and flags files on disk that the manifest does not list. |
-| `repair_corpus.py <corpus>` | Fixes manifest `path`/`url` fields and re-fetches files mangled by a wrong decode. Needed because zipballs carry a `<repo>-<branch>/` root that must be stripped from both the local name and the recorded path. |
-| `scan_corpus.py <corpus>` | Maps ABAP constructs onto the corpus and prints what is still absent. Two probes here were previously wrong and reported false absences: AMDP (matched a method body, not its declaration) and `CLASS x IMPLEMENTATION.` (missed the trailing period, so every class looked absent). |
-| `build_corpus_md.py <corpus> <scanner>` | Regenerates `Test-source/real/CORPUS.md` from the manifest plus the scan. Idempotent. |
-| `audit_skill_redundancy.py <SKILL.md>` | Reports how many times each rule is restated and in which sections. Written after an A/B test showed that growing `SKILL.md` by 49% regressed two previously-perfect rules in the same files the new rule was meant to improve. |
-| `find_abap_repos.py <out.json>` | Enumerates ABAP repositories on GitHub across 22 queries, paginated and de-duplicated. |
-| `sweep_repos.py <corpus> <topK> <MB> <repos.json> <wanted> <report>` | Downloads repos as zipballs from codeload and keeps every file carrying a target construct plus the largest few. Bypasses the REST rate limit (60/hour anonymous) and stops sampling, which is what made earlier "construct absent" claims unprovable. |
-| `fix_judge_json.py <judge-dir> <defects>` | Repairs unparseable judge JSON caused by unescaped quotes in `evidence` text, then validates verdict ids against the defect manifest. |
-
-
-## Evaluation Flow
-
-Every iteration round follows the same flow:
-
-1. **Run the skill** against each source file → `eval-*/with_skill/run-k/outputs/report.md`
-2. **Run the baseline** (same prompt, no skill guidance) → `eval-*/without_skill/run-k/...`
-3. **Score** → `grade_v2.py` produces `grading.json` (per item) and `grading_summary.json`
-4. **Judge** (iteration-7+) → one judge pass per (eval, config) writing `judge/*.json`,
-   then `merge_judge.py` folds verdicts in
-5. **Build benchmark** → `benchmark.json` + `benchmark.html`
-6. **Validate** → `validate_judge.py`, `smoke_benchmark7.js`
-
-Fixtures live in `evals/`; the planted-defect manifest is `evals/judge-defects.json`
-(human-readable version in `evals/planted-defects.md`).
-
-## Evaluation Flow
-
-Every iteration round follows the same flow:
-
-1. **Run the skill** against each source file → `eval-*/with_skill/outputs/report.md`
-2. **Run the baseline** (same prompt, no skill guidance) → `eval-*/without_skill/outputs/report.md`
-3. **Score** → produces `grading.json` (per item) and `grading_summary.json` (aggregate)
-4. **Build benchmark** → `benchmark.json` (cross-round comparison summary)
-5. **Manual review** → open `review.html` in a browser to compare side by side
-
-Scripts:
-- `grade.py` / `grade3.py` — batch-run the grader
-- `build_benchmark.py` / `build_benchmark3.py` / `build_benchmark4.py` — aggregate into a cross-round summary
-- `build_html.py <newest-ws> [<older-ws> ...]` — renders `benchmark.html` + `review.html`
-- `validate_html.py <ws>` · `smoke_benchmark.js` · `smoke_review.js` · `verify_review_embed.js` — verification pass over the generated HTML
-
-## Latest Results (Iteration 7) — two independent verdict layers
-
-Iteration 7 separated **format compliance** from **technical correctness** and did
-NOT average them. They disagree, and the disagreement is the finding.
-
-| Layer | with_skill | without_skill | Test | Result |
-|---|---|---|---|---|
-| **① Format compliance** (19 structural assertions) | **0.987** | 0.546 | McNemar exact on 304 paired cells: 68 vs 1 | p = 2.4e-19 — **significant** |
-| **② Technical correctness** (24 planted defects, LLM judge) | 0.766 | 0.729 | Paired sign test: 9 better / 9 worse / 2 ties | p = 1.00 — **NOT significant** |
-
-**The skill reliably produces well-structured reports. It does not make the analysis
-measurably more accurate.** A bare model already catches ~73% of planted defects.
-
-Coverage went from 1 program type to 5: procedural report (ALV editable), procedural
-report (vendor list), **global OO class**, **function group with RFC**, **report calling
-BAPI + RFC**.
-
-### What changed in the harness
-
-- **5 evals × 2 configs × 2 runs**, paired design — replaced `runs_per_configuration = 1`.
-- **Paired statistics, not variance.** With n=2 a stddev estimates nothing. Iteration 7 uses
-  McNemar exact (format) and a sign test (judge) on matched (eval, run) pairs.
-- **Triggers derived from source.** Every content assertion's applicability is computed by
-  regex over the fixture, so a trigger cannot drift from the code. Non-firing assertions are
-  recorded as `skipped` and excluded from the denominator.
-- **A13 coverage assertion** — every `FORM`/`METHOD`/`FUNCTION` in the source must be named
-  in the report. Triggered from the fixture, not hand-listed.
-- **LLM judge replaces keyword assertions.** A14–A19 (keyword presence) turned out to be
-  worthless: *every* run including bare-model baselines scored 100%. Judge verdicts live in
-  `iteration-7/judge/*.json` and are merged by `merge_judge.py`.
-- **Fake zeros removed.** `tokens` is gone (unobservable, and `0` was indistinguishable from a
-  real zero). `time_seconds` is not collected; report mtimes are recorded as `generated_at_utc`
-  with an explicit note that they are not a duration. `stddev` is omitted from the headline.
-- **Assertion A8 corrected (v1 → v2).** v1 demanded one three-layer set per ```abap block,
-  which penalised a good report for embedding short snippets as inline evidence inside its own
-  风险与改进 prose. Verified by reading iteration-7 eval-3/with/run-2 manually: fully compliant,
-  yet scored 22/33. v2 counts `#### ① ② ③` sub-steps.
-
-## Eval set coverage
-
-`coverage_audit.py` inventories 41 ABAP constructs against the fixtures.
-Rounds 3-7 tested one program type; the set now spans 13:
-
-| eval | Program type | Key constructs exercised |
+| 工具 | 回答 | 答不了 |
 |---|---|---|
-| 1 | Procedural report | `REUSE_ALV_GRID_DISPLAY`, editable totals, `DATA_CHANGED` |
-| 2 | Procedural report | `REUSE_ALV_FIELDCATALOG_MERGE`, inline host vars |
-| 3 | Global OO class | `CLASS-POOL`, `CL_GUI_ALV_GRID`, `SET HANDLER`, `CALL SCREEN`, `CX_` |
-| 4 | Function group | `FUNCTION-POOL` + TOP + U01, shared global data |
-| 5 | Report + integration | `BAPI_MATERIAL_MAINTAIN`, RFC `DESTINATION` |
-| 6 | OO ALV | `CL_SALV_TABLE`, aggregations, `double_click`/`link_click`, popup |
-| 7 | Inheritance | abstract superclass, `INHERITING`, `super->`, redefinition, polymorphism |
-| 8 | Dialog program | dynpro 0100, `MODULE` PBO/PAI, `AT SELECTION-SCREEN`, `AUTHORITY-CHECK` |
-| 9 | CDS + HTTP | ABAP SQL on a CDS entity, `CL_HTTP_CLIENT`, JSON assembly |
-| 10 | Background batch | `SY-BATCH` branching, conditional `COMMIT WORK` |
-| 11 | Class events | `CLASS-EVENTS`, `RAISE EVENT`, `FOR EVENT` subscribers |
-| 12 | Locking + message class | `ENQUEUE`/`DEQUEUE`, `MESSAGE ID`/`NUMBER` |
-| 13 | Modern syntax | inline `DATA()`, `FILTER`, `REDUCE`, `VALUE #`, string templates |
+| `report_qc.py` | 形状对不对：六节、三层、四桶、无行号、围栏闭合、Mermaid 可渲染、密度 | 分析是否正确、漏没漏 |
+| `evaluate.py` | 对着冻结清单，报告漏了几条、有几条错误论断 | 判分本身对不对 |
+| `tests/test_skill.py` | 上面两个还灵不灵，尤其是**拒绝**路径与退出码 | — |
+| `tests/test_contract_drift.py` | 契约里的每条规则 SKILL.md 教了没有，反之亦然 | — |
 
-**All 41 constructs are now exercised.** The gaps that were closed, and what each
-new fixture turned out to be for:
+**判分是模型工作。** `evaluate.py` 的 `tasks` 子命令把问题打印出来让判分者逐条回答，
+`score` 与 `compare` 是确定性的。它保证参考完整、聚合正确、缺项不能冒充完整；
+它不保证判分是对的。
 
-| Gap | Closed by | Why it matters |
+## 跑一遍
+
+节标题必须与 SKILL.md 的逐字一致（含括号内的限定语），`report_qc.py` 按
+`contract.sections` 里的 id 逐字匹配。
+
+```bash
+python tests/test_skill.py                # 98 项，自足
+python tests/test_contract_drift.py       # 101 项，契约 <-> SKILL.md <-> 闸门 三方对齐
+python scripts/report_qc.py REPORT [SOURCE]                    # 格式
+python scripts/report_qc.py --fix REPORT SOURCE -o OUT         # 格式 + 自动修两类
+python scripts/evaluate.py tasks  --defects evals/zcl_fi_toolkit.defects.json
+python scripts/evaluate.py score --defects D.json --verdicts MY.json
+python scripts/evaluate.py compare --defects D.json --a V1.json --b V2.json
+```
+
+**退出码是契约的一部分。** 所有模式在仍有缺陷时返回非零，包括 `--fidelity-only`
+与 `--fix` —— SKILL.md 第 7 步让模型"重跑到干净为止"，那条循环只能靠退出码终止。
+`2` 不是缺陷而是**拒绝运行**（报告不存在、源码不存在、或源码不是 utf-8）：
+此时一个字都没查。把「没检查」读成「检查过了」，是拼错源码路径时唯一的
+症状，也是这份脚本能给出的唯一一种错误安抚。
+两个脚本都自己把 stdout 重配为 UTF-8：契约里的优先级桶标记是 emoji，
+在默认 cp936 的 Windows 控制台上打印会抛 `UnicodeEncodeError`，
+而且是从缺陷循环里抛的，诊断信息会被 traceback 顶掉。
+Windows 上不需要设 `PYTHONUTF8`。
+
+自动修只做两类改不动的判断：位置标签写成行号 → 改成最近的前置构造名；
+Mermaid 标签里的**裸** `<` `>` `#` → 改成全角。`<br>` 这类 Mermaid 支持的
+HTML 子集保留不动：闸门和 `--fix` 用同一套判定，所以 `--fix` 不会把原本
+能渲染的图改成全角。三层缺失**只报位置不修**，
+因为那需要判断后面的散文本该属于哪一层，猜错会把风险论述标成"做什么"。
+
+## 两条实测边界
+
+- **20 条缺陷的配对比较分辨不出小效应。** 低于约 30 个百分点记作**未测量**。
+  同一 skill 同一文件重判，召回在 0.625–0.700 之间动。
+- **大输入下预期一次任务写不完。** 失败都死在第三节内部，且与文件大小无关。
+  截断的报告比缺失的更危险 —— 它还是文件、会被计数。详见
+  `references/large-inputs.md`（该目录已拆成五个文件，按问题找）。
+
+## 能声明什么，不能声明什么
+
+这一节限定交付范围，不是免责声明。原始数据在
+`analyzing-programs-workspace/iteration-8/`（上游仓库，不随 skill 发布）。
+
+### 先说版本：下面的数字不是出货版本的数字
+
+iteration-8 的全部数字都是在 **`b8f84e8`**（162 行）上测出来的。
+**出货版本是 `718f5988`（215 行），它从未被端到端测过。**
+
+| | b8f84e8（已测） | 718f5988（出货，未测） |
 |---|---|---|
-| `CL_SALV_TABLE`, inheritance, dialog flow | evals 6-8 | The three largest. The OO ALV is the default choice for new reports, and a report can be mostly inheritance or mostly screen flow. |
-| `CLASS-EVENTS`, HTTP/JSON, background, message class, CDS | evals 9-12 | Publishing/subscriber events, outbound REST, batch-safe transaction handling, the *correct* `MESSAGE ID` pattern, and a DDL source shipped alongside its consumer. |
-| inline `DATA()` as a statement | eval 13 | Modern syntax has scoping rules (`DATA(x)` is visible only inside its FORM) that are a genuine source of bugs. |
+| 六节结构 / 三层格式 | 有 | 有（原样保留并扩充） |
+| 第 7 步：写完后只修引文的独立一轮 | 无 | 有 |
+| 事实性纪律章节 | **无** | 有 |
+| 逐字符忠实、不展省略的代码块规则 | 部分 | 有 |
+| 范例报告 / schemas / 评分脚本引用 | 无 | 有 |
 
-`check_fixtures.py` asserts per eval that the files exist, the A13 subprogram
-inventory is non-trivial (a vacuous inventory would make A13 pass trivially), and
-at least one content assertion's trigger fires. It imports its trigger and
-subprogram derivations from `grade_v2.py` rather than keeping a second copy —
-an earlier version duplicated the regexes and silently disagreed with the grader
-about `MODULE`, which is how the A13-vacuous-on-dialog-programs bug surfaced.
+结构类规则在 718f5988 里是原样保留再加码的，所以下面的结构结论
+**很可能**仍然成立；但严格说它属于前一个版本。
 
-Fixtures are synthetic, authored for this benchmark to match the constructs SAP Help
-and SAP Community document. They are not copied from any customer system. Every
-fixture carries planted defects listed in `evals/judge-defects.json` (77 across
-13 evals), with a human-readable annotation of the first eight in
-`evals/planted-defects.md`.
+`b8f84e8` → `718f5988` 的对比（迭代 9）回答的正是"形状缺陷有没有减少"，
+判据已在生成之前写死、尚未执行；那份预注册计划（iteration-9-plan.md）已随
+删除事故丢失，未重建。它**不**回答"分析是否更准确"。
+
+### 能声明：报告结构一致性（b8f84e8）
+
+六节结构、三层格式、优先级分桶的通过率 **0.980 vs 无技能 0.554（+42.6pp）**，
+390 个配对单元上 McNemar 精确检验 **p = 5.55e-44**（170 个仅技能通过、
+5 个仅基线通过）。本 skill 的价值主张就是这套结构，在 b8f84e8 上证据充分。
+
+### 不能声明：分析更准确
+
+对 77 条植入缺陷的召回，**技能 0.849 vs 基线 0.826（+2.3pp）**，
+符号检验 9 高 / 8 低 / 9 平，**p = 1.000，不显著**。
+
+评委层已经饱和：77 条里 **46 条（60%）两臂都得满分**，没有区分空间。
+剩下 21 条能动的里技能赢 12 条、输 9 条 —— 方向上没输，
+幅度却相互抵消到不可分辨。
+
+### 站得住的失败：3 条（两次运行都更差）
+
+| 缺陷 | 领域 | 技能 run1 / run2 | 基线 run1 / run2 |
+|---|---|---|---|
+| eval-4-D2 | 可编译性 | no / no | partial / yes |
+| eval-9-D2 | CDS 语义 | partial / partial | yes / yes |
+| eval-9-D6 | HTTP 资源 | partial / partial | yes / yes |
+
+三条都是**只读源码就能判定**的缺陷：`RAISE EXCEPTION TYPE cx_sy_no_data`
+（`CX_SY_NO_DATA` 是数据对象不是异常类，语法检查过不了）、CDS DDL 里写
+`cast(sy-datum …)`（ABAP 运行时字段，DDL 里不成立）、多条早退分支都没调
+`lo_client->close()`（连接不归还池）。它们不需要 SE38，不需要运行时语义。
+
+值得注意的是 b8f84e8 明确写了「指出真实问题，不回避缺陷」。
+所以这是**指令说了但没做到**的案例。成因没有定论 ——
+2×2 的单元数不足以归因，这也是为什么该结论要留给下一轮去测。
+
+### 不要当成失败：6 条只在单次运行上更差
+
+eval-11-D2、eval-5-D5、eval-7-D1、eval-8-D1、eval-12-D2、eval-1-D4
+各只有 1 次运行更差，另 1 次是平局或更好 ——
+eval-7-D1 另一次是技能 yes、基线 partial，即技能更好。
+
+同设计三次运行给过 0.605 / 0.645 / 0.737（SD 0.068）。
+n=2 下单次差异与噪声不可分辨。**交付时按 3 条读，不按 9 条读。**
+
+### 两条两臂全失：改 skill 无用
+
+eval-10-D2（条件提交 `IF p_commit EQ 'X'` 导致后台作业整轮 `MODIFY marc`
+随工作单元回滚，作业显示成功但一条都没落库）与 eval-13-D6（对**数值型**字段
+用 `W = 12` 编辑掩码，且表头是硬编码文字而非可翻译文本元素）——
+两臂两次运行全是 no。这是分析方法层的缺口，不是措辞问题。
+
+### 所以怎么交付
+
+按「结构化 onboarding 报告工具」交付，附本清单；**不要**按「分析更准确」交付。
+后者没有正向证据，还有 3 处稳定的反向证据。
+
+要支撑后者，得把评委清单的难度提到能区分两臂（46/77 饱和是根因）——
+那不是采集更多数据能解决的：加缺陷条目无效已在当前取样下证明，
+记录该次尝试的文件已随删除事故丢失，未重建。
 
 
-## Iteration History
-
-| Round | evals | runs | with_skill | without_skill | Finding |
-|-------|-------|------|-----------|---------------|---------|
-| iteration-3 | 2 | 1 | 100% | 52% | Structural compliance first achieved |
-| iteration-4 | 2 | 1 | 91% | 47% | **A8 regression** — `SKILL.md`'s "three-layer per block" rule fought its own "split into ① ② ③" rule |
-| iteration-5 | 2 | 1 | 100% | 43% | A8 fix landed in `SKILL.md` ("拆分步骤时怎么办" section with compact bold-label template) |
-| iteration-6 | 2 | 1 | 100% | 39% | Same SKILL.md re-run; **0pp spread** confirmed format compliance is deterministic |
-| iteration-7 | **5** | **2** | 0.987 / 0.766 | 0.546 / 0.729 | **Coverage 1→5 program types; format significant (p=2.4e-19) but technical correctness NOT (p=1.00)** |
-| iteration-8 | **13** | **2** | 0.980 / 0.849 | 0.554 / 0.826 | **Coverage 5→13 program types / 41 constructs. Format still significant (p=5.6e-44) but the judge layer CEILINGED: 46/77 defects full marks for BOTH arms, so technical correctness is unmeasurable, not merely flat (p=1.00)** |
-
-### iteration-8: the judge layer stopped discriminating
-
-Widening the eval set did not widen the gap — it removed the ability to measure one.
-With 77 planted defects across 13 program types, **46 (60%) are scored full marks by
-both arms**, and only 21 of 77 discriminate at all. At `with_skill` 0.849 vs baseline
-0.826 there is no headroom left, so a null result here means *the benchmark ran out of
-difficulty*, not that the skill is provably neutral on code review.
-
-The remaining 10 defects split into **2 that both arms score zero** (skill-independent
-gaps in the analysis method — no revision to this skill can close them) and **8 that both
-arms score identically below full marks**. The four buckets partition all 77;
-`benchmark.json → discrimination` asserts it at build time.
-
-Consequences for how this table should be read:
-
-- The format result (`p = 5.6e-44`, 170 with-only vs 5 baseline-only cells) is solid and
-  strengthened by the wider set.
-- The technical result is **not evidence of equivalence**. The correct next step is a
-  harder defect tier, not more runs.
-- Two bugs found and fixed while producing this round would each have hidden a real
-  effect (see `Known limitations`).
-
-### The skill's own gate disagrees with the headline grader
-
-`grade_v2.py` scores format compliance at **0.980** for `with_skill`. Running the gate
-the skill actually ships (`report_qc.py`) over the same 52 iteration-8 reports:
-
-| | n | pass |
-|---|---|---|
-| with_skill | 26 | **20 (76.9%)** |
-| baseline | 26 | **0 (0.0%)** |
-
-Two instruments, two numbers, 21pp apart on the same files — and the baseline contrast is
-sharper under the gate (0.0% vs 0.554) than under the grader. The direction is confirmed
-twice; the magnitude is instrument-specific. Neither report was produced with SKILL.md
-step 6's repair pass, which is the mitigation for exactly these A8 lapses.
-
-
-> Rounds 3–6 are not directly comparable to 7: the grader changed, the eval set grew, and
-> the scoring model moved from mean-of-assertions to paired tests. Their `benchmark.json`
-> files record `skill_sha256` where the digest was captured, so "same skill version" is
-> verifiable rather than assumed.
-
-## Known limitations
-
-- **Nothing has been measured on the shipped SKILL.md.** Every number above was produced
-  against `skill_sha256 = b8f84e805a2a2aec…`, which is commit `2cced57`. The current
-  `SKILL.md` is `718f598878c549d0…`, eight revisions later — and those revisions are the
-  mitigation for the two failure modes the measurement *did* find (A8 lapsing on
-  remediation code, fabricated quotations). The direction is evidence-backed; the effect
-  of the fix is not. Re-run iteration-8 before quoting any of this as a property of the
-  shipped skill.
-- **The judge layer has ceilinged** (iteration-8). 46 of 77 planted defects are full marks
-  for both arms; 2 more are zero for both. A null technical result is therefore
-  uninterpretable until the defect tier gets harder.
-- The judge is a single pass over each (eval, config). Repeatability is evidenced only on
-  the FI-toolkit list (three gradings of one report: 15/20 per-item agreement, weighted
-  variance 0.000). Add a second judge and report Cohen's kappa before treating the
-  technical layer as authoritative.
-- Planted defects are 4–10 per fixture by construction; the absolute recall numbers do not
-  extrapolate to real code. Only the with/baseline *relative* comparison is meaningful.
-- n=2 supports the sign test but not variance estimation. Raise to 3 runs and run a power
-  analysis to distinguish "skill has no effect" from "not enough samples".
-- **Format compliance is not deterministic either.** Under the shipped gate, 6 of 26
-  iteration-8 `with_skill` reports fail, and three evals flip between runs (one PASS, one
-  FAIL at identical settings). The earlier "0pp spread confirms format is deterministic"
-  reading was about `grade_v2.py`'s assertion layer, not the gate.
-- **The skill is not self-validating.** On real open-source input it has produced
-  fabricated code statements and asserted that genuinely broken syntax was fine. Treat it as a
-  *first-pass reading checklist*, not as a defect oracle — see `Test-result/generality-audit.md`.
-
-### Generalality and correctness on real-world input
-
-`Test-result/generality-audit.md` records the full evidence. Headline:
-
-| | baseline | skill |
-|---|---|---|
-| Six-section structure, 2 Mermaid diagrams, responsibility table | — | **7/7 reports pass** |
-| Locating issues by name rather than line number | — | **7/7 pass** |
-| A8 three-layer labels after every abap block | — | **154/170 blocks** |
-| `zvend.abap`, 21 judge-derived defects | — | run1 0.833 / run2 0.738, 8/21 disagree |
-| Verbatim fidelity to the source | — | **fails** (invented `ASSERT`, `ELSE.` → `ELSE:`) |
-
-Real-world corpus: 10 files from abapGit (MIT) and SAP-samples (Apache-2.0), up to 1598 lines,
-covering `FIELD-SYMBOL`, `INCLUDE` layers, global classes, RAP behavior definitions and CDS —
-with provenance pinned per file in `Test-source/real/MANIFEST.json`. Still uncovered: AMDP,
-BADI implementations, class pools / function modules, dynamic SQL.
-
-Two failure modes recur and are the highest-value fixes:
-1. **Confident wrongness.** When unsure of a syntax/environment detail, the skill asserts the
-   construct is valid. Both `zvend` runs explicitly backed an unqualified `JOIN ... WHERE bedat`
-   as "unambiguous" when the field is ambiguous across `EKKO`/`EKPO`.
-2. **A8 lapses specifically on remediation code.** The three-layer rule is documented, but 16/170
-   missing blocks cluster entirely where the report shows *corrected* code and then comments on it
-   in unlabeled prose.
-
-### Measurement bugs found in iteration-8 (both fixed, both regression-guarded)
-
-These are recorded because each one *silently* produced a plausible-looking number:
-
-1. **`merge_judge.py` double-counted every sign-test pair.** It iterated all 52 `per_run`
-   records and matched each to its counterpart, so each pair was counted twice with
-   mirrored signs — which forces `with_higher == baseline_higher` and pins `p` at 1.0
-   regardless of the real effect. iteration-7 had reported `9 better / 9 worse / 2 ties`
-   over "20 pairs"; the true figures are **5 / 4 / 1 over 10 pairs**. Fixed by walking only
-   the `with_skill` arm. `validate_judge.py` now recomputes the tallies from `per_run` and
-   fails if they disagree.
-2. **`merge_judge.py` emitted `per_defect` rows for evals that were never judged.** It
-   walked the whole `judge-defects.json` master list, so re-running merge on the older
-   iteration-7 directory produced 53 phantom rows with `n=0` (24 → 77 defects) and skewed
-   any mean computed over them. Now restricted to the evals actually judged, with a
-   validation that every row has a non-zero sample count.
-3. **`validate_judge.py` and the smoke tests hardcoded counts** (20 reports / 24 defects /
-   19 assertions), so they passed against stale expectations after the eval set grew. Both
-   now derive counts from the payload; `smoke_benchmark8.js` additionally asserts every
-   defect key actually reaches the DOM, which a row count alone cannot catch.
-
-## Core Rules (from SKILL.md)
-
-- **No source line numbers** — locate issues by subprogram/method name instead
-- **Three-layer format is mandatory** — every ` ```abap ` code block in chapter 3 must be followed by "what it does / why / risks". **Splitting a block into ① ② ③ does not exempt a step from the three layers**; use the compact bold-label form rather than unlabeled prose.
-- **Mermaid label safety** — no bare `<` / `>` characters in node labels
-- **Group by execution flow** — not by the order code appears in the file
-- **Chinese output by default** — follows another language if the user specifies one
