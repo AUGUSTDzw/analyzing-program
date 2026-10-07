@@ -1,0 +1,147 @@
+{
+  "version": "1.2.3",
+  "_comment": [
+    "Machine-readable contract for what a report must contain.",
+    "",
+    "This file is the source for report_qc.py's rules about report shape: which",
+    "sections, which layer labels, which priority buckets, which citation spellings",
+    "are forbidden, which Mermaid characters break a label, and how far a prose",
+    "window reaches. The checker reads them rather than hardcoding patterns, so",
+    "none of those can exist in the checker alone. ABAP construct syntax (the",
+    "ANCHORS table) stays in the checker: it describes the source, not the report,",
+    "and it is the list a repair is allowed to substitute. Each rule carries a",
+    "`skill_anchor`: a token that must also appear in",
+    "SKILL.md. test_contract_drift.py fails when a rule has no anchor in the",
+    "skill, or the skill states a constraint no rule covers.",
+    "",
+    "Why this exists: seven separate fixes in this project were a checker",
+    "detector disagreeing with the rule it was supposed to enforce. LINENO",
+    "matched two spellings so `L23` scored clean; the Mermaid pattern differed",
+    "between the checking half and the fixing half; the exemplar's own snippet",
+    "guard had a quote-exemption the skill never granted. A second copy of the",
+    "rules inside the checker is the cause, so there is now only this one."
+  ],
+
+  "sections": [
+    { "id": "一", "label": "程序定位与业务背景",   "heading_anchor": "一、程序定位与业务背景",       "skill_anchor": "一、程序定位与业务背景" },
+    { "id": "二", "label": "程序执行流程总览",     "heading_anchor": "二、程序执行流程总览",         "skill_anchor": "责任链表" },
+    { "id": "三", "label": "分组分析",             "heading_anchor": "三、分组分析",               "skill_anchor": "Three-Layer" },
+    { "id": "四", "label": "执行流程全景图（数据视角）", "heading_anchor": "四、执行流程全景图",     "skill_anchor": "flowchart TD" },
+    { "id": "五", "label": "问题清单与改进建议",   "heading_anchor": "五、问题清单与改进建议",       "skill_anchor": "🔴" },
+    { "id": "六", "label": "整体评价与启发",       "heading_anchor": "六、整体评价与启发",           "skill_anchor": "整体评价" }
+  ],
+
+  "layers": {
+    "labels": ["做什么", "为什么", "风险与改进"],
+    "applies_to": "every ```abap fence that quotes source",
+    "fence_languages": {
+      "quotes_source": "abap",
+      "illustrates_a_fix": "abap-fix"
+    },
+    "exempt": "fence language only -- an abap-fix fence illustrates a proposed fix and needs no layers",
+    "skill_anchor": "每个代码块后三层都必须出现",
+    "prose_window": "from the closing fence to the next fence of any language or the next heading -- not to the next quoted fence, which let labels inside an intervening abap-fix fence, or the label words anywhere later in the document, satisfy a block that had no prose of its own",
+    "prose_window_max_chars": 20,
+    "violation_kinds": {
+      "A8-cc": "no prose at all inside that window",
+      "A8-pt": "prose present inside that window, some labels missing"
+    }
+  },
+
+  "problem_section": {
+    "id": "五",
+    "heading": "## 五",
+    "buckets": ["\ud83d\udd34", "\ud83d\udfe0", "\ud83d\udfe1", "\ud83d\udfe2"],
+    "require_rows": true,
+    "skill_anchor": "🔴 P0 业务正确性"
+  },
+
+  "forbidden_in_location_labels": {
+    "why": "the skill requires naming the subprogram, not citing a line",
+    "skill_anchor": "不用行号",
+    "patterns": [
+      { "id": "file-colon-line", "regex": "\\.abap:\\d+" },
+      { "id": "cn-line",         "regex": "第\\s*\\d+\\s*[-\u2013~]?\\s*\\d*\\s*行" },
+      { "id": "en-lines",        "regex": "\\blines?\\s+\\d+(?:\\s*[-\u2013~]\\s*\\d+)?\\b" },
+      { "id": "short-L",         "regex": "\\bL\\d{2,}\\b" },
+      { "id": "colon-number",    "regex": "(?<!\\d):\\d{2,}\\b" }
+    ],
+    "scope": "backticked spans outside code fences"
+  },
+
+  "mermaid": {
+    "fence_language": "mermaid",
+    "why": "bare < > # terminate a label or start a comment, so the diagram does not render",
+    "forbid_in_display_text": ["<", ">", "#"],
+    "repair": "fullwidth",
+    "fullwidth": { "<": "\uff1c", ">": "\uff1e", "#": "\uff03" },
+    "skill_anchor": "Mermaid 标签安全"
+  },
+
+  "advisories": [
+    {
+      "id": "density",
+      "enforcement": "note",
+      "why": "a report can satisfy every rule above and still be a list rather than an analysis",
+      "floor_blocks_per_subprogram": 0.5,
+      "skill_anchor": "分组单位的展开深度"
+    },
+    {
+      "id": "fidelity",
+      "enforcement": "note",
+      "why": "a fabricated block keeps six sections, three layers and four buckets; nothing structural sees it",
+      "skill_anchor": "逐字符忠实"
+    },
+    {
+      "id": "fix-lang",
+      "enforcement": "note",
+      "why": "fence language is the only admission test, but a proposed fix left in an abap fence is probed against the source and reads as fabricated; the exemption used to be positional and skipped the next sub-step's real quote as well -- 12 of 138 quoted statements uninspected on one report",
+      "skill_anchor": "用 abap-fix 围栏"
+    },
+    {
+      "id": "fix-mislabel",
+      "enforcement": "note",
+      "why": "abap and abap-fix locked in only one direction: a fix left in an abap fence is probed and reads as fabricated, but source pasted into an abap-fix fence is never compared with the source at all, so the language tag could be used to opt a quote out of the check that exists to catch invented quotes",
+      "skill_anchor": "贴错了围栏的真引用"
+    }
+  ],
+
+  "loop_position": {
+    "_comment": [
+      "Where the checker runs is itself a measured rule, not a style preference.",
+      "",
+      "Run inside generation, the gate costs 22 points of defect recall: -0.250 at",
+      "twenty defects with an exact sign test p=0.0215, and -0.224 at thirty-eight,",
+      "the same sign at two resolutions. Run as a separate pass after the analysis",
+      "is final, recall returns to a level indistinguishable from no checker at all",
+      "(0.035 apart) while transcription accuracy is still gained -- one run found",
+      "and corrected eight of its own transcription errors.",
+      "",
+      "What the loop checks makes no difference. An arm that checked only",
+      "quotations and an arm that checked everything scored identically, p=1.0. The",
+      "cost is the loop occupying writing budget, which section 3 needs. So the",
+      "rule is not 'check less' -- it is 'check at a different moment', and a repair",
+      "pass may not touch the analysis."
+    ],
+    "inside_generation_cost_weighted_recall": -0.224,
+    "outside_generation_cost_weighted_recall": -0.035,
+    "checks_make_no_difference_p": 1.0,
+    "repair_pass_may_change": "quoted ABAP only",
+    "repair_pass_must_not_change": ["analysis", "structure", "risk text", "conclusions", "priority"],
+    "skill_anchor": "这一轮不许改分析"
+  },
+
+  "claim_separation": {
+    "_comment": [
+      "Passing a deterministic check licenses only the claim that the shape is",
+      "right. It says nothing about whether the analysis is correct, and nothing",
+      "about whether anything was missed. archify states this as a rule --",
+      "passing one claim never implies the others -- so it is written down here",
+      "rather than left to the reader to infer from the tool names."
+    ],
+    "deterministic_checks_establish": "the report has the required shape and quotes source faithfully",
+    "requires_a_named_reviewer_for": "whether the analysis is correct and what it missed",
+    "reviewer_mechanism": "scripts/evaluate.py against a frozen defect list in evals/",
+    "skill_anchor": "闸门只管形状"
+  }
+}

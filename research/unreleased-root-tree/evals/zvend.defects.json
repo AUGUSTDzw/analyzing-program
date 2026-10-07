@@ -1,0 +1,223 @@
+{
+ "_schema": [
+  "Defect reference for one ABAP source. Report-agnostic: it describes the",
+  "source, not any report, so it stays valid as reports change.",
+  "",
+  "source   the file these defects were read out of, relative to Test-source/real",
+  "defects  one entry per defect:",
+  "           id        stable identifier, referenced by verdict files",
+  "           area      which part of the program the defect lives in",
+  "           question  phrased so a judge can decide yes/partial/no from the",
+  "                     report text alone, without guessing at intent",
+  "           anchor    the source text that makes the defect checkable; some",
+  "                     defects carry `anchors` (a list) instead",
+  "",
+  "Score a report with:  python scripts/evaluate.py score --defects THIS.json \\",
+  "                                                --verdicts YOURVERDICTS.json"
+ ],
+ "source": "zvend.abap",
+ "defects": [
+  {
+   "id": "D1",
+   "area": "可编译性",
+   "question": "报告是否指出 `set_striped_pattern( cl_salv_display_settings =>true )` 里的值不是合法表达式（该类没有 TRUE 组件，应为 abap_true），程序无法通过语法检查/激活？",
+   "anchors": [
+    "gr_display->set_striped_pattern( cl_salv_display_settings =>true )",
+    "gr_display = gr_table->get_display_settings ( )."
+   ]
+  },
+  {
+   "id": "D2",
+   "area": "健壮性",
+   "question": "报告是否指出 constructor 里的 `CATCH cx_salv_msg. ENDTRY.` 是空捕获，SALV 工厂失败被静默吞掉、无消息无日志，故障对用户和运维不可见？",
+   "anchors": [
+    "cl_salv_table=> factory( IMPORTING r_salv_table = gr_table CHANGING t_table = it_disp )",
+    "CATCH cx_salv_msg."
+   ]
+  },
+  {
+   "id": "D3",
+   "area": "健壮性",
+   "question": "报告是否指出 constructor 中的 `EXIT` 只退出该方法、不终止报表执行，START-OF-SELECTION 仍调用 fill_disp/disp_alv，随后对初始引用 gr_table 解引用导致 CX_SY_REF_IS_INITIAL 短除（且 TYPE 'I' 的 MESSAGE 本身也不终止处理）？",
+   "anchors": [
+    "EXIT .",
+    "IF gr_table IS INITIAL .",
+    "MESSAGE TEXT -002 TYPE 'I' DISPLAY LIKE 'E'."
+   ]
+  },
+  {
+   "id": "D4",
+   "area": "文本元素",
+   "question": "报告是否指出程序引用了 TEXT-001 / TEXT-002 却没有定义 T001/T002，结果框标题与消息文本为空（消息可能短除）？",
+   "anchors": [
+    "WITH FRAME TITLE TEXT- 001",
+    "MESSAGE TEXT -002 TYPE 'I' DISPLAY LIKE 'E'."
+   ]
+  },
+  {
+   "id": "D5",
+   "area": "可翻译性",
+   "question": "报告是否指出表头、表尾、列短/中/长文本全部是硬编码英文字面量、未使用文本元素，导致无法 SE63 翻译、文本元素检查不通过？",
+   "anchors": [
+    "TEXT = 'MM: Vendor Evaluation'",
+    "lf_flow-> create_text( TEXT = 'Total Number of Entries' )",
+    "gr_column-> set_medium_text('Quotation Maintained' )"
+   ]
+  },
+  {
+   "id": "D6",
+   "area": "可编译性",
+   "question": "报告是否指出 JOIN 了 EKKO 与 EKPO 之后 WHERE 里的 bedat、lifnr 未加表别名前缀，而 EKKO 与 EKPO 同名同字段，Open SQL 会因字段二义而报错（或取到 EKPO 的行项目日期而非凭证日期）？",
+   "anchors": [
+    "JOIN ekpo AS b ON a~ ebeln = b ~ebeln",
+    "WHERE a~lifnr IN s_lifnr AND bedat IN s_bedat",
+    "WHERE lifnr IN s_lifnr AND bedat IN s_bedat"
+   ]
+  },
+  {
+   "id": "D7",
+   "area": "业务正确性",
+   "question": "报告是否指出同族查询的删除标志口径不一致——RFQ 用 `b~loekz NE 'X'`（含 C/D 等），其余四段用 `b~loekz EQ space`，导致已完成/关闭凭证一列计入另一列漏计，五列分母不同、不可横向比较？",
+   "anchors": [
+    "AND b~loekz NE 'X'",
+    "AND b~loekz EQ space",
+    "AND loekz EQ space"
+   ]
+  },
+  {
+   "id": "D8",
+   "area": "业务正确性",
+   "question": "报告是否指出报价段是唯一不 JOIN EKPO（用表头 LOEKZ）、且唯一用 `statu = 'A'` 作为“已维护报价”判据，而 STATU 是凭证整体处理状态、并非报价存在标志，导致 Quotation Maintained 这一列统计的是错误集合（quot 恒为 rfq 子集）？",
+   "anchors": [
+    "SELECT lifnr COUNT( DISTINCT ebeln ) AS CNT FROM ekko",
+    "AND ( bstyp = 'A' AND statu = 'A' )",
+    "gr_column-> set_medium_text('Quotation Maintained' )"
+   ]
+  },
+  {
+   "id": "D9",
+   "area": "数据流",
+   "question": "报告是否指出报价回填循环在 MODIFY 之后缺少 PO/合同/计划协议三段都有的 `IF sy-subrc` 判断，导致只有报价、没有 RFQ 骨架行的供应商其报价值被静默丢弃、整行不上屏？",
+   "anchors": [
+    "MODIFY it_disp FROM wa_disp TRANSPORTING lifnr quot WHERE lifnr = wa_temp-lifnr .",
+    "IF sy-subrc NE 0.",
+    "APPEND wa_disp TO it_disp ."
+   ]
+  },
+  {
+   "id": "D10",
+   "area": "性能",
+   "question": "报告是否指出对 EKKO/EKPO 做了 5 条独立的 COUNT(DISTINCT)+GROUP BY 聚合查询，同一批数据被反复扫描聚合五遍，DB 负载与运行时间成倍放大（且选择屏无任何必填校验、空条件即全量聚合）？",
+   "anchors": [
+    "COUNT( DISTINCT a~ebeln ) AS rfq",
+    "REFRESH it_temp.",
+    "GROUP BY a~lifnr ."
+   ]
+  },
+  {
+   "id": "D11",
+   "area": "健壮性",
+   "question": "报告是否指出 LFA1 的 FOR ALL ENTRIES 查询前没有 `IF it_disp IS NOT INITIAL` 判空，空驱动表时仍会发出无意义的全表扫描查询（FOR ALL ENTRIES 也是受限/低效写法）？",
+   "anchors": [
+    "FOR ALL ENTRIES IN it_disp",
+    "SELECT lifnr name1 FROM lfa1"
+   ]
+  },
+  {
+   "id": "D12",
+   "area": "性能",
+   "question": "报告是否指出补名称段在 LOOP AT it_disp 中对每行做线性 READ TABLE it_lfa1 再线性 MODIFY it_disp，整体 O(n²)；内表为标准表而非 HASHED/SORTED，应改用 ASSIGNING 直接改行？",
+   "anchors": [
+    "LOOP AT it_disp INTO wa_disp .",
+    "READ TABLE it_lfa1 INTO wa_lfa1 WITH KEY lifnr = wa_disp-lifnr .",
+    "MODIFY it_disp FROM wa_disp TRANSPORTING lifnr name1 WHERE lifnr = wa_disp- lifnr ."
+   ]
+  },
+  {
+   "id": "D13",
+   "area": "可维护性",
+   "question": "报告是否指出在 LOOP AT it_disp 的同时对同一张 it_disp 执行 MODIFY 属于危险模式，只因不改键与行数才侥幸合法，一旦后续改动就会触发“内表被修改”的运行期错误？",
+   "anchors": [
+    "LOOP AT it_disp INTO wa_disp .",
+    "MODIFY it_disp FROM wa_disp TRANSPORTING lifnr name1 WHERE lifnr = wa_disp- lifnr ."
+   ]
+  },
+  {
+   "id": "D14",
+   "area": "数据流",
+   "question": "报告是否指出 t_disp-bedat 被声明并当作选择屏参照字段，但五条查询的 SELECT 列表里都没有 BEDAT，该字段恒为初始值，随后又被 set_visible(abap_false)/technical 隐藏，把缺陷藏了起来（导出后仍是无意义空列）？",
+   "anchors": [
+    "bedat TYPE bedat,",
+    "s_bedat FOR wa_disp- bedat.",
+    "gr_column-> set_visible( abap_false )."
+   ]
+  },
+  {
+   "id": "D15",
+   "area": "类型",
+   "question": "报告是否指出计数域声明为 4 字节 `I`，而 Open SQL 的 COUNT 结果是 8 字节 COUNT_ANY，`INTO CORRESPONDING FIELDS` 时发生隐式窄化、类型语义不精确？",
+   "anchors": [
+    "rfq  TYPE I ,",
+    "CNT   TYPE I ,",
+    "COUNT( DISTINCT a~ebeln ) AS rfq"
+   ]
+  },
+  {
+   "id": "D16",
+   "area": "可维护性",
+   "question": "报告是否指出 build_fc 方法体内残留 `INCLUDE <color>`（只为写颜色字面量 3）——声明型 include 放在方法体中是过时反模式，应删除或移到程序顶部？",
+   "anchors": [
+    "INCLUDE <color>.",
+    "ls_color- col = 3 ."
+   ]
+  },
+  {
+   "id": "D17",
+   "area": "健壮性",
+   "question": "报告是否指出 build_fc 中 8 处 `CATCH cx_salv_not_found. ENDTRY.` 全为空捕获，列查找失败被静默吞掉、该列文案/颜色/隐藏配置悄悄失效，既不报错也不写日志？",
+   "anchors": [
+    "gr_column ?= gr_columns-> get_column( 'QUOT' ).",
+    "CATCH cx_salv_not_found."
+   ]
+  },
+  {
+   "id": "D18",
+   "area": "健壮性",
+   "question": "报告是否指出 Logo 名 `ZCHEM_N_LOGO_SMALL` 硬编码且无存在性检查、set_right_logo 与 display 外面也没有 TRY，目标系统缺该图形时在显示阶段抛异常导致短除？",
+   "anchors": [
+    "lr_logo-> set_right_logo( 'ZCHEM_N_LOGO_SMALL' ).",
+    "gr_table-> display( )."
+   ]
+  },
+  {
+   "id": "D19",
+   "area": "健壮性",
+   "question": "报告是否指出用 `IS NOT INITIAL` 判断整条选择区间却只取 low/high，用户只填上界时表头会显示成 ` to XXXXXXXX`（供应商）和 `01/01/0000 to ...`（日期）？",
+   "anchors": [
+    "lv_text = s_lifnr-low .",
+    "IF s_bedat IS NOT INITIAL .",
+    "WRITE s_bedat-low DD/MM/YYYY TO lv_text ."
+   ]
+  },
+  {
+   "id": "D20",
+   "area": "健壮性",
+   "question": "报告是否指出五条查询结果从不做判空（sy-dbcnt 还被注释掉），查询无数据也无任何提示，disp_alv 照常显示空表加“Total Number of Entries 0”的页脚，用户会以为程序坏了？",
+   "anchors": [
+    "obj_rep->fill_disp( ).",
+    "\"WRITE sy-dbcnt.",
+    "lf_lines = LINES( it_disp )."
+   ]
+  },
+  {
+   "id": "D21",
+   "area": "安全性",
+   "question": "报告是否指出全程序没有任何 AUTHORITY-CHECK，任何能运行该事务的用户都能看到全公司范围的采购单据聚合数据与 LFA1 供应商名称，形成越权查看通道？",
+   "anchors": [
+    "START-OF-SELECTION.",
+    "SELECT-OPTIONS : s_lifnr FOR wa_disp- lifnr,",
+    "obj_rep-> fill_disp( )."
+   ]
+  }
+ ]
+}
