@@ -355,6 +355,45 @@ def main():
     check("fence(s) sit inside" in r.stdout,
           "an unlabelled fix raises a fix-lang note")
 
+    # ---- a non-utf-8 REPORT refuses, in every mode ------------------------
+    # The source side was guarded from the start. The report side was not: three
+    # call sites read it bare, so a report saved as cp936 -- what an editor's
+    # "save as" produces on a Chinese Windows, the same trap SKILL.md warns
+    # about for pasted source -- raised an uncaught UnicodeDecodeError and exited
+    # 1, which SKILL.md defines as "the check ran and found defects". The caller
+    # then went looking for defects that were never there.
+    print()
+    print("a report that is not utf-8 is not a defect")
+    print("-" * 72)
+    # brief_report carries the four bucket emoji, which GBK cannot encode. That
+    # is irrelevant here: the point is only that the file is not utf-8. The
+    # utf-16 cases keep the emoji, so the bucket headings still get decoded.
+    for enc, blob in (("gbk", brief_report().encode("gbk", "replace")),
+                      ("utf-16", brief_report().encode("utf-16")),
+                      ("utf-16-le", brief_report().encode("utf-16-le"))):
+        p = os.path.join(tmp, "enc-%s.md" % enc)
+        with open(p, "wb") as fh:
+            fh.write(blob)
+        for mode, argv in (("plain", [p, src]),
+                           ("--fidelity-only", ["--fidelity-only", p, src]),
+                           ("--fix", ["--fix", p, src])):
+            r = run(QC, *argv)
+            check(r.returncode == 2 and "Traceback" not in r.stderr,
+                  "%s report: %s exits 2, not a traceback" % (enc, mode),
+                  r.stdout.strip().split("\n")[-1][:44] if r.stdout.strip() else "")
+            check("not readable as utf-8" in r.stdout,
+                  "%s report: %s names the decode failure" % (enc, mode))
+            check("nothing was checked" in r.stdout or "nothing was compared" in r.stdout,
+                  "%s report: %s says nothing was inspected" % (enc, mode))
+
+    # the same file in utf-8 is accepted, so the guard is about the encoding and
+    # not about the content
+    p = os.path.join(tmp, "enc-utf8.md")
+    io.open(p, "w", encoding="utf-8").write(brief_report())
+    r = run(QC, p, src)
+    check(r.returncode == 0 and r.stdout.startswith("PASS"),
+          "the same report in utf-8 still passes", r.stdout.strip()[:44])
+
     # ---- authz / ext-asset: two notes that only fire with a source ---------
     # Measured on a held-out program: a report that wrote "不做权限控制" and then
     # moved on was judged partial for never saying who can then see the data, and

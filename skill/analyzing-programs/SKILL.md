@@ -1,7 +1,7 @@
 ---
 name: analyzing-programs
-version: 1.0.8
-contract: 1.2.5
+version: 1.0.9
+contract: 1.2.6
 description: Use when the user wants a deep onboarding-style analysis report for an ABAP/SAP program source file (报表程序、FORM/事件块、OO 类 CLAS、函数组、ALV 等), or pastes an ABAP / z*.abap file asking to analyze, walk-through, 讲解 its structure, execution flow, or design. Trigger on phrases like "分析这个程序/源码","走读/讲解 ABAP","代码 onboarding","源码分析/架构分析","帮我看懂这段 SAP 代码". Trigger even when the user does not explicitly say "report" but clearly wants to understand a whole program's business purpose, architecture, and risks. Do NOT use for one-line answers, non-SAP code, or pure syntax/API lookups.
 ---
 # Skill: analyzing-programs
@@ -21,8 +21,9 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 1. **通读源码**：扫描入口、目录结构、依赖、声明段，识别程序类型（报表/服务/库/工具）与核心特征。
    **源码是粘贴进来的、而不是一个已存在的文件时，先把它原样写成一份 UTF-8 编码的
    文件再往下走**（例如 `pasted.abap`），第 6、7 步的闸门要的是**路径**，不是内存里的文本。
-   **编码是硬要求：不是 UTF-8 时闸门会以退出码 `2` 拒绝运行**，一个字都不比对。
-   从 SE38 复制出来另存的文件容易是 cp936，这是最容易踩的一条——先转成 UTF-8 再跑。
+   **编码是硬要求：源码和报告都必须是 UTF-8，否则闸门以退出码 `2` 拒绝运行**，
+   一个字都不比对。从 SE38 复制出来另存的文件容易是 cp936，这是最容易踩的一条
+   ——先转成 UTF-8 再跑；报告同理，编辑器"另存为"默认会落到 cp936。
    **扩展名没有要求**：闸门按扩展名区分报告与源码，`.md` / `.markdown` 一律当报告，
    其余一律当源码，`.txt`、`.ab1` 都算源码（见第 7 步）。
 2. **识别子程序边界**：找出所有方法/函数/事件块/声明区，作为分组单位。
@@ -85,10 +86,12 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 
 两条容易读错：
 
-- **源码不是 UTF-8 时三种模式都拒绝。** 读不出来就没有可比对的东西，比对没有意义。
+- **两个文件里有任何一个不是 UTF-8，三种模式都拒绝。** 读不出来就没有可比对的东西，
+  比对没有意义。**这一条对报告同样成立**——报告是编辑器"另存为"的产物，
+  在中文 Windows 上默认就是 cp936，和从 SE38 另存的源码是同一个坑。
 - **源码是空的只在 `--fidelity-only` 下拒绝。** 形状模式还能查形状，所以它只打一条
   `note` 说明密度与忠实度没法测，然后照常返回形状结论；`--fidelity-only` 拿空源码
-  做不了任何事，所以拒绝。
+  做不了任何事，所以拒绝。**报告为空不在这条之列**——空文件照样按形状检查。
 
 🔴 **CHECKPOINT · 退出码 `2` 是「拒绝」，不是「通过」。**
 它意味着闸门一个字都没看。把路径改对再重跑；**不要**因为没看到 FAIL 就当没问题。
@@ -96,7 +99,7 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 🔴 **CHECKPOINT · 源码是可选参数，所以「形状对」不等于「查过了」。**
 不带源码跑形状检查仍会打印 `PASS` 并返回 `0`，但会多出一条 note：
 `no source recognised, so density, fidelity, fix-mislabel, authz and ext-asset were not run`。
-**看到这条 note 就等于那五项诊断没跑**，必须带上源码重跑。第 7 步因此必须带源码，
+**看到这条 note 就等于那五项诊断没跑**（六条里只有 fix-lang 不需要源码），必须带上源码重跑。第 7 步因此必须带源码，
 而退出码 `0` 只能读作「形状对」。
 
 两个容易踩的写法：
@@ -107,7 +110,7 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 - **一次只能给一个源码。** 给两个会 `error` 退出 2，而不是静默取最后一个 ——
   后者看起来像一次成功运行，其实只拿一份报告对了个空。
 
-### 四项诊断：note 不改退出码，但要看
+### 六条 note：note 不改退出码，但要看
 
 闸门跑完还会打印最多六条 `note`。它们**不改变退出码**，所以闸门不替你判读 —— 得你自己看。
 
@@ -372,7 +375,7 @@ SELECT matnr maktx FROM makt INTO TABLE lt_makt
 - **样板清单可用 `...` 省略**：把函数形参逐个提升成全局变量的声明（如把 `REUSE_ALV_*` 全参数提成变量）、接口参数全集、连续同构的字段目录条目——这类代码的价值在"声明模式"而非"每一行"，可用 `...` 省略，并在括号内注明省略了什么（或紧跟表格逐项说明）。**但若某一行正是本节要指出的问题所在（某参数的类型或初值导致风险、某行语法错误），必须展开那一行。**
 - 代码块用 ``` 围栏，标注语言。**引源码用 ```abap；源码里不存在的示意改法用 abap-fix 围栏**。围栏语言是"这段是不是源码"的唯一判据——闸门按语言决定要不要逐句回对源码，位置（哪怕落在"风险与改进"标签之后）不做豁免，因为示意改法和下一步骤的真实引用处在同一位置、无法区分。
 - **围栏必须闭合。** 少一个结束的 ``` 会让后面全部内容被吞进代码块，于是六节、三层、优先级桶、引文回对**全部失效**而报告看起来仍然完整。闸门以 `fence` 缺陷报出它，并且它是排序最靠前的那一类——修了它，其余检查才有意义。
-- **围栏语言要双向锁死。** 留在 ```abap 里的改法会被回对源码；贴进 ```abap-fix 的源码不会被回对源码，所以这个标记既是"这是改法"的声明，也是"别查我"的开关。只把它当声明用，判读办法见「四项诊断」的 fix-mislabel。
+- **围栏语言要双向锁死。** 留在 ```abap 里的改法会被回对源码；贴进 ```abap-fix 的源码不会被回对源码，所以这个标记既是"这是改法"的声明，也是"别查我"的开关。只把它当声明用，判读办法见「六条 note」的 fix-mislabel。
 - **三层各自起一个新段落——`做什么` / `为什么` / `风险与改进` 之间各空一行。**
   markdown 里连续的非空行属于**同一个段落**，三层挤在一起写，渲染出来是一整段，
   读者没法按层跳读。写法是标签独占一行、**空一行、再写下一个标签**：

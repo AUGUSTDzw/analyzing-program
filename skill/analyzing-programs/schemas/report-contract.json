@@ -1,7 +1,7 @@
 {
-  "version": "1.2.5",
+  "version": "1.2.6",
   "release": {
-    "ships_with": "1.0.8",
+    "ships_with": "1.0.9",
     "_comment": [
       "Two version numbers, and they are independent axes. `version` is this",
       "contract: it bumps when a rule, a threshold or a gate_io row changes.",
@@ -21,7 +21,18 @@
       "be useful. Neither was mechanically detectable, so the drift test",
       "had nothing to assert there either.",
       "",
-      "1.2.4 -> 1.2.5 adds two advisories, so this version does move. They",
+      "1.2.5 -> 1.2.6 changes no rule, no threshold and no advisory. It rewrites",
+      "exit_codes[\"2\"] to match the gate, because that one string was the last",
+      "place where a claim about the checker had never been measured. Three",
+      "wrongnesses: it said every trigger prints a line starting with `error`",
+      "while two of them print no such line; it listed `source is empty` with no",
+      "mode, so a reader would refuse a plain-mode run that in fact takes a note",
+      "and returns the shape verdict; and it identified the gate by byte size,",
+      "which made the sentence go stale every time the file grew. The per-mode",
+      "table in SKILL.md was checked cell by cell -- all 13 agree -- and it is",
+      "the one to trust. The byte sizes are gone on purpose.",
+      "",
+      "1.2.4 -> 1.2.5 adds two advisories, so that version does move. They",
       "came out of a held-out run (zvend, 21 frozen defects, blind judging)",
       "in which the with_skill arm lost 5 defects to the without_skill arm",
       "and every one of them was the same shape: the report NAMED the",
@@ -124,11 +135,13 @@
     "_comment": [
       "How to read the checker. Recorded here because the ways of NOT being",
       "checked look like passing, and because these semantics have now been",
-      "rewritten twice: the exit-code table SKILL.md taught was written against",
-      "the 24224-byte gate, then had to be rewritten against the 45523-byte one,",
-      "which refuses a bad source path instead of passing quietly and no longer",
-      "requires a .abap suffix. Every row below was measured, not read off the",
-      "source.",
+      "rewritten three times. The exit-code table SKILL.md taught was written",
+      "against an early gate, then against the one that refused a bad source path",
+      "instead of passing quietly and dropped the .abap suffix, then against the",
+      "one that also refuses a bad report. Byte sizes are deliberately absent:",
+      "naming them made this comment go stale every time the file grew, and the",
+      "size carried no information the exit-code table does not already state.",
+      "Every row below was measured by running the gate, not read off the source.",
       "",
       "test_contract_drift.py only asserts the skill_anchor values appear in",
       "SKILL.md. It does not re-derive any of this from report_qc.py, so a change",
@@ -137,7 +150,9 @@
     "exit_codes": {
       "0": "every report was checked and no shape defect was found; notes may accompany it and never change it",
       "1": "the check ran and found defects. Shape mode prints the defect lines first and `FAIL  <name>  (N defect(s))` last; --fidelity-only prints `FAIL  <name>` plus one note and no prefixed lines; --fix prints `FAIL  <name>  (N defect(s) need the model)`",
-      "2": "refused to run, nothing was inspected. Every trigger prints a line starting with `error`: no arguments; no .md/.markdown path among the arguments; more than one source; report or source path does not exist; source is empty; --fix given fewer than two paths; -o with no output path; the rule set cannot be read or is corrupt. The last is special: it fires before main() at all, because the rules are loaded at import, so it needed its own try/except. Unhandled, it is an uncaught exception and exits 1 -- the code SKILL.md defines as 'the check ran and found defects' -- and the caller then goes and fixes defects that do not exist, or loops step 7 forever."
+      "2": "refused to run, nothing was inspected. Triggers, by mode -- the mode matters and the flat list this replaced did not say so: common, no arguments / no .md/.markdown path among the arguments / report path does not exist; plain, more than one source / source path does not exist; --fidelity-only, the source is not exactly one (0 and 2 both refuse) / source does not exist / the source is empty / the source is not utf-8; --fix, fewer than two paths / -o with no output path; and in all three modes a file that is not utf-8, report or source. Two triggers print no `error` line: no arguments prints the usage text, and --fix with too few paths prints `--fix needs REPORT and SOURCE`. SKILL.md records both. An empty source is NOT a refusal in plain mode -- the shape can still be checked, so it takes a note and returns the shape verdict; that scoping was the second thing the flat list got wrong.",
+      "why_2_is_separate": "an unhandled exception exits 1, which is the code SKILL.md defines as 'the check ran and found defects', and the caller then goes and fixes defects that do not exist, or loops step 7 forever. So every refusal has to arrive through die(), including a decode failure on the report. The report side was bare at three call sites until 1.0.9: a report saved as cp936 -- what an editor's 'save as' gives on a Chinese Windows, the trap SKILL.md warns about for pasted source -- exited 1 with a traceback. The source side was guarded from the start and the rule set has its own try/except at import, so the guarantee covered one of the two files.",
+      "measured": "1.0.9: every cell of SKILL.md's per-mode table was run against report_qc.py, all 13 agree, and the six non-utf-8-report cases now exit 2 in all three modes. test_skill.py carries 28 checks for it."
     },
     "gate_start_refuses_without_a_rule_set": {
       "where": "module import, before main() and before every exit-2 guard",

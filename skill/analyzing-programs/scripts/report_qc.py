@@ -969,7 +969,10 @@ def fix(s, src):
 # ----------------------------------------------------------------------- main
 
 def report(path, src=None):
-    s = io.open(path, encoding="utf-8").read()
+    try:
+        s = read_report(path)
+    except ReadError as e:
+        die(str(e))
     bad = check(s)
     name = os.path.basename(path)
     notes = [n for n in (density_note(s, src), fidelity_note(s, src),
@@ -992,13 +995,39 @@ def report(path, src=None):
 
 
 class ReadError(Exception):
-    """A source path that exists but cannot be read as utf-8.
+    """A file that exists but cannot be read as utf-8.
 
     errors="replace" turned a bad encoding into a U+FFFD stream, and every
     quotation then failed to match it. The fidelity advisory reported
     fabrication where the failure was in the read, which is the one thing
     that advisory exists to catch.
+
+    This was originally about the SOURCE only. The REPORT had the same defect
+    for longer and worse: three call sites read it bare, so a report saved as
+    cp936 -- which is what an editor's "save as" on a Chinese Windows produces,
+    the same trap SKILL.md warns about for pasted source -- raised an uncaught
+    UnicodeDecodeError and exited 1. Exit 1 is the code SKILL.md defines as
+    "the check ran and found defects", so the caller went looking for defects
+    that were never there. The rule set already refused this way by catching at
+    import; the report had to learn it too, or the guarantee only covered one
+    of the two files.
     """
+
+
+def read_report(path):
+    """Report text, or None when the path does not exist.
+
+    Same refusal as read_src, for the same reason: a decode failure has to
+    arrive as exit 2 through die(), never as a traceback exiting 1.
+    """
+    if not path or not os.path.exists(path):
+        return None
+    try:
+        with io.open(path, encoding="utf-8", errors="strict", newline="") as fh:
+            return fh.read()
+    except UnicodeDecodeError as e:
+        raise ReadError("%s is not readable as utf-8 (%s), so nothing "
+                        "was checked" % (path, e)) from e
 
 
 def read_src(path):
@@ -1063,7 +1092,10 @@ def main(argv):
         for p in reports:
             if not os.path.exists(p):
                 die("no such report: %s" % p)
-            s = io.open(p, encoding="utf-8").read()
+            try:
+                s = read_report(p)
+            except ReadError as e:
+                die(str(e))
             n = fidelity_note(s, src)
             if n:
                 print(f"FAIL  {os.path.basename(p)}")
@@ -1089,7 +1121,7 @@ def main(argv):
         if not os.path.exists(src):
             die("no such source: %s" % src)
         try:
-            raw = io.open(rep, encoding="utf-8", newline="").read()
+            raw = read_report(rep)
             ssrc = read_src(src)
         except ReadError as e:
             die(str(e))
