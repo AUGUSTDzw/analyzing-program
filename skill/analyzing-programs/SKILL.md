@@ -1,7 +1,7 @@
 ---
 name: analyzing-programs
-version: 1.0.7
-contract: 1.2.4
+version: 1.0.8
+contract: 1.2.5
 description: Use when the user wants a deep onboarding-style analysis report for an ABAP/SAP program source file (报表程序、FORM/事件块、OO 类 CLAS、函数组、ALV 等), or pastes an ABAP / z*.abap file asking to analyze, walk-through, 讲解 its structure, execution flow, or design. Trigger on phrases like "分析这个程序/源码","走读/讲解 ABAP","代码 onboarding","源码分析/架构分析","帮我看懂这段 SAP 代码". Trigger even when the user does not explicitly say "report" but clearly wants to understand a whole program's business purpose, architecture, and risks. Do NOT use for one-line answers, non-SAP code, or pure syntax/API lookups.
 ---
 # Skill: analyzing-programs
@@ -95,8 +95,8 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 
 🔴 **CHECKPOINT · 源码是可选参数，所以「形状对」不等于「查过了」。**
 不带源码跑形状检查仍会打印 `PASS` 并返回 `0`，但会多出一条 note：
-`no source recognised, so density, fidelity and fix-mislabel were not run`。
-**看到这条 note 就等于三项诊断没跑**，必须带上源码重跑。第 7 步因此必须带源码，
+`no source recognised, so density, fidelity, fix-mislabel, authz and ext-asset were not run`。
+**看到这条 note 就等于那五项诊断没跑**，必须带上源码重跑。第 7 步因此必须带源码，
 而退出码 `0` 只能读作「形状对」。
 
 两个容易踩的写法：
@@ -109,7 +109,7 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 
 ### 四项诊断：note 不改退出码，但要看
 
-闸门跑完还会打印最多四条 `note`。它们**不改变退出码**，所以闸门不替你判读 —— 得你自己看。
+闸门跑完还会打印最多六条 `note`。它们**不改变退出码**，所以闸门不替你判读 —— 得你自己看。
 
 | 诊断 | 它在问什么 | 需要源码 |
 |---|---|---|
@@ -117,6 +117,18 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 | 忠实度 | 你引用的语句是否逐字存在于源码 | 是 |
 | fix-lang | 示意改法有没有被留在 ```abap 围栏里 | 否 |
 | fix-mislabel | 反向：```abap-fix 围栏里的语句如果**整块逐字连续出现在源码里**，它就不是改法，而是**贴错了围栏的真引用** | 是 |
+| 授权 | 源码取了数据（`SELECT` / `READ`）却**全文没有 `AUTHORITY-CHECK`**。报表跑在 `S_TCODE` 授权下，所以这**本身不一定是缺陷**——note 只问一句，不是结论。报告若给出后果（谁能因此看到什么），这条 note 就消失 | 是 |
+
+| 外部资产 | 源码把位图/图标名写成字符串字面量（`Z..._N_..._LOGO` 这类）。这类对象在目标系统里，**编译器和语法检查都看不见**；缺图时报错出现在运行期。note 报出名字与源码里 `TRY`/`EXCEPTIONS` 的总数，请你确认每个调用点是否真在某个保护里 | 是 |
+
+后两条只覆盖**可确定性判定**的那部分：`AUTHORITY-CHECK` 零次出现是事实，外部资源名是字面量也是事实。
+**它们不替你判断"这是不是缺陷"**——`S_TCODE` 之外的口径差别、`TRY` 有没有包住正确的调用点，
+都得你读源码自己答。note 的作用是把这个问题**摆到你面前**，不是替你下结论。
+
+⚠️ 两条 note 都**只在报告没给出后果时才发**。只写"不做权限控制""这是硬编码的外部依赖"
+不构成回答——那只是把观察又说了一遍。note 要的是你往下推的那一步：
+**谁能因此看到什么**、**缺了它会怎么样**。这条门槛是量出来的：
+一份只写到"不做权限控制"的报告，正是这样被判为 partial 的。
 
 fix-mislabel 之所以存在：`abap` 与 `abap-fix` 只锁了**一个方向**。留在 ```abap 里的
 改法会被回对源码、因此被抓住；而**贴进 ```abap-fix 的源码永远不会被回对源码** ——
@@ -137,7 +149,8 @@ fix-mislabel 之所以存在：`abap` 与 `abap-fix` 只锁了**一个方向**�
 函数 / MODULE / 定义 / 过程；CLASS-DATA、CLASS-METHODS 这类声明段不计入。所以把声明段
 单独写成章节不会拉低密度，但只写声明段、不展开方法会。
 
-**密度与忠实度之外，fix-mislabel 也需要源码。** 不带源码跑形状检查时这三项都跑不了。
+**密度、忠实度、授权、外部资产这四项都需要源码。** 不带源码跑形状检查时它们都跑不了。
+另外两条 note（fix-lang）不需要源码。
 
 ### 自动修：只有两类判断改不动，所以只有两类能自动修
 
@@ -269,6 +282,31 @@ fix-mislabel 之所以存在：`abap` 与 `abap-fix` 只锁了**一个方向**�
 - 仅当某步骤为纯样板/确无风险时，可写"无明显风险"一句带过，但仍需保留该层标题，不得直接跳过。
 - **本层给的是"待审草稿"，不是可直接采纳的方案。** 每条改法都要能被读者复核。
 
+#### 写到具体标识符就必须往下推一步 —— 停在名词上不算第三层
+
+这一层最常见的失分**不是漏看，是看到了却没推到底**：点名了那个字段/方法/FM，
+然后用一句描述性的话收尾，转去写下一条。读者拿不到任何可行动的信息。
+
+**规则：每写出一个具体对象（表名、类名、方法名、字段名、FM 名），紧跟一句它的
+运行期后果——它为初始、被并发改写、超时、越界、目标系统不存在时会发生什么。
+只有名词没有后果，不算写完。**
+
+```
+❌ 位图名 ZCHEM_N_LOGO_SMALL 是硬编码的外部依赖，属于跨行业遗留。
+✅ 位图名 ZCHEM_N_LOGO_SMALL 是硬编码的外部依赖，且调用它的 display 外面没有
+   包 TRY：目标系统缺该图形时异常在显示阶段抛出，用户看到的是一张空屏幕加一条
+   短转储，看不出是图形没上传。
+```
+
+```
+❌ s_lifnr 是内表类型，未定义键。
+✅ s_lifnr 声明成标准表而非 HASHED，回填名称段时每行都要线性 READ TABLE，
+   万行规模下是 O(n²)；改成 SORTED 或 HASHED 由 SORT/READ 维护索引即可。
+```
+
+自检：把第三层里每个反引号里的标识符列一遍，**逐个问"它出事会怎样"**。
+一个都答不上来的条目，删掉它或补上后果。
+
 ### 拆分步骤时（① ② ③）怎么办 —— A8 失分高发区
 
 大代码块被拆成多个小代码块后，**每个步骤同样必须带齐自己的三层**。拆了不等于可以省标签。
@@ -363,6 +401,29 @@ SELECT matnr maktx FROM makt INTO TABLE lt_makt
 
 - **拿不准运行时行为、FM/方法参数语义、系统字段在某个位置的值时，写"需在 SE38 / SE11 / SRU 核实"，
   不要写成具体断言。**
+- ⚠️ **「需核实」不能当结论句。** 它是**结论之后**的补充，不是结论本身——
+  写完它却没有结论，等于什么都没说，读者无法行动。
+
+  **顺序永远是：先给基于源码可判的推理，再补「需核实」。**
+
+  ```
+  ❌ EKKO-STATU 的固定值集合及其业务含义需在 SE11 检查该数据元素。
+  ✅ 报价段是五段里唯一用 statu = 'A' 当"已维护报价"判据的，而 STATU 记的是
+     整张凭证的处理状态，不是报价存在与否；RFQ 那段用的是 b~loekz EQ space，
+     两段口径不同。STATU 的合法值集合需在 SE11 核实，但"这里两段口径不一致"
+     从源码就能判。
+  ```
+
+  ```
+  ❌ s_bedat 被声明为选择屏参照字段，但其值需在 SE11 核实。
+  ✅ t_disp-bedat 被声明并当作参照字段，但五条查询的 SELECT 列表里都没有
+     BEDAT，这一列恒为初始值，随后又被 set_visible(abap_false) 隐藏——
+     用户填了日期区间却看不到回显。这一条从源码就能判，不需要核实。
+  ```
+
+  **判据：能不能只靠源码读出来？** 能，就直接下结论，不要"需核实"。
+  不能（依赖 FM 默认值、依赖系统字段、依赖 DDIC 定义），才补"需核实"，
+  而且要写清**不确定的是哪一个值**，不要笼统一句了事。
 - 判断不确定的三个信号，命中任一条就标注、不要写死：
   1. 结论依赖某个 FM 的**参数默认值**或**异常是否导出**
   2. 结论依赖某个**系统字段在该位置的值**

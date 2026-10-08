@@ -1,0 +1,118 @@
+{
+  "report": "analyzing-programs-workspace/heldout-1.0.7/without_skill/report.md",
+  "verdicts": {
+    "D1": "partial",
+    "D2": "yes",
+    "D3": "yes",
+    "D4": "partial",
+    "D5": "partial",
+    "D6": "yes",
+    "D7": "yes",
+    "D8": "partial",
+    "D9": "yes",
+    "D10": "yes",
+    "D11": "yes",
+    "D12": "partial",
+    "D13": "no",
+    "D14": "yes",
+    "D15": "partial",
+    "D16": "yes",
+    "D17": "yes",
+    "D18": "yes",
+    "D19": "yes",
+    "D20": "partial",
+    "D21": "yes"
+  },
+  "evidence": {
+    "D1": {
+      "report_line": 193,
+      "quote": "三种布尔写法混用，`cl_salv_display_settings=>true` 常量存疑"
+    },
+    "D2": {
+      "report_line": 370,
+      "quote": "异常对象里最有用的 `get_text( )` 从未被取出"
+    },
+    "D3": {
+      "report_line": 344,
+      "quote": "**不终止 `START-OF-SELECTION`**"
+    },
+    "D4": {
+      "report_line": 86,
+      "quote": "`TEXT-001` 依赖报表文本元素 T00T，缺失则激活直接 SYNTAX ERROR（G-03，需核实）。"
+    },
+    "D5": {
+      "report_line": 570,
+      "quote": "全部硬编码英文字面量"
+    },
+    "D6": {
+      "report_line": 461,
+      "quote": "无论哪种情况，`a~lifnr` 都是唯一正确的写法。"
+    },
+    "D7": {
+      "report_line": 129,
+      "quote": "`NE 'X'` 会把除 `X` 以外的一切取值都算进来"
+    },
+    "D8": {
+      "report_line": 133,
+      "quote": "`RFQ` 不要求 `statu='A'`，`QUOT` 要求。"
+    },
+    "D9": {
+      "report_line": 260,
+      "quote": "唯独 quot 循环没有这个兜底"
+    },
+    "D10": {
+      "report_line": 419,
+      "quote": "其中 **4 段是几乎完全相同的 `EKKO ⋈ EKPO` 聚合**"
+    },
+    "D11": {
+      "report_line": 534,
+      "quote": "`FOR ALL ENTRIES` 前缺空表判断"
+    },
+    "D12": {
+      "report_line": 213,
+      "quote": "名字回写用 N 次全表 `MODIFY`，O(n²)"
+    },
+    "D14": {
+      "report_line": 70,
+      "quote": "`bedat` 进了结果结构但**从来没有任何一条语句给它赋值**"
+    },
+    "D15": {
+      "report_line": 73,
+      "quote": "`TYPE I`（4 字节有符号整型）承载计数，量级上完全够用"
+    },
+    "D16": {
+      "report_line": 223,
+      "quote": "`INCLUDE <color>` 已过时，无必要"
+    },
+    "D17": {
+      "report_line": 190,
+      "quote": "8 处 `CATCH cx_salv_not_found` 静默吞异常，无日志无消息"
+    },
+    "D18": {
+      "report_line": 191,
+      "quote": "LOGO 图像 `ZCHEM_N_LOGO_SMALL` 缺失/无权限时无保护"
+    },
+    "D19": {
+      "report_line": 525,
+      "quote": "对内表做 `IS NOT INITIAL` 判定的是"
+    },
+    "D20": {
+      "report_line": 728,
+      "quote": "异常吞掉不记录、无空结果保护、无选择条件下限、无 SQL 错误处理"
+    },
+    "D21": {
+      "report_line": 218,
+      "quote": "无 `AT SELECTION-SCREEN` / `AUTHORITY-CHECK`，任何人可看全量供应商数据"
+    }
+  },
+  "false_claims": [
+    {
+      "claim": "若它抛异常 → 被 L199 的 `CATCH` 吃掉，逻辑侥幸正确",
+      "why_wrong": "`?=` 只在右边非初始时才赋值，get_column 抛异常时赋值根本不发生。源码 L195/L203/L213… 复用同一个全局 `gr_column`，失败后它仍持有上一列的引用，L197 的 `set_color` 会改到错误的列，不是“侥幸正确”。"
+    },
+    {
+      "claim": "英文注释 + 中文需求的混合风格",
+      "why_wrong": "源码 L4 只是 `\"Types Declaration`，357 行正文里没有任何中文字符，报告自己第 4 行也写明“纯 ASCII 正文”，因此“中文需求的混合风格”在源码中找不到依据。"
+    }
+  ]
+}

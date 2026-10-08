@@ -1,0 +1,118 @@
+{
+  "report": "analyzing-programs-workspace/heldout-1.0.7/with_skill/report.md",
+  "verdicts": {
+    "D1": "partial",
+    "D2": "yes",
+    "D3": "yes",
+    "D4": "yes",
+    "D5": "yes",
+    "D6": "no",
+    "D7": "yes",
+    "D8": "partial",
+    "D9": "yes",
+    "D10": "yes",
+    "D11": "yes",
+    "D12": "yes",
+    "D13": "no",
+    "D14": "yes",
+    "D15": "partial",
+    "D16": "partial",
+    "D17": "yes",
+    "D18": "partial",
+    "D19": "partial",
+    "D20": "yes",
+    "D21": "partial"
+  },
+  "evidence": {
+    "D1": {
+      "report_line": 624,
+      "quote": "`IF_SALV_C_BOOL_SAP` 是 SALV 较新内核推荐的真假值类型，而 `cl_salv_display_settings =>true` 这种属性式写法在老内核里常见 —— 两者在当前内核是否都可用"
+    },
+    "D2": {
+      "report_line": 314,
+      "quote": "是空处理，等于把异常信息完全丢弃"
+    },
+    "D3": {
+      "report_line": 274,
+      "quote": "控制流都会回到事件块继续执行 `obj_rep->fill_disp( )`"
+    },
+    "D4": {
+      "report_line": 907,
+      "quote": "选择屏块标题会静默消失，失败消息会变成一条空消息"
+    },
+    "D5": {
+      "report_line": 899,
+      "quote": "整份程序共有 **13 处硬编码英文字面量**在用户界面上，而文本符号体系只用了 2 处"
+    },
+    "D7": {
+      "report_line": 990,
+      "quote": "这些是口径不对称而非运行缺陷，但会在业务解读上产生误判。"
+    },
+    "D8": {
+      "report_line": 376,
+      "quote": "`EKKO-STATU` 的固定值集合及其业务含义**需在 SE11 检查该数据元素**"
+    },
+    "D9": {
+      "report_line": 394,
+      "quote": "这一段没有 `APPEND` 兜底，`QUOT` 会被静默丢弃"
+    },
+    "D10": {
+      "report_line": 354,
+      "quote": "这一条会扫全量 `EKKO` JOIN `EKPO` 并做 `GROUP BY`"
+    },
+    "D11": {
+      "report_line": 538,
+      "quote": "`FOR ALL ENTRIES` 没有判空驱动表，这是 ABAP 里最经典的一个坑。"
+    },
+    "D12": {
+      "report_line": 183,
+      "quote": "都退化为线性查找，而它们是在四段 `LOOP AT it_temp` 的循环体里执行的，整体复杂度是 O(供应商数²)"
+    },
+    "D14": {
+      "report_line": 162,
+      "quote": "全文件没有任何一条 SQL 往 `it_disp` 的 `BEDAT` 里写值"
+    },
+    "D15": {
+      "report_line": 163,
+      "quote": "这个只是选型洁癖，不影响运行。"
+    },
+    "D16": {
+      "report_line": 82,
+      "quote": "保留了 `INCLUDE <color>.` 和 `CREATE OBJECT`（不是 `NEW`）这类老写法"
+    },
+    "D17": {
+      "report_line": 797,
+      "quote": "`CATCH cx_salv_not_found` 全是空处理"
+    },
+    "D18": {
+      "report_line": 758,
+      "quote": "位图名 `ZCHEM_N_LOGO_SMALL` 是一个硬编码的外部依赖，而且是跨行业的遗留。"
+    },
+    "D19": {
+      "report_line": 717,
+      "quote": "`s_bedat-low` 为初始（选择屏第一个日期留空只填高值）时，`WRITE` 会输出 `00/00/0000`"
+    },
+    "D20": {
+      "report_line": 287,
+      "quote": "`fill_disp` 之后不检查 `it_disp` 是否为空，直接 `disp_alv`"
+    },
+    "D21": {
+      "report_line": 29,
+      "quote": "不做权限控制、不做公司代码级数据隔离"
+    }
+  },
+  "false_claims": [
+    {
+      "claim": "当前 `it_disp` 是标准表且调用前已 `SORT BY lifnr`，所以传进去的顺序是确定的",
+      "why_wrong": "源码 L186 的 `SORT it_disp BY lifnr .` 位于 `FOR ALL ENTRIES IN it_disp`（L172-L175）与名称回填循环（L177-L183）之后；SELECT 发出时 it_disp 从未被排序。"
+    },
+    {
+      "claim": "用 `?=` 相当于“先清空再取”，失败时引用保持初始 —— 即使后续误用也是空引用而不是错列",
+      "why_wrong": "`?=` 只在右边非 initial 时才赋值，异常时赋值不发生。源码 L195/L203/L213/L220/L227/L233/L239/L245 全部复用同一个全局 `gr_column`，某次 `get_column` 失败后 `gr_column` 仍是上一列引用，紧接着的 L197 `set_color` 会改到错误的列。"
+    },
+    {
+      "claim": "两者都通过 REPORT 的文本符号体系解析，程序所在的功能组（`ZMMR_PERF_EVAL_VEND` 或其所属程序组）需要分配一个消息类",
+      "why_wrong": "源码 L1 是独立的 `REPORT zmmr_perf_eval_vend.`，全文 357 行内没有 FUNCTION / 属于函数组的 INCLUDE，报表文本符号存于 T00T，不存在“先分配功能组消息类”这一步（报告自己在第 905 行也说本文件是独立报表程序）。"
+    }
+  ]
+}

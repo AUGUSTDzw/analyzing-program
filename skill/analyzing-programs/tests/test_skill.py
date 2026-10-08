@@ -355,6 +355,104 @@ def main():
     check("fence(s) sit inside" in r.stdout,
           "an unlabelled fix raises a fix-lang note")
 
+    # ---- authz / ext-asset: two notes that only fire with a source ---------
+    # Measured on a held-out program: a report that wrote "不做权限控制" and then
+    # moved on was judged partial for never saying who can then see the data, and
+    # another that named a hardcoded bitmap scored it a hardcoded dependency
+    # without following it to the missing guard. Neither was blind to the code.
+    # So both notes ask the question, and the contract anchors on the phrases
+    # SKILL.md actually uses for them.
+    # Both were added after a held-out run lost items to reports that named a
+    # hardcoded bitmap and said "no permission control" and then moved on. The
+    # defect was never seeing it; it was seeing it and not following through.
+    # So the notes exist to put the question in front of the writer, and the
+    # tests below pin the part that can go wrong silently: firing on a program
+    # that has nothing to authorize, and staying silent on one that does.
+    print()
+    print("the two zero-occurrence notes")
+    print("-" * 72)
+
+    # `src` is a path, not its text: inject the AUTHORITY-CHECK into a sibling
+    # file so the guarded and unguarded cases can both be run in one pass.
+    # The fixture is FUNCTION z_foo, so it goes in above that line.
+    src_text = io.open(src, encoding="utf-8").read()
+    guarded = os.path.join(tmp, "guarded.abap")
+    io.open(guarded, "w", encoding="utf-8").write(
+        src_text.replace("FUNCTION z_foo.",
+                         "AUTHORITY-CHECK OBJECT 'Z_AUTH' ID 'ACT'.\n"
+                         "FUNCTION z_foo."))
+    asset_src = os.path.join(tmp, "asset.abap")
+    io.open(asset_src, "w", encoding="utf-8").write(
+        src_text.replace(
+            "  DATA ls_foo TYPE i.",
+            "  zcl_x=>set_bitmap( iv_name = 'ZIND_N_LOGO_SMALL' ).\n"
+            "  DATA ls_foo TYPE i."))
+    p = os.path.join(tmp, "authzoff.md")
+    io.open(p, "w", encoding="utf-8").write(brief_report())
+    r = run(QC, p, guarded)
+    check("no AUTHORITY-CHECK" not in r.stdout,
+          "authz stays silent when the source checks authorization",
+          r.stdout.strip().split("\n")[-1][:44] if r.stdout.strip() else "")
+    check(r.returncode == 0, "the authz source still passes shape")
+
+    r = run(QC, p, src)
+    check("no AUTHORITY-CHECK" in r.stdout,
+          "authz fires when the source reads data and never checks")
+    check("S_TCODE" in r.stdout,
+          "authz states the S_TCODE condition instead of asserting a defect")
+    check("note" in r.stdout, "authz is a note and does not fail the gate")
+    check(r.returncode == 0, "an authz note leaves the exit code at 0")
+
+    # Naming the topic is not answering it. A report that says only "no
+    # permission check" must still get the note; one that states who can then
+    # see what must not.
+    p2 = os.path.join(tmp, "authzsilent.md")
+    io.open(p2, "w", encoding="utf-8").write(brief_report())
+    r = run(QC, p2, src)
+    check("no AUTHORITY-CHECK" in r.stdout,
+          "authz fires on a report that says nothing about authorization")
+
+    named = brief_report().replace(
+        "## 六、整体评价",
+        "## 五之二、越权通道\n\n任何能运行该事务的用户都能看到全量数据。\n\n"
+        "## 六、整体评价")
+    p3 = os.path.join(tmp, "authzanswered.md")
+    io.open(p3, "w", encoding="utf-8").write(named)
+    r = run(QC, p3, src)
+    check("no AUTHORITY-CHECK" not in r.stdout,
+          "authz stays quiet once the report states the consequence",
+          r.stdout.strip().split("\n")[-1][:44] if r.stdout.strip() else "")
+
+    # ext-asset: a bitmap literal in the source, guard count reported
+    p4 = os.path.join(tmp, "asset.md")
+    io.open(p4, "w", encoding="utf-8").write(brief_report())
+    r = run(QC, p4, asset_src)
+    check("ZIND_N_LOGO_SMALL" in r.stdout,
+          "ext-asset names the hardcoded asset literal", r.stdout[:44])
+    check("TRY" in r.stdout or "guards" in r.stdout,
+          "ext-asset asks whether the call site is guarded")
+    check(r.returncode == 0, "an ext-asset note leaves the exit code at 0")
+
+    r = run(QC, p4, src)
+    check("external asset" not in r.stdout,
+          "ext-asset stays silent when the source names no asset")
+
+    # negative control: the notes must be able to stay quiet together
+    r = run(QC, p, guarded)
+    check("external asset" not in r.stdout and "no AUTHORITY-CHECK" not in r.stdout,
+          "a guarded, asset-free source raises neither note")
+
+    # the same two notes must appear on the --fix path, which recomputes them
+    # from the rewritten text
+    p5 = os.path.join(tmp, "fixasset.md")
+    io.open(p5, "w", encoding="utf-8").write(
+        brief_report().replace("**风险与改进** — 未判空。",
+                               "**风险与改进** — 未判空。\n（例 10-96 行）"))
+    r = run(QC, "--fix", p5, src)
+    check("no AUTHORITY-CHECK" in r.stdout,
+          "--fix also reports the authz note",
+          r.stdout.strip().split("\n")[-1][:44] if r.stdout.strip() else "")
+
     # the same nesting with a third block in the heading: the third block is a
     # real quote followed by its own layers, so it must not be flagged either
     triple = two.replace(

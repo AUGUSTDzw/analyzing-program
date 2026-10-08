@@ -1,0 +1,86 @@
+{
+  "report": "Test-result/ztest7-report.md",
+  "source": "Test-source/ztest7.abap",
+  "defects": "skill/analyzing-programs/evals/ztest7.defects.json",
+  "verdicts": {
+    "D1": "yes",
+    "D2": "yes",
+    "D3": "yes",
+    "D4": "yes",
+    "D5": "yes",
+    "D6": "yes",
+    "D7": "yes",
+    "D8": "yes",
+    "D9": "yes",
+    "D10": "yes",
+    "D11": "yes",
+    "D12": "yes",
+    "D13": "yes",
+    "D14": "yes",
+    "D15": "yes"
+  },
+  "evidence": {
+    "D1": {
+      "report_line": 63,
+      "quote": "取数落点与展示落点不是同一张表"
+    },
+    "D2": {
+      "report_line": 197,
+      "quote": "不是内表下标"
+    },
+    "D3": {
+      "report_line": 237,
+      "quote": "语义错配。"
+    },
+    "D4": {
+      "report_line": 239,
+      "quote": "覆盖掉了正确值"
+    },
+    "D5": {
+      "report_line": 216,
+      "quote": "`gr_data` 会停在初始引用"
+    },
+    "D6": {
+      "report_line": 201,
+      "quote": "隐式类型转换"
+    },
+    "D7": {
+      "report_line": 174,
+      "quote": "全程未被引用"
+    },
+    "D8": {
+      "report_line": 157,
+      "quote": "之间没有判重"
+    },
+    "D9": {
+      "report_line": 325,
+      "quote": "全程无落库语句"
+    },
+    "D10": {
+      "report_line": 84,
+      "quote": "三个失败分支没有任何区分"
+    },
+    "D11": {
+      "report_line": 277,
+      "quote": "空的 IF 分支"
+    },
+    "D12": {
+      "report_line": 241,
+      "quote": "三重防护、零告警"
+    },
+    "D13": {
+      "report_line": 256,
+      "quote": "全局变量而不是局部变量"
+    },
+    "D14": {
+      "report_line": 102,
+      "quote": "非排序键"
+    },
+    "D15": {
+      "report_line": 84,
+      "quote": "取不到值的空列"
+    }
+  },
+  "false_claims": [],
+  "judge_note": "自评，非独立判官：同一人既写报告又判缺陷，满分只证明缺陷集与报告自洽，不构成效果证据。需要独立判官或 without_skill 对照臂才能说明问题。与 iteration-8 的 eval-1 同一程序，可直接比较。"
+}

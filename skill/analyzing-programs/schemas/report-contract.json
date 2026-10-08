@@ -1,7 +1,7 @@
 {
-  "version": "1.2.4",
+  "version": "1.2.5",
   "release": {
-    "ships_with": "1.0.7",
+    "ships_with": "1.0.8",
     "_comment": [
       "Two version numbers, and they are independent axes. `version` is this",
       "contract: it bumps when a rule, a threshold or a gate_io row changes.",
@@ -14,12 +14,24 @@
       "can prove it matches the release the README describes.",
       "",
       "1.0.6 -> 1.0.7 changed no rule, no threshold and no gate_io row, so",
-      "this contract stays at 1.2.4 and only ships_with moves. Both fixes",
+      "this contract stayed at 1.2.4 and only ships_with moved. Both fixes",
       "came from field reports on another machine: the three layers",
       "rendered as one paragraph because SKILL.md's own compact example put",
       "them on consecutive lines, and the first layer came out too vague to",
       "be useful. Neither was mechanically detectable, so the drift test",
-      "has nothing to assert here either.",
+      "had nothing to assert there either.",
+      "",
+      "1.2.4 -> 1.2.5 adds two advisories, so this version does move. They",
+      "came out of a held-out run (zvend, 21 frozen defects, blind judging)",
+      "in which the with_skill arm lost 5 defects to the without_skill arm",
+      "and every one of them was the same shape: the report NAMED the",
+      "identifier -- a hardcoded bitmap, an IS NOT INITIAL on a range, a",
+      "missing AUTHORITY-CHECK -- and then wrote a descriptive sentence and",
+      "moved on. The code was read; the conclusion was not followed through.",
+      "No gate check can catch that, so these are notes: they put the",
+      "question in front of the writer rather than asserting a defect. Both",
+      "stay silent once the report states a consequence, because naming the",
+      "topic is not answering it.",
       "",
       "1.2.3 -> 1.2.4: exit_codes[\"2\"] gained the rule-set trigger, and",
       "gate_io.gate_start_refuses_without_a_rule_set was added. report_qc.py",
@@ -143,12 +155,12 @@
     },
     "source_is_optional": {
       "in_plain_mode": true,
-      "skip_note": "no source recognised, so density, fidelity and fix-mislabel were not run (pass the ABAP file after the report)",
+      "skip_note": "no source recognised, so density, fidelity, fix-mislabel, authz and ext-asset were not run (pass the ABAP file after the report)",
       "verdict_still_printed": "PASS and exit 0 -- the shape verdict is real, three diagnostics simply did not run",
       "skill_anchor": "no source recognised"
     },
     "diagnostics": {
-      "needs_source": ["density", "fidelity", "fix-mislabel"],
+      "needs_source": ["density", "fidelity", "fix-mislabel", "authz", "ext-asset"],
       "needs_no_source": ["fix-lang"],
       "enforcement": "note -- never changes the exit code, so the writer has to read them"
     },
@@ -178,6 +190,19 @@
       "enforcement": "note",
       "why": "fence language is the only admission test, but a proposed fix left in an abap fence is probed against the source and reads as fabricated; the exemption used to be positional and skipped the next sub-step's real quote as well -- 12 of 138 quoted statements uninspected on one report",
       "skill_anchor": "用 abap-fix 围栏"
+    },
+    {
+      "id": "authz",
+      "enforcement": "note",
+      "why": "a program that reads data but never checks authorization is a real question, not automatically a finding: reports run under S_TCODE, so anyone who can execute already may see the output. The note therefore asks rather than asserts, and it stays silent when the source does read data and has an AUTHORITY-CHECK. Scoped to data-reading sources so a program that touches no data is not flagged -- a note nobody reads is worse than no note",
+      "answered_when_report_states": "a consequence, not the topic. Naming the absence ('no permission check') is not answering it; the question is what follows from it. Measured on a real report that said '不做权限控制' and was still judged partial for not saying who can then see the data",
+      "skill_anchor": "全文没有 `AUTHORITY-CHECK`"
+    },
+    {
+      "id": "ext-asset",
+      "enforcement": "note",
+      "why": "bitmaps, icons and OData service names live in the target system, not in the source, so naming one as a literal creates a dependency that no compiler and no syntax check can see; the failure appears at run time. Reports the names and the count of TRY/EXCEPTIONS guards in the source, and asks whether each call site is inside one",
+      "skill_anchor": "外部资产"
     },
     {
       "id": "fix-mislabel",

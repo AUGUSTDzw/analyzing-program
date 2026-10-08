@@ -748,6 +748,75 @@ def fidelity_note(s, src):
             f"Check whether the report rewrote the source.")
 
 
+def authz_note(s, src):
+    """Advisory: a program that reads data but never checks authorization.
+
+    Scoped to source-quoting programs. Only fires when the source carries an
+    actual data read (SELECT / READ / a query FM), because a program that
+    touches no data has nothing to authorize -- flagging it would be noise,
+    and noise is what makes people skip notes.
+
+    Absent AUTHORITY-CHECK is not by itself a defect: reporting programs run
+    under S_TCODE, and anyone who can execute the transaction is already
+    authorized to see its output. So this asks a question instead of
+    asserting a verdict, which is the same bargain every other advisory here
+    makes. A report that answers it in prose -- either way -- should say so,
+    and silence is the thing worth flagging.
+    """
+    if not src:
+        return None
+    if re.search(r"\bAUTHORITY-CHECK\b", src, re.I):
+        return None
+    reads = re.search(r"\bSELECT\b|\bREAD\s+TABLE\b|"
+                      r"\b(?:CL_SALV_TABLE|ZCL_.*DB|ZDB_.*SELECT)\b|"
+                      r"\bCALL\s+FUNCTION\s+'(\w*SELECT\w*|REUSE_ALV\w*)'", src, re.I)
+    if not reads:
+        return None
+    # Answered already? Naming the topic is not answering it. "不做权限控制"
+    # states the absence and stops; the question is what follows from it. So the
+    # bar is a consequence statement, not the word 权限.
+    if re.search(r"越权|未受控|无权限隔离|看到全量|任何(?:能|可)运行|"
+                 r"任意用户|全体用户|数据权限|SoD|职责分离", s):
+        return None
+    return ("the source reads data (SELECT/READ) but contains no "
+            "AUTHORITY-CHECK. Whether that is a finding depends on the "
+            "transaction's S_TCODE authorization -- if so, say so in the "
+            "report; if the report says nothing about it, the question is "
+            "unanswered.")
+
+
+def ext_asset_note(s, src):
+    """Advisory: a hardcoded external asset name with no existence guard.
+
+    Bitmaps, icons and OData service names are objects that live in the
+    target system, not in the source. Naming one as a string literal makes the
+    program depend on something no compiler and no syntax check can see, so the
+    usual guard is a check plus an exception handler around the call.
+
+    Deliberately narrow: it wants the literal AND the absence of a guard in the
+    neighbourhood, because most hardcoded names are fine and flagging all of
+    them would be the note nobody reads.
+    """
+    if not src:
+        return None
+    names = set(re.findall(r"['\"]([ZIY](?:[A-Z0-9]+_)*N[A-Z0-9_]*(?:_LOGO(?:_SMALL|_LARGE|_ICON)?|_ICON|_BITMAP|_LOGO))['\"]",
+                           src))
+    if not names:
+        return None
+    guards = re.findall(r"\bTRY\b|\bAT\s+SELECTION-SCREEN\b|\bEXCEPTIONS\b", src, re.I)
+    hits = sorted(names)
+    shown = ", ".join(hits[:3]) + (f" (+{len(hits)-3} more)" if len(hits) > 3 else "")
+    if not guards:
+        return (f"the source names external asset(s) {shown} as literals, and has "
+                f"no TRY/EXCEPTIONS anywhere: if the target system does not have "
+                f"them, the failure appears at run time, not compile time. Say "
+                f"whether each is guarded.")
+    return (f"the source names external asset(s) {shown} as literals. The source "
+            f"has {len(guards)} TRY/EXCEPTIONS guard(s) in total; check that each "
+            f"named asset's call site is actually inside one, and say so in the "
+            f"report.")
+
+
 def fix_lang_note(s):
     """Advisory: a source-quoting fence sitting inside the 风险与改进 layer.
 
@@ -904,7 +973,8 @@ def report(path, src=None):
     bad = check(s)
     name = os.path.basename(path)
     notes = [n for n in (density_note(s, src), fidelity_note(s, src),
-                         fix_lang_note(s), fix_mislabel_note(s, src)) if n]
+                         fix_lang_note(s), fix_mislabel_note(s, src),
+                         authz_note(s, src), ext_asset_note(s, src)) if n]
     if not bad:
         print(f"PASS  {name}")
         for n in notes:
@@ -1055,7 +1125,8 @@ def main(argv):
         else:
             print(f"PASS  {os.path.basename(dest)}")
         for note in (density_note(fixed, ssrc), fidelity_note(fixed, ssrc),
-                     fix_lang_note(fixed), fix_mislabel_note(fixed, ssrc)):
+                     fix_lang_note(fixed), fix_mislabel_note(fixed, ssrc),
+                     authz_note(fixed, ssrc), ext_asset_note(fixed, ssrc)):
             if note:
                 print(f"  note  {note}")
         # Repaired what could be repaired; whatever is left needs the model, and
@@ -1102,8 +1173,9 @@ def main(argv):
         # After the verdict so a bare "report_qc.py REPORT" still reads PASS
         # first, and so the omission lands next to the coverage it costs rather
         # than somewhere the reader will not connect them.
-        print("  note  no source recognised, so density, fidelity and "
-              "fix-mislabel were not run (pass the ABAP file after the report)")
+        print("  note  no source recognised, so density, fidelity, fix-mislabel, "
+              "authz and ext-asset were not run (pass the ABAP file after the "
+              "report)")
     elif not src.strip():
         print("  note  %s is empty, so density and fidelity were not run"
               % srcs[0])
