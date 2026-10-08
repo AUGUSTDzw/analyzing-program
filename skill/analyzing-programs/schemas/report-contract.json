@@ -1,7 +1,7 @@
 {
   "version": "1.2.4",
   "release": {
-    "ships_with": "1.0.6",
+    "ships_with": "1.0.7",
     "_comment": [
       "Two version numbers, and they are independent axes. `version` is this",
       "contract: it bumps when a rule, a threshold or a gate_io row changes.",
@@ -12,6 +12,14 @@
       "Recorded here because nobody can tell from the numbers alone whether",
       "1.2.4 is newer or older than 1.0.6. A deployed copy that can name both",
       "can prove it matches the release the README describes.",
+      "",
+      "1.0.6 -> 1.0.7 changed no rule, no threshold and no gate_io row, so",
+      "this contract stays at 1.2.4 and only ships_with moves. Both fixes",
+      "came from field reports on another machine: the three layers",
+      "rendered as one paragraph because SKILL.md's own compact example put",
+      "them on consecutive lines, and the first layer came out too vague to",
+      "be useful. Neither was mechanically detectable, so the drift test",
+      "has nothing to assert here either.",
       "",
       "1.2.3 -> 1.2.4: exit_codes[\"2\"] gained the rule-set trigger, and",
       "gate_io.gate_start_refuses_without_a_rule_set was added. report_qc.py",
