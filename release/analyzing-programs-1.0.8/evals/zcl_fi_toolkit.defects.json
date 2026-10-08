@@ -1,0 +1,250 @@
+{
+ "_schema": [
+  "Defect reference for one ABAP source. Report-agnostic: it describes the",
+  "source, not any report, so it stays valid as reports change.",
+  "",
+  "source   the file these defects were read out of, relative to Test-source/real",
+  "defects  one entry per defect:",
+  "           id        stable identifier, referenced by verdict files",
+  "           area      which part of the program the defect lives in",
+  "           question  phrased so a judge can decide yes/partial/no from the",
+  "                     report text alone, without guessing at intent",
+  "           anchor    the source text that makes the defect checkable; some",
+  "                     defects carry `anchors` (a list) instead",
+  "",
+  "Score a report with:  python scripts/evaluate.py score --defects THIS.json \\",
+  "                                                --verdicts YOURVERDICTS.json",
+  "D21 onward added by reading the source: the list was too small for the measurement. Relative noise is absolute disagreement divided by defect count, so at 20 defects two reports differing by three items is 15 percent, which is the size of every effect this project has claimed. Judge variance was measured at zero over three independent judgements of one report, so the noise is generation and the only lever is the denominator."
+ ],
+ "source": "ZCL_FI_TOOLKIT.abap",
+ "defects": [
+  {
+   "id": "D1",
+   "area": "业务正确性",
+   "question": "Does the report identify that zzstjah is filled from the current line item's fiscal year (<ls_items>-gjahr) while zzstblg comes from a *different* (referenced) document, so a cross-year reversal writes a key pointing at a non-existent document?",
+   "anchor": "zzstjah = <ls_items>-gjahr"
+  },
+  {
+   "id": "D2",
+   "area": "数据流",
+   "question": "Does the report identify that the SELECT SINGLE belnr FROM bkpf WHERE awtyp/awkey suppresses the multiple-rows finding with ##WARN_OK, so when several BKPF rows match one awkey the stored zzstblg is an arbitrary one of them?",
+   "anchor": "##WARN_OK .                   \"#EC CI_NOORDER"
+  },
+  {
+   "id": "D3",
+   "area": "可编译性",
+   "question": "Does the report identify that READ TABLE ... WITH TABLE KEY is used against table keys declared NON-UNIQUE (tt_mseg mblnr/mjahr, tt_rbkp belnr/gjahr, tt_vbrp vbeln) — a key misuse that is an activation error or returns an arbitrary first match?",
+   "anchor": "READ TABLE lt_mseg WITH TABLE KEY mblnr = <ls_items>-zzawkey(10)"
+  },
+  {
+   "id": "D4",
+   "area": "业务正确性",
+   "question": "Does the report identify that lv_awkey is only cleared inside the three IF sy-subrc = 0 branches, so line items whose zzawtyp is none of MKPF/RMRP/VBRK reuse the previous row's awkey and get a foreign document number written into zzstblg?",
+   "anchor": "CLEAR lv_awkey."
+  },
+  {
+   "id": "D5",
+   "area": "数据流",
+   "question": "Does the report identify that IF sy-subrc <> 0 after ENDLOOP does not test whether the opening-balance loop found anything, but the leftover sy-subrc of the last statement executed inside the loop body (READ TABLE / nested LOOP), so the 'no devir' branch is decided by unrelated code?",
+   "anchor": "* devir yoksa boş devir yazısı yazalım."
+  },
+  {
+   "id": "D6",
+   "area": "业务正确性",
+   "question": "Does the report identify that lv_konto_temp compares only konto and ignores bukrs, so a second company code reusing the same account number is treated as 'account unchanged' and gets no opening-balance/summary block?",
+   "anchor": "IF lv_konto_temp IS INITIAL OR"
+  },
+  {
+   "id": "D7",
+   "area": "健壮性",
+   "question": "Does the report identify that ct_items is DELETEd while the same table is being iterated with LOOP AT ... ASSIGNING, and that the inner DELETE matches by document number only, so rows of other accounts and the iteration pointer are affected?",
+   "anchor": "DELETE ct_items WHERE belnr = <ls_items>-zzstblg AND gjahr = <ls_items>-zzstjah."
+  },
+  {
+   "id": "D8",
+   "area": "健壮性",
+   "question": "Does the report identify that ct_items is INSERTed into (INSERT ... INDEX lv_tabix / INSERT LINES OF) inside the very LOOP AT ct_items ASSIGNING <ls_items> that supplies the field symbol, invalidating the loop's row reference and indices?",
+   "anchor": "INSERT LINES OF lt_item_devir INTO ct_items INDEX lv_tabix."
+  },
+  {
+   "id": "D9",
+   "area": "业务正确性",
+   "question": "Does the report identify that sy-cprog(5) = 'RFITE' can never be true for cprog ZSDP_RFITEMAR (first five characters are ZSDP_), so the whole EKSTRE branch and the WHEN 'ZSDP_RFITEMAR' assignment are dead code?",
+   "anchor": "IF sy-subrc = 0 AND sy-cprog(5) = 'RFITE'."
+  },
+  {
+   "id": "D10",
+   "area": "健壮性",
+   "question": "Does the report identify that the dynamically assigned field symbols <lv_vari> and <lv_x_aisel> are dereferenced (CS 'EKSTRE', <> abap_true) without any IS ASSIGNED check, so a failed ASSIGN raises CX_SY_REF_IS_INITIAL?",
+   "anchor": "IF <lv_vari> CS 'EKSTRE'."
+  },
+  {
+   "id": "D11",
+   "area": "类型",
+   "question": "Does the report identify that the dynamic field name target is only 5 characters (lv_fname(5)) while CONCATENATE 'BLAR' ls_bseg-koart needs 4+4 characters, so the name is truncated and SELECT SINGLE (lv_fname) returns no field, leaving BLART initial because sy-subrc is never checked?",
+   "anchor": "DATA: lv_fname(5) TYPE c."
+  },
+  {
+   "id": "D12",
+   "area": "业务正确性",
+   "question": "Does the report identify that lv_mode is initialised to 'E' (ALLGAZMD exercise/test run), i.e. POSTING_INTERFACE_CLEARING only tests the clearing and never creates the document, while the method still reports success via MESSAGE?",
+   "anchor": "lv_mode  TYPE rfpdo-allgazmd VALUE 'E'."
+  },
+  {
+   "id": "D13",
+   "area": "健壮性",
+   "question": "Does the report identify that the sy-subrc test after POSTING_INTERFACE_CLEARING is inverted (IF sy-subrc = 0 -> MESSAGE), so the message is raised only on success and all ten failure branches return silently?",
+   "anchor": "IF sy-subrc = 0 .\n              MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno"
+  },
+  {
+   "id": "D14",
+   "area": "健壮性",
+   "question": "Does the report identify that determine_due_date never checks sy-subrc of the BSEG SELECT SINGLE and swallows the FM's exceptions in an empty ##NEEDED branch, returning the uninitialised e_faede-netdt as a valid due date?",
+   "anchor": "* Implement suitable error handling here"
+  },
+  {
+   "id": "D15",
+   "area": "健壮性",
+   "question": "Does the report identify that WRITE iv_datum TO lv_datxt converts the date into the calling user's display format before it is handed to CONVERSION_EXIT_INVDT_INPUT (which expects the internal format), and that the wrong conversion result is then stored in the class-wide cache (and the FM's conversion exception is not caught)?",
+   "anchor": "CALL FUNCTION 'CONVERSION_EXIT_INVDT_INPUT'"
+  },
+  {
+   "id": "D16",
+   "area": "健壮性",
+   "question": "Does the report identify that INSERT ls_cache INTO TABLE gt_dg_cache ASSIGNING <ls_cache> targets a table with UNIQUE KEY, so a duplicate key leaves the field symbol unassigned and rv_gdatu = <ls_cache>-gdatu dereferences it, and that this class-data cache is unbounded and never invalidated?",
+   "anchor": "INSERT ls_cache INTO TABLE gt_dg_cache ASSIGNING <ls_cache>."
+  },
+  {
+   "id": "D17",
+   "area": "类型",
+   "question": "Does the report identify that the customer branch of get_iban_codes selects kna1~lifnr and filters kna1~lifnr IN @it_kunnr although KNA1 has no LIFNR field, and that the three OPTIONAL range parameters are used unconditionally as ranges so an unsupplied range means 'no restriction'?",
+   "anchor": "SELECT kna1~lifnr, tiban~*"
+  },
+  {
+   "id": "D18",
+   "area": "健壮性",
+   "question": "Does the report identify that rt_blart = VALUE #( FOR ... ) builds a plain list that is assigned to tt_blart (HASHED with UNIQUE KEY table_line), so a document type occurring more than once in zfit_ith_blart raises CX_SY_DUPLICATE_KEY at runtime instead of being deduplicated?",
+   "anchor": "rt_blart = VALUE #( FOR _blart IN lt_returnable_blart ( _blart-blart ) )."
+  },
+  {
+   "id": "D19",
+   "area": "业务正确性",
+   "question": "Does the report identify that get_domestic_import_doc_types filters WHERE is_foreign = abap_true AND is_domestic = abap_true, i.e. the intersection instead of 'domestic only', returning an almost necessarily empty set under a name that promises domestic types?",
+   "anchor": "WHERE ( is_foreign  = abap_true AND"
+  },
+  {
+   "id": "D20",
+   "area": "业务正确性",
+   "question": "Does the report identify that lv_keydt = <ls_budat>-low - 1 underflows to 99999999 when the selection range's low bound is empty (turning 'budat LE keydt' into 'all history') and that only INDEX 1 of the range is considered?",
+   "anchor": "lv_keydt = <ls_budat>-low - 1."
+  },
+  {
+   "id": "D21",
+   "area": "健壮性",
+   "question": "Does the report identify that validate_zhrtip writes the selected mandt into the system field sy-mandt via `INTO @sy-mandt`, overwriting the session's client field as a side effect of a validation check?",
+   "anchor": "INTO @sy-mandt"
+  },
+  {
+   "id": "D22",
+   "area": "业务正确性",
+   "question": "Does the report identify that the two account-type checks in validate_zhrtip read different offsets of iv_zhrtip -- `iv_zhrtip(2)` for the '5' case but `iv_zhrtip+1(2)` for the '9' case -- so the second check inspects characters 2-3 where GOKART/BLART occupies 1-2?",
+   "anchor": "iv_zhrtip+1(2) <> 'TH'"
+  },
+  {
+   "id": "D23",
+   "area": "健壮性",
+   "question": "Does the report identify that validate_zhrtip substrings iv_zhrtip at a fixed offset with no length check on the parameter, so a value shorter than the offset raises a substring runtime error instead of failing the validation cleanly?",
+   "anchor": "iv_zhrtip(2) <> 'OK'"
+  },
+  {
+   "id": "D24",
+   "area": "健壮性",
+   "question": "Does the report identify that check_iban_duplicate inspects only `lt_tiban[ 1 ]` while get_iban_codes APPENDINGs rows from up to two separate SELECTs, so a duplicate in any row beyond the first is not detected?",
+   "anchor": "ASSIGN lt_tiban[ 1 ] TO FIELD-SYMBOL(<ls_tiban>)."
+  },
+  {
+   "id": "D25",
+   "area": "健壮性",
+   "question": "Does the report identify that the COND expressions building `party` and `party_type` for zcx_fi_iban have no ELSE branch, so a matched TIBAN row with neither KUNNR nor LIFNR filled raises the duplicate exception with an empty party and empty party_type?",
+   "anchor": "WHEN <ls_tiban>-lifnr IS NOT INITIAL THEN TEXT-111"
+  },
+  {
+   "id": "D26",
+   "area": "性能与规范",
+   "question": "Does the report identify that both SELECTs in get_iban_codes suppress the ATC check with `##TOO_MANY_ITAB_FIELDS` while selecting `tiban~*`, so the field count against the target structure is never verified and every TIBAN field is moved into the result table?",
+   "anchor": "##TOO_MANY_ITAB_FIELDS"
+  },
+  {
+   "id": "D27",
+   "area": "接口契约",
+   "question": "Does the report identify that get_iban_codes searches only inside `IF iv_get_vendor IS NOT INITIAL` and `IF iv_get_client IS NOT INITIAL`, so when neither flag is set it returns an empty table without raising, and check_iban_duplicate then treats 'never searched' as 'no duplicate'?",
+   "anchor": "IF iv_get_client IS NOT INITIAL."
+  },
+  {
+   "id": "D28",
+   "area": "健壮性",
+   "question": "Does the report identify that clear_customer_open_items wraps its whole BDC body in `TRY. ... ENDTRY.` with no CATCH, so every failure from the F-32 clearing -- including a submit error -- is swallowed and the caller is told the open items were cleared?",
+   "anchor": "lo_bdc->submit("
+  },
+  {
+   "id": "D30",
+   "area": "健壮性",
+   "question": "Does the report identify that clear_customer_open_items ends the BDC with `=WAIT_USER`, which blocks on an interactive popup and is not permitted in background or BAPI/BOI mode, so the method cannot run unattended?",
+   "anchor": "iv_nam = 'BDC_OKCODE' iv_val = '=WAIT_USER'"
+  },
+  {
+   "id": "D31",
+   "area": "业务正确性",
+   "question": "Does the report identify that in denklestirerek_transfer_kaydi the BKPF header values are collected with ftpost only while `IF sy-tabix = 1.`, so every field value posted -- BUKRS, BLART, BLDAT, BUDAT, XBLNR, WAERS -- comes from the first BSEG row while lt_ftclear receives a clearing row for every row?",
+   "anchor": "IF sy-tabix = 1."
+  },
+  {
+   "id": "D32",
+   "area": "接口契约",
+   "question": "Does the report identify that denklestirerek_transfer_kaydi declares lt_blntab and lt_fttax and passes both into POSTING_INTERFACE_CLEARING but never fills either, so the clearing run receives an empty BLNTAB and an empty FTTAX?",
+   "anchor": "lt_blntab  TYPE STANDARD TABLE OF blntab ##NEEDED,"
+  },
+  {
+   "id": "D33",
+   "area": "健壮性",
+   "question": "Does the report identify that after a failed POSTING_INTERFACE_START denklestirerek_transfer_kaydi raises MESSAGE but does not RETURN, so execution falls through and still calls POSTING_INTERFACE_CLEARING and POSTING_INTERFACE_END without a session?",
+   "anchor": "MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno"
+  },
+  {
+   "id": "D34",
+   "area": "健壮性",
+   "question": "Does the report identify that denklestirerek_transfer_kaydi lists EXCEPTIONS session_not_processable and OTHERS on POSTING_INTERFACE_END and then never tests sy-subrc, so a session that cannot be committed fails silently and the caller is told the transfer succeeded?",
+   "anchor": "session_not_processable = 1"
+  },
+  {
+   "id": "D35",
+   "area": "业务正确性",
+   "question": "Does the report identify that in the RFITEMGL branch of devir_fblxn the umskz and filkd columns are commented out of the bsis and bsas field lists, while the RFITEMAP branch selects both, so umskz and filkd reach the aggregation initial for every general-ledger account?",
+   "anchor": "*                 umskz"
+  },
+  {
+   "id": "D37",
+   "area": "健壮性",
+   "question": "Does the report identify that devir_fblxn guards every field symbol in the first CASE with IS ASSIGNED but for the RFITEMGL account range checks only `IF sy-subrc = 0.`, so an assigned yet empty range matches nothing and the general-ledger opening balances are silently omitted?",
+   "anchor": "ASSIGN ('(RFITEMGL)SD_SAKNR[]') TO <lt_saknr>."
+  },
+  {
+   "id": "D38",
+   "area": "健壮性",
+   "question": "Does the report identify that the second statement in ekstre_fblxn's reversal block is `DELETE ct_items.` with no WHERE clause, inside the LOOP that iterates ct_items, so it removes every remaining row of the item table rather than only the current document?",
+   "anchor": "DELETE ct_items."
+  },
+  {
+   "id": "D39",
+   "area": "健壮性",
+   "question": "Does the report identify that ekstre_fblxn writes zzbstkd from zuonr inside a LOOP AT ct_items ASSIGNING FIELD-SYMBOL, so a component that participates in the table's sort order is changed while the loop is walking that order?",
+   "anchor": "<ls_items>-zzbstkd = <ls_items>-zuonr."
+  },
+  {
+   "id": "D36",
+   "area": "性能与规范",
+   "question": "Does the report identify that the BSIK, BSAK, BSID and BSAD selects in devir_fblxn combine FOR ALL ENTRIES with a parenthesised OR comparing lifnr against it_hesap-sube or it_hesap-merkez, so the per-row correlation with the driver row is lost and the join degrades to a filtered cross product?",
+   "anchor": "( lifnr = it_hesap-sube OR lifnr = it_hesap-merkez )"
+  }
+ ]
+}
