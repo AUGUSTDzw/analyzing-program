@@ -38,6 +38,7 @@ import io
 import json
 import os
 import sys
+import tokenize as _tokenize
 
 for _stream in (sys.stdout, sys.stderr):
     try:
@@ -181,11 +182,36 @@ def main():
     # is what put five of these eleven at zero. One copy of the source of the
     # whole gate, and the count for every one of the eleven is at least what it
     # was when they all lived in report_qc.py.
+    #
+    # Comments come out before counting. This file explains itself at length,
+    # and a name repeated in prose counted as a read: PSEC's third occurrence
+    # was a comment on line 71 of checks/contract.py describing the very defect
+    # below, so the assertion passed on the evidence of its own explanation.
+    # Comments carry no behaviour, so tokenizing them away keeps every real
+    # declaration and every real read and nothing else.
+    #
+    # String literals go with them, because __all__ is a list of names written
+    # as strings. Listing a constant there is a second declaration, not a read,
+    # and counting it would hand back exactly what this assertion exists to
+    # catch: a constant declared at line 1, named in __all__, read nowhere.
+    # Every count below is unchanged in its verdict and lower in its number.
     _pkg = os.path.join(SKILL, "scripts", "checks")
-    gsrc = "".join(
-        io.open(p, encoding="utf-8").read()
-        for p in [gate] + sorted(os.path.join(_pkg, f) for f in
-                                 os.listdir(_pkg) if f.endswith(".py")))
+    _NOT_CODE = (_tokenize.COMMENT, _tokenize.NL, _tokenize.NEWLINE,
+                 _tokenize.INDENT, _tokenize.DEDENT, _tokenize.STRING)
+
+    def _code_only(path):
+        src = io.open(path, encoding="utf-8").read()
+        try:
+            toks = _tokenize.generate_tokens(io.StringIO(src).readline)
+        except (_tokenize.TokenError, IndentationError, SyntaxError):
+            # Unparseable here means unimportable, and the import above already
+            # failed loudly. Counting prose in that case beats hiding it.
+            return src
+        return " ".join(t.string for t in toks if t.type not in _NOT_CODE)
+
+    gsrc = "".join(_code_only(p) for p in
+                   [gate] + sorted(os.path.join(_pkg, f) for f in
+                                   os.listdir(_pkg) if f.endswith(".py")))
     for key, attr in (("sections", "SEC"), ("layers", "LAYERS"),
                       ("sections", "SEC_RE"), ("layers", "A8_GAP"),
                       ("problem_section", "PSEC"),

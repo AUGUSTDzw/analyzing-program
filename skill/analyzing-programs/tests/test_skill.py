@@ -36,6 +36,8 @@ for _stream in (sys.stdout, sys.stderr):
 HERE = os.path.dirname(os.path.abspath(__file__))
 SKILL = os.path.dirname(HERE)
 QC = os.path.join(SKILL, "scripts", "report_qc.py")
+CHECKS = os.path.join(SKILL, "scripts", "checks")
+SCHEMAS = os.path.join(SKILL, "schemas")
 EVAL = os.path.join(SKILL, "scripts", "evaluate.py")
 EXEMPLAR = os.path.join(SKILL, "references", "example-report.md")
 
@@ -126,6 +128,13 @@ def main():
     # code 1 -- the code SKILL.md defines as "the check ran and found
     # defects". Nothing was inspected, but the caller read it as a verdict, and
     # step 7's "rerun until clean" loop could never go quiet. Refuse instead.
+    #
+    # checks/ is copied in alongside report_qc.py because it is now what reads
+    # the rule set. Without it both cases below stopped at the package guard
+    # and the guard that actually reads schemas/ lost its coverage: the suite
+    # still counted six green checks, one exit-2 path quietly replaced another.
+    # The assertion below names "rule set" rather than "error" so the two
+    # refusals cannot be confused for one another again.
     for kind in ("missing", "corrupt"):
         root = os.path.join(tmp, kind)
         os.makedirs(os.path.join(root, "scripts"))
@@ -134,6 +143,8 @@ def main():
             io.open(os.path.join(root, "schemas", "report-contract.json"),
                     "w", encoding="utf-8").write("{ not json")
         shutil.copy(QC, os.path.join(root, "scripts", "report_qc.py"))
+        shutil.copytree(CHECKS, os.path.join(root, "scripts", "checks"),
+                        ignore=shutil.ignore_patterns("__pycache__"))
         rep = os.path.join(tmp, kind + ".md")
         io.open(rep, "w", encoding="utf-8").write(brief_report())
         r = run(os.path.join(root, "scripts", "report_qc.py"), rep)
@@ -143,6 +154,57 @@ def main():
               "an %s rule set says so, it does not raise" % kind)
         check("error" in r.stdout and "nothing was checked" in r.stdout,
               "an %s rule set announces that nothing was checked" % kind)
+        # The word "rule set" is the discriminator, and the comment above says
+        # why the earlier version of this loop could not tell the two apart.
+        check("cannot read the rule set" in r.stdout,
+              "an %s rule set is refused by the rule-set guard, not an earlier one"
+              % kind,
+              r.stdout.strip().split("\n")[0][:44] if r.stdout.strip() else "")
+
+    # The other door to the same verdict: the checks package itself is absent.
+    # A malformed module in it must not open a third one -- see the SyntaxError
+    # guard in report_qc.py, which is what makes that true.
+    root = os.path.join(tmp, "nochecks")
+    os.makedirs(os.path.join(root, "scripts"))
+    shutil.copy(QC, os.path.join(root, "scripts", "report_qc.py"))
+    rep = os.path.join(tmp, "nochecks.md")
+    io.open(rep, "w", encoding="utf-8").write(brief_report())
+    r = run(os.path.join(root, "scripts", "report_qc.py"), rep)
+    check(r.returncode == 2, "a missing checks package exits 2, not 1")
+    check("Traceback" not in r.stderr and "Traceback" not in r.stdout,
+          "a missing checks package says so, it does not raise")
+    check("cannot load the checks" in r.stdout and
+          "nothing was checked" in r.stdout,
+          "a missing checks package announces that nothing was checked",
+          r.stdout.strip().split("\n")[0][:44] if r.stdout.strip() else "")
+
+    # A checks module that will not parse is the same case wearing a different
+    # hat: nothing was checked, so it has to exit 2 like the other two. Before
+    # the guard it raised SyntaxError, and the traceback exited 1 -- the code
+    # SKILL.md defines as "the check ran and found defects". The rule set is
+    # copied in good order here, because checks/contract.py is imported first
+    # and its own guard would otherwise refuse and the malformed module would
+    # never be reached -- which is the case this test exists to exercise.
+    root = os.path.join(tmp, "malformed")
+    os.makedirs(os.path.join(root, "scripts"))
+    shutil.copytree(SCHEMAS, os.path.join(root, "schemas"))
+    shutil.copy(QC, os.path.join(root, "scripts", "report_qc.py"))
+    shutil.copytree(CHECKS, os.path.join(root, "scripts", "checks"),
+                    ignore=shutil.ignore_patterns("__pycache__"))
+    io.open(os.path.join(root, "scripts", "checks", "text.py"),
+            "w", encoding="utf-8").write("def broken(:\n")
+    rep = os.path.join(tmp, "malformed.md")
+    io.open(rep, "w", encoding="utf-8").write(brief_report())
+    r = run(os.path.join(root, "scripts", "report_qc.py"), rep)
+    check(r.returncode == 2, "a checks module that will not parse exits 2, not 1",
+          "exit=%d" % r.returncode)
+    check("Traceback" not in r.stderr and "Traceback" not in r.stdout,
+          "a checks module that will not parse says so, it does not raise",
+          (r.stderr.strip().split("\n") or [""])[-1][:44])
+    check("cannot load the checks" in r.stdout and
+          "nothing was checked" in r.stdout,
+          "a checks module that will not parse announces nothing was checked",
+          r.stdout.strip().split("\n")[0][:44] if r.stdout.strip() else "")
 
     print()
     print("report_qc.py")

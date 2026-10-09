@@ -11,6 +11,15 @@ import re
 
 from .contract import ANCHORS, MM_BAD, QUOTE_LANG
 
+# Same reason as the list in contract.py: without it `import *` hands `re` to
+# report_qc.py as well. ANCHORS/MM_BAD/QUOTE_LANG are re-exported out of
+# contract.py and belong to its __all__, not to a second one here.
+__all__ = ["TICK", "TAG", "FENCE_MARK", "mm_violation", "NODE", "mermaid_labels",
+           "inventory", "lang_of", "fence_spans", "fence_defects", "blank_fences",
+           "anchors_of", "anchor_for", "block_head", "in_risk_layer", "PROSE_END",
+           "prose_end", "source_blocks", "line_of", "cite_extent", "ELIDE",
+           "PAREN_NOTE", "CJK", "STR_LIT", "PUNCT"]
+
 TICK = re.compile(r"`([^`\n]{2,80})`")
 # Mermaid renders this HTML subset, so these are the only angle brackets a label
 # may keep; every other < or > terminates it or starts a comment. One definition,

@@ -72,7 +72,12 @@ for _stream in (sys.stdout, sys.stderr):
 # The rule set the checks read, and the text primitives every one of them is a
 # function of, live in checks/ -- one copy each, so a detector added in 1.1.0
 # cannot re-spell either and disagree with the half that did not.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Inserted only when absent: "checks" is a plain enough name that something may
+# already have put it on the path, and re-prepending the same directory on every
+# run pushes whatever the host system had behind it for no gain.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
 
 try:
     from checks.contract import *          # noqa: F401,F403
@@ -81,12 +86,18 @@ try:
     # so they are named here rather than renamed to suit the import.
     from checks.contract import _NEXT_SEC_RE                     # noqa: F401
     from checks.text import _claims, _flat                       # noqa: F401
-except ImportError as _e:
+except (ImportError, SyntaxError) as _e:
     # The rule set and the checks that read it load before main() can run, so a
     # skill installed without scripts/checks/ dies here -- before main(), before
     # every exit-2 guard below. An unhandled ImportError exits 1, which SKILL.md
     # defines as "the check ran and found defects", so the caller goes looking
     # for defects that do not exist. Refuse the way the rule set itself does.
+    # SyntaxError is here for the same reason: a checks module that will not
+    # parse raises it, and it used to escape this guard and exit 1 on a
+    # traceback. Moving the detectors into checks/ added two new places for that
+    # to happen, so the guard covers both import-time failures and refuses the
+    # way the rule set itself does rather than reporting a verdict it never
+    # reached.
     sys.stdout.write("error  cannot load the checks at %s (%s), so nothing "
                      "was checked\n" % (os.path.dirname(
                          os.path.abspath(__file__)), _e))

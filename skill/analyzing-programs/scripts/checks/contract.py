@@ -10,6 +10,19 @@ Contract version 1.2.6 -> 1.3.0 in 1.1.0 (five new rule keys). Shipped with
 """
 import io, json, os, re, sys
 
+# `import *` takes whatever is not underscore-prefixed unless __all__ says
+# otherwise, so without this line io/json/os/re/sys rode back into report_qc.py
+# on the star import. Harmless today -- report_qc.py imports io/os/re/sys itself
+# and never mentions json -- and that is exactly what makes it a trap: a
+# detector there that reaches for json.load would resolve it through this module
+# and keep working in tests that never install the gate, then fail on a system
+# where something else owns the name. An explicit list turns a silent
+# resolution into a NameError at import.
+__all__ = ["CONTRACT", "CONTRACT_PATH", "SEC", "SEC_RE", "LAYERS", "A8_GAP",
+           "BUCKETS", "ROW", "DIAGRAM_LANG", "FENCE_LANGS", "QUOTE_LANG",
+           "FIX_LANG", "PSEC", "PSEC_RE", "LINE_NUM", "FULLWIDTH", "MM_BAD",
+           "DENSITY_FLOOR", "CITE_NUM", "ANCHORS"]
+
 # Fence language decides whether a fence quotes source or illustrates a proposed
 # fix. Position exempts nothing: a block after a 风险与改进 label is indistinguishable
 # from the next sub-step's real quote, and the positional exemption used to skip
