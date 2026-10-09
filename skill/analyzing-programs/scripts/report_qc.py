@@ -260,8 +260,8 @@ def report(path, src=None):
         for n in notes:
             print(f"  note  {n}")
         return 0
-    order = {"fence": 0, "sec": 1, "prow": 2, "buck": 3, "ln": 4, "mm": 5,
-             "A8-cc": 6, "A8-pt": 7}
+    order = {"fence": 0, "sec": 1, "sec-dup": 1, "prow": 2, "buck": 3, "ln": 4,
+             "mm": 5, "A8-cc": 6, "A8-pt": 7}
     for kind, ln, detail in sorted(bad, key=lambda x: (order.get(x[0], 9), x[1])):
         where = f"line {ln}" if ln else "document"
         print(f"  {kind:6} {where:>10}  {detail}")

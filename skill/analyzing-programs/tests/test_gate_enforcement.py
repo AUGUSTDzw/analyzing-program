@@ -172,8 +172,10 @@ def main():
     dup = base[:h1.end()] + h1.group(0) + base[h1.end():]
     check(len(re.findall(r"(?m)^## 一", dup)) == 2,
           "PROBE 6 section one now appears twice")
-    rc, _ = gate(dup, tmp, "p6_dup_section.md")
-    check(rc == 0, "PROBE 6 gate currently PASSES a duplicated section", f"rc={rc}")
+    rc, out = gate(dup, tmp, "p6_dup_section.md")
+    check(rc != 0, "PROBE 6 gate now REJECTS a duplicated section", f"rc={rc}")
+    check("sec-dup" in out, "PROBE 6 reported as kind 'sec-dup'",
+          out.strip().splitlines()[0][:80] if out.strip() else "")
 
     heads = [l for l in base.split("\n") if re.match(r"^#{1,3} ", l)]
     mini = ("\n".join(heads) + "\n\n" + FENCE + "abap\nREPORT lcl_foo.\n" + FENCE

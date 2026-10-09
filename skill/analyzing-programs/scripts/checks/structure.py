@@ -7,11 +7,13 @@ signature and every kind string are unchanged from the single-file gate; the
 """
 import re
 
-from checks.contract import (A8_GAP, BUCKETS, DIAGRAM_LANG, LAYERS, LINE_NUM,
-                             PSEC_RE, ROW, SEC_RE, _NEXT_SEC_RE)
+from checks.contract import (A8_GAP, BUCKETS, CONTRACT, DIAGRAM_LANG, LAYERS,
+                             LINE_NUM, PSEC_RE, ROW, SEC_RE, _NEXT_SEC_RE)
 from checks.encoding import replacement_defects
 from checks.text import (TICK, TAG, blank_fences, fence_defects, fence_spans,
                           line_of, mermaid_labels, mm_violation, source_blocks)
+
+SECTIONS_EXACTLY_ONCE = CONTRACT.get("sections_exactly_once", False)
 
 # Same reason as the lists in contract.py and text.py: without one, `import *`
 # into report_qc.py hands every name above to that module as well -- and a
@@ -32,6 +34,12 @@ def check(s):
     if present < len(SEC_RE):
         missing = [sid for rx, sid in SEC_RE if not rx.search(s)]
         bad.append(("sec", 0, f"missing section(s): {', '.join(missing)}"))
+    elif SECTIONS_EXACTLY_ONCE:
+        for rx, sid in SEC_RE:
+            n = len(rx.findall(s))
+            if n > 1:
+                bad.append(("sec-dup", line_of(s, rx.search(s).end()),
+                            "section %s appears %d times" % (sid, n)))
 
     for st, end, gap in source_blocks(s):
         miss = [l for l in LAYERS if l not in gap]
