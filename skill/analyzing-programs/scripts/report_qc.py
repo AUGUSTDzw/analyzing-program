@@ -81,7 +81,7 @@ if _HERE not in sys.path:
 try:
     from checks.contract import *          # noqa: F401,F403
     from checks.text import *             # noqa: F401,F403
-    from checks.structure import check                          # noqa: F401
+    from checks.structure import check
     # `import *` skips every underscore-prefixed name and nothing below needs
     # one. Worth knowing before that stops being true: a detector written here
     # that reached for _flat or _claims would resolve neither, and say so with a
@@ -95,9 +95,12 @@ try:
     # advisory the gate can no longer reach by name is the drift that suite
     # exists to catch. Naming all six keeps that surface uniform rather than
     # importing only the ones a given test happens to list today.
-    from checks.advisory import (all_notes, authz_note, density_note,  # noqa: F401
-                                 ext_asset_note, fidelity_note, fix_lang_note,
-                                 fix_mislabel_note)
+    # The five unused ones lead, because that is the line pyflakes reports all of
+    # them on and therefore the only line where the F401 marker means what it
+    # says. all_notes and fidelity_note are called below and carry no marker.
+    from checks.advisory import (authz_note, density_note, ext_asset_note,  # noqa: F401
+                                 fix_lang_note, fix_mislabel_note, all_notes,
+                                 fidelity_note)
 except (ImportError, SyntaxError) as _e:
     # The rule set and the checks that read it load before main() can run, so a
     # skill installed without scripts/checks/ dies here -- before main(), before

@@ -277,9 +277,13 @@ def fidelity_note(s, src):
 def all_notes(s, src=None):
     """Every advisory for this report, in the order they were printed before.
 
-    report() and the --fix branch each built this list by hand, in two
-    different orders. They drifted once already: --fix prints them before the
-    verdict, report() after. One list, one order.
+    report() and the --fix branch each spelled this list out by hand, in the
+    same order. One list, defined once.
+
+    That order is what both modes print, so changing it changes the gate's
+    output in plain mode and --fix alike. No suite pins it: reversing every
+    note here still passes every suite. Deliberate -- do not reshuffle it on
+    the way past.
     """
     out = []
     n = density_note(s, src)
