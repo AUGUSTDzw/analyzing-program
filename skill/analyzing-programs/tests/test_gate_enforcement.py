@@ -161,8 +161,10 @@ def main():
 
     bad = base.replace("供应商", "供应商\ufffd\ufffd", 1)
     check(bad != base, "PROBE 5 substitution actually changed the report")
-    rc, _ = gate(bad, tmp, "p5_fffd.md")
-    check(rc == 0, "PROBE 5 gate currently PASSES a replacement char in prose", f"rc={rc}")
+    rc, out = gate(bad, tmp, "p5_fffd.md")
+    check(rc != 0, "PROBE 5 gate now REJECTS a replacement char in prose", f"rc={rc}")
+    check("enc" in out, "PROBE 5 the violation is reported as kind 'enc'",
+          out.strip().splitlines()[0][:80] if out.strip() else "")
 
     h1 = re.search(r"(?ms)^## 一.*?(?=^## 二)", base)
     if h1 is None:

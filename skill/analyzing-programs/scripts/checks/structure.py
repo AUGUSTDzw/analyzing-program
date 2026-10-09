@@ -9,8 +9,9 @@ import re
 
 from checks.contract import (A8_GAP, BUCKETS, DIAGRAM_LANG, LAYERS, LINE_NUM,
                              PSEC_RE, ROW, SEC_RE, _NEXT_SEC_RE)
+from checks.encoding import replacement_defects
 from checks.text import (TICK, TAG, blank_fences, fence_defects, fence_spans,
-                         line_of, mermaid_labels, mm_violation, source_blocks)
+                          line_of, mermaid_labels, mm_violation, source_blocks)
 
 # Same reason as the lists in contract.py and text.py: without one, `import *`
 # into report_qc.py hands every name above to that module as well -- and a
@@ -88,4 +89,5 @@ def check(s):
     if miss_b:
         bad.append(("buck", line_of(s, i) if i >= 0 else 0,
                     "section 五 missing priority bucket(s): " + " ".join(miss_b)))
+    bad.extend(replacement_defects(s))
     return bad
