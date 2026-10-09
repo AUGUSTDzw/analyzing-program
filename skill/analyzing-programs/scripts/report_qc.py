@@ -28,7 +28,7 @@ the fix needs to know what the prose after the block was meant to say, and
 guessing re-labels a risk discussion as a description. Those are reported with
 line numbers and left to the model.
 
-Detectors live in this one file and are shared by both modes on purpose. An
+Detectors live in checks/ and are shared by both modes on purpose. An
 earlier version kept the checker and the fixer in separate scripts with separate
 regexes; they drifted, and the fixer silently missed a form the checker caught.
 
@@ -60,7 +60,6 @@ four things this gate exists to do, was unreachable on that platform.
 
 import io
 import os
-import re
 import sys
 
 for _stream in (sys.stdout, sys.stderr):
@@ -82,10 +81,23 @@ if _HERE not in sys.path:
 try:
     from checks.contract import *          # noqa: F401,F403
     from checks.text import *             # noqa: F401,F403
-    # `import *` skips a leading underscore. These three are read by name below,
-    # so they are named here rather than renamed to suit the import.
-    from checks.contract import _NEXT_SEC_RE                     # noqa: F401
-    from checks.text import _claims, _flat                       # noqa: F401
+    from checks.structure import check                          # noqa: F401
+    # `import *` skips every underscore-prefixed name and nothing below needs
+    # one. Worth knowing before that stops being true: a detector written here
+    # that reached for _flat or _claims would resolve neither, and say so with a
+    # NameError at the first call rather than at import.
+
+    # all_notes() builds the advisory list this file used to spell out twice.
+    # fidelity_note is named for --fidelity-only, which adjudicates it alone and
+    # promotes it to a failure. The other five are called from inside all_notes
+    # rather than here, and are imported so this module stays the gate's whole
+    # surface: test_contract_drift.py reads them off the module it loads, and an
+    # advisory the gate can no longer reach by name is the drift that suite
+    # exists to catch. Naming all six keeps that surface uniform rather than
+    # importing only the ones a given test happens to list today.
+    from checks.advisory import (all_notes, authz_note, density_note,  # noqa: F401
+                                 ext_asset_note, fidelity_note, fix_lang_note,
+                                 fix_mislabel_note)
 except (ImportError, SyntaxError) as _e:
     # The rule set and the checks that read it load before main() can run, so a
     # skill installed without scripts/checks/ dies here -- before main(), before
@@ -104,121 +116,7 @@ except (ImportError, SyntaxError) as _e:
     sys.exit(2)
 
 
-def density_note(s, src):
-    """Advisory: quoted blocks per declared subprogram.
-
-    Naming every subprogram is cheap. The v1 AVE report names 435 of 439 and
-    passes every structural check in this file -- six sections, four priority
-    buckets, no bare Mermaid characters, no line-number locations -- while
-    quoting 68 blocks for 439 subprograms. It is an inventory wearing an
-    analysis-shaped wrapper, and nothing else here can see that.
-
-    Reported rather than enforced. Six sections and four buckets are rules the
-    skill states without exception, so they can fail a report. A density floor
-    cannot: 0.50 blocks per subprogram is what 19 samples happened to separate
-    at, with only four below it, and a source of many one-line helpers does not
-    owe one block each. A wrong floor here would fail correct reports, which is
-    worse than missing a soft signal.
-    """
-    if not src:
-        return None
-    inv = inventory(src)
-    if not inv:
-        # No construct in ANCHORS at all, so there is no denominator. This is a
-        # limitation of the detector, not a judgement about the source -- and it
-        # used to be reported as silence, which reads as "nothing to worry
-        # about". Say what could not be measured instead.
-        names = []
-        for _, t in ANCHORS:
-            n = t.split("{")[0].strip()
-            if n and n not in names:
-                names.append(n)
-        return ("density not measured: the source declares no %s this script can "
-                "count, so there is no denominator. That is a limit of the "
-                "detector, not evidence that the report is thorough."
-                % " / ".join(names))
-    blocks = len(list(source_blocks(s)))
-    d = blocks / len(inv)
-    named = sum(1 for n in inv if n.lower() in s.lower())
-    if d >= DENSITY_FLOOR:
-        return None
-    return (f"low density: {blocks} quoted block(s) for {len(inv)} declared "
-            f"subprogram(s) = {d:.2f} each ({named} of them named in the text). "
-            f"If the text reads as a list rather than a walkthrough, it is an "
-            f"inventory, not an analysis.")
-
-
-# ------------------------------------------------------------------- checking
-
-def check(s):
-    """Return a list of (kind, line, detail). Empty means clean."""
-    bad = []
-
-    present = sum(1 for rx, _ in SEC_RE if rx.search(s))
-    if present < len(SEC_RE):
-        missing = [sid for rx, sid in SEC_RE if not rx.search(s)]
-        bad.append(("sec", 0, f"missing section(s): {', '.join(missing)}"))
-
-    for st, end, gap in source_blocks(s):
-        miss = [l for l in LAYERS if l not in gap]
-        if not miss:
-            continue
-        ln = line_of(s, st)
-        kind = "A8-cc" if len(gap.strip()) <= A8_GAP else "A8-pt"
-        bad.append((kind, ln,
-                    "no prose at all before the next block" if kind == "A8-cc"
-                    else "prose present, missing label(s): " + " ".join(miss)))
-
-    bad.extend(fence_defects(s))
-
-    for st, bs, be, _en, lang in fence_spans(s):
-        if lang != DIAGRAM_LANG.lower():
-            continue
-        base = line_of(s, st)
-        blk = s[bs:be]
-        for lab, off in mermaid_labels(blk):
-            if not mm_violation(lab):
-                continue
-            clean = TAG.sub("", lab)
-            bad.append(("mm", base + blk[:off].count("\n"),
-                        "Mermaid label holds a bare < > or #: "
-                        + repr(clean.strip()[:40])))
-
-    # A real line number here is what the gate owes the writer: reporting 0
-    # rendered as "document" and sent them hunting the whole file for a span
-    # they could have found in one jump.
-    for m in TICK.finditer(blank_fences(s)):
-        sp = m.group(1)
-        if LINE_NUM.search(sp):
-            bad.append(("ln", line_of(s, m.start()),
-                        f"location label cites a line number: {sp[:40]!r}"))
-
-    m5 = PSEC_RE.search(s)
-    i = m5.start() if m5 else -1
-    if i >= 0:
-        m6 = _NEXT_SEC_RE.search(s, i + 1) if _NEXT_SEC_RE else None
-        j = m6.start() if m6 else len(s)
-        sec5 = s[i:j]
-    else:
-        sec5 = ""
-    prows = len(ROW.findall(sec5))
-    if prows == 0:
-        tbl = [l for l in sec5.split("\n") if l.startswith("|")
-               and not set(l) <= set("|- ")]
-        prows = max(0, len(tbl) - 1)
-    if prows == 0:
-        prows = len(re.findall(r"^\s*\d+\.\s+\*\*", sec5, re.M))
-    if prows == 0:
-        bad.append(("prow", line_of(s, i) if i >= 0 else 0,
-                    "section 五 has no problem rows"))
-    miss_b = [b for b in BUCKETS if b not in sec5]
-    if miss_b:
-        bad.append(("buck", line_of(s, i) if i >= 0 else 0,
-                    "section 五 missing priority bucket(s): " + " ".join(miss_b)))
-    return bad
-
-
-# --------------------------------------------------------------------- fixing
+# ------------------------------------------------------------------- fixing
 
 def fix_ln(s, src):
     """Rewrite a line-number citation as the nearest preceding construct.
@@ -288,217 +186,6 @@ def fix_ln(s, src):
     return out, len(edits), notes
 
 
-def fidelity_note(s, src):
-    """Advisory: quoted statements that do not occur in the source.
-
-    The skill requires pasted code to be character-for-character faithful and
-    forbids altering statements to read better. Nothing structural can see this:
-    a fabricated block still has six sections, three layers per block and four
-    priority buckets.
-
-    Measured over 1444 quoted statements in ten reports, 16 did not occur in the
-    source and 11 of those 16 were substantive. The worst was not a rename: a
-    report quoted two calls that load a prior and a latest version and gave both
-    the same argument, so the code it described no longer did what it does.
-
-    Reported, not enforced. Three of the sixteen are punctuation or a merged
-    TYPES header, and 69% precision is not good enough to fail a report -- the
-    same reason density is advisory. It is good enough to be worth reading.
-    """
-    if not src:
-        return None
-    sf = _flat(src)
-    bad = []
-    n = 0
-    for st, bs, be, _en, lang in fence_spans(s):
-        if lang != QUOTE_LANG.lower():
-            continue
-        base = line_of(s, st)
-        for i, l in _claims(s[bs:be]):
-            n += 1
-            probe = l.strip()
-            c = probe.find('"')
-            if c >= 0:
-                probe = probe[:c]      # a statement comment is prose, not code
-            probe = probe.rstrip(".")
-            if probe and _flat(probe) not in sf:
-                bad.append((base + 1 + i, l.strip()))
-    if not bad:
-        return None
-    head = bad[0]
-    more = f" (+{len(bad)-1} more)" if len(bad) > 1 else ""
-    return (f"{len(bad)} quoted statement(s) of {n} do not occur in the source. "
-            f"First at line {head[0]}: {head[1][:60]!r}{more}. "
-            f"Check whether the report rewrote the source.")
-
-
-def authz_note(s, src):
-    """Advisory: a program that reads data but never checks authorization.
-
-    Scoped to source-quoting programs. Only fires when the source carries an
-    actual data read (SELECT / READ / a query FM), because a program that
-    touches no data has nothing to authorize -- flagging it would be noise,
-    and noise is what makes people skip notes.
-
-    Absent AUTHORITY-CHECK is not by itself a defect: reporting programs run
-    under S_TCODE, and anyone who can execute the transaction is already
-    authorized to see its output. So this asks a question instead of
-    asserting a verdict, which is the same bargain every other advisory here
-    makes. A report that answers it in prose -- either way -- should say so,
-    and silence is the thing worth flagging.
-    """
-    if not src:
-        return None
-    if re.search(r"\bAUTHORITY-CHECK\b", src, re.I):
-        return None
-    reads = re.search(r"\bSELECT\b|\bREAD\s+TABLE\b|"
-                      r"\b(?:CL_SALV_TABLE|ZCL_.*DB|ZDB_.*SELECT)\b|"
-                      r"\bCALL\s+FUNCTION\s+'(\w*SELECT\w*|REUSE_ALV\w*)'", src, re.I)
-    if not reads:
-        return None
-    # Answered already? Naming the topic is not answering it. "不做权限控制"
-    # states the absence and stops; the question is what follows from it. So the
-    # bar is a consequence statement, not the word 权限.
-    if re.search(r"越权|未受控|无权限隔离|看到全量|任何(?:能|可)运行|"
-                 r"任意用户|全体用户|数据权限|SoD|职责分离", s):
-        return None
-    return ("the source reads data (SELECT/READ) but contains no "
-            "AUTHORITY-CHECK. Whether that is a finding depends on the "
-            "transaction's S_TCODE authorization -- if so, say so in the "
-            "report; if the report says nothing about it, the question is "
-            "unanswered.")
-
-
-def ext_asset_note(s, src):
-    """Advisory: a hardcoded external asset name with no existence guard.
-
-    Bitmaps, icons and OData service names are objects that live in the
-    target system, not in the source. Naming one as a string literal makes the
-    program depend on something no compiler and no syntax check can see, so the
-    usual guard is a check plus an exception handler around the call.
-
-    Deliberately narrow: it wants the literal AND the absence of a guard in the
-    neighbourhood, because most hardcoded names are fine and flagging all of
-    them would be the note nobody reads.
-    """
-    if not src:
-        return None
-    names = set(re.findall(r"['\"]([ZIY](?:[A-Z0-9]+_)*N[A-Z0-9_]*(?:_LOGO(?:_SMALL|_LARGE|_ICON)?|_ICON|_BITMAP|_LOGO))['\"]",
-                           src))
-    if not names:
-        return None
-    guards = re.findall(r"\bTRY\b|\bAT\s+SELECTION-SCREEN\b|\bEXCEPTIONS\b", src, re.I)
-    hits = sorted(names)
-    shown = ", ".join(hits[:3]) + (f" (+{len(hits)-3} more)" if len(hits) > 3 else "")
-    if not guards:
-        return (f"the source names external asset(s) {shown} as literals, and has "
-                f"no TRY/EXCEPTIONS anywhere: if the target system does not have "
-                f"them, the failure appears at run time, not compile time. Say "
-                f"whether each is guarded.")
-    return (f"the source names external asset(s) {shown} as literals. The source "
-            f"has {len(guards)} TRY/EXCEPTIONS guard(s) in total; check that each "
-            f"named asset's call site is actually inside one, and say so in the "
-            f"report.")
-
-
-def fix_lang_note(s):
-    """Advisory: a source-quoting fence sitting inside the 风险与改进 layer.
-
-    Language decides what gets checked, but only if the author relabels. A proposed
-    fix left in an abap fence is indistinguishable from a faithful quote, so it is
-    probed against the source and reads as fabricated -- precisely the false
-    negative this gate exists to remove. Flagging the fence costs one line;
-    explaining why a correct fix looks like a lie costs a debugging session.
-
-    Position alone cannot decide, and this advisory would flag the second quoted
-    block of a heading that carries two. A8 already requires every quote to be
-    followed by its own three layers, so a tail lacking them is a fix, not a quote.
-    """
-    hits = []
-    for st, _bs, _be, en, lang in fence_spans(s):
-        if lang != QUOTE_LANG.lower():
-            continue
-        if not in_risk_layer(block_head(s, st)):
-            continue
-        # Search from just past the block's own closing fence; starting at the
-        # opening fence makes the first ``` found the closing one, so the tail
-        # is the block's code and no layer can ever be in it.
-        tail = s[en:prose_end(s, en)]
-        if all(l in tail for l in LAYERS):
-            continue
-        hits.append(st)
-    if not hits:
-        return None
-    ln = line_of(s, hits[0])
-    more = f" (+{len(hits)-1} more)" if len(hits) > 1 else ""
-    return (f"{len(hits)} {QUOTE_LANG} fence(s) sit inside a 风险与改进 layer{more}, "
-            f"first at line {ln}. If one illustrates a proposed fix, tag it "
-            f"{FIX_LANG}: unlabelled, it is probed against the source and reads "
-            f"as fabricated.")
-
-
-def fix_mislabel_note(s, src):
-    """Advisory: an abap-fix fence that repeats a contiguous run of the source.
-
-    The abap / abap-fix pair locked in one direction only. A fix left in an abap
-    fence is probed against the source and reads as fabricated, so it is caught.
-    Source pasted into an abap-fix fence is never compared with the source at
-    all, so the language tag could opt a quotation out of the very check that
-    exists to catch invented quotes. A one-directional fence is how this class
-    of bug appears: the exemption is the hole.
-
-    THE TEST IS CONTIGUITY, NOT MEMBERSHIP. The first version asked whether every
-    statement occurs somewhere in the source. It fired on five times across nine
-    real reports, and every one of those five was a genuine fix: a CALL FUNCTION
-    with EXCEPTIONS added, a DELETE followed by an sy-subrc check, each line of
-    which exists somewhere in a 1600-line file. Quoting the line you are about to
-    change is legitimate -- the contract says so -- so membership cannot be the
-    test. A mislabeled quote is a verbatim copy, and a verbatim copy is
-    contiguous. Flatten the statements, join them with the single space that
-    flattening leaves between lines, and look for that run.
-
-    Reported, not enforced, like the other three advisories -- it is a question
-    for the writer, not a gate.
-    """
-    if not src:
-        return None
-    sf = _flat(src)
-    hits = []
-    for st, bs, be, _en, lang in fence_spans(s):
-        if lang != FIX_LANG.lower():
-            continue
-        flat = []
-        flat_nodot = []
-        first_text = None
-        for _i, l in _claims(s[bs:be]):
-            raw = l.strip()
-            if not raw:
-                continue
-            if first_text is None:
-                first_text = raw
-            # Two spellings of the same run. Flattening keeps the sentence stops,
-            # so joining the statements verbatim reproduces a contiguous run; the
-            # run also has to be findable when the writer dropped the stops, which
-            # is why the second variant exists.
-            flat.append(_flat(raw))
-            flat_nodot.append(_flat(raw.rstrip(".")))
-        if not flat:
-            continue
-        if not any(" ".join(v) in sf for v in (flat, flat_nodot)):
-            continue
-        hits.append((line_of(s, st), first_text))
-    if not hits:
-        return None
-    first = hits[0]
-    more = " (+%d more)" % (len(hits) - 1) if len(hits) > 1 else ""
-    return ("%d %s fence(s) repeat the source verbatim%s, first at line %d: %r. "
-            "Contiguous, not assembled from elsewhere -- so this reads as a "
-            "quotation rather than a proposed fix. An %s fence is exempt from "
-            "the fidelity check, so a mislabeled quote is never compared with "
-            "the source at all. If this is a quotation, tag it %s.") % (
-        len(hits), FIX_LANG, more, first[0], first[1][:60], FIX_LANG, QUOTE_LANG)
-
-
 def fix_mm(s):
     """Convert bare < > # in Mermaid display text to their full-width forms.
 
@@ -559,9 +246,7 @@ def report(path, src=None):
         die(str(e))
     bad = check(s)
     name = os.path.basename(path)
-    notes = [n for n in (density_note(s, src), fidelity_note(s, src),
-                         fix_lang_note(s), fix_mislabel_note(s, src),
-                         authz_note(s, src), ext_asset_note(s, src)) if n]
+    notes = all_notes(s, src)
     if not bad:
         print(f"PASS  {name}")
         for n in notes:
@@ -740,11 +425,8 @@ def main(argv):
                   f"({len(left)} defect(s) need the model)")
         else:
             print(f"PASS  {os.path.basename(dest)}")
-        for note in (density_note(fixed, ssrc), fidelity_note(fixed, ssrc),
-                     fix_lang_note(fixed), fix_mislabel_note(fixed, ssrc),
-                     authz_note(fixed, ssrc), ext_asset_note(fixed, ssrc)):
-            if note:
-                print(f"  note  {note}")
+        for note in all_notes(fixed, ssrc):
+            print(f"  note  {note}")
         # Repaired what could be repaired; whatever is left needs the model, and
         # the caller has to be able to see that. Returning 0 here made a partial
         # repair indistinguishable from a finished one.
