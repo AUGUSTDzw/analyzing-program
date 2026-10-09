@@ -5,8 +5,10 @@ inline. Those derivations were spread across the file, so a rule that existed in
 the contract but not in the gate was invisible: `test_contract_drift.py` could
 only check what a module imported.
 
-Contract version 1.2.6 -> 1.3.0 in 1.1.0 (five new rule keys). Shipped with
-1.1.0.
+Contract version 1.2.6 -> 1.3.0 in 1.1.0. Five new rule keys:
+problem_section.rows_require_source_object, layers.distinct,
+encoding.replacement_char, mermaid.required_diagrams, sections_exactly_once.
+Shipped with 1.1.0.
 """
 import io, json, os, re, sys
 

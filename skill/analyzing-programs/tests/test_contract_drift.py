@@ -64,6 +64,13 @@ def check(cond, label, detail=""):
         fails.append(label)
 
 
+def load_contract():
+    import json
+    p = os.path.join(HERE, "..", "schemas", "report-contract.json")
+    with io.open(p, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
 def anchors(node, out):
     """Every skill_anchor in the contract, wherever it sits."""
     if isinstance(node, dict):
@@ -162,6 +169,36 @@ def main():
     check("never implies" in " ".join(comment),
           "the contract says one pass never implies the others",
           "borrowed from archify's delivery contract")
+
+    print()
+    print("1.1.0 rule keys")
+    print("-" * 74)
+    C = load_contract()
+    check(C["version"] == "1.3.0", "contract version is 1.3.0",
+          C["version"])
+    check(C["release"]["ships_with"] == "1.1.0",
+          "contract ships with 1.1.0", C["release"]["ships_with"])
+    check(C["problem_section"].get("rows_require_source_object") is True,
+          "rows_require_source_object is declared and on")
+    check(C["layers"].get("distinct") is True,
+          "layers.distinct is declared and on")
+    # The three .get() guards on the two new top-level blocks are what let the
+    # suite report a missing key as a FAIL. `C["encoding"]` raises KeyError and
+    # takes the run down at check five, so a contract that never grew the block
+    # dies before the two checks below it can report -- the suite stops being a
+    # measurement and becomes a traceback.
+    check((C.get("encoding") or {}).get("replacement_char") == "\ufffd",
+          "encoding.replacement_char is U+FFFD",
+          repr((C.get("encoding") or {}).get("replacement_char")))
+    check((C.get("mermaid") or {}).get("required_diagrams")
+          == ["flowchart", "sequenceDiagram"],
+          "mermaid.required_diagrams names both diagrams",
+          repr((C.get("mermaid") or {}).get("required_diagrams")))
+    # `sections` is a list of section objects, so `sections.exactly_once` has
+    # nowhere to sit. It is a top-level bool instead -- one key, declared once,
+    # rather than a second shape for the same rule.
+    check(C.get("sections_exactly_once") is True,
+          "sections_exactly_once is declared and on")
 
     print()
     print("every contract rule is wired into the gate")
@@ -331,6 +368,49 @@ def main():
         check(bool(kinds) and all(v == [] for v in kinds.values()),
               "the probe has teeth: a neutered gate catches none of these",
               f"neutered returned {kinds}")
+
+    print()
+    print("rule placement")
+    print("-" * 74)
+    # Every assertion above asks whether a rule is enforced and taught. None of
+    # them asks where the code that enforces it lives, so moving a detector into
+    # the wrong module -- or back into report_qc.py, undoing the split -- leaves
+    # the count above exactly where it was. A detector needs the constants it
+    # reads from a module that has them, so the drift this catches is the kind
+    # that compiles on the day it is written and breaks on the day the constant
+    # moves again.
+    #
+    # The probe is `def <name>(`, not the bare name: report_qc.py calls
+    # check() and mermaid_labels(), structure.py imports mermaid_labels, and
+    # checks/text.py lists it in __all__ as a string. A bare-name search returns
+    # four files and the assertion below would hold for any of them.
+    #
+    # checks/fidelity.py and checks/encoding.py are named here before they
+    # exist -- 1.1.0 adds them, and this probe is the only place that will
+    # notice when they arrive holding the wrong thing. os.path.exists skips the
+    # names that are not there yet, so the suite does not go red on their
+    # absence and stays green until the module lands.
+    def where(token):
+        out = []
+        for name in ("report_qc.py", "checks/structure.py", "checks/fidelity.py",
+                     "checks/advisory.py", "checks/encoding.py", "checks/text.py"):
+            p = os.path.join(HERE, "..", "scripts", name)
+            if not os.path.exists(p):
+                continue
+            t = io.open(p, encoding="utf-8").read()
+            if token in t:
+                out.append(name)
+        return out
+
+    check(where("def mermaid_labels(") == ["checks/text.py"],
+          "mermaid_labels() is defined in checks/text.py",
+          str(where("def mermaid_labels(")))
+    check(where("def check(") == ["checks/structure.py"],
+          "check() is defined in checks/structure.py",
+          str(where("def check(")))
+    check(where("def all_notes(") == ["checks/advisory.py"],
+          "all_notes() is defined in checks/advisory.py",
+          str(where("def all_notes(")))
 
     print()
     print("-" * 74)

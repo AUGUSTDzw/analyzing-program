@@ -45,8 +45,8 @@ the source path then reads exactly like a clean fidelity pass, which is the one
 false reassurance this script is allowed to give.
 
 Defects and advisories are different things here on purpose. check() failures
-exit nonzero; the four advisories -- density, fidelity, fix-lang and
-fix-mislabel -- print as `note` and do not change
+exit nonzero; the six advisories -- density, fidelity, fix-lang, fix-mislabel,
+authz and ext-asset -- print as `note` and do not change
 the exit code in plain mode, because plain mode is the structural pass and the
 fidelity violations it happens to see are adjudicated by --fidelity-only, which
 does promote them to a failure. A note is a question for the writer, not a gate.
@@ -83,9 +83,10 @@ try:
     from checks.text import *             # noqa: F401,F403
     from checks.structure import check
     # __all__ replaces the default rule rather than modifying it: `import *`
-    # takes exactly the names the two lists above spell out, which is why
-    # _NEXT_SEC_RE, _flat and _claims stay out -- their own modules do not list
-    # them, not because they begin with an underscore. Worth knowing before
+    # takes exactly the names the two __all__ lists -- one in checks/contract.py,
+    # one in checks/text.py -- spell out, which is
+    # why _NEXT_SEC_RE, _flat and _claims stay out -- their own modules do not
+    # list them, not because they begin with an underscore. Worth knowing before
     # someone adds one: a detector written here that reached for _flat or
     # _claims would resolve neither, and say so with a NameError at the first
     # call rather than at import.

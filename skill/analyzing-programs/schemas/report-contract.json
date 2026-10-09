@@ -1,7 +1,7 @@
 {
-  "version": "1.2.6",
+  "version": "1.3.0",
   "release": {
-    "ships_with": "1.0.9",
+    "ships_with": "1.1.0",
     "_comment": [
       "Two version numbers, and they are independent axes. `version` is this",
       "contract: it bumps when a rule, a threshold or a gate_io row changes.",
@@ -12,6 +12,25 @@
       "Recorded here because nobody can tell from the numbers alone whether",
       "1.2.4 is newer or older than 1.0.6. A deployed copy that can name both",
       "can prove it matches the release the README describes.",
+      "",
+      "1.2.6 -> 1.3.0 adds five rule keys and nothing else changes:",
+      "problem_section.rows_require_source_object, layers.distinct,",
+      "encoding.replacement_char, mermaid.required_diagrams and",
+      "sections_exactly_once. Every one of them is a threshold the gate will",
+      "read in a later 1.1.0 step; none is enforced yet, so a report checked",
+      "today passes and fails exactly as it did under 1.2.6. Declaring a",
+      "threshold before the detector that reads it is the point -- the drift",
+      "suite can then prove the key is present and named, which is a claim",
+      "about the contract, and separately that a detector reads it, which is a",
+      "claim about the gate. The first was impossible to state while the key",
+      "did not exist.",
+      "",
+      "1.2.6 -> 1.3.0 also fills the two exit_codes[\"2\"] rows that splitting",
+      "report_qc.py into checks/ created and this file did not record:",
+      "scripts/checks/ absent, and a module in it that will not parse. Both",
+      "refuse before main() and both print an `error` line, which is the whole",
+      "reason they have to arrive through the same door as the rule-set",
+      "refusal. The gate and the table below now say the same thing.",
       "",
       "1.0.6 -> 1.0.7 changed no rule, no threshold and no gate_io row, so",
       "this contract stayed at 1.2.4 and only ships_with moved. Both fixes",
@@ -95,6 +114,8 @@
     "skill_anchor": "每个代码块后三层都必须出现",
     "prose_window": "from the closing fence to the next fence of any language or the next heading -- not to the next quoted fence, which let labels inside an intervening abap-fix fence, or the label words anywhere later in the document, satisfy a block that had no prose of its own",
     "prose_window_max_chars": 20,
+    "distinct": true,
+    "distinct_why": "three layers carrying one sentence is a list, not an analysis; the labels exist but say nothing",
     "violation_kinds": {
       "A8-cc": "no prose at all inside that window",
       "A8-pt": "prose present inside that window, some labels missing"
@@ -106,6 +127,7 @@
     "heading": "## 五",
     "buckets": ["\ud83d\udd34", "\ud83d\udfe0", "\ud83d\udfe1", "\ud83d\udfe2"],
     "require_rows": true,
+    "rows_require_source_object": true,
     "skill_anchor": "🔴 P0 业务正确性"
   },
 
@@ -127,8 +149,17 @@
     "why": "bare < > # terminate a label or start a comment, so the diagram does not render",
     "forbid_in_display_text": ["<", ">", "#"],
     "repair": "fullwidth",
-    "fullwidth": { "<": "\uff1c", ">": "\uff1e", "#": "\uff03" },
+    "fullwidth": { "<": "＜", ">": "＞", "#": "＃" },
+    "required_diagrams": ["flowchart", "sequenceDiagram"],
     "skill_anchor": "Mermaid 标签安全"
+  },
+
+  "sections_exactly_once": true,
+
+  "encoding": {
+    "replacement_char": "\ufffd",
+    "why": "a truncated multi-byte character renders as U+FFFD and reads as a rendering fault in the finished report; one in exp-1.0.9/with_skill/run3.md went unnoticed for a whole round",
+    "skill_anchor": "先转成 UTF-8 再跑"
   },
 
   "gate_io": {
@@ -150,9 +181,9 @@
     "exit_codes": {
       "0": "every report was checked and no shape defect was found; notes may accompany it and never change it",
       "1": "the check ran and found defects. Shape mode prints the defect lines first and `FAIL  <name>  (N defect(s))` last; --fidelity-only prints `FAIL  <name>` plus one note and no prefixed lines; --fix prints `FAIL  <name>  (N defect(s) need the model)`",
-      "2": "refused to run, nothing was inspected. Triggers, by mode -- the mode matters and the flat list this replaced did not say so: common, no arguments / no .md/.markdown path among the arguments / report path does not exist; plain, more than one source / source path does not exist; --fidelity-only, the source is not exactly one (0 and 2 both refuse) / source does not exist / the source is empty / the source is not utf-8; --fix, fewer than two paths / -o with no output path; and in all three modes a file that is not utf-8, report or source. Two triggers print no `error` line: no arguments prints the usage text, and --fix with too few paths prints `--fix needs REPORT and SOURCE`. SKILL.md records both. An empty source is NOT a refusal in plain mode -- the shape can still be checked, so it takes a note and returns the shape verdict; that scoping was the second thing the flat list got wrong.",
+      "2": "refused to run, nothing was inspected. Triggers, by mode -- the mode matters and the flat list this replaced did not say so: common, the gate's own detectors did not load -- scripts/checks/ is absent or a module in it will not parse / no arguments / no .md/.markdown path among the arguments / report path does not exist; plain, more than one source / source path does not exist; --fidelity-only, the source is not exactly one (0 and 2 both refuse) / source does not exist / the source is empty / the source is not utf-8; --fix, fewer than two paths / -o with no output path; and in all three modes a file that is not utf-8, report or source. Two triggers print no `error` line: no arguments prints the usage text, and --fix with too few paths prints `--fix needs REPORT and SOURCE`. SKILL.md records both. An empty source is NOT a refusal in plain mode -- the shape can still be checked, so it takes a note and returns the shape verdict; that scoping was the second thing the flat list got wrong. The two detectors-did-not-load triggers arrived with 1.1.0's split of report_qc.py and were missing from this row until 1.3.0: the guard prints `error  cannot load the checks at <scripts dir> (<cause>), so nothing was checked` and exits 2, in every mode, because a missing checks/ otherwise raised ImportError and an unparseable one raised SyntaxError, and both exit 1 -- the defect verdict. They are listed first under common because they fire at import, before argv is read, so a mode can never be the thing that decides them.",
       "why_2_is_separate": "an unhandled exception exits 1, which is the code SKILL.md defines as 'the check ran and found defects', and the caller then goes and fixes defects that do not exist, or loops step 7 forever. So every refusal has to arrive through die(), including a decode failure on the report. The report side was bare at three call sites until 1.0.9: a report saved as cp936 -- what an editor's 'save as' gives on a Chinese Windows, the trap SKILL.md warns about for pasted source -- exited 1 with a traceback. The source side was guarded from the start and the rule set has its own try/except at import, so the guarantee covered one of the two files.",
-      "measured": "1.0.9: every cell of SKILL.md's per-mode table was run against report_qc.py, all 13 agree, and the six non-utf-8-report cases now exit 2 in all three modes. test_skill.py carries 28 checks for it."
+      "measured": "1.0.9: every cell of SKILL.md's per-mode table was run against report_qc.py, all 13 agree, and the six non-utf-8-report cases now exit 2 in all three modes. test_skill.py carries 28 checks for it. 1.3.0: the two detectors-did-not-load triggers were measured the same way, by deleting scripts/checks/ from a copy and by appending an unparseable line to checks/text.py in a copy -- both print the error line above and exit 2."
     },
     "gate_start_refuses_without_a_rule_set": {
       "where": "module import, before main() and before every exit-2 guard",

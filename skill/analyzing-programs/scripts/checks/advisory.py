@@ -1,13 +1,21 @@
 """Advisories: things worth reading, and the one mode where one of them fails.
 
-`die()`'s docstring says it: labelling a fatal error as a note let a caller that
+`die()`'s docstring says a note never stops the run, and it is right about the
+failures it was written for: labelling a fatal error as a note let a caller that
 greps for advisories collect hard failures as soft ones. The six note functions
 here each return a string or None, and none of them prints; all_notes() returns
-a list of whichever fired, and is the only thing here that returns a list.
+a list of whichever fired, and is the only thing here that returns a list. So
+nothing in this module can exit anything -- a note here is a value, and the mode
+that printed it decides what it is worth.
 
 Five of the six are advisory wherever the gate runs. fidelity_note is the
-exception: --fidelity-only adjudicates it alone and promotes it to a failure,
-exiting 1. Plain mode still prints it as a note and still exits 0.
+exception, and deliberately so: --fidelity-only adjudicates it alone and
+promotes it to a failure, exiting 1. That is the mode asking a question and
+counting the answer, not a note deciding to stop the run -- which is why the
+promotion lives in report_qc.py's --fidelity-only branch and not here. Plain mode
+prints it as a note and its exit code is check()'s alone: 0 when the structure is
+clean, 1 when check() found a defect, and nothing in between on this note's
+account.
 
 That mode is not fidelity having teeth. What 1.1.0 intends, and what Task 10
 does, is splitting the note in two: PUNCT-ONLY stays advisory, SUBSTANTIVE gets
