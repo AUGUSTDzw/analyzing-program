@@ -82,18 +82,22 @@ try:
     from checks.contract import *          # noqa: F401,F403
     from checks.text import *             # noqa: F401,F403
     from checks.structure import check
-    # `import *` skips every underscore-prefixed name and nothing below needs
-    # one. Worth knowing before that stops being true: a detector written here
-    # that reached for _flat or _claims would resolve neither, and say so with a
-    # NameError at the first call rather than at import.
+    # __all__ replaces the default rule rather than modifying it: `import *`
+    # takes exactly the names the two lists above spell out, which is why
+    # _NEXT_SEC_RE, _flat and _claims stay out -- their own modules do not list
+    # them, not because they begin with an underscore. Worth knowing before
+    # someone adds one: a detector written here that reached for _flat or
+    # _claims would resolve neither, and say so with a NameError at the first
+    # call rather than at import.
 
     # all_notes() builds the advisory list this file used to spell out twice.
     # fidelity_note is named for --fidelity-only, which adjudicates it alone and
     # promotes it to a failure. The other five are called from inside all_notes
     # rather than here, and are imported so this module stays the gate's whole
-    # surface: test_contract_drift.py reads them off the module it loads, and an
-    # advisory the gate can no longer reach by name is the drift that suite
-    # exists to catch. Naming all six keeps that surface uniform rather than
+    # surface: test_contract_drift.py reads four of the six off the module it
+    # loads, and an advisory the gate can no longer reach by name is the drift
+    # that suite exists to catch. authz_note and ext_asset_note are in none of
+    # its tuples; naming all six keeps the surface uniform rather than
     # importing only the ones a given test happens to list today.
     # The five unused ones lead, because that is the line pyflakes reports all of
     # them on and therefore the only line where the F401 marker means what it

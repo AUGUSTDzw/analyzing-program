@@ -1,9 +1,19 @@
-"""Advisories: things worth reading, never reasons to fail a run.
+"""Advisories: things worth reading, and the one mode where one of them fails.
 
 `die()`'s docstring says it: labelling a fatal error as a note let a caller that
-greps for advisories collect hard failures as soft ones. Everything in this
-module prints and returns a string or None; none of it changes an exit code.
-That is why 1.1.0 had to move fidelity OUT of this module to give it teeth.
+greps for advisories collect hard failures as soft ones. The six note functions
+here each return a string or None, and none of them prints; all_notes() returns
+a list of whichever fired, and is the only thing here that returns a list.
+
+Five of the six are advisory wherever the gate runs. fidelity_note is the
+exception: --fidelity-only adjudicates it alone and promotes it to a failure,
+exiting 1. Plain mode still prints it as a note and still exits 0.
+
+That mode is not fidelity having teeth. What 1.1.0 intends, and what Task 10
+does, is splitting the note in two: PUNCT-ONLY stays advisory, SUBSTANTIVE gets
+counted in plain mode's exit code. Until that lands, a report that invented an
+ABAP statement prints "Check whether the report rewrote the source" and still
+passes the structural pass.
 """
 import re
 
@@ -13,8 +23,9 @@ from checks.text import (_claims, _flat, block_head, fence_spans, in_risk_layer,
 
 # Same reason as the lists in contract.py and text.py: without one, `import *`
 # into report_qc.py hands every name above to that module as well. check() and
-# these advisories must be the only things the gate re-exports, and an explicit
-# list turns a name that arrived by accident into a NameError at import.
+# these advisories and all_notes() must be the only things the gate re-exports,
+# and an explicit list turns a name that arrived by accident into a NameError at
+# import.
 __all__ = ["density_note", "fix_lang_note", "fix_mislabel_note", "authz_note",
            "ext_asset_note", "fidelity_note", "all_notes"]
 
