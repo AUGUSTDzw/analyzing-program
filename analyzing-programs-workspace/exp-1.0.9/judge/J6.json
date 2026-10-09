@@ -1,0 +1,60 @@
+{
+  "report": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\exp-1.0.9\\judge\\R6.md",
+  "verdicts": {
+    "D1": "yes",
+    "D2": "no",
+    "D3": "yes",
+    "D4": "partial",
+    "D5": "yes",
+    "D6": "yes",
+    "D7": "yes",
+    "D8": "yes",
+    "D9": "yes",
+    "D10": "yes",
+    "D11": "yes",
+    "D12": "yes",
+    "D13": "no",
+    "D14": "yes",
+    "D15": "no",
+    "D16": "yes",
+    "D17": "yes",
+    "D18": "yes",
+    "D19": "yes",
+    "D20": "yes",
+    "D21": "yes"
+  },
+  "evidence": {
+    "D1": {"report_line": 187, "quote": "作为文本文件存在即语法错误；程序无法激活"},
+    "D3": {"report_line": 208, "quote": "在方法内只跳出 `constructor`。控制流回到 `START-OF-SELECTION`"},
+    "D4": {"report_line": 607, "quote": "文本元素 `TEXT-001`、`TEXT-002` 是否已在传输请求中维护"},
+    "D5": {"report_line": 437, "quote": "未用文本符号 → 无法支持 DE/中文用户"},
+    "D6": {"report_line": 195, "quote": "两张表都含 BEDAT 字段"},
+    "D7": {"report_line": 348, "quote": "用 `NE 'X'`、其余用 `EQ space`，语义不等价"},
+    "D8": {"report_line": 269, "quote": "额外叠加的 `STATU='A'` 是**询价单处理状态**"},
+    "D9": {"report_line": 260, "quote": "无 RFQ、**只有报价流程**"},
+    "D10": {"report_line": 288, "quote": "`COUNT(DISTINCT)` 全量聚合"},
+    "D11": {"report_line": 326, "quote": "**读入全部 LFA1**"},
+    "D12": {"report_line": 354, "quote": "全流程 O(n²)：线性 `MODIFY` + 未排序的线性 `READ TABLE`"},
+    "D14": {"report_line": 368, "quote": "**任何语句都没有给 `bedat` 赋值**，全表恒为 `00000000`"},
+    "D16": {"report_line": 414, "quote": "写在**方法体内**"},
+    "D17": {"report_line": 400, "quote": "ALV 列标题会**静默退回技术字段名**"},
+    "D18": {"report_line": 237, "quote": "本程序对此**零防护**"},
+    "D19": {"report_line": 375, "quote": "选择范围只填一端时，表头显示错乱"},
+    "D20": {"report_line": 364, "quote": "空结果集没有任何提示，直接进 ALV"},
+    "D21": {"report_line": 304, "quote": "全程无 `AUTHORITY-CHECK`"}
+  },
+  "false_claims": [
+    {
+      "claim": "ekko 与 ekpo **两张表都含 BEDAT 字段**（EKKO-BEDAT 抬头过账日期、EKPO-BEDAT 项目过账日期）…若 EKPO-BEDAT 存在 → SQL 解析报字段歧义，每次执行必 dump",
+      "why_wrong": "EKPO 没有任何名为 BEDAT 的字段，其凭证日期字段名是 EDBAT；因此 zvend.abap:93/118/138/157 里未加限定的 bedat 不存在字段名冲突，也不会因 bedat 报歧义。该 WHERE 子句里真正二义的是同样未加限定的 lifnr（EKKO-LIFNR 与 EKPO-LIFNR 同名），报告始终未提。"
+    },
+    {
+      "claim": "五个计数字段用 `TYPE I`（4 字节整数），计数上限约 21 亿，单供应商不可能溢出。`[推断：实际不构成缺陷，仅为风格]`",
+      "why_wrong": "Open SQL 的 COUNT(...) 结果类型是 8 字节 COUNT_ANY（zvend.abap:90/100/116/136/155），INTO CORRESPONDING FIELDS 写入 zvend.abap:9-13/17 的 4 字节 TYPE I 时发生隐式窄化，类型语义不精确；报告把它判为仅属风格、不构成缺陷。"
+    },
+    {
+      "claim": "`SY-TFILL` 是 `P LENGTH 4`，有效值 0–9999",
+      "why_wrong": "SY-TFILL 是 1 字节内部类型（TYPE 1），不是 4 字节 packed；zvend.abap:331 的 `lf_lines TYPE sy-tfill` 正是这一类型。报告据此推出的 9999 上限与溢出风险建立在错误的类型宽度上。"
+    }
+  ]
+}

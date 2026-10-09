@@ -1,0 +1,62 @@
+{
+  "report": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\exp-1.0.9\\judge\\R1.md",
+  "verdicts": {
+    "D1": "no",
+    "D2": "yes",
+    "D3": "yes",
+    "D4": "no",
+    "D5": "yes",
+    "D6": "no",
+    "D7": "yes",
+    "D8": "yes",
+    "D9": "yes",
+    "D10": "yes",
+    "D11": "yes",
+    "D12": "yes",
+    "D13": "no",
+    "D14": "yes",
+    "D15": "no",
+    "D16": "yes",
+    "D17": "yes",
+    "D18": "yes",
+    "D19": "partial",
+    "D20": "yes",
+    "D21": "yes"
+  },
+  "evidence": {
+    "D2": {"report_line": 271, "quote": "是空处理器，失败原因被彻底丢弃"},
+    "D3": {"report_line": 263, "quote": "在方法实现里退出的是方法，不是程序"},
+    "D5": {"report_line": 187, "quote": "非英语系统的用户看到的是英文页眉与英文列标题，没法靠 `SE63` 翻译"},
+    "D7": {"report_line": 298, "quote": "与其余四段的 `b~loekz EQ space` 口径不一致"},
+    "D8": {"report_line": 346, "quote": "整张采购凭证的处理状态"},
+    "D9": {"report_line": 338, "quote": "之后没有判 `sy-subrc`"},
+    "D10": {"report_line": 444, "quote": "五段之和意味着对 `EKKO` + `EKPO` 做五次聚合，而不是一次"},
+    "D11": {"report_line": 462, "quote": "的连接条件被完全丢弃，语句退化成对 `LFA1` 的无条件全表扫描"},
+    "D12": {"report_line": 928, "quote": "级别的内存扫描；供应商规模上千时能忍"},
+    "D14": {"report_line": 118, "quote": "五条 `SELECT` 的输出列表里没有任何一条带 `BEDAT`"},
+    "D16": {"report_line": 715, "quote": "被放在方法体内部"},
+    "D17": {"report_line": 717, "quote": "为空处理器，配置失败被彻底静默"},
+    "D18": {"report_line": 679, "quote": "调用它的 `set_right_logo` 外面没有 `TRY`"},
+    "D19": {"report_line": 628, "quote": "未输入时若范围表留有全初始记录，`WRITE` 会把 `00000000` 按 `DD/MM/YYYY` 输出成 `00/00/0000` 并原样显示"},
+    "D20": {"report_line": 235, "quote": "页脚照样显示 `Total Number of Entries` 后面跟 `0`"},
+    "D21": {"report_line": 919, "quote": "而程序全文没有 `AUTHORITY-CHECK`"}
+  },
+  "false_claims": [
+    {
+      "claim": "`set_striped_pattern( cl_salv_display_settings =>true )` 用类属性引用当布尔值。无功能缺陷，`abap_true` 更贴切。",
+      "why_wrong": "zvend.abap:265 的实参 cl_salv_display_settings=>true 不是合法表达式：CL_SALV_DISPLAY_SETTINGS 没有 TRUE 这个类组件，程序无法通过语法检查/激活。报告把它判为无功能缺陷（逆向背书），并在 P2-4（P2-4 行）再次当作过时写法而非语法错误。"
+    },
+    {
+      "claim": "`t_temp-CNT` 用 `TYPE I` 接聚合函数的计数…四字节 `I` 装得下任何现实的单供应商凭证数，这一项无风险",
+      "why_wrong": "zvend.abap:17/9/10-13 把计数域声明为 4 字节 I，而 Open SQL 的 COUNT(...) 结果类型是 8 字节 COUNT_ANY（见 zvend.abap:90/100/116 等），INTO CORRESPONDING FIELDS 时发生隐式窄化，类型语义不精确。"
+    },
+    {
+      "claim": "`bedat` 未加限定符却能通过激活，说明它被解析到了 `EKKO`。这本身不是缺陷…同一段 SQL 里 `a~lifnr` 加了别名、`bedat` 没加",
+      "why_wrong": "同一 WHERE 子句（zvend.abap:93）里未加限定的还有 `lifnr`，而 EKKO 与 EKPO 同名同字段，lifnr 存在字段二义；报告由此得出无缺陷的结论，并声称全程序无二义问题。"
+    },
+    {
+      "claim": "`TEXT -002` 能激活，依赖程序属性里分配了消息类。后果：消息类没分配时 `TEXT-002` 解析不到，程序在 SE38 激活阶段就报语法错",
+      "why_wrong": "zvend.abap:83 的 MESSAGE TEXT-002 取自文本元素表，与程序属性的消息类分配无关；真正的问题是源码里从未定义 T001/T002（zvend.abap:48 的 FRAME TITLE TEXT-001 与 zvend.abap:83 的消息文本因此为空/解析不到），报告未指出这一点，反而归因于消息类分配。"
+    }
+  ]
+}

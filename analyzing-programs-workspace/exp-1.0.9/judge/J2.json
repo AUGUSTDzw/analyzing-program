@@ -1,0 +1,57 @@
+{
+  "report": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\exp-1.0.9\\judge\\R2.md",
+  "verdicts": {
+    "D1": "no",
+    "D2": "yes",
+    "D3": "yes",
+    "D4": "yes",
+    "D5": "no",
+    "D6": "no",
+    "D7": "partial",
+    "D8": "yes",
+    "D9": "yes",
+    "D10": "yes",
+    "D11": "no",
+    "D12": "yes",
+    "D13": "partial",
+    "D14": "yes",
+    "D15": "no",
+    "D16": "yes",
+    "D17": "yes",
+    "D18": "yes",
+    "D19": "no",
+    "D20": "yes",
+    "D21": "yes"
+  },
+  "evidence": {
+    "D2": {"report_line": 319, "quote": "异常被吞掉，`gr_table` 保持初始值"},
+    "D3": {"report_line": 320, "quote": "在方法里就是 `RETURN`，控制权回到 `START-OF-SELECTION` 的下一行，程序**不会终止**"},
+    "D4": {"report_line": 595, "quote": "源码中**没有** `TEXT-xxx` 定义段"},
+    "D7": {"report_line": 163, "quote": "删除标识用的是 `b~loekz NE 'X'`"},
+    "D8": {"report_line": 261, "quote": "当前实现把同一类对象拆成两列并用一个来路不明的状态位区分"},
+    "D9": {"report_line": 610, "quote": "QUOT 循环**缺 `IF sy-subrc` / `APPEND` 分支**"},
+    "D10": {"report_line": 401, "quote": "五个查询**扫的是同一批行**"},
+    "D12": {"report_line": 230, "quote": "性能上是 O(n×m) 的线性查找（F16）"},
+    "D13": {"report_line": 231, "quote": "内对同一张表 `MODIFY`——技术上合法（不改变行数与键结构），但 ATC 会告警"},
+    "D14": {"report_line": 631, "quote": "在数据层**永远为空**（5 个 SELECT 都不填它）"},
+    "D16": {"report_line": 617, "quote": "出现在 METHOD 内"},
+    "D17": {"report_line": 483, "quote": "全部静默吞掉 `cx_salv_not_found`"},
+    "D18": {"report_line": 544, "quote": "导致空白 logo 或 `S240` 类运行时错误"},
+    "D20": {"report_line": 629, "quote": "空结果时无任何提示，直接 display 一个空 ALV"},
+    "D21": {"report_line": 632, "quote": "无任何 `AUTHORITY-CHECK`"}
+  },
+  "false_claims": [
+    {
+      "claim": "`FOR ALL ENTRIES` 用法本身正确（驱动表 `it_disp` 在 SELECT 前已非空或为空——为空时返回空结果集，不报错但也不报错，符合预期）",
+      "why_wrong": "zvend.abap:172-175：驱动内表 it_disp 为空时 FOR ALL ENTRIES 的连接条件被整条丢弃，语句退化为 SELECT lifnr name1 FROM lfa1 的无条件全表扫描（而不是返回空结果集）。报告把它判为正确，并在 §9.3 另处称赞该写法。"
+    },
+    {
+      "claim": "若 `LOEKZ` 的值域只有 `' '` 与 `'X'`，两者功能等价，问题只是可读性",
+      "why_wrong": "EKPO-LOEKZ 的值域不止 ' ' 与 'X'（还有 C/D 等删除相关取值）。zvend.abap:94 的 `b~loekz NE 'X'` 会把这些凭证计入 RFQ，而 zvend.abap:119/139/158 的 `b~loekz EQ space` 把它们排除，五列口径/分母因此不同，不能横向比较。"
+    },
+    {
+      "claim": "5 个计数字段全部使用内建类型 `I`（4 字节内建整数）。在 SALV 中 `I` 会按 ALV 常规整数格式显示，功能上没问题",
+      "why_wrong": "Open SQL 的 COUNT(...) 结果类型是 8 字节 COUNT_ANY（zvend.abap:90/100/116/136/155 的聚合），INTO CORRESPONDING FIELDS 写入 4 字节的 TYPE I（zvend.abap:9-13/17）时发生隐式窄化，类型语义不精确；报告以显示格式为由判为无问题。"
+    }
+  ]
+}

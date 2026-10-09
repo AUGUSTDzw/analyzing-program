@@ -1,0 +1,59 @@
+{
+  "report": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\exp-1.0.9\\judge\\R3.md",
+  "verdicts": {
+    "D1": "no",
+    "D2": "yes",
+    "D3": "yes",
+    "D4": "partial",
+    "D5": "yes",
+    "D6": "partial",
+    "D7": "yes",
+    "D8": "yes",
+    "D9": "yes",
+    "D10": "partial",
+    "D11": "yes",
+    "D12": "yes",
+    "D13": "no",
+    "D14": "yes",
+    "D15": "no",
+    "D16": "no",
+    "D17": "yes",
+    "D18": "yes",
+    "D19": "yes",
+    "D20": "yes",
+    "D21": "yes"
+  },
+  "evidence": {
+    "D2": {"report_line": 220, "quote": "工厂抛出的消息文本被完全丢弃，既不 `MESSAGE` 也不写日志"},
+    "D3": {"report_line": 691, "quote": "只让构造器自己提前结束，`CREATE OBJECT` 依然成功"},
+    "D4": {"report_line": 165, "quote": "分配了但客户没维护文本时，块标题显示成裸的 `TEXT-001` 或空白"},
+    "D5": {"report_line": 463, "quote": "却写死在源码里。SAP 用户的界面语言非英文时，这张绩效表的列头解释不了自己的口径"},
+    "D6": {"report_line": 247, "quote": "**这个字段名重复是真实的语义歧义点**"},
+    "D7": {"report_line": 246, "quote": "两个口径会给同一家供应商算出不同的分母，绩效表内部自相矛盾"},
+    "D8": {"report_line": 275, "quote": "记的是整张凭证的处理状态"},
+    "D9": {"report_line": 274, "quote": "之后不判 `sy-subrc`、也没有 `APPEND` 兜底"},
+    "D10": {"report_line": 163, "quote": "会对**全系统所有供应商**跑五遍 `EKKO`/`EKPO` 聚合"},
+    "D11": {"report_line": 369, "quote": "为空时，`FOR ALL ENTRIES` 会返回 `LFA1` 的全表"},
+    "D12": {"report_line": 373, "quote": "总代价 O(N²)"},
+    "D14": {"report_line": 55, "quote": "五次 `SELECT` 的列表里都没有 `BEDAT`，这一列永远是初始值"},
+    "D17": {"report_line": 419, "quote": "空 `CATCH` 用在这里，等于把一个明确的错误变成一个用户看不懂的现象"},
+    "D18": {"report_line": 630, "quote": "位图名是字符串字面量，而 `set_tol` 全程没有任何 `TRY`"},
+    "D19": {"report_line": 549, "quote": "只填上限（To）时表头是空的"},
+    "D20": {"report_line": 692, "quote": "然后照样显示一个空列表 + 一个条数为 0 的页脚"},
+    "D21": {"report_line": 490, "quote": "而全文没有一处 `AUTHORITY-CHECK`"}
+  },
+  "false_claims": [
+    {
+      "claim": "查证结论是：`EKKO-BEDAT`（凭证记账日期）与 `EKPO-BEDAT`（凭证日期）**两个字段都存在**，此处未加前缀意味着解析到 `EKKO-BEDAT`",
+      "why_wrong": "EKPO 没有任何名为 BEDAT 的字段（其日期字段是 EDBAT），因此 zvend.abap:93/102/118/138/157 里未加限定的 bedat 并不存在字段名冲突；真正二义的是同一条 WHERE 里未加限定的 lifnr（EKKO-LIFNR 与 EKPO-LIFNR 同名同字段），报告始终未提。"
+    },
+    {
+      "claim": "| `t_disp-rfq/quot/po/cont/sch` | `TYPE I` | ✅ 对。`COUNT( ... )` 返回整数，语义一致 |",
+      "why_wrong": "Open SQL 的 COUNT(...) 结果类型是 8 字节 COUNT_ANY（zvend.abap:90/100/116/136/155），INTO CORRESPONDING FIELDS 写入 zvend.abap:9-13/17 的 4 字节 TYPE I 时发生隐式窄化；报告把它判为类型完全对得上。"
+    },
+    {
+      "claim": "`set_optimize( abap_true )` 让 SALV 自动优化列宽，对报表观感是实打实的提升，`INCLUDE <color>` 也是标准做法",
+      "why_wrong": "zvend.abap:191 把声明型 INCLUDE <color> 放在 build_fc 方法体内部，是过时反模式（应删除或移到程序顶层），报告却称其为标准做法，因而未把它列为缺陷。"
+    }
+  ]
+}

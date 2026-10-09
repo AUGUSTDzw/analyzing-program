@@ -1,0 +1,52 @@
+{
+  "report": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\exp-1.0.9\\judge\\R4.md",
+  "verdicts": {
+    "D1": "no",
+    "D2": "yes",
+    "D3": "yes",
+    "D4": "no",
+    "D5": "yes",
+    "D6": "no",
+    "D7": "yes",
+    "D8": "yes",
+    "D9": "yes",
+    "D10": "yes",
+    "D11": "no",
+    "D12": "yes",
+    "D13": "no",
+    "D14": "yes",
+    "D15": "yes",
+    "D16": "yes",
+    "D17": "yes",
+    "D18": "yes",
+    "D19": "no",
+    "D20": "yes",
+    "D21": "no"
+  },
+  "evidence": {
+    "D2": {"report_line": 96, "quote": "工厂抛出异常的唯一后果是被吃掉，调用方拿不到任何原因"},
+    "D3": {"report_line": 98, "quote": "退出的是构造方法本身，不是报表"},
+    "D5": {"report_line": 564, "quote": "结果：这个报表**无法 SE63 翻译**，中文用户看到满屏英文"},
+    "D7": {"report_line": 204, "quote": "也算进去，而其余四个用 `EQ space`"},
+    "D8": {"report_line": 205, "quote": "RFQ 不过滤 `STATU`，QUOT 强制 `STATU='A'`"},
+    "D9": {"report_line": 183, "quote": "**只有 QUOT 段没有**"},
+    "D10": {"report_line": 267, "quote": "**同一个 join 被做了 4 遍**，4 遍的差别只是 WHERE 里的 2–3 个常量"},
+    "D12": {"report_line": 312, "quote": "是标准内表（无 `SORTED`/`HASHED` 键），每个供应商一次全表线性查找，n 个供应商 = O(n²)"},
+    "D14": {"report_line": 583, "quote": "在 `it_disp` 的任何一行里都永远是初始值"},
+    "D15": {"report_line": 414, "quote": "在 Open SQL 里返回 8 字节整型，赋给 4 字节的 `TYPE I` 会发生窄化"},
+    "D16": {"report_line": 482, "quote": "而且 `INCLUDE` 出现在方法实现的中间位置"},
+    "D17": {"report_line": 362, "quote": "标题文案没生效，**没人会发现**"},
+    "D18": {"report_line": 630, "quote": "但代码里没有任何保护"},
+    "D20": {"report_line": 232, "quote": "也没有 `IF it_disp IS INITIAL` 的分支"}
+  },
+  "false_claims": [
+    {
+      "claim": "**功能上是安全的**（空内表时 FAE 直接返回空结果，不会全表扫描）",
+      "why_wrong": "zvend.abap:172-175：驱动内表 it_disp 为空时 FOR ALL ENTRIES 的 WHERE 条件被丢弃，语句退化为 SELECT lifnr name1 FROM lfa1 的无条件全表扫描。报告明确把它判为安全、未列为缺陷。"
+    },
+    {
+      "claim": "`sy-tfill` 是 4 字节整型，隐式转成文本会得到 `0000012` 这种带前导零的串",
+      "why_wrong": "SY-TFILL 是 1 字节内部类型（TYPE 1），zvend.abap:331 的 `lf_lines TYPE sy-tfill` 正是这一类型；隐式转字符串取的是内部表示（该字符码对应的字符），不是补零的十进制串，报告对类型的描述与源码不符。"
+    }
+  ]
+}

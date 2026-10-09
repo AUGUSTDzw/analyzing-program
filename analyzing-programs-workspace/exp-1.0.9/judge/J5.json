@@ -1,0 +1,65 @@
+{
+  "report": "D:\\Workspace\\Skills\\analyzing-programs\\analyzing-programs-workspace\\exp-1.0.9\\judge\\R5.md",
+  "verdicts": {
+    "D1": "no",
+    "D2": "yes",
+    "D3": "yes",
+    "D4": "partial",
+    "D5": "yes",
+    "D6": "yes",
+    "D7": "yes",
+    "D8": "yes",
+    "D9": "partial",
+    "D10": "yes",
+    "D11": "yes",
+    "D12": "yes",
+    "D13": "yes",
+    "D14": "yes",
+    "D15": "no",
+    "D16": "yes",
+    "D17": "yes",
+    "D18": "yes",
+    "D19": "yes",
+    "D20": "yes",
+    "D21": "yes"
+  },
+  "evidence": {
+    "D2": {"report_line": 294, "quote": "异常被吃掉之后代码只是往下走"},
+    "D3": {"report_line": 276, "quote": "在方法里只退出这个方法，不会终止报表"},
+    "D4": {"report_line": 226, "quote": "未分配时文本符号解析为空，选择屏块标题变成空白"},
+    "D5": {"report_line": 804, "quote": "整份报表没有一处走文本符号，所以非英语环境下页眉与列头全是英文"},
+    "D6": {"report_line": 415, "quote": "这四个名字在 `EKKO` 与 `EKPO` 上都存在，都不带限定就没有唯一宿主表"},
+    "D7": {"report_line": 320, "quote": "而后面四条查询全部用 `loekz EQ space`"},
+    "D8": {"report_line": 355, "quote": "记的是**整张凭证的处理状态**"},
+    "D9": {"report_line": 376, "quote": "这是四条回填路径里唯一没有"},
+    "D10": {"report_line": 1027, "quote": "被五个带聚合的查询各扫一遍"},
+    "D11": {"report_line": 525, "quote": "空驱动表会让 `FOR ALL ENTRIES` 退化成无条件全表读"},
+    "D12": {"report_line": 561, "quote": "两条 O(V×N) 加在一起"},
+    "D13": {"report_line": 564, "quote": "今天正确，但一旦有人把 `MODIFY` 改成 `APPEND`"},
+    "D14": {"report_line": 155, "quote": "所以 `it_disp` 里每一行的 `BEDAT` 都是初始值"},
+    "D16": {"report_line": 619, "quote": "引入它却不使用，等于既付了代价（把一批全局常量注入报表符号空间）又没拿到收益"},
+    "D17": {"report_line": 620, "quote": "没有任何日志、没有消息、没有视觉提示"},
+    "D18": {"report_line": 878, "quote": "异常会在**显示阶段**抛出"},
+    "D19": {"report_line": 775, "quote": "于是页眉显示 `Vendor No # : ` 后面什么都没有"},
+    "D20": {"report_line": 911, "quote": "而实际上有三种完全不同的原因会产生这个 0"},
+    "D21": {"report_line": 718, "quote": "全文没有 `AUTHORITY-CHECK`，数据的可见范围完全依赖事务授权"}
+  },
+  "false_claims": [
+    {
+      "claim": "计数用 `TYPE I` 是对的**：四个字节能到 2,147,483,647，远超任何合理的单供应商单据数",
+      "why_wrong": "Open SQL 的 COUNT(...) 结果类型是 8 字节 COUNT_ANY（zvend.abap:90/100/116/136/155），INTO CORRESPONDING FIELDS 写入 zvend.abap:9-13/17 的 4 字节 TYPE I 时发生隐式窄化；报告以容量够用为由判为完全正确，未指出类型语义不精确。"
+    },
+    {
+      "claim": "在当前这五条查询的条件下，报价查询的供应商集合是询价查询的子集…所以 `MODIFY` 一定命中",
+      "why_wrong": "询价段的删除判据在行项目级且靠 JOIN 生效（要求至少一个 LOEKZ <> 'X' 的项目行，zvend.abap:91/94），报价段的判据在抬头级（zvend.abap:103）；一张抬头 LOEKZ=' '、STATU='A' 但所有项目行都已标删除的凭证会命中报价段却不命中询价段，该供应商在 it_disp 里没有行，MODIFY 静默不命中，整行不上屏。报告据此否认了丢行后果。"
+    },
+    {
+      "claim": "只填高界…`s_lifnr-low` 是空的，于是页眉显示 `Vendor No # : ` 后面什么都没有",
+      "why_wrong": "zvend.abap:758-759：填了高界后 `IF s_lifnr-high IS NOT INITIAL` 成立，CONCATENATE 仍会执行，lv_text 变成「空格填充 + to + XXXXXXXX」，页眉并非空白；日期段同理会拼出 00000000 to ... 。报告对该场景的渲染结果描述与源码控制流不符。"
+    },
+    {
+      "claim": "四个字段不加别名限定：`lifnr`、`bedat`、`loekz`、`bsart`。这四个名字在 `EKKO` 与 `EKPO` 上都存在",
+      "why_wrong": "EKPO 只有 LIFNR 与 LOEKZ 与 EKKO 同名；EKPO 的凭证日期字段名是 EDBAT（不是 BEDAT），且 EKPO 没有 BSART。真正二义的是未加限定的 lifnr/loekz，报告把不存在于 EKPO 的 bedat/bsart 也列了进去。"
+    }
+  ]
+}
