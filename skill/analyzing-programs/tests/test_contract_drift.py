@@ -174,7 +174,18 @@ def main():
     rq = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(rq)
     import re as _re
-    gsrc = io.open(gate, encoding="utf-8").read()
+    # The gate is report_qc.py plus the checks package it imports. The
+    # derivations moved into checks/contract.py in 1.1.0, so counting the single
+    # file reads a constant that is declared in one place and read in another as
+    # "declared but never read" -- which is the opposite of the defect below, and
+    # is what put five of these eleven at zero. One copy of the source of the
+    # whole gate, and the count for every one of the eleven is at least what it
+    # was when they all lived in report_qc.py.
+    _pkg = os.path.join(SKILL, "scripts", "checks")
+    gsrc = "".join(
+        io.open(p, encoding="utf-8").read()
+        for p in [gate] + sorted(os.path.join(_pkg, f) for f in
+                                 os.listdir(_pkg) if f.endswith(".py")))
     for key, attr in (("sections", "SEC"), ("layers", "LAYERS"),
                       ("sections", "SEC_RE"), ("layers", "A8_GAP"),
                       ("problem_section", "PSEC"),
@@ -191,7 +202,7 @@ def main():
         check(bool(getattr(rq, attr, None)),
               f"report_qc.{attr} is populated from contract.{key}")
         check(n >= 2, f"report_qc.{attr} is read by the gate, not just declared",
-              f"{attr} appears {n} time(s) in report_qc.py")
+              f"{attr} appears {n} time(s) in the gate package")
     for fn in ("density_note", "fidelity_note", "fix_lang_note", "fix_mislabel_note",
                "prose_end"):
         check(hasattr(rq, fn), f"report_qc.{fn} exists for its advisory")
@@ -201,7 +212,7 @@ def main():
     for fn in ("density_note", "fidelity_note", "fix_lang_note", "fix_mislabel_note"):
         n = len(_re.findall(r"\b%s\b" % fn, gsrc))
         check(n >= 2, f"{fn} is called, not just defined",
-              f"{fn} appears {n} time(s) in report_qc.py")
+              f"{fn} appears {n} time(s) in the gate package")
 
     print()
     print("the gate reads every citation form the contract admits")

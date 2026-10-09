@@ -57,8 +57,8 @@ raises UnicodeEncodeError -- and it raised it from inside the defect loop, so th
 crash replaced the diagnosis with a traceback and the bucket check, one of the
 four things this gate exists to do, was unreachable on that platform.
 """
+
 import io
-import json
 import os
 import re
 import sys
@@ -69,182 +69,28 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
-# ---------------------------------------------------------------- shared rules
+# The rule set the checks read, and the text primitives every one of them is a
+# function of, live in checks/ -- one copy each, so a detector added in 1.1.0
+# cannot re-spell either and disagree with the half that did not.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-TICK = re.compile(r"`([^`\n]{2,80})`")
-# Mermaid renders this HTML subset, so these are the only angle brackets a label
-# may keep; every other < or > terminates it or starts a comment. One definition,
-# read by mm_violation, so check() and fix_mm() cannot disagree about which
-# brackets count -- the fixer used to convert the tags this regex names.
-TAG = re.compile(r"</?(?:br|b|i|u|em|strong|sub|sup|code|span)\s*/?>", re.I)
-# Line-anchored, three or more backticks: a fence opened with four closes with
-# four, and a bare ```search reads the wrong character as the boundary. Every
-# caller goes through fence_spans, which is where that pairing lives once.
-FENCE_MARK = re.compile(r"^[ \t]*`{3,}([^\n]*)$", re.M)
-
-# Fence language decides whether a fence quotes source or illustrates a proposed
-# fix. Position exempts nothing: a block after a 风险与改进 label is indistinguishable
-# from the next sub-step's real quote, and the positional exemption used to skip
-# genuine quotes wholesale (12 of 138 statements inspected on a report carrying
-# 20 blocks). A mislabeled fix is caught by fix_lang_note instead of being
-# silently trusted. Both names are read from the contract below rather than
-# spelled out here, which is where they used to live.
-
-# The rule set is read from schemas/report-contract.json, not hardcoded here.
-# Seven fixes in this project were a detector disagreeing with the rule it was
-# meant to enforce: LINE_NUM matched two spellings so a report written as `L23`
-# throughout scored clean, and the checking half and the fixing half of the
-# Mermaid rule carried different patterns so one reported what the other skipped.
-# A second copy of the rules inside this file is the cause of that class of bug,
-# so there is now one copy. Every rule in the contract carries a skill_anchor,
-# and test_contract_drift.py fails when that anchor is absent from SKILL.md, so
-# the contract and the prose cannot drift apart either.
-CONTRACT_PATH = os.path.join(os.path.dirname(os.path.dirname(
-    os.path.abspath(__file__))), "schemas", "report-contract.json")
 try:
-    with io.open(CONTRACT_PATH, encoding="utf-8") as _fh:
-        CONTRACT = json.load(_fh)
-except (OSError, ValueError) as _e:
-    # The rule set is read before the script can run, so a missing or corrupt
-    # contract dies here -- before main(), before every exit-2 guard below.
-    # An unhandled exception exits 1, which SKILL.md defines as "the check ran
-    # and found defects". The caller then goes and fixes defects that do not
-    # exist, or loops on step 7 forever: the one false reassurance this script
-    # is not allowed to give arrives from the wrong door. Refuse instead.
-    sys.stdout.write("error  cannot read the rule set at %s (%s), so nothing "
-                     "was checked\n" % (CONTRACT_PATH, _e))
+    from checks.contract import *          # noqa: F401,F403
+    from checks.text import *             # noqa: F401,F403
+    # `import *` skips a leading underscore. These three are read by name below,
+    # so they are named here rather than renamed to suit the import.
+    from checks.contract import _NEXT_SEC_RE                     # noqa: F401
+    from checks.text import _claims, _flat                       # noqa: F401
+except ImportError as _e:
+    # The rule set and the checks that read it load before main() can run, so a
+    # skill installed without scripts/checks/ dies here -- before main(), before
+    # every exit-2 guard below. An unhandled ImportError exits 1, which SKILL.md
+    # defines as "the check ran and found defects", so the caller goes looking
+    # for defects that do not exist. Refuse the way the rule set itself does.
+    sys.stdout.write("error  cannot load the checks at %s (%s), so nothing "
+                     "was checked\n" % (os.path.dirname(
+                         os.path.abspath(__file__)), _e))
     sys.exit(2)
-
-SEC = ["## " + s["id"] for s in CONTRACT["sections"]]
-# The gate must find a section at level two, not merely contain its string.
-# "### 一、..." contains "## 一", so a report written entirely in ### satisfied
-# every section and reported back clean -- and section 五 was then harvested
-# from the wrong place. Anchored at the line start instead.
-SEC_RE = [(re.compile(r"^" + re.escape(h), re.M), h[3:]) for h in SEC]
-LAYERS = tuple(CONTRACT["layers"]["labels"])
-# How much prose counts as "some" at all. A bare 20 sat in check(), the one
-# threshold in this rule set that existed in no other place.
-A8_GAP = CONTRACT["layers"]["prose_window_max_chars"]
-BUCKETS = tuple(CONTRACT["problem_section"]["buckets"])
-# Built from BUCKETS instead of re-spelling the four emoji, and DIAGRAM_LANG read
-# from the contract instead of being written twice. Both are the second-copy
-# defect: the priority colours appeared once in the contract and once here, and
-# the Mermaid fence name appeared once in the gate and once in the fixer.
-ROW = re.compile(r"^\|\s*(?:P[0-3][-.]?\d+|[%s])\s*\|"
-                 % re.escape("".join(BUCKETS)), re.M)
-DIAGRAM_LANG = CONTRACT["mermaid"]["fence_language"]
-FENCE_LANGS = CONTRACT["layers"]["fence_languages"]
-QUOTE_LANG = FENCE_LANGS["quotes_source"]
-FIX_LANG = FENCE_LANGS["illustrates_a_fix"]
-PSEC = CONTRACT["problem_section"]["heading"]
-PSEC_RE = re.compile(r"^" + re.escape(PSEC), re.M)
-# The problem section ends where the next section begins. Both bounds come from
-# the contract: check() used to look for the literals "## 五" and "## 六", so
-# editing problem_section.heading changed nothing and PSEC sat unused.
-_IDS = [x["id"] for x in CONTRACT["sections"]]
-_NEXT_SEC = (SEC[_IDS.index(CONTRACT["problem_section"]["id"]) + 1]
-             if CONTRACT["problem_section"]["id"] in _IDS else None)
-_NEXT_SEC_RE = (re.compile(r"^" + re.escape(_NEXT_SEC), re.M)
-                if _NEXT_SEC else None)
-# The English spellings require whitespace. Allowing \s* let `lines?\s*\d+` match
-# LINE1 and LINE2, which are identifiers, and report them as line citations.
-LINE_NUM = re.compile(
-    "|".join("(?:%s)" % p["regex"]
-             for p in CONTRACT["forbidden_in_location_labels"]["patterns"]), re.I)
-FULLWIDTH = CONTRACT["mermaid"]["fullwidth"]
-# The three characters the checker rejects are the contract's own list, not a
-# second [<>#] literal. The class used to be spelled out in the checker and in
-# the fixer separately; the file's docstring opens with the history of that
-# exact split causing a reported defect the fixer skipped.
-MM_BAD = re.compile(r"[%s]"
-                    % re.escape("".join(CONTRACT["mermaid"]["forbid_in_display_text"])))
-
-
-def mm_violation(text):
-    """Indices of bare < > or # that Mermaid would parse as HTML or an arrow.
-
-    One definition, used by both halves. check() used to strip the tags in TAG
-    before testing and fix_mm() to test the raw label, so the fixer turned the
-    < and > inside <br> into full-width and broke diagrams it had been called to
-    fix -- and it reported 0 defects on the result, because the checker never
-    saw what the fixer wrote. Same split that has caused every other bug in this
-    file, one layer down.
-    """
-    keep = [False] * len(text)
-    for m in TAG.finditer(text):
-        for i in range(m.start(), m.end()):
-            keep[i] = True
-    return [i for i, c in enumerate(text)
-            if not keep[i] and MM_BAD.match(c)]
-DENSITY_FLOOR = next(a["floor_blocks_per_subprogram"] for a in
-                     CONTRACT["advisories"] if a["id"] == "density")
-# LINE_NUM decides whether a backticked span is a citation at all, so this only
-# has to pull the number out of one it already approved. Anchoring it to the whole
-# string used to make three of the five forms the contract lists unparseable:
-# `zvend.abap:104` and `（第 90-96 行）` are not "purely a line number", and they
-# are the two examples SKILL.md prints as wrong, so --fix told the model to write
-# them and then refused to repair them.
-# First digit run, so a range resolves to its start -- the nearest preceding
-# construct there is the one the range begins in.
-# Take the widest digit run the contract admits, out of the contract, so no
-# accepted citation is ever left unparsed and check() and fix_ln() cannot
-# disagree about what a citation is. A copied {2,5} cap made check() accept
-# `L100000` while fix_ln() read it as 10000, compared that with the line
-# count and reported a number past the end of a file it had never counted.
-_CITE_LIM = [int(x) for p in CONTRACT["forbidden_in_location_labels"]["patterns"]
-             for x in re.findall(r"\\d\{(\d+),\}", p["regex"])]
-CITE_NUM = re.compile(r"(\d{%d,})" % (min(_CITE_LIM) if _CITE_LIM else 1))
-
-# ABAP constructs usable as location anchors, ordered so the more specific
-# pattern wins: CLASS x IMPLEMENTATION. must beat CLASS x.
-ANCHORS = [
-    (re.compile(r"^\s*CLASS\s+(\w+)\s+IMPLEMENTATION", re.M), "CLASS {0} IMPLEMENTATION"),
-    (re.compile(r"^\s*(?:INTERFACE)\s+(\w+)", re.M), "INTERFACE {0}"),
-    (re.compile(r"^\s*CLASS\s+(\w+)", re.M), "CLASS {0}"),
-    (re.compile(r"^\s*METHODS?\s+(\w+)", re.M), "METHOD {0}"),
-    (re.compile(r"^\s*FORM\s+(\w+)", re.M), "FORM {0}"),
-    (re.compile(r"^\s*FUNCTION\s+(\w+)", re.M), "FUNCTION {0}"),
-    (re.compile(r"^\s*MODULE\s+(\w+)\s+(INPUT|OUTPUT)", re.M), "MODULE {0} {1}"),
-    (re.compile(r"^\s*DEFINE\s+(\w+)", re.M), "DEFINE {0}"),
-    (re.compile(r"^\s*PROCEDURE\s+(\w+)", re.M), "PROCEDURE {0}"),
-]
-NODE = re.compile(r"(\[\s*|\(\s*|\{\s*)([^\]\)\}\n]*?)([\]\)\}])")
-
-
-def mermaid_labels(block):
-    """(label_text, offset_in_block) for every bracketed Mermaid node label.
-
-    Single definition, used by both check and fix. They previously carried
-    separate patterns: check used ``[^\\]]*`` and fix excluded ``)`` and ``}`` as
-    well, so a label holding a bare ``>`` after a bracket was reported by one
-    and silently skipped by the other. Same defect as the ln split, one layer up.
-    """
-    out = []
-    for m in NODE.finditer(block):
-        out.append((m.group(2), m.start(2)))
-    # participant and actor are the same role in a sequence diagram; only the
-    # first was aliased here, so `actor U as U <x>` rendered as a bare arrow
-    # while its participant twin was caught.
-    for m in re.finditer(r"(?:participant|actor)\s+\S+\s+as\s+(.+)$", block, re.M):
-        out.append((m.group(1), m.start(1)))
-    return out
-
-
-def inventory(src):
-    """Subprogram names declared in the source, in order of first appearance.
-
-    Every construct in ANCHORS counts. Slicing this list used to leave FUNCTION
-    and MODULE out, so a function group or a classic screen program produced an
-    empty inventory and the density advisory could never fire on exactly the two
-    input types the skill advertises.
-    """
-    out = []
-    for rx, _ in ANCHORS:
-        for m in rx.finditer(src):
-            n = m.group(1)
-            if n and n not in out:
-                out.append(n)
-    return out
 
 
 def density_note(s, src):
@@ -289,168 +135,6 @@ def density_note(s, src):
             f"subprogram(s) = {d:.2f} each ({named} of them named in the text). "
             f"If the text reads as a list rather than a walkthrough, it is an "
             f"inventory, not an analysis.")
-
-
-def _past_line(s, off):
-    """Offset just past the newline that terminates the line at off."""
-    nl = s.find("\n", off)
-    return len(s) if nl < 0 else nl + 1
-
-
-def lang_of(m):
-    """Language a fence marker declares: case-insensitive, trailing junk ignored."""
-    t = m.group(1).strip()
-    return t.split()[0].lower() if t else ""
-
-
-def fence_spans(s):
-    """[(open, body_start, body_end, close, lang)] for every closed code fence.
-
-    The one definition. source_blocks, the mermaid check, blank_fences,
-    fidelity_note, fix_lang_note and fix_mislabel_note all used to spell it
-    their own way -- a hardcoded 8-character offset, an exact ```abap\n, a
-    non-greedy search, and startswith() in the fixer -- four answers to one
-    question, and each pair of answers differed on exactly the fences that were
-    not ```abap followed by ``` on their own lines.
-
-    8 is len("```abap\n") and only that, so the hardcoded offset mispaired a
-    fence opened with four backticks and its prose window started inside its own
-    code. The offset past a marker is the marker's own length, never a constant.
-
-    body_start is past the marker's newline, because $ stops before it and a
-    body that begins with one shifts every reported line index by one.
-
-    A fence that never closes is dropped here and reported by fence_defects.
-    Swallowing it to EOF would make every later section invisible to check(),
-    which is the silent half of that bug.
-    """
-    ms = list(FENCE_MARK.finditer(s))
-    out = []
-    for i in range(0, len(ms) - 1, 2):
-        o, c = ms[i], ms[i + 1]
-        out.append((o.start(), _past_line(s, o.start()), c.start(),
-                    c.end(), lang_of(o)))
-    return out
-
-
-def fence_defects(s):
-    """('fence', line, detail) for a fence that never closes.
-
-    FENCE_MARK pairs markers in order, so an odd count means the last one is an
-    opener with no closer. Unreported it is the worst defect in the set: it
-    swallows every later section, layer label and citation, so the checks run on
-    less than the document and report back clean. The report is structurally
-    perfect in every way the gate can still see.
-    """
-    ms = list(FENCE_MARK.finditer(s))
-    if len(ms) % 2 == 0:
-        return []
-    st = ms[-1].start()
-    return [("fence", line_of(s, st),
-             "code fence never closes: everything after this line is inside the "
-             "fence, so the section, layer and citation checks never see it")]
-
-
-def blank_fences(s):
-    """Same length as s, with code fence bodies blanked."""
-    out = []
-    last = 0
-    for st, _bs, _be, en, _lang in fence_spans(s):
-        out.append(s[last:st])
-        out.append("\x00" * (en - st))
-        last = en
-    out.append(s[last:])
-    return "".join(out)
-
-
-def anchors_of(src):
-    marks = []
-    for i, ln in enumerate(src.split("\n"), 1):
-        for rx, tmpl in ANCHORS:
-            m = rx.match(ln)
-            if m:
-                marks.append((i, tmpl.format(*m.groups())))
-                break
-    marks.sort()
-    return marks
-
-
-def anchor_for(marks, line):
-    best = None
-    for ln, name in marks:
-        if ln <= line:
-            best = name
-        else:
-            break
-    return best
-
-
-def block_head(s, off):
-    """Text from the nearest sub-program heading up to ``off``.
-
-    Used only by fix_lang_note, to say whether a fence sits inside the
-    风险与改进 layer. Position is advisory there and exempts nothing: an unlabelled
-    proposed fix and the next sub-step's real quote occupy the same position and
-    are identical to inspect. Two gates used to need this same answer and computed
-    it two different ways -- heading-scoped in one, whole-document in the other --
-    and the drift let a fabricated statement score clean.
-    """
-    head = s[:off]
-    h = max(head.rfind("\n#### "), head.rfind("\n### "))
-    return head[h:] if h >= 0 else head
-
-
-def in_risk_layer(head):
-    ir = head.rfind("风险与改进")
-    if ir < 0:
-        return False
-    return ir > head.rfind("做什么") and ir > head.rfind("为什么")
-
-
-PROSE_END = re.compile(r"(?m)^#{1,6}[ \t]")
-
-
-def prose_end(s, off):
-    """Where the prose belonging to a preceding block ends.
-
-    The three layers belong to the block they follow, so the window stops at the
-    next fence of any language or the next heading. Ending it at the next quoted
-    fence instead let two clean passes through: labels sitting inside an
-    intervening abap-fix fence satisfied a block that had no prose of its own,
-    and a trailing block with no layers at all was satisfied by the label words
-    anywhere later in the document. Both were the report claiming a per-block
-    walkthrough it never wrote.
-
-    Single definition on purpose -- fix_lang_note asks the same question, and two
-    answers to one question is the defect class this file exists to remove.
-    """
-    end = len(s)
-    f = s.find("```", off)
-    if f >= 0:
-        end = f
-    h = PROSE_END.search(s, off)
-    if h:
-        end = min(end, h.start())
-    return end
-
-
-def source_blocks(s):
-    """Yield (block_start, block_end, gap_text) for fences quoting source.
-
-    Fence language is the only admission test. An earlier version also exempted
-    any block sitting in the 风险与改进 layer, which is where a proposed fix lives
-    -- but so does the next sub-step's real quote, and the exemption skipped that
-    one too. Nothing structural can tell the two apart, so the report says which
-    it is in the language of the fence.
-    """
-    for st, _bs, _be, en, lang in fence_spans(s):
-        if lang != QUOTE_LANG.lower():
-            continue
-        yield st, en, s[en:prose_end(s, en)]
-
-
-def line_of(s, off):
-    return s.count("\n", 0, off) + 1
 
 
 # ------------------------------------------------------------------- checking
@@ -525,38 +209,6 @@ def check(s):
 
 # --------------------------------------------------------------------- fixing
 
-# Punctuation and whitespace that may wrap a citation. Anything else inside
-# the span means the citation is embedded in prose, and the prose stays.
-_WRAP = set(" \t.,;:()[]{}<>/-") | {
-    "\u0027", "\u0022", "|",
-    "\uff08", "\uff09", "\u3010", "\u3011", "\u300a", "\u300b",
-    "\u3001", "\uff0c", "\u3002", "\uff1b", "\uff1a", "\uff5e",
-    "\u2014", "\u2013", "\u201c", "\u201d", "\u2018", "\u2019", "-",
-}
-
-
-def cite_extent(inner, lm):
-    """(start, end) of the citation to rewrite inside a backticked span.
-
-    A span is usually just the citation, possibly wrapped in punctuation:
-    rewrite the whole thing. Sometimes the citation sits inside prose, as in
-    `L03 SELECT foo FROM bar`. Rewriting the whole span there deletes the
-    statement the citation points at, and the note that follows says the
-    repair is complete. Rewrite only the citation in that case, so nothing
-    the writer said can be lost to a mechanical fix.
-    """
-    st, en = lm.span()
-    # `.abap:104` and `:104` cannot stand alone: fold in the file name they
-    # belong to, or the repair leaves `zFUNCTION z_foo` behind.
-    if inner[st] in ".:":
-        while st > 0 and re.match(r"[A-Za-z0-9_.\-]", inner[st - 1]):
-            st -= 1
-    rest = inner[:st] + inner[en:]
-    if all(c in _WRAP for c in rest):
-        return 0, len(inner)
-    return st, en
-
-
 def fix_ln(s, src):
     """Rewrite a line-number citation as the nearest preceding construct.
 
@@ -623,85 +275,6 @@ def fix_ln(s, src):
     for a, b, rep in reversed(edits):
         out = out[:a] + rep + out[b:]
     return out, len(edits), notes
-
-
-# Lines that assert nothing about the source, so a fidelity pass must skip them.
-# ELIDE must be searched in the code portion, never the raw line: searching the
-# raw line meant an ellipsis inside a trailing comment -- "LOOP AT t INTO wa. "
-# ... more" -- exempted the statement it sat on. The comment is dropped by
-# _strip_comment first, so a marker there no longer reaches the test.
-ELIDE = re.compile(r"\.\.\.|\u2026")
-PAREN_NOTE = re.compile(r"^[\s|*]*[\uff08(].*[\uff09)]\s*$")
-CJK = re.compile(r"[\u4e00-\u9fff]")
-# An ABAP string literal: the delimiter is ' , so " is always a comment marker
-# and never part of a string. Read by _claims, which uses it twice: once with
-# the comment still attached, to count literals for the balance test, and once
-# without, to decide whether what is left is code or the report's annotation.
-STR_LIT = re.compile(r"'[^']*'")
-# The source writes "t_documents ," with a space before the comma; the report
-# writes "t_documents,". Punctuation spacing, not a rewritten statement.
-PUNCT = re.compile(r"\s+([,;:)])")
-
-
-def _flat(s):
-    s = re.sub(r"\s+", " ", s).strip().lower()
-    s = PUNCT.sub(r"\1", s)
-    return re.sub(r"([(])\s+", r"\1", s)
-
-
-def _strip_comment(l):
-    """A quoted line with any ABAP comment removed.
-
-    Outside a string literal " always opens a comment, and * opens one at the
-    beginning of a line. Everything from there on is prose, never code.
-
-    This is the one place that decides whether a quoted line is source or the
-    report's own annotation, so it runs before every test below. Quoted ABAP in
-    a Chinese system is full of CJK that is not commentary -- WRITE / '开始'.
-    and DATA lv_x TYPE string. " 物料号 both carry CJK and are real statements --
-    so testing for CJK alone used to exempt them from the only check that
-    catches an invented statement, and a fabricated Chinese literal read exactly
-    like a faithful one.
-    """
-    c = l.find('"')
-    if c >= 0:
-        return l[:c]
-    return "" if l.lstrip().startswith("*") else l
-
-
-
-def _claims(body):
-    """(line_index_in_block, text) for every line that asserts about source.
-
-    The index is the position in body.split("\n"), not in the filtered
-    result. Counting inside the filtered result pointed at the wrong line
-    whenever a skipped line -- a comment, or the report's own commentary --
-    sat above the fabricated one.
-    """
-    out = []
-    for i, raw in enumerate(body.split("\n")):
-        l = re.sub(r'^\s*[*"\'"]', "", raw).rstrip()
-        if len(l.strip()) < 3 or PAREN_NOTE.match(l):
-            continue
-        pre = _strip_comment(l)
-        code = STR_LIT.sub("''", pre)
-        if ELIDE.search(code):
-            continue                    # skill-permitted elision, anywhere in the code
-        if not re.search(r"[A-Za-z0-9]", code):
-            continue                    # a comment, or the report's own annotation
-        if CJK.search(code):
-            continue                    # CJK survived the strip: prose, not ABAP
-        if pre.count("'") % 2:
-            # Unbalanced literal outside comments: the report's own debris, not a
-            # statement. Counted on pre, not l, so an apostrophe inside a comment
-            # does not tip it; counted on pre, not code, so a paired literal is
-            # not stripped away before the test runs. A line whose truncation
-            # left a bare delimiter -- 'BUK' FIELD written as BUK' FIELD -- fails
-            # this test too and is therefore not probed. Measured over the 33
-            # archived reports that cost four rewrites and no false positives.
-            continue
-        out.append((i, l))
-    return out
 
 
 def fidelity_note(s, src):
