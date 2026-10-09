@@ -10,12 +10,13 @@ import re
 from checks.contract import (A8_GAP, BUCKETS, CONTRACT, DIAGRAM_LANG, LAYERS,
                              LINE_NUM, PSEC_RE, ROW, SEC_RE, _NEXT_SEC_RE)
 from checks.encoding import replacement_defects
-from checks.text import (TICK, TAG, blank_fences, fence_defects, fence_spans,
-                           layer_bodies, line_of, mermaid_labels, mm_violation,
-                           source_blocks)
+from checks.text import (TICK, TAG, _flat, blank_fences, fence_defects,
+                           fence_spans, layer_bodies, line_of, mermaid_labels,
+                           mm_violation, source_blocks)
 
 SECTIONS_EXACTLY_ONCE = CONTRACT.get("sections_exactly_once", False)
 LAYERS_DISTINCT = CONTRACT["layers"].get("distinct", False)
+ROWS_REQUIRE_OBJECT = CONTRACT["problem_section"].get("rows_require_source_object", False)
 
 # Same reason as the lists in contract.py and text.py: without one, `import *`
 # into report_qc.py hands every name above to that module as well -- and a
@@ -26,10 +27,32 @@ LAYERS_DISTINCT = CONTRACT["layers"].get("distinct", False)
 __all__ = ["check"]
 
 
+_IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]{2,}")
+
+
+def _row_names_source(row, flat_src):
+    """True when a problem row points at something the source actually has.
+
+    A backticked token counts on its own -- the writer chose to mark it as code.
+    Otherwise the row must contain an identifier-shaped token that occurs in the
+    source text. 'this code is written well' satisfies neither.
+    """
+    if "`" in row:
+        return True
+    if flat_src is None:
+        return False           # no source given: cannot judge, so do not fail
+    return any(m.group(0).lower() in flat_src for m in _IDENT.finditer(row))
+
+
 # ------------------------------------------------------------------- checking
 
-def check(s):
-    """Return a list of (kind, line, detail). Empty means clean."""
+def check(s, src=None):
+    """Return a list of (kind, line, detail). Empty means clean.
+
+    `src` is optional and only C1 needs it. Every existing caller that passes one
+    argument keeps working, which is what lets the rule land without touching the
+    fixtures.
+    """
     bad = []
 
     present = sum(1 for rx, _ in SEC_RE if rx.search(s))
@@ -105,5 +128,18 @@ def check(s):
     if miss_b:
         bad.append(("buck", line_of(s, i) if i >= 0 else 0,
                     "section 五 missing priority bucket(s): " + " ".join(miss_b)))
+    if ROWS_REQUIRE_OBJECT and src:
+        flat_src = _flat(src).lower()
+        sec5_off = s.find(sec5)
+        for off, line in enumerate(sec5.split("\n")):
+            if not line.strip().startswith("|") or set(line) <= set("|- "):
+                continue
+            if not ROW.match(line):
+                continue
+            if not _row_names_source(line, flat_src):
+                bad.append(("row-src",
+                            line_of(s, sec5_off + off) if sec5_off >= 0 else 0,
+                            "problem row names no object from the source: %r"
+                            % line.strip()[:60]))
     bad.extend(replacement_defects(s))
     return bad

@@ -252,7 +252,7 @@ def report(path, src=None):
         s = read_report(path)
     except ReadError as e:
         die(str(e))
-    bad = check(s)
+    bad = check(s, src)
     name = os.path.basename(path)
     notes = all_notes(s, src)
     if not bad:
@@ -260,8 +260,9 @@ def report(path, src=None):
         for n in notes:
             print(f"  note  {n}")
         return 0
-    order = {"fence": 0, "sec": 1, "sec-dup": 1, "prow": 2, "buck": 3, "ln": 4,
-             "mm": 5, "A8-cc": 6, "layer-same": 7, "A8-pt": 8}
+    order = {"fence": 0, "sec": 1, "sec-dup": 1, "prow": 2, "row-src": 3,
+             "buck": 3, "ln": 4, "mm": 5, "A8-cc": 6, "layer-same": 7,
+             "A8-pt": 8}
     for kind, ln, detail in sorted(bad, key=lambda x: (order.get(x[0], 9), x[1])):
         where = f"line {ln}" if ln else "document"
         print(f"  {kind:6} {where:>10}  {detail}")
@@ -421,7 +422,7 @@ def main(argv):
         written = fixed.replace("\n", "\r\n") if crlf else fixed
         io.open(dest, "w", encoding="utf-8", newline="").write(written)
         print(f"repaired {n} mechanical defect(s) -> {dest}")
-        left = check(fixed)
+        left = check(fixed, ssrc)
         for kind, ln, detail in left:
             where = f"line {ln}" if ln else "document"
             print(f"  {kind:6} {where:>10}  {detail}")

@@ -115,14 +115,16 @@ def main():
     # backticked token and no identifier from the source: that is the whole
     # defect, and keeping it the only defect means the probe can only flip when
     # something learns to require a finding to name a source object.
-    filler = "| P0 | 无 | 这段代码写得很好 | 无 | 无 |"
+    filler = "| P0-1 | 无 | 这段代码写得很好 | 无 | 无 |"
     # rows[0] is the header and rows[1] the |---| divider: replacing either would
     # break the table, not blank out a finding. Start at 2 to touch real rows only.
     for k in rows[2:5]:
         sec[k] = filler
     empty = "\n".join(lines5[:i5] + sec + lines5[j5:])
-    rc, _ = gate(empty, tmp, "p2_empty_rows.md")
-    check(rc == 0, "PROBE 2 gate currently PASSES rows with no content", f"rc={rc}")
+    rc, out = gate(empty, tmp, "p2_empty_rows.md")
+    check(rc != 0, "PROBE 2 gate now REJECTS rows that name nothing", f"rc={rc}")
+    check("row-src" in out, "PROBE 2 reported as kind 'row-src'",
+          out.strip().splitlines()[0][:80] if out.strip() else "")
 
     layer_re = r"(?m)^\*\*(" + "|".join(LAYERS) + r")\*\*[^\n]*"
     triple = re.compile(layer_re)
