@@ -11,9 +11,11 @@ from checks.contract import (A8_GAP, BUCKETS, CONTRACT, DIAGRAM_LANG, LAYERS,
                              LINE_NUM, PSEC_RE, ROW, SEC_RE, _NEXT_SEC_RE)
 from checks.encoding import replacement_defects
 from checks.text import (TICK, TAG, blank_fences, fence_defects, fence_spans,
-                          line_of, mermaid_labels, mm_violation, source_blocks)
+                           layer_bodies, line_of, mermaid_labels, mm_violation,
+                           source_blocks)
 
 SECTIONS_EXACTLY_ONCE = CONTRACT.get("sections_exactly_once", False)
+LAYERS_DISTINCT = CONTRACT["layers"].get("distinct", False)
 
 # Same reason as the lists in contract.py and text.py: without one, `import *`
 # into report_qc.py hands every name above to that module as well -- and a
@@ -44,6 +46,12 @@ def check(s):
     for st, end, gap in source_blocks(s):
         miss = [l for l in LAYERS if l not in gap]
         if not miss:
+            if LAYERS_DISTINCT:
+                bodies = layer_bodies(gap)
+                if len(bodies) == len(LAYERS) and len(set(bodies.values())) == 1:
+                    bad.append(("layer-same", line_of(s, st),
+                                "all three layers carry the same text: %r"
+                                % next(iter(bodies.values()))[:40]))
             continue
         ln = line_of(s, st)
         kind = "A8-cc" if len(gap.strip()) <= A8_GAP else "A8-pt"

@@ -9,7 +9,7 @@ Extracted verbatim from report_qc.py in 1.1.0. Behaviour is unchanged.
 """
 import re
 
-from .contract import ANCHORS, MM_BAD, QUOTE_LANG
+from .contract import ANCHORS, LAYERS, MM_BAD, QUOTE_LANG
 
 # Same reason as the list in contract.py: without it `import *` hands `re` to
 # report_qc.py as well. ANCHORS/MM_BAD/QUOTE_LANG are re-exported out of
@@ -17,8 +17,8 @@ from .contract import ANCHORS, MM_BAD, QUOTE_LANG
 __all__ = ["TICK", "TAG", "FENCE_MARK", "mm_violation", "NODE", "mermaid_labels",
            "inventory", "lang_of", "fence_spans", "fence_defects", "blank_fences",
            "anchors_of", "anchor_for", "block_head", "in_risk_layer", "PROSE_END",
-           "prose_end", "source_blocks", "line_of", "cite_extent", "ELIDE",
-           "PAREN_NOTE", "CJK", "STR_LIT", "PUNCT"]
+           "prose_end", "source_blocks", "layer_bodies", "line_of", "cite_extent",
+           "ELIDE", "PAREN_NOTE", "CJK", "STR_LIT", "PUNCT"]
 
 TICK = re.compile(r"`([^`\n]{2,80})`")
 # Mermaid renders this HTML subset, so these are the only angle brackets a label
@@ -245,6 +245,27 @@ def source_blocks(s):
         if lang != QUOTE_LANG.lower():
             continue
         yield st, en, s[en:prose_end(s, en)]
+
+
+LAYER_RE = re.compile(r"(?m)^[ \t]*[-*]?\s*(?:\*\*)?(%s)(?:\*\*)?\s*"
+                      r"[\uff1a:\u2014\u2013-]?\s*(.*)$"
+                      % "|".join(re.escape(l) for l in LAYERS))
+
+
+def layer_bodies(gap):
+    """{label: normalised body} for the layers present in one prose window.
+
+    A window that carries all three labels with the same body is a list, not an
+    analysis. 1.0.7 wrote that rule into SKILL.md and added no checker for it --
+    'each layer names at least one source object' has had no enforcement for four
+    releases.
+    """
+    out = {}
+    for m in LAYER_RE.finditer(gap):
+        body = re.sub(r"[\s`*\u3002\uff0c\u3001\uff1b\uff1a]", "", m.group(2))
+        if body:
+            out.setdefault(m.group(1), body)
+    return out
 
 
 def line_of(s, off):

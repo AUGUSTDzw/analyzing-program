@@ -149,8 +149,10 @@ def main():
           f"unique bodies per layer: {distinct}")
     check(len({next(iter(b)) for b in bodies.values()}) == 1,
           "PROBE 3 the three layer bodies are identical to each other")
-    rc, _ = gate(same, tmp, "p3_same_layers.md")
-    check(rc == 0, "PROBE 3 gate currently PASSES three identical layers", f"rc={rc}")
+    rc, out = gate(same, tmp, "p3_same_layers.md")
+    check(rc != 0, "PROBE 3 gate now REJECTS three identical layers", f"rc={rc}")
+    check("layer-same" in out, "PROBE 3 reported as kind 'layer-same'",
+          out.strip().splitlines()[0][:80] if out.strip() else "")
 
     nmm = len(re.findall(FENCE + "mermaid", base, re.I))
     check(nmm >= 2, "report has diagrams to delete", f"{nmm}")
