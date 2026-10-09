@@ -1,0 +1,230 @@
+{
+  "version": "1.2.4",
+  "release": {
+    "ships_with": "1.0.7",
+    "_comment": [
+      "Two version numbers, and they are independent axes. `version` is this",
+      "contract: it bumps when a rule, a threshold or a gate_io row changes.",
+      "`release.ships_with` is the release line of the skill package that",
+      "bundles this contract. The release bumps for prose and gate-behaviour",
+      "changes too, so the two only coincide when the contract happens to move.",
+      "",
+      "Recorded here because nobody can tell from the numbers alone whether",
+      "1.2.4 is newer or older than 1.0.6. A deployed copy that can name both",
+      "can prove it matches the release the README describes.",
+      "",
+      "1.0.6 -> 1.0.7 changed no rule, no threshold and no gate_io row, so",
+      "this contract stays at 1.2.4 and only ships_with moves. Both fixes",
+      "came from field reports on another machine: the three layers",
+      "rendered as one paragraph because SKILL.md's own compact example put",
+      "them on consecutive lines, and the first layer came out too vague to",
+      "be useful. Neither was mechanically detectable, so the drift test",
+      "has nothing to assert here either.",
+      "",
+      "1.2.3 -> 1.2.4: exit_codes[\"2\"] gained the rule-set trigger, and",
+      "gate_io.gate_start_refuses_without_a_rule_set was added. report_qc.py",
+      "already refused; SKILL.md already taught it. The contract, which this",
+      "file exists to be the single copy of, was the only place still missing",
+      "it. test_contract_drift.py cannot catch that class of gap -- it only",
+      "asserts that skill_anchor strings appear in SKILL.md -- so a drift this",
+      "wide needs a reader, not a test."
+    ]
+  },
+  "_comment": [
+    "Machine-readable contract for what a report must contain.",
+    "",
+    "This file is the source for report_qc.py's rules about report shape: which",
+    "sections, which layer labels, which priority buckets, which citation spellings",
+    "are forbidden, which Mermaid characters break a label, and how far a prose",
+    "window reaches. The checker reads them rather than hardcoding patterns, so",
+    "none of those can exist in the checker alone. ABAP construct syntax (the",
+    "ANCHORS table) stays in the checker: it describes the source, not the report,",
+    "and it is the list a repair is allowed to substitute. Each rule carries a",
+    "`skill_anchor`: a token that must also appear in",
+    "SKILL.md. test_contract_drift.py fails when a rule has no anchor in the",
+    "skill, or the skill states a constraint no rule covers.",
+    "",
+    "Why this exists: seven separate fixes in this project were a checker",
+    "detector disagreeing with the rule it was supposed to enforce. LINENO",
+    "matched two spellings so `L23` scored clean; the Mermaid pattern differed",
+    "between the checking half and the fixing half; the exemplar's own snippet",
+    "guard had a quote-exemption the skill never granted. A second copy of the",
+    "rules inside the checker is the cause, so there is now only this one."
+  ],
+
+  "sections": [
+    { "id": "一", "label": "程序定位与业务背景",   "heading_anchor": "一、程序定位与业务背景",       "skill_anchor": "一、程序定位与业务背景" },
+    { "id": "二", "label": "程序执行流程总览",     "heading_anchor": "二、程序执行流程总览",         "skill_anchor": "责任链表" },
+    { "id": "三", "label": "分组分析",             "heading_anchor": "三、分组分析",               "skill_anchor": "Three-Layer" },
+    { "id": "四", "label": "执行流程全景图（数据视角）", "heading_anchor": "四、执行流程全景图",     "skill_anchor": "flowchart TD" },
+    { "id": "五", "label": "问题清单与改进建议",   "heading_anchor": "五、问题清单与改进建议",       "skill_anchor": "🔴" },
+    { "id": "六", "label": "整体评价与启发",       "heading_anchor": "六、整体评价与启发",           "skill_anchor": "整体评价" }
+  ],
+
+  "layers": {
+    "labels": ["做什么", "为什么", "风险与改进"],
+    "applies_to": "every ```abap fence that quotes source",
+    "fence_languages": {
+      "quotes_source": "abap",
+      "illustrates_a_fix": "abap-fix"
+    },
+    "exempt": "fence language only -- an abap-fix fence illustrates a proposed fix and needs no layers",
+    "skill_anchor": "每个代码块后三层都必须出现",
+    "prose_window": "from the closing fence to the next fence of any language or the next heading -- not to the next quoted fence, which let labels inside an intervening abap-fix fence, or the label words anywhere later in the document, satisfy a block that had no prose of its own",
+    "prose_window_max_chars": 20,
+    "violation_kinds": {
+      "A8-cc": "no prose at all inside that window",
+      "A8-pt": "prose present inside that window, some labels missing"
+    }
+  },
+
+  "problem_section": {
+    "id": "五",
+    "heading": "## 五",
+    "buckets": ["\ud83d\udd34", "\ud83d\udfe0", "\ud83d\udfe1", "\ud83d\udfe2"],
+    "require_rows": true,
+    "skill_anchor": "🔴 P0 业务正确性"
+  },
+
+  "forbidden_in_location_labels": {
+    "why": "the skill requires naming the subprogram, not citing a line",
+    "skill_anchor": "不用行号",
+    "patterns": [
+      { "id": "file-colon-line", "regex": "\\.abap:\\d+" },
+      { "id": "cn-line",         "regex": "第\\s*\\d+\\s*[-\u2013~]?\\s*\\d*\\s*行" },
+      { "id": "en-lines",        "regex": "\\blines?\\s+\\d+(?:\\s*[-\u2013~]\\s*\\d+)?\\b" },
+      { "id": "short-L",         "regex": "\\bL\\d{2,}\\b" },
+      { "id": "colon-number",    "regex": "(?<!\\d):\\d{2,}\\b" }
+    ],
+    "scope": "backticked spans outside code fences"
+  },
+
+  "mermaid": {
+    "fence_language": "mermaid",
+    "why": "bare < > # terminate a label or start a comment, so the diagram does not render",
+    "forbid_in_display_text": ["<", ">", "#"],
+    "repair": "fullwidth",
+    "fullwidth": { "<": "\uff1c", ">": "\uff1e", "#": "\uff03" },
+    "skill_anchor": "Mermaid 标签安全"
+  },
+
+  "gate_io": {
+    "_comment": [
+      "How to read the checker. Recorded here because the ways of NOT being",
+      "checked look like passing, and because these semantics have now been",
+      "rewritten twice: the exit-code table SKILL.md taught was written against",
+      "the 24224-byte gate, then had to be rewritten against the 45523-byte one,",
+      "which refuses a bad source path instead of passing quietly and no longer",
+      "requires a .abap suffix. Every row below was measured, not read off the",
+      "source.",
+      "",
+      "test_contract_drift.py only asserts the skill_anchor values appear in",
+      "SKILL.md. It does not re-derive any of this from report_qc.py, so a change",
+      "to main() has to be made here by hand."
+    ],
+    "exit_codes": {
+      "0": "every report was checked and no shape defect was found; notes may accompany it and never change it",
+      "1": "the check ran and found defects. Shape mode prints the defect lines first and `FAIL  <name>  (N defect(s))` last; --fidelity-only prints `FAIL  <name>` plus one note and no prefixed lines; --fix prints `FAIL  <name>  (N defect(s) need the model)`",
+      "2": "refused to run, nothing was inspected. Every trigger prints a line starting with `error`: no arguments; no .md/.markdown path among the arguments; more than one source; report or source path does not exist; source is empty; --fix given fewer than two paths; -o with no output path; the rule set cannot be read or is corrupt. The last is special: it fires before main() at all, because the rules are loaded at import, so it needed its own try/except. Unhandled, it is an uncaught exception and exits 1 -- the code SKILL.md defines as 'the check ran and found defects' -- and the caller then goes and fixes defects that do not exist, or loops step 7 forever."
+    },
+    "gate_start_refuses_without_a_rule_set": {
+      "where": "module import, before main() and before every exit-2 guard",
+      "trigger": "schemas/report-contract.json is missing or not parseable JSON",
+      "prints": "error  cannot read the rule set at <path> (<cause>), so nothing was checked",
+      "exit": 2,
+      "why_not_1": "an unhandled exception exits 1, which is the defect verdict; refusing by exception is the one false reassurance this script is not allowed to give, arriving through the wrong door",
+      "skill_anchor": "规则集"
+    },
+    "argument_roles": {
+      "rule": "a report is any path ending .md or .markdown; every other path on the command line is a source",
+      "why": "the previous gate recognised a source by the .abap suffix, so a .txt source was neither read nor announced and was then checked as a report -- a source file with no six sections then failed the gate on defects that were never real",
+      "one_source_only": "two sources is an error, not a silent 'use the last one', which looks like a successful run while checking one report against nothing",
+      "skill_anchor": "报告路径必须以"
+    },
+    "source_is_optional": {
+      "in_plain_mode": true,
+      "skip_note": "no source recognised, so density, fidelity and fix-mislabel were not run (pass the ABAP file after the report)",
+      "verdict_still_printed": "PASS and exit 0 -- the shape verdict is real, three diagnostics simply did not run",
+      "skill_anchor": "no source recognised"
+    },
+    "diagnostics": {
+      "needs_source": ["density", "fidelity", "fix-mislabel"],
+      "needs_no_source": ["fix-lang"],
+      "enforcement": "note -- never changes the exit code, so the writer has to read them"
+    },
+    "defect_line_prefixes": ["fence", "sec", "prow", "buck", "ln", "mm", "A8-cc", "A8-pt"],
+    "fence_sorts_first": "an unclosed fence swallows the rest of the document, so nothing after it is inspected at all; fixing anything else before fixing that is wasted",
+    "conclusion_lines": ["PASS  <name>", "FAIL  <name>  (N defect(s))", "error  <what is wrong>"],
+    "fix_writes_a_backup": "--fix saves the previous text next to the report as <report>.bak before rewriting in place, and preserves the report's own CRLF/LF endings",
+    "skill_anchor": "退出码是唯一的机器判据"
+  },
+
+  "advisories": [
+    {
+      "id": "density",
+      "enforcement": "note",
+      "why": "a report can satisfy every rule above and still be a list rather than an analysis",
+      "floor_blocks_per_subprogram": 0.5,
+      "skill_anchor": "分组单位的展开深度"
+    },
+    {
+      "id": "fidelity",
+      "enforcement": "note",
+      "why": "a fabricated block keeps six sections, three layers and four buckets; nothing structural sees it",
+      "skill_anchor": "逐字符忠实"
+    },
+    {
+      "id": "fix-lang",
+      "enforcement": "note",
+      "why": "fence language is the only admission test, but a proposed fix left in an abap fence is probed against the source and reads as fabricated; the exemption used to be positional and skipped the next sub-step's real quote as well -- 12 of 138 quoted statements uninspected on one report",
+      "skill_anchor": "用 abap-fix 围栏"
+    },
+    {
+      "id": "fix-mislabel",
+      "enforcement": "note",
+      "why": "abap and abap-fix locked in only one direction: a fix left in an abap fence is probed and reads as fabricated, but source pasted into an abap-fix fence is never compared with the source at all, so the language tag could be used to opt a quote out of the check that exists to catch invented quotes",
+      "criterion": "contiguity, not membership. An abap-fix fence is called out when its statements, flattened and joined, occur as one adjacent run in the source. The first version asked whether every statement occurs anywhere; it fired five times across nine real reports and all five were genuine fixes (a CALL FUNCTION with EXCEPTIONS added, a DELETE followed by an sy-subrc check, a restructured TRY block) whose lines each exist somewhere in a 1600-line file. Quoting the line you are about to change is legitimate, so membership cannot be the test; a mislabeled quote is a verbatim copy, and a verbatim copy is adjacent.",
+      "skill_anchor": "贴错了围栏的真引用"
+    }
+  ],
+
+  "loop_position": {
+    "_comment": [
+      "Where the checker runs is itself a measured rule, not a style preference.",
+      "",
+      "Run inside generation, the gate costs defect recall: -0.250 at twenty",
+      "defects with an exact sign test p=0.0215, and -0.224 at thirty-eight, the",
+      "same sign at two resolutions. Run as a separate pass after the analysis",
+      "is final, recall returns to a level 0.035 from the no-checker arm while",
+      "transcription accuracy is still gained.",
+      "",
+      "What the loop checks makes no difference. An arm that checked only",
+      "quotations and an arm that checked everything scored identically, p=1.0.",
+      "The cost is the loop occupying writing budget, which section 3 needs. So",
+      "the rule is not 'check less' -- it is 'check at a different moment', and a",
+      "repair pass may not touch the analysis."
+    ],
+    "magnitude_is_unmeasured": "The two deltas below are recorded as measured, but the cells are too few for the effect size: a later three-run arm retracted the point estimate as noise. Direction only -- two resolutions, same sign -- is what the skill teaches, and no percentage appears in SKILL.md.",
+    "transcription_errors_attribution": "The eight errors cited in an earlier draft came from the arm that checked fidelity DURING generation; the post-write arm found two. Neither number belongs to the loop-position rule -- transcription accuracy is the fidelity diagnostic's effect, so SKILL.md now says 'two to eight depending on the arm' and attributes it to the diagnostic.",
+    "inside_generation_cost_weighted_recall": -0.224,
+    "outside_generation_cost_weighted_recall": -0.035,
+    "checks_make_no_difference_p": 1.0,
+    "repair_pass_may_change": "quoted ABAP only",
+    "repair_pass_must_not_change": ["analysis", "structure", "risk text", "conclusions", "priority"],
+    "skill_anchor": "这一轮不许改分析"
+  },
+
+  "claim_separation": {
+    "_comment": [
+      "Passing a deterministic check licenses only the claim that the shape is",
+      "right. It says nothing about whether the analysis is correct, and nothing",
+      "about whether anything was missed. archify states this as a rule --",
+      "passing one claim never implies the others -- so it is written down here",
+      "rather than left to the reader to infer from the tool names."
+    ],
+    "deterministic_checks_establish": "the report has the required shape and quotes source faithfully",
+    "requires_a_named_reviewer_for": "whether the analysis is correct and what it missed",
+    "reviewer_mechanism": "scripts/evaluate.py against a frozen defect list in evals/",
+    "skill_anchor": "闸门只管形状"
+  }
+}
