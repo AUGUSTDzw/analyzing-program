@@ -395,3 +395,117 @@ scripts\report_qc.py               clean
 - `check()` 与六个 note 函数的**函数体与 docstring**：未改。改的只有 `advisory.py`
   的**模块** docstring。
 - `tests/test_skill.py` / `tests/test_gate_enforcement.py`：未改，165 与 20 保持。
+
+---
+
+## 修复轮 1
+
+审查结论 Needs fixes。实际只有一条 Important 成立、一条 Important 是误报、
+六条 Minor 全做。
+
+### Important 1（误报）：`measured` 记录的 `line 364` 不可复现
+
+审查说 `checks/text.py` 只有 294 行（实际 363 行），契约里 `measured` 记的
+`(invalid syntax (text.py, line 364))` 行号不可能出现。
+
+**这是误报。** 实测复现：往 363 行的 `checks/text.py` 末尾追加一行
+`def broken(:`，文件变成 364 行，语法错误正好落在第 364 行，闸门输出：
+
+```
+error  cannot load the checks at <dir> (invalid syntax (text.py, line 364)), so nothing was checked
+exit=2
+```
+
+这个测试是在临时副本上做的，所以出货树里永远不会有第 364 行。审查员没意识到
+"追加会改变行数"。**不动 `measured` 那句。**
+
+### Important 2：`fullwidth` 有一行 diff 没进报告
+
+```
+-      "fullwidth": { "<": "\uff1c", ">": "\uff1e", "#": "\uff03" },
++      "fullwidth": { "<": "＜", ">": "＞", "#": "＃" },
+```
+
+行为惰性（`\uff1c` 与 `＜` 是同一码点 U+FF1C，`json.load` 解码后一样），
+`test_skill.py` 因此仍是 165。精神上属于 brief 修正 #4（去 JSON 转义噪声）。
+
+**现在补进上面的变更表**（Step 3 末尾应有一行，原文漏了）。
+
+**转义风格统一的结论**：契约里三处非 ASCII 字符的转义风格**不统一**：
+
+| 位置 | raw 文件里的写法 | 码点 |
+| --- | --- | --- |
+| `buckets` | `"\ud83d\udd34"` 等 JSON 代理对转义 | U+1F534 等 |
+| `fullwidth` | `"＜"` 等字面字符 | U+FF1C 等 |
+| `encoding.replacement_char` | `"\ufffd"` JSON 转义 | U+FFFD |
+
+统一成哪种：**应该统一成 JSON 转义**（`\uff1c`、`\ufffd`、`\ud83d\udd34`），
+因为（a）`encoding.replacement_char` 管的就是 U+FFFD 字面量在文件里的出现，
+字面 U+FFFD 落在契约里会让"检查器自己坏在编码上"这条批评成真，所以至少
+`replacement_char` 必须转义；（b）`buckets` 的代理对转义是历史写法，没理由改。
+
+但本轮**不改**——改 `buckets` 的转义方式超出 Task 4 范围，且会动到既有行为
+（虽然 `json.load` 解码后一样，但 raw 文件字面量变了，SHA 会变）。写进遗留清单，
+留到最终 review 或 Task 11 打包时统一。
+
+### Minor 3：`test_contract_drift.py:386` "four files" → "three files"
+
+新注释写的 "A bare-name search returns four files"，实际三个（`report_qc.py`、
+`checks/structure.py`、`checks/text.py`）。改。
+
+### Minor 4：`:388-392` 注释承诺不兑现的覆盖
+
+原注释说 `checks/fidelity.py` 与 `checks/encoding.py` 在扫描名单里是因为"这个
+探针是唯一会注意到它们将来拿着错东西的地方"，但被断言的三个 token 没有一个是
+它们会定义的。改成实话：它们在名单里是让 1.1.0 后续任务把函数搬过去时不用改
+这个探针，而不是说它们现在被检查。
+
+### Minor 5：`:393-403` 裸子串搜索 → 复用 `_code_only()`
+
+裸子串搜"某定义在哪"，注释里出现 `def check(` 就让探针变红。**同一个文件 150 行
+前的 `:239-247` 已有 `_code_only()`（用 `tokenize` 剥注释与字符串）**，新探针没有
+复用。改成用 `_code_only()` + 正则 `\bdef\s+<name>\s*\(`，彻底避开注释。
+
+### Minor 6：`:181-184` 守卫不统一
+
+`problem_section` 和 `layers` 用 `C[...]` 直取，`mermaid` 和 `encoding` 用
+`.get()`。把整块都改成 `C.get(...) or {}`，统一。**（brief 写出来的。）**
+
+### Minor 7：`load_contract()` 与 `:94` 重复
+
+`:67-71` 的 `load_contract()` 和 `:94` 各自独立 `json.load` 打开契约文件，
+且 `:67` 版本重算路径没复用 `CONTRACT` 常量，两处都漏了文件句柄。合并：
+`load_contract()` 用 `CONTRACT` 常量 + `with` 语句，`main()` 直接调用它。
+
+### Minor 8：`where()` 每条断言调两次
+
+原来 `where(token)` 在条件一次、detail 一次，每次重读六个文件。改成 `for fn, home`
+循环，每条只调一次。**（brief 给的原文。）**
+
+### Minor 9：`report_qc.py:86-89` 换行参差
+
+"which is" 孤零零挂在短行末尾。重排成与上下文一致的行宽。
+
+### 验证
+
+```
+118 drift checks passed, 0 failed
+165 checks passed, 0 failed
+20 checks passed, 0 failed
+```
+
+闸门行为仍未变：
+
+```
+$ python scripts/report_qc.py references/example-report.md
+PASS  example-report.md
+  note  no source recognised, so density, fidelity, fix-mislabel, authz and ext-asset were not run (pass the ABAP file after the report)
+exit=0
+```
+
+### 改了哪些文件（修复轮）
+
+| 文件 | 改了什么 |
+| --- | --- |
+| `tests/test_contract_drift.py` | 守卫统一（M6）、`load_contract()` 合并（M7）、`where()` 复用 + `_code_only()`（M5/M8）、注释对齐事实（M3/M4） |
+| `scripts/report_qc.py` | 注释重排（M9） |

@@ -83,10 +83,10 @@ try:
     from checks.text import *             # noqa: F401,F403
     from checks.structure import check
     # __all__ replaces the default rule rather than modifying it: `import *`
-    # takes exactly the names the two __all__ lists -- one in checks/contract.py,
-    # one in checks/text.py -- spell out, which is
-    # why _NEXT_SEC_RE, _flat and _claims stay out -- their own modules do not
-    # list them, not because they begin with an underscore. Worth knowing before
+    # takes exactly the names the two __all__ lists -- one in
+    # checks/contract.py, one in checks/text.py -- spell out, which is why
+    # _NEXT_SEC_RE, _flat and _claims stay out: their own modules do not list
+    # them, not because they begin with an underscore. Worth knowing before
     # someone adds one: a detector written here that reached for _flat or
     # _claims would resolve neither, and say so with a NameError at the first
     # call rather than at import.

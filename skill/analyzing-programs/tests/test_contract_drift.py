@@ -65,9 +65,8 @@ def check(cond, label, detail=""):
 
 
 def load_contract():
-    import json
-    p = os.path.join(HERE, "..", "schemas", "report-contract.json")
-    with io.open(p, encoding="utf-8") as fh:
+    """The contract, read once through the path the module already names."""
+    with io.open(CONTRACT, encoding="utf-8") as fh:
         return json.load(fh)
 
 
@@ -90,8 +89,9 @@ def main():
     if not os.path.exists(SKILL_MD):
         print("SKILL.md not found at", SKILL_MD)
         return 2
-    skill = io.open(SKILL_MD, encoding="utf-8").read()
-    contract = json.load(io.open(CONTRACT, encoding="utf-8"))
+    with io.open(SKILL_MD, encoding="utf-8") as fh:
+        skill = fh.read()
+    contract = load_contract()
 
     print("contract parses")
     print("-" * 74)
@@ -174,26 +174,32 @@ def main():
     print("1.1.0 rule keys")
     print("-" * 74)
     C = load_contract()
-    check(C["version"] == "1.3.0", "contract version is 1.3.0",
-          C["version"])
-    check(C["release"]["ships_with"] == "1.1.0",
-          "contract ships with 1.1.0", C["release"]["ships_with"])
-    check(C["problem_section"].get("rows_require_source_object") is True,
+    # Every read below goes through .get(), on the block as well as on the key
+    # inside it. `C["encoding"]` raises KeyError and takes the run down at
+    # check five, so a contract that never grew the block dies before the checks
+    # below it can report -- the suite stops being a measurement and becomes a
+    # traceback. That is the failure mode this whole section exists to catch,
+    # so the section may not have it either: a whole block deleted has to arrive
+    # as a run of FAILs, the same way one missing key does.
+    _rel = C.get("release") or {}
+    _ps = C.get("problem_section") or {}
+    _ly = C.get("layers") or {}
+    _en = C.get("encoding") or {}
+    _mm = C.get("mermaid") or {}
+    check(C.get("version") == "1.3.0", "contract version is 1.3.0",
+          C.get("version"))
+    check(_rel.get("ships_with") == "1.1.0",
+          "contract ships with 1.1.0", _rel.get("ships_with"))
+    check(_ps.get("rows_require_source_object") is True,
           "rows_require_source_object is declared and on")
-    check(C["layers"].get("distinct") is True,
+    check(_ly.get("distinct") is True,
           "layers.distinct is declared and on")
-    # The three .get() guards on the two new top-level blocks are what let the
-    # suite report a missing key as a FAIL. `C["encoding"]` raises KeyError and
-    # takes the run down at check five, so a contract that never grew the block
-    # dies before the two checks below it can report -- the suite stops being a
-    # measurement and becomes a traceback.
-    check((C.get("encoding") or {}).get("replacement_char") == "\ufffd",
+    check(_en.get("replacement_char") == "\ufffd",
           "encoding.replacement_char is U+FFFD",
-          repr((C.get("encoding") or {}).get("replacement_char")))
-    check((C.get("mermaid") or {}).get("required_diagrams")
-          == ["flowchart", "sequenceDiagram"],
+          repr(_en.get("replacement_char")))
+    check(_mm.get("required_diagrams") == ["flowchart", "sequenceDiagram"],
           "mermaid.required_diagrams names both diagrams",
-          repr((C.get("mermaid") or {}).get("required_diagrams")))
+          repr(_mm.get("required_diagrams")))
     # `sections` is a list of section objects, so `sections.exactly_once` has
     # nowhere to sit. It is a top-level bool instead -- one key, declared once,
     # rather than a second shape for the same rule.
@@ -383,34 +389,43 @@ def main():
     # The probe is `def <name>(`, not the bare name: report_qc.py calls
     # check() and mermaid_labels(), structure.py imports mermaid_labels, and
     # checks/text.py lists it in __all__ as a string. A bare-name search returns
-    # four files and the assertion below would hold for any of them.
+    # three files -- report_qc.py, checks/structure.py and checks/text.py --
+    # so an assertion holding for any one of them would hold for the wrong one.
+    #
+    # It searches _code_only() rather than the raw text, which is why the
+    # pattern is a regex: tokenizing joins the tokens with spaces, so `def`
+    # and `check(` are no longer adjacent. A bare substring search would also
+    # match the comment just above this one, which spells out
+    # `def check(` -- and a probe whose most likely way to go red is a
+    # sentence explaining the probe teaches the next reader to delete it.
+    # Comments and strings carry no definition, and _code_only() is the same
+    # helper the wiring counts above use, for the same reason.
     #
     # checks/fidelity.py and checks/encoding.py are named here before they
-    # exist -- 1.1.0 adds them, and this probe is the only place that will
-    # notice when they arrive holding the wrong thing. os.path.exists skips the
-    # names that are not there yet, so the suite does not go red on their
-    # absence and stays green until the module lands.
-    def where(token):
+    # exist. They are not on the list because one of the three functions below
+    # is expected to land in them -- none of the three belongs there -- but so
+    # that 1.1.0 can move any of them there without editing this probe, and so
+    # that the list is the whole gate rather than a subset of it.
+    # os.path.exists skips the names that are not there yet, so the suite does
+    # not go red on their absence and stays green until the module lands.
+    def where(pattern):
+        rx = _re.compile(pattern)
         out = []
-        for name in ("report_qc.py", "checks/structure.py", "checks/fidelity.py",
-                     "checks/advisory.py", "checks/encoding.py", "checks/text.py"):
+        for name in ("report_qc.py", "checks/structure.py",
+                     "checks/fidelity.py", "checks/advisory.py",
+                     "checks/encoding.py", "checks/text.py"):
             p = os.path.join(HERE, "..", "scripts", name)
             if not os.path.exists(p):
                 continue
-            t = io.open(p, encoding="utf-8").read()
-            if token in t:
+            if rx.search(_code_only(p)):
                 out.append(name)
         return out
 
-    check(where("def mermaid_labels(") == ["checks/text.py"],
-          "mermaid_labels() is defined in checks/text.py",
-          str(where("def mermaid_labels(")))
-    check(where("def check(") == ["checks/structure.py"],
-          "check() is defined in checks/structure.py",
-          str(where("def check(")))
-    check(where("def all_notes(") == ["checks/advisory.py"],
-          "all_notes() is defined in checks/advisory.py",
-          str(where("def all_notes(")))
+    for fn, home in (("mermaid_labels", "checks/text.py"),
+                     ("check", "checks/structure.py"),
+                     ("all_notes", "checks/advisory.py")):
+        found = where(r"\bdef\s+%s\s*\(" % fn)
+        check(found == [home], f"{fn}() is defined in {home}", str(found))
 
     print()
     print("-" * 74)
