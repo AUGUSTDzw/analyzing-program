@@ -47,6 +47,22 @@ def gate(text, tmpdir, name, extra=()):
     return r.returncode, r.stdout + r.stderr
 
 
+def finish():
+    print()
+    print("-" * 72)
+    print(f"{N_OK} checks passed, {len(FAILS)} failed")
+    return 1 if FAILS else 0
+
+
+def bail(label):
+    """A precondition of this file is gone, so every later probe would run on a
+    report we no longer control. Record the missing structure and exit cleanly:
+    an uncaught StopIteration/AttributeError would abort main() and silently
+    drop the remaining checks, which is worse than a counted failure."""
+    check(False, label)
+    return finish()
+
+
 def main():
     base = io.open(BASE, encoding="utf-8").read()
     tmp = tempfile.mkdtemp()
@@ -56,27 +72,42 @@ def main():
     check(rc0 == 0, "baseline report passes the gate", f"rc={rc0}")
 
     m = re.search(FENCE + "abap\n(.*?)" + FENCE, base, re.S)
+    if m is None:
+        return bail("abap fence is present in the baseline")
     lines = m.group(1).split("\n")
-    i = next(k for k, l in enumerate(lines)
-             if l.strip() and not l.strip().startswith(("*", '"')))
+    i = next((k for k, l in enumerate(lines)
+              if l.strip() and not l.strip().startswith(("*", '"'))), None)
+    if i is None:
+        return bail("baseline abap fence holds at least one quotable statement")
     lines[i] = "  lv_tampered = fabricated_token_does_not_exist( ) ."
     fabricated = base[:m.start(1)] + "\n".join(lines) + base[m.end(1):]
+    check(fabricated != base, "PROBE 1 substitution actually changed the report",
+          f"{len(base)} -> {len(fabricated)} bytes")
     rc, out = gate(fabricated, tmp, "p1_fabricated.md")
     check(rc == 0, "PROBE 1 gate currently PASSES a fabricated quote",
           f"rc={rc}")
-    check("do not occur in the source" in out,
-          "PROBE 1 the note is printed anyway")
+    check(re.search(r"(?im)^.*\bline\s+\d+\b.*$", out) is not None,
+          "PROBE 1 the advisory note is printed anyway, located by line number")
     rc, _ = gate(fabricated, tmp, "p1_fidelity.md", ("--fidelity-only",))
     check(rc == 1, "PROBE 1 --fidelity-only does reject it", f"rc={rc}")
 
     lines5 = base.split("\n")
-    i5 = next(k for k, l in enumerate(lines5) if l.startswith("## 五"))
-    j5 = next(k for k in range(i5 + 1, len(lines5)) if lines5[k].startswith("## "))
+    i5 = next((k for k, l in enumerate(lines5) if l.startswith("## 五")), None)
+    if i5 is None:
+        return bail("section five heading is present in the baseline")
+    j5 = next((k for k in range(i5 + 1, len(lines5))
+               if lines5[k].startswith("## ")), None)
+    if j5 is None:
+        return bail("section five is followed by another top-level heading")
     sec = lines5[i5:j5]
     rows = [k for k, l in enumerate(sec) if l.strip().startswith("|")]
     check(len(rows) > 4, "section five has rows to mutate", f"{len(rows)} rows")
+    if len(rows) < 5:
+        return bail("section five has header, divider and at least three rows")
     filler = "| P0 | 无 | 这段代码写得很好 | 无 | 无 | 无 |"
-    for k in rows[1:5]:
+    # rows[0] is the header and rows[1] the |---| divider: replacing either would
+    # break the table, not blank out a finding. Start at 2 to touch real rows only.
+    for k in rows[2:5]:
         sec[k] = filler
     empty = "\n".join(lines5[:i5] + sec + lines5[j5:])
     rc, _ = gate(empty, tmp, "p2_empty_rows.md")
@@ -107,6 +138,8 @@ def main():
     check(rc == 0, "PROBE 5 gate currently PASSES a replacement char in prose", f"rc={rc}")
 
     h1 = re.search(r"(?ms)^## 一.*?(?=^## 二)", base)
+    if h1 is None:
+        return bail("sections one and two are present in the baseline")
     dup = base[:h1.end()] + h1.group(0) + base[h1.end():]
     check(len(re.findall(r"(?m)^## 一", dup)) == 2,
           "PROBE 6 section one now appears twice")
@@ -122,10 +155,7 @@ def main():
     rc, _ = gate(mini, tmp, "p7_skeleton.md")
     check(rc != 0, "PROBE 7 gate REJECTS an empty skeleton (teeth intact)", f"rc={rc}")
 
-    print()
-    print("-" * 72)
-    print(f"{N_OK} checks passed, {len(FAILS)} failed")
-    return 1 if FAILS else 0
+    return finish()
 
 
 if __name__ == "__main__":
