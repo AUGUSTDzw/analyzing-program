@@ -82,12 +82,18 @@ def main():
     lines[i] = "  lv_tampered = fabricated_token_does_not_exist( ) ."
     fabricated = base[:m.start(1)] + "\n".join(lines) + base[m.end(1):]
     check(fabricated != base, "PROBE 1 substitution actually changed the report",
-          f"{len(base)} -> {len(fabricated)} bytes")
+          f"{len(base)} -> {len(fabricated)} chars")
     rc, out = gate(fabricated, tmp, "p1_fabricated.md")
     check(rc == 0, "PROBE 1 gate currently PASSES a fabricated quote",
           f"rc={rc}")
-    check(re.search(r"(?im)^.*\bline\s+\d+\b.*$", out) is not None,
-          "PROBE 1 the advisory note is printed anyway, located by line number")
+    # The token exists only in the report, never in the source, so its echo in
+    # the output can only come from the fidelity advisory quoting the bad line
+    # back (report_qc.py fidelity_note prints head[1][:60]!r). Matching on
+    # "line N" instead would also match the structural and fix advisories, which
+    # fire on the baseline too and so cannot tell this probe from a clean run.
+    check("fabricated_token_does_not_exist" in out,
+          "PROBE 1 the fidelity advisory echoes the fabricated statement back, "
+          "but plain mode still exits 0")
     rc, _ = gate(fabricated, tmp, "p1_fidelity.md", ("--fidelity-only",))
     check(rc == 1, "PROBE 1 --fidelity-only does reject it", f"rc={rc}")
 
@@ -101,10 +107,15 @@ def main():
         return bail("section five is followed by another top-level heading")
     sec = lines5[i5:j5]
     rows = [k for k, l in enumerate(sec) if l.strip().startswith("|")]
-    check(len(rows) > 4, "section five has rows to mutate", f"{len(rows)} rows")
     if len(rows) < 5:
-        return bail("section five has header, divider and at least three rows")
-    filler = "| P0 | 无 | 这段代码写得很好 | 无 | 无 | 无 |"
+        return bail("section five has header, divider and at least three rows "
+                    f"({len(rows)} table lines found)")
+    # Five cells, matching the P0 table's own header, so this probe blanks a
+    # finding without also changing the table shape. Every cell is prose with no
+    # backticked token and no identifier from the source: that is the whole
+    # defect, and keeping it the only defect means the probe can only flip when
+    # something learns to require a finding to name a source object.
+    filler = "| P0 | 无 | 这段代码写得很好 | 无 | 无 |"
     # rows[0] is the header and rows[1] the |---| divider: replacing either would
     # break the table, not blank out a finding. Start at 2 to touch real rows only.
     for k in rows[2:5]:
@@ -113,15 +124,31 @@ def main():
     rc, _ = gate(empty, tmp, "p2_empty_rows.md")
     check(rc == 0, "PROBE 2 gate currently PASSES rows with no content", f"rc={rc}")
 
-    triple = re.compile(r"(?m)^\*\*(" + "|".join(LAYERS) + r")\*\*\s*[—–:-]")
+    layer_re = r"(?m)^\*\*(" + "|".join(LAYERS) + r")\*\*[^\n]*"
+    triple = re.compile(layer_re)
     n_layers = len(triple.findall(base))
     check(n_layers >= 60, "report has enough layer lines to mutate",
           f"{n_layers}")
-    same = triple.sub(lambda mm: mm.group(0).split("**")[0]
-                      + "**" + mm.group(1) + "** — 这段代码值得一看。",
+    # The tail must go too. Replacing only the bold label leaves each block's
+    # original prose in place, so the three bodies stay different and the probe
+    # stops measuring what it claims: C2 compares bodies, and bodies that are
+    # still individually distinctive will not trip it. Swallowing the line and
+    # writing back one canned sentence per layer makes all three bodies equal,
+    # which is the defect the probe is named for.
+    same = triple.sub(lambda mm: "**" + mm.group(1) + "** — 这段代码值得一看。",
                       base)
     check(same != base, "PROBE 3 substitution actually changed the report",
-          f"{len(base)} -> {len(same)} bytes")
+          f"{len(base)} -> {len(same)} chars")
+    bodies = {}
+    for lab, body in re.findall(r"(?m)^\*\*(" + "|".join(LAYERS) + r")\*\*"
+                                r"\s*[—–:-]\s*(.*)$", same):
+        bodies.setdefault(lab, set()).add(body.strip())
+    distinct = {lab: len(b) for lab, b in bodies.items()}
+    check(sorted(distinct) == sorted(LAYERS) and set(distinct.values()) == {1},
+          "PROBE 3 every layer body is now one repeated sentence",
+          f"unique bodies per layer: {distinct}")
+    check(len({next(iter(b)) for b in bodies.values()}) == 1,
+          "PROBE 3 the three layer bodies are identical to each other")
     rc, _ = gate(same, tmp, "p3_same_layers.md")
     check(rc == 0, "PROBE 3 gate currently PASSES three identical layers", f"rc={rc}")
 
