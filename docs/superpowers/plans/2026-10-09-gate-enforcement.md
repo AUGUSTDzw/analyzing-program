@@ -35,7 +35,7 @@
 | `skill/analyzing-programs/scripts/checks/contract.py` | 读 `report-contract.json` 一次并暴露派生常量 |
 | `skill/analyzing-programs/scripts/checks/text.py` | 纯文本工具：`_flat` / `_claims` / `_strip_comment` / `fence_spans` / `line_of` / `source_blocks` 等，无副作用 |
 | `skill/analyzing-programs/scripts/checks/structure.py` | 现有 `check()` 原样搬入 + 新的 C1/C2/C5 |
-| `skill/analyzing-programs/scripts/checks/fidelity.py` | `fidelity_note` + token 分类 + PUNCT-ONLY/SUBSTANTIVE 分档 |
+| `skill/analyzing-programs/scripts/checks/fidelity.py` | `classify()` / `fidelity_report()` / token 比对 + 两档分诊 |
 | `skill/analyzing-programs/scripts/checks/advisory.py` | `density_note` / `fix_lang_note` / `fix_mislabel_note` / `authz_note` / `ext_asset_note` |
 | `skill/analyzing-programs/scripts/checks/encoding.py` | C3：`U+FFFD` 检查 |
 | `skill/analyzing-programs/tests/test_gate_enforcement.py` | 7 个探针的钉住用例（批次 1 记录现状 → 批次 3 翻转期望） |
@@ -552,7 +552,8 @@ git commit -m "refactor: check() 进 structure.py，note 进 advisory.py，notes
     check(C["mermaid"].get("required_diagrams") == ["flowchart", "sequenceDiagram"],
           "mermaid.required_diagrams names both diagrams",
           repr(C["mermaid"].get("required_diagrams")))
-    check(C["sections_anchor"] is not None or True, "sections.exactly_once present")
+    check(C.get("sections_exactly_once") is True,
+          "sections_exactly_once is declared and on")
 ```
 
 `check()` 与 `load_contract()` 若在 `test_contract_drift.py` 里已存在就直接用；`load_contract()` 定义为：
@@ -565,12 +566,9 @@ def load_contract():
         return json.load(fh)
 ```
 
-`sections` 契约键当前是 list，`sections.exactly_once` 无处安放——因此**放在契约顶层**，键名 `sections_exactly_once`（bool）。上面最后一个 `check` 改为：
-
-```python
-    check(C.get("sections_exactly_once") is True,
-          "sections_exactly_once is declared and on")
-```
+`sections` 契约键当前是 list，`sections.exactly_once` 无处安放——因此**放在契约顶层**，
+键名 `sections_exactly_once`（bool）。上面最后一个 `check` 就按这个键名写，不要留
+`sections_anchor` 之类的其它拼法。
 
 - [ ] **Step 2: 运行确认失败**
 
@@ -1214,7 +1212,7 @@ git commit -m "gate: C4 要求 flowchart 与 sequenceDiagram 各至少一张，�
   - `checks.tokens.tokenize(s) -> list[tuple[str, str]]`（类别 ∈ `ident`/`literal`/`number`/`punct`，值为归一化后的文本）
   - `checks.tokens.identity(seq) -> tuple`（去掉 `punct` 后的身份序列）
   - `checks.fidelity.classify(s, src) -> list[tuple[str, int, str, str]]`——`(tier, line, report_line, detail)`，tier ∈ `PUNCT-ONLY` / `SUBSTANTIVE`
-  - `checks.fidelity.fidelity_report(s, src) -> tuple[int, list[str]]`——`(substantive_count, note_strings)`
+  - `checks.fidelity.fidelity_report(s, src) -> (int, int, list, list)`——`(substantive_count, punct_only_count, tiers, notes)`
 
 **背景：** 这是全计划风险最高的一步，接受标准是 spec 的判据 A 与 B。
 
@@ -1373,17 +1371,27 @@ Create `skill/analyzing-programs/scripts/checks/fidelity.py`:
 
 Two tiers, decided in the spec for 1.1.0:
 
-  PUNCT-ONLY    the tokens that carry meaning are identical and only
-                punctuation moved. Advisory. Exit stays 0.
+  PUNCT-ONLY    punctuation differs from the source but the tokens carrying
+                meaning are identical. Advisory. Exit stays 0.
   SUBSTANTIVE   an identifier, a string literal or a number changed. The report
                 describes code that does not exist. Exit 1.
 
 Before 1.1.0 this was one note that never changed an exit code, so a report that
 invented an ABAP statement printed 'Check whether the report rewrote the source'
 and was still PASS. That is the single largest hole found on 2026-10-09.
+
+The tier is decided by two classifiers disagreeing, not by inspecting one
+statement -- see classify(), added in the next step.
 """
-from checks.text import _claims, fence_spans, line_of
+from checks.text import _claims, _flat, fence_spans, line_of
 from checks.tokens import identity, tokenize
+
+_DETAIL = {
+    "SUBSTANTIVE": "quoted statement does not occur in the source: an "
+                   "identifier, a literal or a number differs",
+    "PUNCT-ONLY": "punctuation differs from the source; the tokens carrying "
+                  "meaning are identical",
+}
 
 
 def _src_identities(src):
@@ -1391,18 +1399,48 @@ def _src_identities(src):
     seq = tokenize(src)
     ids = [identity(seq[i:]) for i in range(len(seq))]
     return set(i for i in ids if i)
+```
+
+`classify()` 与 `fidelity_report()` 在下一步加进来——它们依赖的 `_DETAIL` 与
+`_src_identities` 已经就位，**不要在这一步再写一遍它们**，下一步给的是最终形态。
+
+
+- [ ] **Step 6: 改成两算法差集**
+
+`classify()` 改为同时跑两个判定：
+
+```python
+from checks.contract import QUOTE_LANG as _QUOTE_LANG
+
+
+def _substring_mismatch(probe, flat_src):
+    """The pre-1.1.0 test: a flattened substring containment check.
+
+    Kept deliberately. It is what PUNCT-ONLY is measured against -- without it
+    there is no way to tell a punctuation slip from a rewrite, only to tell
+    'something differs' from 'nothing differs'.
+    """
+    return _flat(probe) not in flat_src
 
 
 def classify(s, src):
     """[(tier, line, report_line, detail)] for every quoted statement.
 
-    `line` is 1-based in the report. Statements that occur faithfully produce
-    nothing -- the old check emitted a note for anything not found by substring,
-    and a statement that tokenizes to a source window is faithful by definition.
+    `line` is 1-based in the report. Both classifiers run so the tier can be
+    decided by their disagreement:
+
+        old mismatch, new match   -> PUNCT-ONLY    punctuation moved
+        old mismatch, new mismatch -> SUBSTANTIVE   a name, literal or number changed
+        both match                -> faithful, nothing emitted
+
+    A statement the old check missed and the new check misses is still a
+    SUBSTANTIVE: neither algorithm is trusted to be exhaustive, so the union
+    decides.
     """
     if not src:
         return []
     src_ids = _src_identities(src)
+    flat_src = _flat(src)
     found = []
     for st, bs, be, _en, lang in fence_spans(s):
         if lang != _QUOTE_LANG.lower():
@@ -1417,76 +1455,83 @@ def classify(s, src):
             if not probe:
                 continue
             ident = identity(tokenize(probe))
-            if not ident or ident in src_ids:
+            new_ok = bool(ident) and ident in src_ids
+            old_ok = not _substring_mismatch(probe, flat_src)
+            if old_ok and new_ok:
                 continue
-            found.append(("SUBSTANTIVE", base + 1 + i, raw.strip(),
-                          "quoted statement does not occur in the source"))
+            tier = "SUBSTANTIVE" if not new_ok else "PUNCT-ONLY"
+            found.append((tier, base + 1 + i, raw.strip(), _DETAIL[tier]))
     return found
-
-
-def fidelity_report(s, src):
-    """(substantive_count, notes) -- notes in the order a caller should print."""
-    found = classify(s, src)
-    if not found:
-        return 0, []
-    notes = []
-    for tier, ln, rl, detail in found:
-        notes.append("%d quoted statement(s) do not occur in the source. "
-                     "First at line %d: %r. %s" % (len(found), ln, rl[:60], detail))
-    return len(found), notes
 ```
 
-顶部加 `_QUOTE_LANG`：
+模块里加 `_DETAIL`：
 
 ```python
-from checks.contract import QUOTE_LANG as _QUOTE_LANG
+_DETAIL = {
+    "SUBSTANTIVE": "quoted statement does not occur in the source: an "
+                   "identifier, a literal or a number differs",
+    "PUNCT-ONLY": "punctuation differs from the source; the tokens carrying "
+                  "meaning are identical",
+}
 ```
 
-**⚠️ 这一版还没有 PUNCT-ONLY 分档**——`identity` 相同就是忠实，不同就是 SUBSTANTIVE。
-标点级的假阳性怎么办，正是下一步要处理的：先跑判据 B 看真实影响面，再决定要不要
-引入 `PUNCT-ONLY` 中间档。
+`fidelity_report()` 同时返回 SUBSTANTIVE 计数、PUNCT-ONLY 计数与两档明细：
 
-- [ ] **Step 6: 跑判据 B**
+```python
+def fidelity_report(s, src):
+    """(n_substantive, n_punct_only, tiers, notes)."""
+    found = classify(s, src)
+    sub = [f for f in found if f[0] == "SUBSTANTIVE"]
+    pun = [f for f in found if f[0] == "PUNCT-ONLY"]
+    notes = []
+    if sub:
+        notes.append("%d quoted statement(s) rewrite the source. First at line "
+                     "%d: %r" % (len(sub), sub[0][1], sub[0][2][:60]))
+    if pun:
+        notes.append("%d quoted statement(s) differ from the source in "
+                     "punctuation only; advisory. First at line %d: %r"
+                     % (len(pun), pun[0][1], pun[0][2][:60]))
+    return len(sub), len(pun), found, notes
+```
+
+- [ ] **Step 7: 跑判据 A 与 B**
 
 Run: `cd skill/analyzing-programs && python tests/test_fidelity_tiers.py`
-Expected: 打印 `criterion B: zero SUBSTANTIVE` 的 `ok` 或 `FAIL` 与实际数字
+Expected: `criterion B: zero SUBSTANTIVE` 与判据 A 各自的 `ok`/`FAIL`
 
-**若报 FAIL 且数量 > 0**：逐条打印 tier 与 report_line，人工看。若都是标点级，引入
-中间档（Step 7）；若是真正的标识符差异，说明那些存档报告确实有问题，记下来但不因此
-放宽规则——把它们加入 `test_fidelity_tiers.py` 的白名单并注明理由。
-
-- [ ] **Step 7: 加 PUNCT-ONLY 中间档（若 Step 6 需要）**
-
-在 `classify()` 里，把 `ident in src_ids` 的判断改为：
+判据 A 的实现（旧集合 ⊆ 新集合）在测试里写成：
 
 ```python
-            if not ident:
+    old_only = 0
+    for p in reports:
+        s = io.open(p, encoding="utf-8").read()
+        src_text = io.open(SRC, encoding="utf-8").read()
+        flat_src = _flat(src_text)
+        old = set()
+        new = set()
+        for st, bs, be, _en, lang in fence_spans(s):
+            if lang != QUOTE_LANG.lower():
                 continue
-            if ident in src_ids:
-                continue
-            punct_only = _matches_ignoring_punct(ident, src_ids)
-            tier = "PUNCT-ONLY" if punct_only else "SUBSTANTIVE"
+            for i, raw in _claims(s[bs:be]):
+                probe = raw.strip().rstrip(".")
+                if not probe:
+                    continue
+                if _flat(probe) not in flat_src:
+                    old.add((bs, i, probe))
+                if identity(tokenize(probe)) not in _src_identities(src_text):
+                    new.add((bs, i, probe))
+        old_only += len(old - new)
+    check(old_only == 0,
+          "criterion A: no mismatch the old check saw is invisible to the new one",
+          f"{old_only} lost")
 ```
 
-并在模块里加：
+**若判据 A 报 FAIL**（有旧失配在新算法下变成忠实）：说明新检查漏了东西，这是安全问题，
+把那些语句单独记下来并**加回**判定，不要放宽规则。
 
-```python
-def _matches_ignoring_punct(ident, src_ids):
-    """True when the statement's identity differs from every source window only
-    by tokens the flattener used to normalise: a trailing period, a space before
-    a comma, an arrow written long or short."""
-    if not ident:
-        return False
-    punct_only_variants = set()
-    for cand in src_ids:
-        if len(cand) != len(ident):
-            continue
-        if all(a == b for a, b in zip(ident, cand)):
-            return True
-    return False
-```
-
-同时 `fidelity_report()` 改成两段返回，PUNCT-ONLY 的 note 措辞区别于 SUBSTANTIVE。
+**若判据 B 报 FAIL 且数量 > 0**：逐条打印 tier 与 report_line。SUBSTANTIVE 就是真正的
+标识符/字面量差异，那些存档报告确实有问题，记进 `test_fidelity_tiers.py` 的白名单并注明
+理由，不因此放宽规则。
 
 - [ ] **Step 8: `report()` 把 substantive 计进退出码**
 
@@ -1496,7 +1541,7 @@ def _matches_ignoring_punct(ident, src_ids):
     bad = check(s, src)
     name = os.path.basename(path)
     notes = all_notes(s, src)
-    n_sub, fid_notes = fidelity_report(s, src)
+    n_sub, n_pun, tiers, fid_notes = fidelity_report(s, src)
     if not bad and not n_sub:
         print(f"PASS  {name}")
         for n in notes + fid_notes:
@@ -1504,13 +1549,15 @@ def _matches_ignoring_punct(ident, src_ids):
         return 0
 ```
 
-`bad` 非空或 `n_sub > 0` 时，两类都要打印，且 `FAIL` 行要说明缺陷数：
+`bad` 非空或 `n_sub > 0` 时进入失败分支。**只有 SUBSTANTIVE 计入缺陷数**——
+PUNCT-ONLY 是 advisory，进 note 不进计数，否则标点差异会把报告判死：
 
 ```python
     for kind, ln, detail in sorted(bad, key=lambda x: (order.get(x[0], 9), x[1])):
         where = f"line {ln}" if ln else "document"
         print(f"  {kind:6} {where:>10}  {detail}")
-    for tier, ln, rl, detail in sorted(fidelity_tiers, key=lambda x: x[1]):
+    for tier, ln, rl, detail in sorted(
+            (t for t in tiers if t[0] == "SUBSTANTIVE"), key=lambda x: x[1]):
         where = f"line {ln}" if ln else "document"
         print(f"  {tier[:6]:6} {where:>10}  {detail}")
     print(f"FAIL  {name}  ({len(bad) + n_sub} defect(s))")
@@ -1519,24 +1566,28 @@ def _matches_ignoring_punct(ident, src_ids):
     return len(bad) + n_sub
 ```
 
-为此把 `fidelity_report()` 改成返回 `(n_sub, tiers, notes)` 三元组。
-
 - [ ] **Step 9: `--fidelity-only` 分支同步**
 
-`--fidelity-only` 已经会对任何 note 退 1，保持不变即可；但它调用的 `fidelity_note`
-现在应换成 `fidelity_tiers()`：
+`--fidelity-only` 现在调用的 `fidelity_note` 换成 `classify()`：
 
 ```python
-        tiers = fidelity_tiers(s, src)
-        if tiers:
-            print(f"FAIL  {os.path.basename(p)}")
-            for tier, ln, rl, detail in tiers:
-                print(f"  {tier[:6]:6} line {ln:>6}  {detail}: {rl[:60]}")
+        tiers = classify(s, src)
+        sub = [t for t in tiers if t[0] == "SUBSTANTIVE"]
+        pun = [t for t in tiers if t[0] == "PUNCT-ONLY"]
+        for tier, ln, rl, detail in sorted(tiers, key=lambda x: x[1]):
+            print(f"  {tier[:6]:6} line {ln:>6}  {detail}: {rl[:60]}")
+        if sub:
+            print(f"FAIL  {os.path.basename(p)}  "
+                  f"({len(sub)} rewrite(s), {len(pun)} punctuation-only)")
             rc = 1
+        else:
+            print(f"PASS  {os.path.basename(p)}"
+                  + (f"  ({len(pun)} punctuation-only)" if pun else ""))
 ```
 
-**注意**：`--fidelity-only` 对 PUNCT-ONLY 应当**不**退 1，否则它会因标点差异大面积失败，
-那正是当年加这个模式要避开的问题。改成只在有 SUBSTANTIVE 时退 1。
+**关键**：`--fidelity-only` 只在有 SUBSTANTIVE 时退 1。对 PUNCT-ONLY 退 1 会让它因标点
+差异大面积失败——那正是当年加这个模式要避开的问题（它的 docstring 记着一次隔离实验：
+格式强制让严格召回掉了 35 点，p=0.0215）。
 
 - [ ] **Step 10: 翻转探针 1**
 
@@ -1836,6 +1887,6 @@ git commit -m "release: 1.1.0 产物（zip + 解包目录 + SHA256SUMS）"
 3. Task 9 Step 6：需要补 sequenceDiagram 的内联报告有几处，取决于实际失败数。
 
 **类型一致性**：`check(s)` → `check(s, src=None)`；`all_notes(s, src=None) -> list[str]`；
-`classify(s, src) -> list[tuple[str,int,str,str]]`；`fidelity_report(s, src) -> (int, list, list)`；
+`classify(s, src) -> list[tuple[str,int,str,str]]`；`fidelity_report(s, src) -> (int, int, list, list)`；
 `tokenize(s) -> list[tuple[str,str]]`；`identity(seq) -> tuple`。Task 8 改签名后，
 Task 10 与 Task 11 调用的都是改后签名。
