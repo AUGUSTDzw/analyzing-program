@@ -215,9 +215,11 @@ def fix_mm(s):
     for i, ln in enumerate(lines):
         mk = FENCE_MARK.match(ln)
         if mk:
-            # A fence marker at the start of a line: if we were inside a
-            # diagram fence, this closes it; otherwise it may open a new one.
-            # The language decides whether we enter a diagram scope.
+            # FENCE_MARK.match(ln) checks the start of one line, unlike
+            # fence_spans' finditer(s) which pairs markers across the whole
+            # string. Here each marker is a boundary: inside a diagram fence
+            # it closes (inside -> False); outside, the language decides
+            # whether it opens a new diagram scope.
             inside = (lang_of(mk) == DIAGRAM_LANG.lower()) if not inside else False
             continue
         if not inside or not MM_BAD.search( ln):
@@ -267,7 +269,8 @@ def report(path, src=None):
         return 0
     order = {"fence": 0, "sec": 1, "sec-dup": 1, "prow": 2, "row-src": 3,
              "buck": 3, "ln": 4, "mm": 5, "mm-missing": 6, "A8-cc": 6,
-             "layer-same": 7, "A8-pt": 8, "enc": 9}
+             "layer-same": 7, "A8-pt": 8, "enc": 9,
+             "SUBSTANTIVE": 10, "PUNCT-ONLY": 10}
     for kind, ln, detail in sorted(bad, key=lambda x: (order.get(x[0], 9), x[1])):
         where = f"line {ln}" if ln else "document"
         print(f"  {kind:6} {where:>10}  {detail}")

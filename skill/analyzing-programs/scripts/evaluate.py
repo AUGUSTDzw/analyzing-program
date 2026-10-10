@@ -143,6 +143,9 @@ def load_verdicts(path, defects, title, need_evidence=True):
         msgs.append(f"`report` must be a path string, got "
                     f"{type(rep).__name__}")
         rep = None
+    elif rep and "\x00" in rep:
+        msgs.append(f"`report` path contains null bytes: {rep!r}")
+        rep = None
     if missing:
         msgs.append(f"{len(missing)} defect(s) never judged: {', '.join(missing)}")
     if extra:
