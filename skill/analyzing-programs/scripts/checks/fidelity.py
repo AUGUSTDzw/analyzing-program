@@ -26,23 +26,37 @@ _DETAIL = {
 }
 
 
+_MAX_WINDOW = 30
+_MAX_CACHE = 10
+_src_cache = {}
+
+
 def _src_identities(src):
-    """Every contiguous identity window up to 30 tokens in the source.
+    """Every contiguous identity window up to _MAX_WINDOW tokens in the source.
 
     A quoted statement is one statement, not a suffix. Checking identity
     membership means checking if the probe's identity tuple appears as a
     contiguous subsequence in the source -- which requires pre-computing
-    windows of every size, not just suffixes. Capped at 30 tokens to keep
-    the window count manageable (a full-scan O(n^2) set for a 5000-token
-    source would be 12.5M tuples).
+    windows of every size, not just suffixes. Capped at _MAX_WINDOW tokens per
+    position, so the count is O(N x _MAX_WINDOW) rather than the O(N^2) a full
+    unbounded scan would produce.
+
+    Cached: --fidelity-only checks multiple reports against one source. The
+    cache is bounded at _MAX_CACHE entries; the oldest entry is evicted when
+    the limit is reached.
     """
-    seq = identity(tokenize(src))
-    windows = set()
-    max_size = 30
-    for i in range(len(seq)):
-        for size in range(1, min(max_size, len(seq) - i) + 1):
-            windows.add(seq[i:i + size])
-    return windows
+    if src not in _src_cache:
+        if len(_src_cache) >= _MAX_CACHE:
+            # Evict the first-inserted entry. Dict insertion order is
+            # preserved since Python 3.7, so the first key is the oldest.
+            _src_cache.pop(next(iter(_src_cache)))
+        seq = identity(tokenize(src))
+        windows = set()
+        for i in range(len(seq)):
+            for size in range(1, min(_MAX_WINDOW, len(seq) - i) + 1):
+                windows.add(seq[i:i + size])
+        _src_cache[src] = windows
+    return _src_cache[src]
 
 
 def _substring_mismatch(probe, flat_src):

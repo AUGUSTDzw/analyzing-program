@@ -1,5 +1,14 @@
 """Advisories: things worth reading, and the one mode where one of them fails.
 
+Contract IDs (schemas/report-contract.json) use hyphens; Python function names
+use underscores. The mapping is 1:1:
+  density    -> density_note
+  fidelity   -> fidelity_note
+  fix-lang   -> fix_lang_note
+  authz      -> authz_note
+  ext-asset  -> ext_asset_note
+  fix-mislabel -> fix_mislabel_note [not in contract; internal only]
+
 `die()`'s docstring says a note never stops the run, and it is right about the
 failures it was written for: labelling a fatal error as a note let a caller that
 greps for advisories collect hard failures as soft ones. The six note functions
@@ -300,8 +309,8 @@ def all_notes(s, src=None):
     same order. One list, defined once.
 
     That order is what both modes print, so changing it changes the gate's
-    output in plain mode and --fix alike. No suite pins it: reversing every
-    note here still passes every suite. Deliberate -- do not reshuffle it on
+    output in plain mode and --fix alike. test_contract_drift.py pins the
+    order: reversing every note here fails a check. Do not reshuffle it on
     the way past.
     """
     out = []
@@ -311,8 +320,13 @@ def all_notes(s, src=None):
     n = fix_lang_note(s)
     if n:
         out.append(n)
-    for fn in (fix_mislabel_note, authz_note, ext_asset_note):
-        n = fn(s, src)
-        if n:
-            out.append(n)
+    n = fix_mislabel_note(s, src)
+    if n:
+        out.append(n)
+    n = authz_note(s, src)
+    if n:
+        out.append(n)
+    n = ext_asset_note(s, src)
+    if n:
+        out.append(n)
     return out

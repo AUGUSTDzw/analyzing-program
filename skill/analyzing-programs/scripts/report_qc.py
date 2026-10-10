@@ -164,6 +164,9 @@ def fix_ln(s, src):
             unparsed.append(inner)
             continue
         num = int(cm.group(1))
+        if num <= 0:
+            unparsed.append(inner)
+            continue
         if num > nl:
             past_end.append(inner)
             continue
@@ -212,8 +215,9 @@ def fix_mm(s):
     for i, ln in enumerate(lines):
         mk = FENCE_MARK.match(ln)
         if mk:
-            # The diagram fence opens on its own language and closes on any
-            # backtick run, so a fence opened inside a diagram is a boundary.
+            # A fence marker at the start of a line: if we were inside a
+            # diagram fence, this closes it; otherwise it may open a new one.
+            # The language decides whether we enter a diagram scope.
             inside = (lang_of(mk) == DIAGRAM_LANG.lower()) if not inside else False
             continue
         if not inside or not MM_BAD.search( ln):
@@ -263,7 +267,7 @@ def report(path, src=None):
         return 0
     order = {"fence": 0, "sec": 1, "sec-dup": 1, "prow": 2, "row-src": 3,
              "buck": 3, "ln": 4, "mm": 5, "mm-missing": 6, "A8-cc": 6,
-             "layer-same": 7, "A8-pt": 8}
+             "layer-same": 7, "A8-pt": 8, "enc": 9}
     for kind, ln, detail in sorted(bad, key=lambda x: (order.get(x[0], 9), x[1])):
         where = f"line {ln}" if ln else "document"
         print(f"  {kind:6} {where:>10}  {detail}")
@@ -300,15 +304,16 @@ class ReadError(Exception):
 def read_report(path):
     """Report text, or None when the path does not exist.
 
-    Same refusal as read_src, for the same reason: a decode failure has to
-    arrive as exit 2 through die(), never as a traceback exiting 1.
+    Same refusal as read_src, for the same reason: a decode failure or an
+    unreadable file has to arrive as exit 2 through die(), never as a
+    traceback exiting 1.
     """
     if not path or not os.path.exists(path):
         return None
     try:
         with io.open(path, encoding="utf-8", errors="strict", newline="") as fh:
             return fh.read()
-    except UnicodeDecodeError as e:
+    except (UnicodeDecodeError, OSError) as e:
         raise ReadError("%s is not readable as utf-8 (%s), so nothing "
                         "was checked" % (path, e)) from e
 
@@ -317,12 +322,12 @@ def read_src(path):
     """Source text, or None when no usable source path was given."""
     if not path or not os.path.exists(path):
         return None
-    with io.open(path, encoding="utf-8", errors="strict", newline="") as fh:
-        try:
+    try:
+        with io.open(path, encoding="utf-8", errors="strict", newline="") as fh:
             return fh.read()
-        except UnicodeDecodeError as e:
-            raise ReadError("%s is not readable as utf-8 (%s), so nothing "
-                            "was compared" % (path, e)) from e
+    except (UnicodeDecodeError, OSError) as e:
+        raise ReadError("%s is not readable as utf-8 (%s), so nothing "
+                        "was compared" % (path, e)) from e
 
 
 def die(msg):
@@ -363,6 +368,10 @@ def main(argv):
         if len(srcs) != 1:
             die("fidelity needs exactly one source path (got %d: %s)"
                      % (len(srcs), ", ".join(srcs) or "none"))
+        # A report and a source cannot be the same file: reading the same text as
+        # both markdown and ABAP produces meaningless results.
+        if os.path.abspath(reports[0]) == os.path.abspath(srcs[0]):
+            die("report and source cannot be the same file: %s" % reports[0])
         try:
             src = read_src(srcs[0])
         except ReadError as e:
@@ -403,7 +412,34 @@ def main(argv):
             print("--fix needs REPORT and SOURCE")
             return 2
         out = args[args.index("-o") + 1] if "-o" in args else None
-        rep, src = rest[0], rest[1]
+        # Validate the output path before doing any work: if the destination
+        # is not writable, the report would be modified but never written.
+        if out:
+            out_dir = os.path.dirname(os.path.abspath(out))
+            if not os.path.isdir(out_dir):
+                die("output path directory does not exist: %s" % out_dir)
+            if not os.access(out_dir, os.W_OK):
+                die("output path directory is not writable: %s" % out_dir)
+        # Same extension-based split as plain mode: a report is .md/.markdown,
+        # everything else is the source. Position does not decide.
+        reports, srcs = [], []
+        for a in rest:
+            if a.lower().endswith((".md", ".markdown")):
+                reports.append(a)
+            else:
+                srcs.append(a)
+        if not reports:
+            die("no report path: --fix REPORT SOURCE (got: %s)"
+                % ", ".join(rest))
+        if len(srcs) != 1:
+            die("fix needs exactly one source: %s"
+                % ", ".join(srcs) if srcs else "none")
+        rep, src = reports[0], srcs[0]
+        # A report and a source cannot be the same file: reading the same text as
+        # both markdown and ABAP produces meaningless results and a ReadError that
+        # looks like corruption.
+        if os.path.abspath(rep) == os.path.abspath(src):
+            die("report and source cannot be the same file: %s" % rep)
         if not os.path.exists(rep):
             die("no such report: %s" % rep)
         if not os.path.exists(src):
@@ -479,6 +515,11 @@ def main(argv):
     for p in reports:
         if not os.path.exists(p):
             die("no such report: %s" % p)
+    # A report and a source cannot be the same file: reading the same text as
+    # both markdown and ABAP produces meaningless results and a ReadError that
+    # looks like corruption.
+    if srcs and os.path.abspath(reports[0]) == os.path.abspath(srcs[0]):
+        die("report and source cannot be the same file: %s" % reports[0])
     try:
         src = read_src(srcs[0] if srcs else None)
     except ReadError as e:

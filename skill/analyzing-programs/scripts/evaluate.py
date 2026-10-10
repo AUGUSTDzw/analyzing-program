@@ -72,6 +72,10 @@ def load_defects(path):
     bad = [i for i in ids if not i]
     if bad:
         die([f"{len(bad)} defect(s) have no id"], path)
+    nonstr = [i for i in ids if not isinstance(i, str)]
+    if nonstr:
+        die([f"{len(nonstr)} defect(s) have non-string ids: "
+             + ", ".join(repr(x) for x in nonstr[:3])], path)
     dup = sorted({i for i in ids if ids.count(i) > 1})
     if dup:
         die([f"duplicate id(s): {', '.join(map(str, dup))}"], path)
@@ -157,7 +161,11 @@ def load_verdicts(path, defects, title, need_evidence=True):
         ev = {}
     rep_body = None
     if rep and os.path.exists(rep):
-        rep_body = io.open(rep, encoding="utf-8").read().split("\n")
+        try:
+            rep_body = io.open(rep, encoding="utf-8").read().split("\n")
+        except (OSError, UnicodeDecodeError) as e:
+            msgs.append(f"`report` {rep} is not readable: {e}")
+            rep_body = None
     elif need_evidence and any(v in ("yes", "partial") for v in (got or {}).values()):
         # Without the report, report_line and quote cannot be checked, so a
         # citation requirement would be accepted without being verified. It read
@@ -275,8 +283,18 @@ def sign_p(b, c):
 def cmd_compare(a):
     d = load_defects(a.defects)
     ids = [x["id"] for x in d["defects"]]
-    A = load_verdicts(a.a, d["defects"], a.a, not a.legacy)["verdicts"]
-    B = load_verdicts(a.b, d["defects"], a.b, not a.legacy)["verdicts"]
+    A_full = load_verdicts(a.a, d["defects"], a.a, not a.legacy)
+    B_full = load_verdicts(a.b, d["defects"], a.b, not a.legacy)
+    # Both verdict files must reference the same report; comparing two different
+    # reports against one defect list is a paired test that was never run.
+    rep_a = A_full.get("report")
+    rep_b = B_full.get("report")
+    if rep_a and rep_b and os.path.basename(rep_a) != os.path.basename(rep_b):
+        die([f"verdict files reference different reports: "
+             f"{os.path.basename(rep_a)} vs {os.path.basename(rep_b)}"],
+            "compare")
+    A = A_full["verdicts"]
+    B = B_full["verdicts"]
     ta, wa = tally(A, d["defects"])
     tb, wb = tally(B, d["defects"])
     up = [i for i in ids if SCORE[B[i]] > SCORE[A[i]]]

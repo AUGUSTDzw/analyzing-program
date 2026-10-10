@@ -427,6 +427,25 @@ def main():
         found = where(r"\bdef\s+%s\s*\(" % fn)
         check(found == [home], f"{fn}() is defined in {home}", str(found))
 
+    # all_notes() ordering is load-bearing: it decides the order the gate prints
+    # advisories in plain mode and --fix alike. No test pinned it, so reversing
+    # every note still passed every suite. Pin the order by checking the call
+    # sequence in the source text.
+    adv_path = os.path.join(HERE, "..", "scripts", "checks", "advisory.py")
+    adv_src = io.open(adv_path, encoding="utf-8").read()
+    expected_order = ["density_note", "fix_lang_note",
+                      "fix_mislabel_note", "authz_note", "ext_asset_note"]
+    positions = []
+    for fn in expected_order:
+        m = _re.search(r"\b%s\s*\(" % fn, adv_src)
+        if m:
+            positions.append((fn, m.start()))
+    check(len(positions) == len(expected_order),
+          "all_notes() calls all five advisories", str(len(positions)))
+    check(positions == sorted(positions, key=lambda x: x[1]),
+          "all_notes() calls advisories in documented order",
+          [p[0] for p in sorted(positions, key=lambda x: x[1])])
+
     print()
     print("-" * 74)
     if fails:

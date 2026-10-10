@@ -11,8 +11,8 @@ from checks.contract import (A8_GAP, BUCKETS, CONTRACT, DIAGRAM_LANG, LAYERS,
                              LINE_NUM, PSEC_RE, ROW, SEC_RE, _NEXT_SEC_RE)
 from checks.encoding import replacement_defects
 from checks.text import (TICK, TAG, _flat, blank_fences, fence_defects,
-                           fence_spans, layer_bodies, line_of, mermaid_labels,
-                           mm_violation, source_blocks)
+                         fence_spans, layer_bodies, line_of, mermaid_labels,
+                         mm_violation, source_blocks)
 
 SECTIONS_EXACTLY_ONCE = CONTRACT.get("sections_exactly_once", False)
 LAYERS_DISTINCT = CONTRACT["layers"].get("distinct", False)
@@ -30,6 +30,27 @@ __all__ = ["check"]
 
 _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]{2,}")
 
+# Common ABAP keywords that match _IDENT but are not source objects. A row that
+# says "this code uses FOR loops" would otherwise pass the source-name test
+# because FOR occurs in almost every ABAP program.
+_ABAP_KEYWORDS = frozenset([
+    "and", "as", "at", "by", "case", "catch", "clear", "collected",
+    "continue", "data", "declare", "delete", "describe", "display",
+    "do", "endcase", "endcatch", "enddo", "endif", "endfunction",
+    "endmethod", "endmodule", "endon", "endprovid", "endselect",
+    "endsql", "endtry", "endwhile", "exec", "export", "extract",
+    "fetch", "field", "fieldsymbol", "for", "form", "free", "from",
+    "function", "generate", "get", "group", "hiding", "if", "import",
+    "in", "include", "into", "interface", "is", "itab",
+    "loop", "method", "modify", "module", "mov", "nesting",
+    "or", "otherwise", "out", "performs", "place", "placing",
+    "position", "read", "receive", "ref", "refresh", "return", "returns",
+    "select", "set", "show", "skip", "source", "split", "static", "step",
+    "structure", "table", "test", "then", "to", "tokenize", "type",
+    "types", "using", "value", "when", "where", "while", "with",
+    "write",
+])
+
 
 def _row_names_source(row, flat_src):
     """True when a problem row points at something the source actually has.
@@ -37,12 +58,18 @@ def _row_names_source(row, flat_src):
     A backticked token counts on its own -- the writer chose to mark it as code.
     Otherwise the row must contain an identifier-shaped token that occurs in the
     source text. 'this code is written well' satisfies neither.
+
+    Common ABAP keywords are excluded: FOR, AND, LOOP etc. appear in almost
+    every program, so they would satisfy the test without naming a specific
+    object.
     """
     if "`" in row:
         return True
     if flat_src is None:
         return False           # no source given: cannot judge, so do not fail
-    return any(m.group(0).lower() in flat_src for m in _IDENT.finditer(row))
+    return any(m.group(0).lower() in flat_src
+               and m.group(0).lower() not in _ABAP_KEYWORDS
+               for m in _IDENT.finditer(row))
 
 
 def _missing_diagrams(s):
@@ -68,7 +95,7 @@ def _missing_diagrams(s):
                 continue
             if re.search(r"^\s*" + re.escape(t) + r"\b", blk, re.M):
                 have[t] = line_of(s, st)
-    return [("mm-missing", have.get(t, 0),
+    return [("mm-missing", 0,
              "SKILL.md requires a Mermaid %s; the report has none" % t)
             for t in REQUIRED_DIAGRAMS if t not in have]
 

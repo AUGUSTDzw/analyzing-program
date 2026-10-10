@@ -348,7 +348,6 @@ def _strip_comment(l):
     return "" if l.lstrip().startswith("*") else l
 
 
-
 def _claims(body):
     """(line_index_in_block, text) for every line that asserts about source.
 
