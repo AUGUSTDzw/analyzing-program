@@ -64,7 +64,13 @@ def _row_names_source(row, flat_src):
     object.
     """
     if "`" in row:
-        return True
+        # Backticks can be markdown formatting or code references. Require a
+        # backticked token that looks like an identifier and appears in the
+        # source, not just the presence of any backtick character.
+        bt_matches = re.findall(r"`([^`]+)`", row)
+        if bt_matches:
+            return any(m.lower() in flat_src and m.lower() not in _ABAP_KEYWORDS
+                       for m in bt_matches)
     if flat_src is None:
         return False           # no source given: cannot judge, so do not fail
     return any(m.group(0).lower() in flat_src

@@ -17,20 +17,14 @@ a list of whichever fired, and is the only thing here that returns a list. So
 nothing in this module can exit anything -- a note here is a value, and the mode
 that printed it decides what it is worth.
 
-Five of the six are advisory wherever the gate runs. fidelity_note is the
-exception, and deliberately so: --fidelity-only adjudicates it alone and
-promotes it to a failure, exiting 1. That is the mode asking a question and
-counting the answer, not a note deciding to stop the run -- which is why the
-promotion lives in report_qc.py's --fidelity-only branch and not here. Plain mode
-prints it as a note and its exit code is check()'s alone: 0 when the structure is
-clean, 1 when check() found a defect, and nothing in between on this note's
-account.
+All five are advisory wherever the gate runs: they return a string or None,
+and none of them prints. all_notes() returns a list of whichever fired.
+Nothing in this module can exit anything -- a note here is a value, and the
+mode that printed it decides what it is worth.
 
-That mode is not fidelity having teeth. What 1.1.0 intends, and what Task 10
-does, is splitting the note in two: PUNCT-ONLY stays advisory, SUBSTANTIVE gets
-counted in plain mode's exit code. Until that lands, a report that invented an
-ABAP statement prints "Check whether the report rewrote the source" and still
-passes the structural pass.
+Fidelity checking moved to fidelity.py (classify() + fidelity_report()) in
+1.1.0: PUNCT-ONLY stays advisory, SUBSTANTIVE gets counted in plain mode's
+exit code. The old fidelity_note function was removed.
 """
 import re
 
@@ -44,7 +38,7 @@ from checks.text import (_claims, _flat, block_head, fence_spans, in_risk_layer,
 # and an explicit list turns a name that arrived by accident into a NameError at
 # import.
 __all__ = ["density_note", "fix_lang_note", "fix_mislabel_note", "authz_note",
-           "ext_asset_note", "fidelity_note", "all_notes"]
+           "ext_asset_note", "all_notes"]
 
 
 def density_note(s, src):
@@ -241,8 +235,8 @@ def ext_asset_note(s, src):
     """
     if not src:
         return None
-    names = set(re.findall(r"['\"]([ZIY](?:[A-Z0-9]+_)*N[A-Z0-9_]*(?:_LOGO(?:_SMALL|_LARGE|_ICON)?|_ICON|_BITMAP|_LOGO))['\"]",
-                           src))
+    names = set(re.findall(r"['\"]([ZIY][A-Z0-9_]*(?:_LOGO(?:_SMALL|_LARGE|_ICON)?|_ICON|_BITMAP))['\"]",
+                            src))
     if not names:
         return None
     guards = re.findall(r"\bTRY\b|\bAT\s+SELECTION-SCREEN\b|\bEXCEPTIONS\b", src, re.I)
@@ -257,50 +251,6 @@ def ext_asset_note(s, src):
             f"has {len(guards)} TRY/EXCEPTIONS guard(s) in total; check that each "
             f"named asset's call site is actually inside one, and say so in the "
             f"report.")
-
-
-def fidelity_note(s, src):
-    """Advisory: quoted statements that do not occur in the source.
-
-    The skill requires pasted code to be character-for-character faithful and
-    forbids altering statements to read better. Nothing structural can see this:
-    a fabricated block still has six sections, three layers per block and four
-    priority buckets.
-
-    Measured over 1444 quoted statements in ten reports, 16 did not occur in the
-    source and 11 of those 16 were substantive. The worst was not a rename: a
-    report quoted two calls that load a prior and a latest version and gave both
-    the same argument, so the code it described no longer did what it does.
-
-    Reported, not enforced. Three of the sixteen are punctuation or a merged
-    TYPES header, and 69% precision is not good enough to fail a report -- the
-    same reason density is advisory. It is good enough to be worth reading.
-    """
-    if not src:
-        return None
-    sf = _flat(src)
-    bad = []
-    n = 0
-    for st, bs, be, _en, lang in fence_spans(s):
-        if lang != QUOTE_LANG.lower():
-            continue
-        base = line_of(s, st)
-        for i, l in _claims(s[bs:be]):
-            n += 1
-            probe = l.strip()
-            c = probe.find('"')
-            if c >= 0:
-                probe = probe[:c]      # a statement comment is prose, not code
-            probe = probe.rstrip(".")
-            if probe and _flat(probe) not in sf:
-                bad.append((base + 1 + i, l.strip()))
-    if not bad:
-        return None
-    head = bad[0]
-    more = f" (+{len(bad)-1} more)" if len(bad) > 1 else ""
-    return (f"{len(bad)} quoted statement(s) of {n} do not occur in the source. "
-            f"First at line {head[0]}: {head[1][:60]!r}{more}. "
-            f"Check whether the report rewrote the source.")
 
 
 def all_notes(s, src=None):
