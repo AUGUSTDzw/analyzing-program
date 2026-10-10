@@ -47,7 +47,7 @@ _ABAP_KEYWORDS = frozenset([
     "position", "read", "receive", "ref", "refresh", "return", "returns",
     "select", "set", "show", "skip", "source", "split", "static", "step",
     "structure", "table", "test", "then", "to", "tokenize", "type",
-    "types", "using", "value", "when", "where", "while", "with",
+    "types", "using", "until", "value", "when", "where", "while", "with",
     "write",
 ])
 

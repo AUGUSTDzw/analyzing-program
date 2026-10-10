@@ -498,6 +498,11 @@ def main(argv):
             print(f"PASS  {os.path.basename(dest)}")
         for note in all_notes(fixed, ssrc):
             print(f"  note  {note}")
+        # --fix repairs mechanical defects only; fidelity violations are
+        # reported but not repaired. Print them so the caller knows.
+        n_sub, n_pun, _tiers, fid_notes = fidelity_report(fixed, ssrc)
+        for fn in fid_notes:
+            print(f"  note  {fn}")
         # Repaired what could be repaired; whatever is left needs the model, and
         # the caller has to be able to see that. Returning 0 here made a partial
         # repair indistinguishable from a finished one.

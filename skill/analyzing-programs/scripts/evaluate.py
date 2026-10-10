@@ -176,6 +176,7 @@ def load_verdicts(path, defects, title, need_evidence=True):
         why = f"`report` {rep} does not exist" if rep else "`report` is missing"
         msgs.append(why + ", so report_line and quote cannot be checked; pass "
                      "--legacy for files that predate citations")
+    norm = lambda t: re.sub(r"\s+", " ", t).strip().lower()
     for k, verdict in (got or {}).items():
         if verdict not in ("yes", "partial"):
             continue
@@ -209,7 +210,6 @@ def load_verdicts(path, defects, title, need_evidence=True):
                         f"evidence.{k}.quote, or pass --legacy for files that "
                         f"predate citations")
             continue
-        norm = lambda t: re.sub(r"\s+", " ", t).strip().lower()
         if norm(str(q)) not in norm(rep_body[ln - 1]):
             msgs.append(f"evidence.{k}.quote does not appear on "
                         f"report line {ln}")
