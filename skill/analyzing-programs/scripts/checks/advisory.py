@@ -82,7 +82,8 @@ def density_note(s, src):
                 % " / ".join(names))
     blocks = len(list(source_blocks(s)))
     d = blocks / len(inv)
-    named = sum(1 for n in inv if n.lower() in s.lower())
+    s_lower = s.lower()
+    named = sum(1 for n in inv if n.lower() in s_lower)
     if d >= DENSITY_FLOOR:
         return None
     return (f"low density: {blocks} quoted block(s) for {len(inv)} declared "

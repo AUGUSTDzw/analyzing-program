@@ -319,7 +319,7 @@ CJK = re.compile(r"[\u4e00-\u9fff]")
 STR_LIT = re.compile(r"'[^']*'")
 # The source writes "t_documents ," with a space before the comma; the report
 # writes "t_documents,". Punctuation spacing, not a rewritten statement.
-PUNCT = re.compile(r"\s+([,;:)])")
+PUNCT = re.compile(r"\s+([,;:]，；：])")
 
 
 def _flat(s):

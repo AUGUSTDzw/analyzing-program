@@ -292,7 +292,7 @@ def cmd_compare(a):
     # reports against one defect list is a paired test that was never run.
     rep_a = A_full.get("report")
     rep_b = B_full.get("report")
-    if rep_a and rep_b and os.path.basename(rep_a) != os.path.basename(rep_b):
+    if rep_a and rep_b and os.path.abspath(rep_a) != os.path.abspath(rep_b):
         die([f"verdict files reference different reports: "
              f"{os.path.basename(rep_a)} vs {os.path.basename(rep_b)}"],
             "compare")
