@@ -45,8 +45,8 @@ the source path then reads exactly like a clean fidelity pass, which is the one
 false reassurance this script is allowed to give.
 
 Defects and advisories are different things here on purpose. check() failures
-exit nonzero; the six advisories -- density, fidelity, fix-lang, fix-mislabel,
-authz and ext-asset -- print as `note` and do not change
+exit nonzero; the five advisories -- density, fix-lang, fix-mislabel, authz and
+ext-asset -- print as `note` and do not change
 the exit code in plain mode, because plain mode is the structural pass and the
 fidelity violations it happens to see are adjudicated by --fidelity-only, which
 does promote them to a failure. A note is a question for the writer, not a gate.
@@ -95,10 +95,10 @@ try:
     # fidelity_note is named for --fidelity-only, which adjudicates it alone and
     # promotes it to a failure. The other five are called from inside all_notes
     # rather than here, and are imported so this module stays the gate's whole
-    # surface: test_contract_drift.py reads four of the six off the module it
+    # surface: test_contract_drift.py reads four of the five off the module it
     # loads, and an advisory the gate can no longer reach by name is the drift
     # that suite exists to catch. authz_note and ext_asset_note are in none of
-    # its tuples; naming all six keeps the surface uniform rather than
+    # its tuples; naming all five keeps the surface uniform rather than
     # importing only the ones a given test happens to list today.
     # The five unused ones lead, because that is the line pyflakes reports all of
     # them on and therefore the only line where the F401 marker means what it

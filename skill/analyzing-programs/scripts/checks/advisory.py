@@ -3,7 +3,6 @@
 Contract IDs (schemas/report-contract.json) use hyphens; Python function names
 use underscores. The mapping is 1:1:
   density    -> density_note
-  fidelity   -> fidelity_note
   fix-lang   -> fix_lang_note
   authz      -> authz_note
   ext-asset  -> ext_asset_note
@@ -11,7 +10,7 @@ use underscores. The mapping is 1:1:
 
 `die()`'s docstring says a note never stops the run, and it is right about the
 failures it was written for: labelling a fatal error as a note let a caller that
-greps for advisories collect hard failures as soft ones. The six note functions
+greps for advisories collect hard failures as soft ones. The five note functions
 here each return a string or None, and none of them prints; all_notes() returns
 a list of whichever fired, and is the only thing here that returns a list. So
 nothing in this module can exit anything -- a note here is a value, and the mode
