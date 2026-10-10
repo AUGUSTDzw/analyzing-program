@@ -188,8 +188,8 @@ def main():
     _mm = C.get("mermaid") or {}
     check(C.get("version") == "1.3.0", "contract version is 1.3.0",
           C.get("version"))
-    check(_rel.get("ships_with") == "1.1.2",
-          "contract ships with 1.1.2", _rel.get("ships_with"))
+    check(_rel.get("ships_with") == "1.1.1",
+          "contract ships with 1.1.1", _rel.get("ships_with"))
     check(_ps.get("rows_require_source_object") is True,
           "rows_require_source_object is declared and on")
     check(_ly.get("distinct") is True,

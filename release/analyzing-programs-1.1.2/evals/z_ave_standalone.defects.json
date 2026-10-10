@@ -1,0 +1,217 @@
+{
+  "_schema": [
+    "Defect reference for one ABAP source. Report-agnostic: it describes the",
+    "source, not any report, so it stays valid as reports change.",
+    "",
+    "source   the file these defects were read out of, relative to Test-source/real",
+    "defects  one entry per defect:",
+    "           id        stable identifier, referenced by verdict files",
+    "           area      which part of the program the defect lives in",
+    "           question  phrased so a judge can decide yes/partial/no from the",
+    "                     report text alone, without guessing at intent",
+    "           anchor    the source text that makes the defect checkable; some",
+    "                     defects carry `anchors` (a list) instead",
+    "",
+    "Score a report with:  python scripts/evaluate.py score --defects THIS.json \\",
+    "                                                --verdicts YOURVERDICTS.json"
+  ],
+  "source": "Test-source/real/ysichov__AVE__src__z_ave_standalone.prog.abap",
+  "defects": [
+    {
+      "id": "D1",
+      "area": "zcl_ave_ai_api / LLM",
+      "question": "yes/no: /ui2/cl_json=>deserialize is called with no TRY/CATCH in PARSE_RESPONSE and LIST_MODELS, so a provider error body (HTML page, truncated JSON, {\"error\":...}) raises an unhandled exception and dumps the report instead of returning a degraded answer?",
+      "anchors": [
+        "/ui2/cl_json=>deserialize( EXPORTING json = i_json CHANGING data = response )."
+      ]
+    },
+    {
+      "id": "D2",
+      "area": "selection screen / secrets",
+      "question": "yes/no: the LLM API key is declared as a plain unmasked PARAMETER with MEMORY ID, so the secret is displayed on the selection screen and persisted in the user's ABAP/SPA session memory readable by any other report in that session?",
+      "anchors": [
+        "p_apikey TYPE text255 MEMORY ID api."
+      ]
+    },
+    {
+      "id": "D3",
+      "area": "authorisation",
+      "question": "yes/no: the report contains no AUTHORITY-CHECK at all, yet it writes/overwrites/deletes rows in ZAVE_REVIEW keyed only by (TRKORR, REMOTE) - so any user who can execute Z_AVE can rewrite any transport request's review verdicts and notes?",
+      "anchors": [
+        "UPDATE (lv_tabname)",
+        "SET payload = @lv_payload_json"
+      ]
+    },
+    {
+      "id": "D4",
+      "area": "zcl_ave_popup / GUI controls",
+      "question": "yes/no: CREATE OBJECT mo_html lists EXCEPTIONS cntl_error/cntl_install_error/dp_*/OTHERS but sy-subrc is never checked, so a failed HTMLViewer creation is followed by mo_html->set_registered_events on an unbound reference -> CX_SY_REF_IS_INITIAL dump?",
+      "anchors": [
+        "mo_html->set_registered_events( lt_html_ev )."
+      ]
+    },
+    {
+      "id": "D5",
+      "area": "zcl_ave_popup / GUI lifecycle",
+      "question": "yes/no: BUILD_LAYOUT does `IF sy-subrc <> 0. RETURN. ENDIF.` when CREATE OBJECT mo_box fails, but SHOW ignores that and calls BUILD_PARTS_LIST, which then does CREATE OBJECT mo_toolbar EXPORTING parent = mo_cont_toolbar on an unbound parent - dump instead of a clean error?",
+      "anchors": [
+        "CREATE OBJECT mo_toolbar EXPORTING parent = mo_cont_toolbar."
+      ]
+    },
+    {
+      "id": "D6",
+      "area": "main program / GUI lifecycle",
+      "question": "yes/no: the global go_popup is overwritten by `go_popup = NEW zcl_ave_popup(...)` on every Enter, with no IS BOUND guard and no mo_box->close/free; CL_GUI_BOX is non-modal with lifetime_dynpro, so orphaned windows with dead event handlers accumulate?",
+      "anchors": [
+        "go_popup = NEW zcl_ave_popup("
+      ]
+    },
+    {
+      "id": "D7",
+      "area": "main program / flow",
+      "question": "yes/no: the whole application is launched from AT SELECTION-SCREEN guarded by `CHECK sy-ucomm IS INITIAL` and there is no START-OF-SELECTION, so F8/Execute (and every other toolbar command) does nothing at all?",
+      "anchors_note": "the original anchor text is not in the source verbatim; kept so a human can re-derive it",
+      "anchor": "FORM run_ave.\n  \" Open popup only when the user pressed Enter (ucomm is initial)\"\n  CHECK sy-ucomm IS INITIAL.",
+      "anchors": [
+        "FORM run_ave.",
+        "\" Open popup only when the user pressed Enter (ucomm is initial)",
+        "CHECK sy-ucomm IS INITIAL."
+      ]
+    },
+    {
+      "id": "D8",
+      "area": "zcl_ave_acr_prepare / comment check",
+      "question": "yes/no: IS_OTHER_SYSTEM_KORR compares TRKORR character 3 (a CLIENT digit) against SY-SYSID (a 3-char system id), so requests of other clients are classified as 'another system' and get verdict 'R' = 'retrofit, not a fault', silently suppressing the W/N/T findings?",
+      "anchors": [
+        "result = xsdbool( iv_korr(3) <> sy-sysid )."
+      ]
+    },
+    {
+      "id": "D9",
+      "area": "zcl_ave_acr_prepare / static cache",
+      "question": "yes/no: gt_korr_exists (CLASS-DATA) caches both positive AND negative 'does this TR exist here' answers and is never CLEARed (only gt_scope_korr is reset per review), so a request created later in the same GUI session is still reported as 'N' - no such TR - a false review finding?",
+      "anchors": [
+        "CLASS-DATA gt_korr_exists TYPE HASHED TABLE OF ty_korr_known WITH UNIQUE KEY korrnum."
+      ]
+    },
+    {
+      "id": "D10",
+      "area": "zcl_ave_acr_hunk_info / blame",
+      "question": "yes/no: per-hunk author attribution does READ TABLE it_blame WITH KEY text = <source line>; the blame map is keyed by line TEXT, not by line number, so duplicate lines (ENDIF., ENDLOOP., CONTINUE.) all resolve to the first occurrence's author and the per-author hunk/line statistics are wrong?",
+      "anchors": [
+        "READ TABLE it_blame INTO DATA(ls_hb) WITH KEY text = ls_dop-text."
+      ]
+    },
+    {
+      "id": "D11",
+      "area": "zcl_ave_popup~show_source / DDIC",
+      "question": "yes/no: SHOW_SOURCE reads mt_versions with WITH KEY versno/objtype/objname and never checks sy-subrc, then passes ls_ver_row-system into GET_TABD/GET_DOMA; when the row is not found SYSTEM stays initial and those methods fall into their `iv_system IS INITIAL` branch and return the LIVE ACTIVE definition via DDIF_TABL_GET - an old or remote version is silently displayed as today's active one?",
+      "anchors": [
+        "READ TABLE mt_versions INTO DATA(ls_ver_row)",
+        "WITH KEY versno = i_versno objtype = i_objtype objname = i_objname."
+      ]
+    },
+    {
+      "id": "D12",
+      "area": "zcl_ave_ai_api / error contract",
+      "question": "yes/no: PARSE_RESPONSE falls back to `rv_answer = i_json` (the raw body) whenever content/choices are absent, but all callers detect failure with `CP/NP 'Error:*'`; so a well-formed JSON error body (429/400/401) is treated as a successful AI answer and SAVE_SUMMARY/do_ai_summary persists it into ZAVE_REVIEW as the object's AI review summary?",
+      "anchors": [
+        "IF lv_summary_answer IS NOT INITIAL AND lv_summary_answer NP 'Error:*'."
+      ]
+    },
+    {
+      "id": "D13",
+      "area": "cross-class static state",
+      "question": "yes/no: zcl_ave_popup's constructor writes three OTHER classes' statics (zcl_ave_popup_data=>mv_no_toc, zcl_ave_acr_prepare=>gv_comment_check, zcl_ave_adt=>gv_gui_nav), so in the advertised multi-window use the last popup constructed silently overrides TOC/comment-check/navigation behaviour for every other open popup?",
+      "anchors": [
+        "zcl_ave_popup_data=>mv_no_toc = is_settings-no_toc."
+      ]
+    },
+    {
+      "id": "D14",
+      "area": "zcl_ave_popup~build_parts_list / SQL",
+      "question": "yes/no: SELECT SINGLE strkorr FROM e070 is issued inside LOOPs (over parts, and again over each part's task list, and again in the colour loop over lt_korr_parts), producing parts x requests single-row DB hits instead of one FOR ALL ENTRIES - GUI timeout / work-process dump on a large transport?",
+      "anchors": [
+        "SELECT SINGLE strkorr FROM e070",
+        "WHERE trkorr = @lv_part_parent_tr"
+      ]
+    },
+    {
+      "id": "D15",
+      "area": "zcl_ave_acr_command~handle_sapevent",
+      "question": "yes/no: the 'approveall' branch uses the offset from `FIND FIRST OCCURRENCE OF '~'` without checking sy-subrc, so a key without a tilde leaves lv_tld2 = 0 and the object type/name are sliced from the wrong offsets before a mass-approve DO loop?",
+      "anchors": [
+        "FIND FIRST OCCURRENCE OF '~' IN lv_rest MATCH OFFSET lv_tld2.",
+        "DATA lv_nst2 TYPE i."
+      ]
+    },
+    {
+      "id": "D16",
+      "area": "zcl_ave_acr_note_dlg / review workflow",
+      "question": "yes/no: DECLINE opens the note dialog and returns; the dialog's ON_BOX_CLOSE only RAISES saved when text is non-empty and otherwise RAISES cancelled, which merely CLEARs mv_pending_decline - so a reviewer who declines without typing a comment records no decline, no note, no action and gets no message?",
+      "anchors": [
+        "IF lv_note IS NOT INITIAL.",
+        "RAISE EVENT saved",
+        "EXPORTING iv_hunk_key = mv_hunk_key",
+        "iv_note     = lv_note.",
+        "ELSE.",
+        "RAISE EVENT cancelled"
+      ]
+    },
+    {
+      "id": "D17",
+      "area": "zcl_ave_ai_api / HTTP",
+      "question": "yes/no: no timeout is ever set on the if_http_client (only propertytype_logon_popup), and ASK is called once per hunk in a blocking loop, so one unresponsive provider hangs the SAPGUI session indefinitely?",
+      "anchors": [
+        "o_client->send(",
+        "EXCEPTIONS",
+        "http_communication_failure = 1",
+        "OTHERS                     = 5 )."
+      ]
+    },
+    {
+      "id": "D18",
+      "area": "zcl_ave_ai_api~escape_json",
+      "question": "yes/no: escape_json escapes only backslash, double quote, CR/LF, form feed and tab, leaving the remaining C0 control characters (and it is applied to arbitrary reviewed source) unescaped, so a source line containing e.g. a vertical tab produces a malformed JSON request body?",
+      "anchors": [
+        "REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>horizontal_tab IN rv_text WITH '\\t'.",
+        "ENDMETHOD."
+      ]
+    },
+    {
+      "id": "D19",
+      "area": "static caches / memory",
+      "question": "yes/no: zcl_ave_author=>authors (CLASS-DATA) and zcl_ave_version_list=>gt_rel_cache are only ever READ and INSERTed into and are never CLEARed anywhere, so both grow without bound for the lifetime of the GUI session while get_user_name is called from dozens of inner loops?",
+      "anchors": [
+        "CLASS-DATA gt_rel_cache TYPE HASHED TABLE OF ty_rel_cache WITH UNIQUE KEY korrnum."
+      ]
+    },
+    {
+      "id": "D20",
+      "area": "zcl_ave_popup~build_parts_list",
+      "question": "yes/no: lt_child_task_korrs is declared OUTSIDE the loop over mt_entered_korrnums and is filled with `INTO TABLE` plus APPEND LINES on every iteration without a CLEAR, so it re-accumulates every child task found so far - quadratic growth, masked only by the later SORT/DELETE ADJACENT DUPLICATES?",
+      "anchors": [
+        "INTO TABLE @lt_child_task_korrs.",
+        "APPEND LINES OF lt_child_task_korrs TO lt_korr_parts."
+      ]
+    },
+    {
+      "id": "D21",
+      "area": "zcl_ave_popup~build_layout",
+      "question": "yes/no: `ADD 1 TO mv_counter` increments a CLASS-DATA counter that is never read anywhere in the file and never reset - dead shared state?",
+      "anchors": [
+        "ADD 1 TO mv_counter."
+      ]
+    },
+    {
+      "id": "D22",
+      "area": "zcl_ave_acr_repository / persistence",
+      "question": "yes/no: the entire review (all hunks, all diff data, all reviewers) is written as one UPDATE, with an INSERT fallback, on every single approve/decline/comment, inside a single uncommitted LUW and with no length guard - a failed or oversized write silently loses the whole session's review work?",
+      "anchors": [
+        "DATA(lv_payload_json) = /ui2/cl_json=>serialize( data = is_payload )."
+      ]
+    }
+  ],
+  "coverage": "INSPECTED: declaration area 1-680 + full CLASS/ENDCLASS map; main program 29100-29564 (selection screen, all event blocks, all FORMs incl. run_ave); zcl_ave_ai_api 17596-17891 (ask/list_models/build_payload/parse_response/escape_json); zcl_ave_adt 18020-18140 (dynamic ADT/CL_OO_FACTORY calls, wb_target_of); zcl_ave_acr_repository 20531-20676 (load/save/delete payload, dynamic DML); zcl_ave_acr_renderer 21383-21690; zcl_ave_acr_report author-total loop 20745-20804; zcl_ave_acr_state 19831-20190 (remap_review_state, build_reviewer_stats, apply_saved_payload); zcl_ave_acr_note_dlg 26021-26111; zcl_ave_acr_command 27925-28320 (handle_sapevent, approveall, undo, approve/decline); zcl_ave_acr_ai 28323-28602 (ddic_table_to_text, build_hunk_prompt); zcl_ave_popup 11700-12330, 12505-12575, 13100-13170, 13619-13660, 14470-14530, 14796-14930, 15040-15120 (constructor/show/build_layout/build_parts_list/create_html_viewer/show_source/hunk_with_html/do_ai_summary/do_askai); zcl_ave_version_list 5480-5660 + 5800-5920 (FOR ALL ENTRIES sites, K/S/R/T matching); zcl_ave_version2 6882-6940 (get_tabd); zcl_ave_popup_html 7776-7800 + 9060-9190; zcl_ave_popup_diff 10029-10390 (esc_html/should_pair_lines/build_blame_map); zcl_ave_popup_data 10955-11000 + 12270-12400; zcl_ave_object_tr 16330-16450; zcl_ave_acr_prepare 22365-22520 (is_other_system_korr/korr_type/set_review_scope/update_stmt_open); zcl_ave_acr_hunk_info 27500-27570; zcl_ave_acr_overview 25375-25475; zcl_ave_html_viewer 16901-16960; zcl_ave_diff_decl 16940-16960. Also ran whole-file greps for: FOR ALL ENTRIES, OPEN/CLOSE CURSOR, CREATE OBJECT, dynamic CALL METHOD/ASSIGN, COMMIT/DB writes, file/IO, AUTHORITY-CHECK, CLASS-DATA, /ui2/cl_json, substring, TRY/CATCH counts, and a scan of all 53 READ TABLE sites with no nearby sy-subrc check. NOT INSPECTED: zcl_ave_vrsd (5022-5317), zcl_ave_versno, zcl_ave_version (7356-7464), zcl_ave_request (7464-7671), zcl_ave_progress (7671-7776), zcl_ave_popup_html 7800-9060 and 9190-9460, zcl_ave_popup_diff 9461-10029 and 10390-10955, zcl_ave_popup 12400-14796 and 15120-16245 (event handlers, ALV build, set_html, note dialog wiring), zcl_ave_object_prog/pack/intf/func/fugr/factory/ddls/ddic/clas (16451-16901), zcl_ave_diff_decl 16960-17401, zcl_ave_ai_prompts (17445-17596), zcl_ave_adt 18140-18652, zcl_ave_acr_workflow (18652-19224), zcl_ave_acr_user_view (19224-19645), zcl_ave_acr_stats (19645-19831), zcl_ave_acr_state 20190-20531, zcl_ave_acr_report 20680-21383, zcl_ave_acr_prepare 22062-22365, zcl_ave_acr_precompute 22920-24918 (only the new-object branch at 23080 read), zcl_ave_acr_part_view (24918-25263), zcl_ave_acr_overview 25475-26021, zcl_ave_acr_metrics (26113-26918), zcl_ave_acr_hunk_renderer (26918-27435), zcl_ave_acr_hunk_html (27677-27925), and the bulk HTML-emitting bodies of acr_renderer/acr_report/acr_overview.",
+  "anchor_convention": "anchors are source text, not line numbers: a line number is invalidated by any edit above it, and evaluate.py prints anchors without verifying them, so an anchor has to stand on its own. The `source` field used to be a bare filename that resolved to nothing, because the corpus fetcher prefixes local files with OWNER__REPO__; fixed in 1.0.9."
+}
