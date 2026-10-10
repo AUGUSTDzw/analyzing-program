@@ -95,6 +95,12 @@ flowchart TD
   A["Z_FOO"] --> B["输出"]
 ```
 
+```mermaid
+sequenceDiagram
+  Z_FOO->>Z_FOO: 读取
+  Z_FOO-->>Z_FOO: 回填
+```
+
 ## 五、问题清单
 
 ### 🔴 P0 业务正确性

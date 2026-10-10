@@ -160,8 +160,10 @@ def main():
     check(nmm >= 2, "report has diagrams to delete", f"{nmm}")
     nomm = re.sub(FENCE + "mermaid\n.*?" + FENCE, "", base, flags=re.S | re.I)
     check("mermaid" not in nomm.lower(), "PROBE 4 all diagrams removed")
-    rc, _ = gate(nomm, tmp, "p4_no_mermaid.md")
-    check(rc == 0, "PROBE 4 gate currently PASSES a report with no diagram", f"rc={rc}")
+    rc, out = gate(nomm, tmp, "p4_no_mermaid.md")
+    check(rc != 0, "PROBE 4 gate now REJECTS a report with no diagram", f"rc={rc}")
+    check("mm-missing" in out, "PROBE 4 reported as kind 'mm-missing'",
+          out.strip().splitlines()[0][:80] if out.strip() else "")
 
     bad = base.replace("供应商", "供应商\ufffd\ufffd", 1)
     check(bad != base, "PROBE 5 substitution actually changed the report")

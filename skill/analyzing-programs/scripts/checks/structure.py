@@ -17,6 +17,7 @@ from checks.text import (TICK, TAG, _flat, blank_fences, fence_defects,
 SECTIONS_EXACTLY_ONCE = CONTRACT.get("sections_exactly_once", False)
 LAYERS_DISTINCT = CONTRACT["layers"].get("distinct", False)
 ROWS_REQUIRE_OBJECT = CONTRACT["problem_section"].get("rows_require_source_object", False)
+REQUIRED_DIAGRAMS = tuple(CONTRACT["mermaid"].get("required_diagrams") or ())
 
 # Same reason as the lists in contract.py and text.py: without one, `import *`
 # into report_qc.py hands every name above to that module as well -- and a
@@ -42,6 +43,34 @@ def _row_names_source(row, flat_src):
     if flat_src is None:
         return False           # no source given: cannot judge, so do not fail
     return any(m.group(0).lower() in flat_src for m in _IDENT.finditer(row))
+
+
+def _missing_diagrams(s):
+    """(kind, line, detail) for each required diagram type the report lacks.
+
+    SKILL.md's 四、流程图 prescribes both a flowchart and a sequenceDiagram, but
+    only the fence itself was checked before: a report could ship one and skip
+    the other, and the gate reported clean. This looks for the type keyword
+    inside each Mermaid block -- anchored to a line start because `flowchart`
+    and `sequenceDiagram` both begin a diagram on their own line in valid
+    Mermaid, and a free-text occurrence of the word would silently satisfy the
+    check.
+    """
+    if not REQUIRED_DIAGRAMS:
+        return []
+    have = {}
+    for st, bs, be, _en, lang in fence_spans(s):
+        if lang != DIAGRAM_LANG.lower():
+            continue
+        blk = s[bs:be]
+        for t in REQUIRED_DIAGRAMS:
+            if t in have:
+                continue
+            if re.search(r"^\s*" + re.escape(t) + r"\b", blk, re.M):
+                have[t] = line_of(s, st)
+    return [("mm-missing", have.get(t, 0),
+             "SKILL.md requires a Mermaid %s; the report has none" % t)
+            for t in REQUIRED_DIAGRAMS if t not in have]
 
 
 # ------------------------------------------------------------------- checking
@@ -96,6 +125,8 @@ def check(s, src=None):
             bad.append(("mm", base + blk[:off].count("\n"),
                         "Mermaid label holds a bare < > or #: "
                         + repr(clean.strip()[:40])))
+
+    bad.extend(_missing_diagrams(s))
 
     # A real line number here is what the gate owes the writer: reporting 0
     # rendered as "document" and sent them hunting the whole file for a span
