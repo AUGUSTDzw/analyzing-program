@@ -253,7 +253,7 @@ def cmd_score(a):
         # anything in the report, and a scored file reads as auditable.
         print(f"           WARNING  --legacy: citations were not verified, so "
               f"every verdict is an uncheckable assertion")
-    if a.report and rep and os.path.basename(a.report) != os.path.basename(rep):
+    if a.report and rep and os.path.abspath(a.report) != os.path.abspath(rep):
         print(f"           WARNING  verdict file names a different report than --report")
     print(f"defects  : {len(d['defects'])}")
     print(f"verdicts : {t['yes']} yes, {t['partial']} partial, {t['no']} no")

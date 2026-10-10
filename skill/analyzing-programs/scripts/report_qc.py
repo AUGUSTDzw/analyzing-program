@@ -410,7 +410,16 @@ def main(argv):
         # to prevent, so it was unreachable.
         if "-o" in args and args.index("-o") + 1 >= len(args):
             die("-o needs an output path")
-        rest = [a for a in args[1:] if a != "-o"]
+        rest = []
+        i = 1
+        while i < len(args):
+            if args[i] == "-o":
+                # Skip the flag and its value: the value is the output path,
+                # not a report or source.
+                i += 2
+                continue
+            rest.append(args[i])
+            i += 1
         if len(rest) < 2:
             print("--fix needs REPORT and SOURCE")
             return 2

@@ -358,7 +358,7 @@ def _claims(body):
     """
     out = []
     for i, raw in enumerate(body.split("\n")):
-        l = re.sub(r'^\s*[*"\'"]', "", raw).rstrip()
+        l = re.sub("^\\s*[*\u0027\u0022]", "", raw).rstrip()
         if len(l.strip()) < 3 or PAREN_NOTE.match(l):
             continue
         pre = _strip_comment(l)
