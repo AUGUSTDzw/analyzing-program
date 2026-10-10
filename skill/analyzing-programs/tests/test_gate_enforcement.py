@@ -84,16 +84,10 @@ def main():
     check(fabricated != base, "PROBE 1 substitution actually changed the report",
           f"{len(base)} -> {len(fabricated)} chars")
     rc, out = gate(fabricated, tmp, "p1_fabricated.md")
-    check(rc == 0, "PROBE 1 gate currently PASSES a fabricated quote",
+    check(rc != 0, "PROBE 1 gate now REJECTS a fabricated quote",
           f"rc={rc}")
-    # The token exists only in the report, never in the source, so its echo in
-    # the output can only come from the fidelity advisory quoting the bad line
-    # back (report_qc.py fidelity_note prints head[1][:60]!r). Matching on
-    # "line N" instead would also match the structural and fix advisories, which
-    # fire on the baseline too and so cannot tell this probe from a clean run.
-    check("fabricated_token_does_not_exist" in out,
-          "PROBE 1 the fidelity advisory echoes the fabricated statement back, "
-          "but plain mode still exits 0")
+    check("not occur in the source" in out,
+          "PROBE 1 the note is still printed")
     rc, _ = gate(fabricated, tmp, "p1_fidelity.md", ("--fidelity-only",))
     check(rc == 1, "PROBE 1 --fidelity-only does reject it", f"rc={rc}")
 

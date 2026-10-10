@@ -102,10 +102,10 @@ try:
     # importing only the ones a given test happens to list today.
     # The five unused ones lead, because that is the line pyflakes reports all of
     # them on and therefore the only line where the F401 marker means what it
-    # says. all_notes and fidelity_note are called below and carry no marker.
+    # says. all_notes is called below and carries no marker.
     from checks.advisory import (authz_note, density_note, ext_asset_note,  # noqa: F401
-                                 fix_lang_note, fix_mislabel_note, all_notes,
-                                 fidelity_note)
+                                 fix_lang_note, fix_mislabel_note, all_notes)
+    from checks.fidelity import classify, fidelity_report
 except (ImportError, SyntaxError) as _e:
     # The rule set and the checks that read it load before main() can run, so a
     # skill installed without scripts/checks/ dies here -- before main(), before
@@ -255,9 +255,10 @@ def report(path, src=None):
     bad = check(s, src)
     name = os.path.basename(path)
     notes = all_notes(s, src)
-    if not bad:
+    n_sub, n_pun, tiers, fid_notes = fidelity_report(s, src)
+    if not bad and not n_sub:
         print(f"PASS  {name}")
-        for n in notes:
+        for n in notes + fid_notes:
             print(f"  note  {n}")
         return 0
     order = {"fence": 0, "sec": 1, "sec-dup": 1, "prow": 2, "row-src": 3,
@@ -266,10 +267,14 @@ def report(path, src=None):
     for kind, ln, detail in sorted(bad, key=lambda x: (order.get(x[0], 9), x[1])):
         where = f"line {ln}" if ln else "document"
         print(f"  {kind:6} {where:>10}  {detail}")
-    print(f"FAIL  {name}  ({len(bad)} defect(s))")
-    for n in notes:
+    for tier, ln, rl, detail in sorted(
+            (t for t in tiers if t[0] == "SUBSTANTIVE"), key=lambda x: x[1]):
+        where = f"line {ln}" if ln else "document"
+        print(f"  {tier[:6]:6} {where:>10}  {detail}")
+    print(f"FAIL  {name}  ({len(bad) + n_sub} defect(s))")
+    for n in notes + fid_notes:
         print(f"  note  {n}")
-    return len(bad)
+    return len(bad) + n_sub
 
 
 class ReadError(Exception):
@@ -374,13 +379,18 @@ def main(argv):
                 s = read_report(p)
             except ReadError as e:
                 die(str(e))
-            n = fidelity_note(s, src)
-            if n:
-                print(f"FAIL  {os.path.basename(p)}")
-                print(f"  note  {n}")
+            tiers = classify(s, src)
+            sub = [t for t in tiers if t[0] == "SUBSTANTIVE"]
+            pun = [t for t in tiers if t[0] == "PUNCT-ONLY"]
+            for tier, ln, rl, detail in sorted(tiers, key=lambda x: x[1]):
+                print(f"  {tier[:6]:6} line {ln:>6}  {detail}: {rl[:60]}")
+            if sub:
+                print(f"FAIL  {os.path.basename(p)}  "
+                      f"({len(sub)} rewrite(s), {len(pun)} punctuation-only)")
                 rc = 1
             else:
-                print(f"PASS  {os.path.basename(p)}")
+                print(f"PASS  {os.path.basename(p)}"
+                      + (f"  ({len(pun)} punctuation-only)" if pun else ""))
         return rc
     if args[0] == "--fix":
         # Checked before the index is taken: indexing past the end raised

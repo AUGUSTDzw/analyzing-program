@@ -272,13 +272,13 @@ def main():
               f"report_qc.{attr} is populated from contract.{key}")
         check(n >= 2, f"report_qc.{attr} is read by the gate, not just declared",
               f"{attr} appears {n} time(s) in the gate package")
-    for fn in ("density_note", "fidelity_note", "fix_lang_note", "fix_mislabel_note",
-               "prose_end"):
+    for fn in ("density_note", "fix_lang_note", "fix_mislabel_note",
+                "prose_end"):
         check(hasattr(rq, fn), f"report_qc.{fn} exists for its advisory")
     # The four advisories sit outside check(), so no mutated exemplar above
     # can see them. Existence was the whole of their coverage: a declared
     # advisory that nothing calls would still pass every assertion here.
-    for fn in ("density_note", "fidelity_note", "fix_lang_note", "fix_mislabel_note"):
+    for fn in ("density_note", "fix_lang_note", "fix_mislabel_note"):
         n = len(_re.findall(r"\b%s\b" % fn, gsrc))
         check(n >= 2, f"{fn} is called, not just defined",
               f"{fn} appears {n} time(s) in the gate package")

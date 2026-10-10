@@ -262,7 +262,7 @@ def main():
     r = run(QC, good, src)
     check("low density" not in r.stdout,
           "no density note when every declared subprogram is covered")
-    check("do not occur in the source" not in r.stdout,
+    check("not occur in the source" not in r.stdout,
           "no fidelity note when every quoted line is faithful")
 
     # A source with no construct in ANCHORS has no denominator, so density cannot
@@ -280,7 +280,7 @@ def main():
     io.open(p, "w", encoding="utf-8").write(
         brief_report().replace("SELECT foo FROM bar", "SELECT foo FROM baz"))
     r = run(QC, p, src)
-    check("do not occur in the source" in r.stdout,
+    check("not occur in the source" in r.stdout,
           "a fidelity note fires when an identifier is rewritten")
 
     # regression: fidelity_note scoped its exemption to the whole document prefix
@@ -299,13 +299,13 @@ def main():
     p = os.path.join(tmp, "second.md")
     io.open(p, "w", encoding="utf-8").write(two)
     r = run(QC, p, src)
-    check("do not occur in the source" not in (r.stdout or ""),
+    check("not occur in the source" not in (r.stdout or ""),
           "a faithful second block raises no fidelity note")
     p = os.path.join(tmp, "altered2.md")
     io.open(p, "w", encoding="utf-8").write(
         two.replace("DATA ls_foo TYPE i.", "DATA ls_foo TYPE c."))
     r = run(QC, p, src)
-    check("do not occur in the source" in (r.stdout or ""),
+    check("not occur in the source" in (r.stdout or ""),
           "a rewritten second block raises a fidelity note")
 
     # regression: _claims decided a quoted line was the report's own annotation
@@ -327,13 +327,13 @@ def main():
     p = os.path.join(tmp, "cjk_ok.md")
     io.open(p, "w", encoding="utf-8").write(cjk)
     r = run(QC, p, csrc)
-    check("do not occur in the source" not in (r.stdout or ""),
+    check("not occur in the source" not in (r.stdout or ""),
           "a faithful quote with a Chinese literal is not flagged")
     p = os.path.join(tmp, "cjk_bad.md")
     io.open(p, "w", encoding="utf-8").write(
         brief_report().replace(SEL, "  WRITE / '编造的中文提示'."))
     r = run(QC, p, csrc)
-    check("do not occur in the source" in (r.stdout or ""),
+    check("not occur in the source" in (r.stdout or ""),
           "a fabricated Chinese literal is flagged, not exempted")
 
     # a statement comment is prose, so rewording only the comment is not a
@@ -342,13 +342,13 @@ def main():
     io.open(p, "w", encoding="utf-8").write(brief_report().replace(
         SEL, "DATA lv_msg TYPE string. \" 改写过的注释"))
     r = run(QC, p, csrc)
-    check("do not occur in the source" not in (r.stdout or ""),
+    check("not occur in the source" not in (r.stdout or ""),
           "a rewritten statement comment is not called a fabrication")
     p = os.path.join(tmp, "cjk_code.md")
     io.open(p, "w", encoding="utf-8").write(brief_report().replace(
         SEL, "DATA lv_msg TYPE i. \" 同一条注释"))
     r = run(QC, p, csrc)
-    check("do not occur in the source" in (r.stdout or ""),
+    check("not occur in the source" in (r.stdout or ""),
           "a rewritten statement with an untouched comment is still flagged")
 
     # the report's own Chinese line inside a block is annotation, not code
@@ -356,7 +356,7 @@ def main():
     io.open(p, "w", encoding="utf-8").write(brief_report().replace(
         SEL, " 取一行\n  WRITE / '开始'."))
     r = run(QC, p, csrc)
-    check("do not occur in the source" not in (r.stdout or ""),
+    check("not occur in the source" not in (r.stdout or ""),
           "the report's own Chinese line inside a block is not probed")
 
     # regression: the elision exemption was searched anywhere in the line, so a
@@ -378,7 +378,7 @@ def main():
         io.open(p, "w", encoding="utf-8").write(
             brief_report().replace(SEL, "  WRITE / '开始'.\n" + shape))
         r = run(QC, p, csrc)
-        check("do not occur in the source" not in (r.stdout or ""), label)
+        check("not occur in the source" not in (r.stdout or ""), label)
 
     # the balance test counts on the comment-stripped line, so an apostrophe the
     # report wrote inside a comment cannot tip it; and an apostrophe inside the
@@ -391,7 +391,7 @@ def main():
         io.open(p, "w", encoding="utf-8").write(
             brief_report().replace(SEL, "  WRITE / '开始'.\n" + shape))
         r = run(QC, p, csrc)
-        check("do not occur in the source" not in (r.stdout or ""), label)
+        check("not occur in the source" not in (r.stdout or ""), label)
 
     # Fence language decides what is probed; position exempts nothing. A fix
     # nested in the risk layer used to be skipped by position, which skipped the
@@ -408,7 +408,7 @@ def main():
     check(r.stdout.startswith("PASS") and r.returncode == 0,
           "a labelled fix needs no layers and breaks nothing",
           r.stdout.strip().split("\n")[0][:44] if r.stdout.strip() else "")
-    check("do not occur in the source" not in r.stdout,
+    check("not occur in the source" not in r.stdout,
           "a labelled fix is not probed against the source")
     check("fence(s) sit inside" not in r.stdout,
           "a correctly labelled fix raises no fix-lang note")
@@ -418,7 +418,7 @@ def main():
         "**风险与改进** — 可改用 c。",
         tail.replace("```abap-fix", "```abap").replace("（示意，源码中不存在）", "")))
     r = run(QC, p, src)
-    check("do not occur in the source" in r.stdout,
+    check("not occur in the source" in r.stdout,
           "an unlabelled fix is probed and reads as fabricated")
     check("fence(s) sit inside" in r.stdout,
           "an unlabelled fix raises a fix-lang note")
@@ -583,7 +583,7 @@ def main():
         brief_report().replace("SELECT foo FROM bar INTO @DATA(ls_foo).",
                                "SELECT foo FROM bar INTO @DATA(ls_foo). WRITE 2."))
     r = run(QC, p, src)
-    check("do not occur in the source" in r.stdout,
+    check("not occur in the source" in r.stdout,
           "a statement the source does not contain is reported")
 
     if os.path.exists(EXEMPLAR):
@@ -604,7 +604,7 @@ def main():
     check(fo.stdout.startswith("PASS") and fo.returncode == 0,
           "--fidelity-only exits 0 when every quotation is faithful")
     fo = run(QC, "--fidelity-only", p, src)
-    check(fo.stdout.startswith("FAIL") and fo.returncode == 1,
+    check("FAIL" in fo.stdout and fo.returncode == 1,
           "--fidelity-only exits nonzero when a quotation is not in the source")
     fx = run(QC, "--fix", nolayer, src, "-o", os.path.join(tmp, "fixed.md"))
     check(fx.returncode == 1,
@@ -933,8 +933,8 @@ def main():
     p = os.path.join(tmp, "fid.md")
     io.open(p, "w", encoding="utf-8").write(fid)
     r = run(QC, p, src)
-    row = [x for x in r.stdout.splitlines() if "do not occur in the source" in x]
-    m = re.search(r"First at line (\d+)", row[0]) if row else None
+    row = [x for x in r.stdout.splitlines() if "not occur in the source" in x]
+    m = re.search(r"line (\d+)", row[0]) if row else None
     actual = fid.split("\n").index("SELECT foo FROM baz INTO @DATA(ls_foo).") + 1
     check(bool(m) and int(m.group(1)) == actual,
           "a fidelity note names the line that carries the fabrication",

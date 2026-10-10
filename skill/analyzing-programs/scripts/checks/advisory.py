@@ -308,9 +308,6 @@ def all_notes(s, src=None):
     n = density_note(s, src)
     if n:
         out.append(n)
-    n = fidelity_note(s, src)
-    if n:
-        out.append(n)
     n = fix_lang_note(s)
     if n:
         out.append(n)
