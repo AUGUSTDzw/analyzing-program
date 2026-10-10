@@ -294,7 +294,7 @@ def cmd_compare(a):
     rep_b = B_full.get("report")
     if rep_a and rep_b and os.path.abspath(rep_a) != os.path.abspath(rep_b):
         die([f"verdict files reference different reports: "
-             f"{os.path.basename(rep_a)} vs {os.path.basename(rep_b)}"],
+             f"{os.path.abspath(rep_a)} vs {os.path.abspath(rep_b)}"],
             "compare")
     A = A_full["verdicts"]
     B = B_full["verdicts"]

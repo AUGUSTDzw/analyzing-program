@@ -452,6 +452,10 @@ def main(argv):
         # looks like corruption.
         if os.path.abspath(rep) == os.path.abspath(src):
             die("report and source cannot be the same file: %s" % rep)
+        # Output path must not overwrite the source: --fix reads the source
+        # and writes the report, so pointing -o at the source would destroy it.
+        if out and os.path.abspath(out) == os.path.abspath(src):
+            die("output path is the same as the source: %s" % out)
         if not os.path.exists(rep):
             die("no such report: %s" % rep)
         if not os.path.exists(src):
@@ -538,6 +542,8 @@ def main(argv):
         die(str(e))
     rc = 0
     for p in reports:
+        # report() returns 0 on PASS, N>0 on FAIL. `and 1` collapses any
+        # nonzero count to 1, so rc counts failing reports, not defects.
         rc += report(p, src) and 1
     if src is None:
         # After the verdict so a bare "report_qc.py REPORT" still reads PASS
