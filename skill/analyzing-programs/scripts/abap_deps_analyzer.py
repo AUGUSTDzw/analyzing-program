@@ -3,9 +3,14 @@
 abap_deps_analyzer.py - ABAP 依赖分析器
 
 功能:
-1. 依赖关系分析 - 找出代码对标准库的依赖
-2. 增强问题检测 - 检测引用不存在的类型、方法签名不匹配
-3. 未使用代码检测 - 识别未调用的方法和子程序
+1. 依赖关系分析 - 找出代码对随包标准库子集的类 / 接口类型引用
+2. 待确认引用 - 索引里查不到的类型、方法、程序；一律标 info，不是缺陷判定
+3. 未使用代码检测 - 启发式扫描未调用的方法和子程序
+
+注意:
+- 不解析 CALL FUNCTION / SELECT，函数模块、数据库表、数据元素测不到
+- 随包的 abaplint-deps 是 abaplint/deps 的子集，
+  「索引里没有」不等于「SAP 里没有」
 
 使用:
     python abap_deps_analyzer.py <source.abap> [--deps <deps_dir>] [--format markdown|json] [--output <path>]
@@ -61,6 +66,35 @@ class UnusedCode:
     type: str  # method, subroutine, form, etc.
     location: str
     line_number: int
+
+
+# ABAP 运行时时序入口。它们在代码里没有调用点，报「未使用」是错的：
+# CONSTRUCTOR 由 create object 触发，END_OF_PAGE 由分页触发，AT_LINE_SELECTION
+# 由交互事件触发。谁都没有调用它们的语句可以写。
+EVENT_NAMES = frozenset({
+    'CONSTRUCTOR',
+    'CLASS_CONSTRUCTOR',
+    'DESTRUCTOR',
+    'END_OF_PAGE',
+    'AT_LINE_SELECTION',
+    'AT_PAGING',
+    'TOP_OF_PAGE',
+    'END_OF_LIST',
+    'AT_USER_COMMAND',
+})
+
+
+def _strip_comments(line: str) -> str:
+    """去掉一行的注释部分。
+
+    ABAP 里 " 起行内注释、* 起整行注释。" 不可能出现在字符串字面量里
+    （字面量用单引号），所以按第一个 " 切就是对的。
+
+    不剥注释就会把注释里的关键字当代码：「*appending values form final」
+    会被读成 FORM FINAL，然后它永远不会被 PERFORM，于是稳定地报成未使用代码。
+    """
+    line = line.split('"', 1)[0]
+    return '' if line.lstrip().startswith('*') else line
 
 
 class ABAPDepsAnalyzer:
@@ -136,7 +170,16 @@ class ABAPDepsAnalyzer:
         if not source_path.exists():
             raise FileNotFoundError(f"源文件不存在: {source_file}")
 
+        # 一个实例分析多份文件时不重置就会累加，第二份报告带上第一份的结论。
+        # 三处都是 append 而不是赋值，所以这里必须显式清空。
+        self.dependencies = []
+        self.issues = []
+        self.unused_code = []
+
         content = source_path.read_text(encoding='utf-8', errors='ignore')
+        # 剥掉注释再交给三个扫描器，否则注释里的关键字会被当代码读。
+        # 剥在前、不剥就白剥：三个扫描器各自再剥一次等于三处可以各自写错。
+        content = '\n'.join(_strip_comments(line) for line in content.splitlines())
         print(f"分析文件: {source_file}")
 
         # 1. 提取引用
@@ -218,23 +261,48 @@ class ABAPDepsAnalyzer:
                         line_number=i
                     ))
 
+    def _local_type_names(self, content: str) -> Set[str]:
+        """本文件内声明的类型名，统一大写。
+
+        标准库索引里查不到的名字里，最大的一类根本不是外部依赖：局部类
+        （lcl_x）、TYPES 定义、以及本文件自己声明的数据元素。把它们和「随包
+        桩库里缺了这份」混为一谈，等于给每个用到局部类的文件都发一条假报警。
+        """
+        names: Set[str] = set()
+        # CLASS x DEFINITION 后面的 FINAL / ABSTRACT / CREATE PUBLIC 是修饰，
+        # 所以只要求 DEFINITION 出现在同一行的后半段。
+        for pattern in (r'\bCLASS\s+([A-Za-z0-9_]+)(?=[^\n]*\bDEFINITION\b)',
+                        r'\bINTERFACE\s+([A-Za-z0-9_]+)(?=[^\n]*\bDEFINITION\b)',
+                        r'\b(?:TYPES?|CONSTANTS?|DATA)\s+([A-Za-z0-9_]+)'):
+            for match in re.finditer(pattern, content, re.IGNORECASE):
+                names.add(match.group(1).upper())
+        return names
+
     def _detect_issues(self, content: str, source_name: str):
         """检测问题"""
         lines = content.split('\n')
+
+        # 索引是 abaplint/deps 的一个子集，不是标准库本身。所以「不在索引里」
+        # 只有两种解释：它确实不存在，或者随包桩库里缺了这份。这两种情况在输出里
+        # 给同一个信号，写报告的人就分不清，因此一律标成 unresolved_* + info：
+        # 这不是缺陷判定。
+        local_types = self._local_type_names(content)
+        bundle = len(self.standard_objects)
 
         # 检查 TYPE REF TO 引用的类是否存在
         for i, line in enumerate(lines, 1):
             # TYPE REF TO 类名
             for match in re.finditer(r'\bTYPE\s+REF\s+TO\s+(\w+)', line, re.IGNORECASE):
                 type_name = match.group(1).upper()
-                if type_name not in self.standard_objects:
+                if type_name not in self.standard_objects and type_name not in local_types:
                     self.issues.append(Issue(
-                        type='unknown_type',
-                        severity='warning',
-                        message=f'类型 {type_name} 未在标准库中找到',
+                        type='unresolved_type',
+                        severity='info',
+                        message=f'类型 {type_name} 不在随包的 {bundle} 个标准对象里',
                         location=f'line {i}',
                         line_number=i,
-                        suggestion='确认类型是否存在或是否已添加到 deps'
+                        suggestion='可能是自定义类型，也可能只是随包桩库缺了这份；'
+                                   'SAP 里很可能有，不要当作缺陷写进报告'
                     ))
 
             # TYPE 类型引用 (非 REF TO)
@@ -242,14 +310,16 @@ class ABAPDepsAnalyzer:
                 type_name = match.group(1).upper()
                 if type_name != 'REF' and type_name not in self.standard_objects:
                     # 可能是自定义类型，但如果是全大写且看起来像标准对象名，可能是问题
-                    if type_name.startswith('CL_') or type_name.startswith('IF_') or type_name.startswith('CX_'):
+                    if (type_name.startswith('CL_') or type_name.startswith('IF_')
+                            or type_name.startswith('CX_')) and type_name not in local_types:
                         self.issues.append(Issue(
-                            type='unknown_type',
-                            severity='warning',
-                            message=f'类型 {type_name} 未在标准库中找到',
+                            type='unresolved_type',
+                            severity='info',
+                            message=f'类型 {type_name} 不在随包的 {bundle} 个标准对象里',
                             location=f'line {i}',
                             line_number=i,
-                            suggestion='确认类型是否存在或是否已添加到 deps'
+                            suggestion='可能是自定义类型，也可能只是随包桩库缺了这份；'
+                                       'SAP 里很可能有，不要当作缺陷写进报告'
                         ))
 
         # 检查方法调用
@@ -262,13 +332,16 @@ class ABAPDepsAnalyzer:
                 if obj_name in self.standard_objects:
                     obj = self.standard_objects[obj_name]
                     if method_name not in obj.methods:
+                        # 随包的桩类只有骨架、几乎不声明方法，所以「桩里没有这个方法」
+                        # 和「SAP 里没有这个方法」不是同一件事。
                         self.issues.append(Issue(
-                            type='unknown_method',
-                            severity='warning',
-                            message=f'方法 {method_name} 不存在于 {obj_name}',
+                            type='unresolved_method',
+                            severity='info',
+                            message=f'方法 {method_name} 未声明在 {obj_name} 的桩里',
                             location=f'line {i}',
                             line_number=i,
-                            suggestion=f'检查 {obj_name} 的可用方法列表'
+                            suggestion=f'随包桩类多为骨架、不列方法；'
+                                       f'核对要用 {obj_name} 的真实接口定义，不要当作缺陷'
                         ))
 
         # 检查子程序调用
@@ -278,41 +351,66 @@ class ABAPDepsAnalyzer:
                 prog_name = match.group(1).upper()
                 if prog_name not in self.standard_objects:
                     self.issues.append(Issue(
-                        type='unknown_program',
-                        severity='warning',
-                        message=f'程序 {prog_name} 未在标准库中找到',
+                        type='unresolved_program',
+                        severity='info',
+                        message=f'程序 {prog_name} 不在随包的 {bundle} 个标准对象里',
                         location=f'line {i}',
                         line_number=i,
-                        suggestion='确认程序是否存在或是否已添加到 deps'
+                        suggestion='SUBMIT 的目标通常是自定义 Z 程序，'
+                                   '本来就不该在标准库里；不要当作缺陷写进报告'
                     ))
     def _detect_unused_code(self, content: str, source_name: str):
-        """检测未使用的代码"""
+        """检测未使用的代码
+
+        这是启发式，不是调用图。漏报比错报安全：把一个真被调用的子程序报成
+        死代码，读者会去删一个还活着的 FORM；反过来漏掉一个真死代码，报告里
+        只是一句没说出来。所以「调用」一侧从宽认定。
+        """
         lines = content.split('\n')
 
-        # 收集所有定义的子程序/方法
         defined_forms = set()
         defined_methods = set()
         called_forms = set()
         called_methods = set()
 
-        for i, line in enumerate(lines, 1):
-            # 定义
+        # 先收齐全部定义，再收调用。类实现体内可以在方法定义之前就调用它
+        # （见下方裸调用），单遍按行扫描会把「在定义前面被调过」的方法错报成未使用。
+        for line in lines:
             for match in re.finditer(r'\bFORM\s+(\w+)', line, re.IGNORECASE):
                 defined_forms.add(match.group(1).upper())
-
-            for match in re.finditer(r'\bMETHOD\s+(\w+)', line, re.IGNORECASE):
+            # CALL METHOD ref->foo 里的 METHOD ref 不是定义，是调用。
+            for match in re.finditer(r'(?<!CALL )\bMETHOD\s+(\w+)', line, re.IGNORECASE):
                 defined_methods.add(match.group(1).upper())
 
-            # 调用
-            for match in re.finditer(r'\bPERFORM\s+(\w+)', line, re.IGNORECASE):
+        for line in lines:
+            # PERFORM 有两种写法：PERFORM foo. 与 PERFORM : foo. / PERFORM: foo.
+            # 漏掉冒号式会把整类老写法都读成「从未被调用」。
+            for match in re.finditer(r'\bPERFORM\s*(?::\s*|\s+)(\w+)', line, re.IGNORECASE):
                 called_forms.add(match.group(1).upper())
 
-            for match in re.finditer(r'(\w+)->(\w+)\s*\(', line):
+            # 动态形式名 PERFORM (dynpro) 抓不到也没关系：它本身无法静态判定。
+            # 实例调用 obj->method( 与静态调用 cl_x=>method( )。
+            # 写成 ->+ 覆盖 -> 与 ->>；=>+ 覆盖 => 与 =>>。
+            # 注意必须是 ->+ 而不是 ->>+：后者要求两个 > 起，会把所有实例
+            # 调用都漏掉，于是「被 -> 调过的方法」全被报成未使用。
+            for match in re.finditer(r'(\w+)\s*(?:=>+|->+)\s*(\w+)\s*\(', line):
                 called_methods.add(match.group(2).upper())
 
-        # 检测未使用的 FORM
-        for form_name in defined_forms - called_forms:
-            # 找到定义位置
+            # 类实现体内的裸调用：set_tol( ) 调本类方法，前面没有 ->。
+            # 只认本文件自己定义过的方法名，避免把关键字（IF (、COND (）当调用。
+            for match in re.finditer(r'(?<![->.\w])([A-Za-z_][A-Za-z0-9_]*)\s*\(', line):
+                name = match.group(1).upper()
+                if name in defined_methods:
+                    called_methods.add(name)
+
+        # ALV 回调与 slis_t_events 以字符串字面量引用 FORM，代码里没有 PERFORM。
+        # 字面量集合只与本文件定义过的 FORM 名求交，所以不会误伤别处的字符串。
+        for match in re.finditer(r"'([A-Za-z0-9_]+)'", content):
+            name = match.group(1).upper()
+            if name in defined_forms:
+                called_forms.add(name)
+
+        for form_name in sorted((defined_forms - called_forms) - EVENT_NAMES):
             for i, line in enumerate(lines, 1):
                 if re.search(rf'\bFORM\s+{form_name}\b', line, re.IGNORECASE):
                     self.unused_code.append(UnusedCode(
@@ -323,10 +421,9 @@ class ABAPDepsAnalyzer:
                     ))
                     break
 
-        # 检测未使用的方法
-        for method_name in defined_methods - called_methods:
+        for method_name in sorted((defined_methods - called_methods) - EVENT_NAMES):
             for i, line in enumerate(lines, 1):
-                if re.search(rf'\bMETHOD\s+{method_name}\b', line, re.IGNORECASE):
+                if re.search(rf'(?<!CALL )\bMETHOD\s+{method_name}\b', line, re.IGNORECASE):
                     self.unused_code.append(UnusedCode(
                         name=method_name,
                         type='method',
@@ -371,6 +468,7 @@ class ABAPDepsAnalyzer:
             'total_issues': len(self.issues),
             'errors': len([i for i in self.issues if i.severity == 'error']),
             'warnings': len([i for i in self.issues if i.severity == 'warning']),
+            'info': len([i for i in self.issues if i.severity == 'info']),
             'total_unused_code': len(self.unused_code)
         }
 
@@ -385,10 +483,11 @@ def format_markdown(result: dict) -> str:
     summary = result['summary']
     lines.append(f"- 依赖总数: {summary['total_dependencies']}")
     lines.append(f"- 标准对象引用: {summary['unique_targets']}")
-    lines.append(f"- 问题总数: {summary['total_issues']}")
+    lines.append(f"- 待确认项: {summary['total_issues']}")
     lines.append(f"  - 错误: {summary['errors']}")
     lines.append(f"  - 警告: {summary['warnings']}")
-    lines.append(f"- 未使用代码: {summary['total_unused_code']}")
+    lines.append(f"  - 提示: {summary['info']}")
+    lines.append(f"- 未使用代码: {summary['total_unused_code']}（启发式，仅供人工复核）")
     lines.append("")
 
     # 依赖关系
@@ -403,7 +502,7 @@ def format_markdown(result: dict) -> str:
     lines.append("")
 
     # 问题
-    lines.append("## 检测到的问题\n")
+    lines.append("## 待确认的引用（非缺陷判定）\n")
     if result['issues']:
         for issue in result['issues']:
             icon = '❌' if issue['severity'] == 'error' else '⚠️' if issue['severity'] == 'warning' else 'ℹ️'
@@ -415,11 +514,11 @@ def format_markdown(result: dict) -> str:
                 lines.append(f"- **建议**: {issue['suggestion']}")
             lines.append("")
     else:
-        lines.append("未检测到问题")
+        lines.append("未检测到待确认的引用")
     lines.append("")
 
     # 未使用代码
-    lines.append("## 未使用的代码\n")
+    lines.append("## 未使用的代码（启发式）\n")
     if result['unused_code']:
         lines.append("| 名称 | 类型 | 位置 |")
         lines.append("|------|------|------|")
@@ -440,39 +539,50 @@ def format_json(result: dict) -> str:
 def main():
     parser = argparse.ArgumentParser(description='ABAP 依赖分析器')
     parser.add_argument('source', help='ABAP 源文件路径')
-    parser.add_argument('--deps', default='abaplint-deps/src', help='abaplint/deps 目录路径')
+    parser.add_argument('--deps', default=None,
+                        help='abaplint/deps 目录路径；省略时用随包副本')
     parser.add_argument('--format', choices=['markdown', 'json'], default='markdown', help='输出格式')
     parser.add_argument('--output', '-o', help='输出文件路径')
 
     args = parser.parse_args()
 
     # 解析依赖目录。依赖随本 skill 一起发布在 skill 根下（与 scripts/ 同级），
-    # 所以第一个候选按脚本自身位置推导而不是按当前工作目录 —— 装好的 skill 里
-    # CWD 几乎从不是 skill 目录，按 CWD 找必然落空。
-    deps_dir = Path(args.deps)
-    if not deps_dir.exists():
-        skill_dir = Path(__file__).resolve().parent.parent
-        possible_paths = [
-            skill_dir / 'abaplint-deps' / 'src',  # 随本 skill 发布
-            Path.cwd() / 'abaplint-deps' / 'src',  # 当前工作目录
-            Path.cwd() / 'skill' / 'analyzing-programs' / 'abaplint-deps' / 'src',
-        ]
+    # 装好的 skill 里 CWD 几乎从不是 skill 目录，所以默认值必须按脚本自身位置
+    # 推导。
+    #
+    # 关键在「默认值不能按 CWD 解析」：CWD 里只要恰好存在一个 abaplint-deps/src
+    # （比如按下面的兜底指引自己克隆了一份）就会静默取代随包副本。一次分析比对
+    # 的是哪 184 个标准对象，整个输出都跟着变，而命令行上看不出来。
+    # 显式 --deps 失效时仍然回落，但回落必须被说出来。
+    skill_dir = Path(__file__).resolve().parent.parent
+    possible_paths = [
+        skill_dir / 'abaplint-deps' / 'src',  # 随本 skill 发布，唯一权威
+        Path.cwd() / 'abaplint-deps' / 'src',  # 当前工作目录
+        Path.cwd() / 'skill' / 'analyzing-programs' / 'abaplint-deps' / 'src',
+    ]
 
+    deps_dir = None
+    if args.deps:
+        if Path(args.deps).exists():
+            deps_dir = Path(args.deps)
+        else:
+            print(f"提示: --deps 指向的目录不存在，回落到随包副本: {args.deps}")
+    if deps_dir is None:
         for path in possible_paths:
             if path.exists():
                 deps_dir = path
                 break
-        else:
-            # 依赖应当已经随 skill 打进来；到这里说明这份安装不完整，
-            # 而不是用户没克隆仓库。所以先报"安装缺失"，克隆指引只作兜底。
-            print(f"错误: 依赖目录不存在")
-            print(f"尝试的路径: {args.deps}")
-            for path in possible_paths:
-                print(f"  {path}")
-            print("本 skill 应当自带 abaplint-deps/，请确认安装完整，"
-                  "或用 --deps 指向 abaplint/deps 的 src 目录")
-            print("  git clone https://github.com/abaplint/deps.git abaplint-deps")
-            sys.exit(1)
+    if deps_dir is None:
+        # 依赖应当已经随 skill 打进来；到这里说明这份安装不完整，
+        # 而不是用户没克隆仓库。所以先报"安装缺失"，克隆指引只作兜底。
+        print("错误: 依赖目录不存在")
+        print(f"尝试的路径: {args.deps}")
+        for path in possible_paths:
+            print(f"  {path}")
+        print("本 skill 应当自带 abaplint-deps/，请确认安装完整，"
+              "或用 --deps 指向 abaplint/deps 的 src 目录")
+        print("  git clone https://github.com/abaplint/deps.git abaplint-deps")
+        sys.exit(1)
 
     try:
         # 创建分析器

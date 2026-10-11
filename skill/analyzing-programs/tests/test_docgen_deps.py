@@ -305,8 +305,13 @@ def main():
     print("-" * 72)
     check(os.path.isdir(DEPS_SRC), "the shipped abaplint-deps are present")
     analyzer = ABAPDepsAnalyzer(DEPS_SRC)
-    check(len(analyzer.standard_objects) >= 100,
-          "the index is populated", f"{len(analyzer.standard_objects)} objects")
+    # 184 is the anchor, not a lower bound. The bundled abaplint-deps is a fixed
+    # subset of abaplint/deps, and every unresolved_* finding is really a statement
+    # about that subset: shrink the subset and every reference reads as unresolved.
+    # `>= 100` let it shrink by half without a single check noticing.
+    check(len(analyzer.standard_objects) == 184,
+          "the bundled library ships exactly the objects it declares",
+          f"{len(analyzer.standard_objects)} objects (expected 184)")
     check({"class", "interface", "program"} <=
           {o.type for o in analyzer.standard_objects.values()},
           "all three object kinds indexed",
@@ -323,13 +328,25 @@ def main():
     check(sorted(result) == ["dependencies", "issues", "summary", "unused_code"],
           "the result carries the documented keys", str(sorted(result)))
     s = result["summary"]
-    check(sorted(s) == ["errors", "total_dependencies", "total_issues",
+    check(sorted(s) == ["errors", "info", "total_dependencies", "total_issues",
                         "total_unused_code", "unique_targets", "warnings"],
           "the summary carries the documented counters", str(sorted(s)))
     check(s["total_issues"] == len(result["issues"]),
           "summary counts the issues it returns")
-    check(s["errors"] == 0,
-          "zvend.abap raises no errors", str(s["errors"]))
+    check(s["errors"] + s["warnings"] + s["info"] == s["total_issues"],
+          "the severity counters account for every issue", str(s))
+    check(s["errors"] == 0 and s["warnings"] == 0,
+          "nothing is presented as a defect", str(s))
+    issue_text = " ".join(i["message"] for i in result["issues"]).upper()
+    check("LCL_PERF_EVAL" not in issue_text,
+          "a class defined in the same file is not reported missing")
+    # Zavend used to report four "unused" methods. Two are runtime lifecycle
+    # entries that have no call site by definition, two are called by bare name
+    # inside the class body -- all four were false positives.
+    unused = {u["name"].upper() for u in result["unused_code"]}
+    for name in ("CONSTRUCTOR", "END_OF_PAGE", "BUILD_FC", "SET_TOL"):
+        check(name not in unused,
+              f"zvend: {name} is not reported unused", str(sorted(unused)))
 
     print()
     print("abap_deps_analyzer: command line")
@@ -369,6 +386,147 @@ def main():
               f"rc={r.returncode}")
     finally:
         shutil.rmtree(neutral, ignore_errors=True)
+
+    print()
+    print("abap_deps_analyzer: no false positives")
+    print("-" * 72)
+    # Each of these used to land in a report as a risk, and none of them is a
+    # defect in the program being analysed. Two are runtime lifecycle entries
+    # with no call site by definition, two are called by bare name inside the
+    # class body, three are PERFORMed the colon way, and one is a data variable
+    # that CALL METHOD misread as a defined method.
+    probe_lines = [
+        "*&report zprobe.",
+        "CLASS zcl_probe DEFINITION",
+        "  PUBLIC.",
+        "  METHODS: constructor,",
+        "           build_fc,",
+        "           set_tol,",
+        "           end_of_page,",
+        "           via_arrow,",
+        "           via_static,",
+        "           dead_method.",
+        "ENDCLASS.",
+        "",
+        "CLASS zcl_probe IMPLEMENTATION.",
+        "",
+        "  METHOD constructor.",
+        "    build_fc( ).",
+        "  ENDMETHOD.",
+        "",
+        "  METHOD build_fc.",
+        "    set_tol( ).",
+        "    end_of_page( ).",
+        "    obj_rep->via_arrow( ).",
+        "  ENDMETHOD.",
+        "",
+        "  METHOD set_tol.",
+        "  ENDMETHOD.",
+        "",
+        "  METHOD end_of_page.",
+        "  ENDMETHOD.",
+        "",
+        "  METHOD via_arrow.",
+        "  ENDMETHOD.",
+        "",
+        "  METHOD via_static.",
+        "  ENDMETHOD.",
+        "",
+        "  METHOD dead_method.",
+        "  ENDMETHOD.",
+        "",
+        "ENDCLASS.",
+        "",
+        "FORM driver.",
+        "* PERFORM dead_form.",
+        "  PERFORM : live_form2.",
+        "  PERFORM: live_form3.",
+        "*appending values form ghost_final internal table to",
+        "*DATA ghost_ref TYPE REF TO cl_ghost_missing.",
+        "ENDFORM.",
+        "",
+        "FORM live_form2.",
+        "ENDFORM.",
+        "",
+        "FORM live_form3.",
+        "ENDFORM.",
+        "",
+        "FORM dead_form.",
+        "ENDFORM.",
+        "",
+        "FORM via_callback.",
+        "ENDFORM.",
+        "",
+        "DATA ls_alv TYPE slis_alv_layout.",
+        "ls_alv-i_callback_pf_status_set = 'VIA_CALLBACK'.",
+        "",
+        "DATA ref TYPE REF TO cl_gui_alv_grid.",
+        "CALL METHOD ref->check_changed_data.",
+        "zcl_probe=>via_static( ).",
+    ]
+    probe_dir = tempfile.mkdtemp(prefix="deps_probe_")
+    try:
+        probe = os.path.join(probe_dir, "probe.abap")
+        with io.open(probe, "w", encoding="utf-8", newline="") as fh:
+            fh.write("\n".join(probe_lines) + "\n")
+
+        res = analyzer.analyze(probe)
+        unused = {u["name"].upper() for u in res["unused_code"]}
+
+        for name in ("CONSTRUCTOR", "END_OF_PAGE", "BUILD_FC", "SET_TOL",
+                     "LIVE_FORM2", "LIVE_FORM3", "VIA_ARROW", "VIA_STATIC",
+                     "VIA_CALLBACK", "GHOST_FINAL", "REF"):
+            check(name not in unused,
+                  f"{name} is not reported unused", str(sorted(unused)))
+        for name in ("DEAD_METHOD", "DEAD_FORM", "DRIVER"):
+            check(name in unused,
+                  f"{name} is still reported -- the heuristic keeps its teeth",
+                  str(sorted(unused)))
+
+        issue_types = {i["type"] for i in res["issues"]}
+        check(not (issue_types & {"unknown_type", "unknown_method",
+                                  "unknown_program"}),
+              "the old unknown_* labels are gone", str(sorted(issue_types)))
+        check(res["summary"]["errors"] == 0 and res["summary"]["warnings"] == 0,
+              "no finding is presented as a defect", str(res["summary"]))
+        check(all(i["severity"] == "info" for i in res["issues"]),
+              "every finding is info, so it cannot be read as a problem",
+              str(sorted(issue_types)))
+        check("CL_GUI_ALV_GRID" not in " ".join(
+            i["message"] for i in res["issues"]).upper(),
+              "a class that is in the shipped library is not reported missing")
+        check("CL_GHOST_MISSING" not in " ".join(
+            i["message"] for i in res["issues"]).upper(),
+              "a commented-out reference is not reported missing")
+    finally:
+        shutil.rmtree(probe_dir, ignore_errors=True)
+
+    print()
+    print("abap_deps_analyzer: the bundled library wins over the working directory")
+    print("-" * 72)
+    # A decoy abaplint-deps/src in the working directory used to be indexed
+    # instead of the shipped library, silently. The whole analysis was then
+    # compared against one stub and every reference read as unresolved.
+    decoy = tempfile.mkdtemp(prefix="deps_decoy_")
+    try:
+        decoy_src = os.path.join(decoy, "abaplint-deps", "src")
+        os.makedirs(decoy_src)
+        with io.open(os.path.join(decoy_src, "decoy.clas.abap"), "w",
+                     encoding="utf-8") as fh:
+            fh.write("CLASS decoy DEFINITION ENDCLASS.\n")
+        r = subprocess.run([sys.executable, DEPS, src_path],
+                           capture_output=True, encoding="utf-8", cwd=decoy)
+        check(r.returncode == 0,
+              "runs while a decoy sits in the working directory",
+              f"rc={r.returncode}")
+        indexed = [ln for ln in r.stdout.splitlines() if "正在索引标准库" in ln]
+        check(len(indexed) == 1 and "decoy" not in indexed[0],
+              "the shipped library is indexed, not the working-directory copy",
+              indexed[0] if indexed else "no indexing line")
+        check(any("184" in ln for ln in r.stdout.splitlines()),
+              "all 184 shipped objects are indexed")
+    finally:
+        shutil.rmtree(decoy, ignore_errors=True)
 
     print()
     print("-" * 72)
