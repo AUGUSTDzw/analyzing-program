@@ -446,24 +446,32 @@ def main():
 
     args = parser.parse_args()
 
-    # 解析依赖目录
+    # 解析依赖目录。依赖随本 skill 一起发布在 skill 根下（与 scripts/ 同级），
+    # 所以第一个候选按脚本自身位置推导而不是按当前工作目录 —— 装好的 skill 里
+    # CWD 几乎从不是 skill 目录，按 CWD 找必然落空。
     deps_dir = Path(args.deps)
     if not deps_dir.exists():
-        # 尝试多个可能的路径
+        skill_dir = Path(__file__).resolve().parent.parent
         possible_paths = [
-            Path(__file__).parent.parent.parent.parent / 'abaplint-deps' / 'src',  # 从项目根目录
+            skill_dir / 'abaplint-deps' / 'src',  # 随本 skill 发布
             Path.cwd() / 'abaplint-deps' / 'src',  # 当前工作目录
-            Path.cwd() / 'skill' / 'analyzing-programs' / 'abaplint-deps' / 'src',  # skill 目录下
+            Path.cwd() / 'skill' / 'analyzing-programs' / 'abaplint-deps' / 'src',
         ]
-        
+
         for path in possible_paths:
             if path.exists():
                 deps_dir = path
                 break
         else:
+            # 依赖应当已经随 skill 打进来；到这里说明这份安装不完整，
+            # 而不是用户没克隆仓库。所以先报"安装缺失"，克隆指引只作兜底。
             print(f"错误: 依赖目录不存在")
             print(f"尝试的路径: {args.deps}")
-            print("请先克隆 abaplint/deps: git clone https://github.com/abaplint/deps.git abaplint-deps")
+            for path in possible_paths:
+                print(f"  {path}")
+            print("本 skill 应当自带 abaplint-deps/，请确认安装完整，"
+                  "或用 --deps 指向 abaplint/deps 的 src 目录")
+            print("  git clone https://github.com/abaplint/deps.git abaplint-deps")
             sys.exit(1)
 
     try:
