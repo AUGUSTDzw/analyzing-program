@@ -53,14 +53,14 @@ python scripts/evaluate.py compare --defects D.json --a V1.json --b V2.json
 验证套件在仓库里跑。`tests/` 不随包发布，安装包里没有这五个文件：
 
 ```bash
-python tests/test_skill.py              # 186 项
+python tests/test_skill.py              # 194 项
 python tests/test_contract_drift.py     # 123 项，契约 <-> SKILL.md <-> 闸门 三方对齐
 python tests/test_gate_enforcement.py   # 25 项，闸门执行漏洞探针
 python tests/test_fidelity_tiers.py     # 7 项，改动前后口径是否等价
 python tests/test_docgen_deps.py        # 95 项，docgen 与依赖分析器
 ```
 
-合计 436 项。
+合计 444 项。
 
 **退出码是契约的一部分。** 所有模式在仍有缺陷时返回非零，包括 `--fidelity-only`
 与 `--fix` —— SKILL.md 第 6 步让模型"重跑到干净为止"，那条循环只能靠退出码终止。
@@ -89,14 +89,14 @@ SKILL.md「闸门输出」一节照抄：
 
 | 情况 | 实际输出 | 退出码 |
 |---|---|---|
-| 形状模式不传源码 | `PASS <报告名>` + `note  no source recognised, so density, fidelity, fix-mislabel, authz and ext-asset were not run (pass the ABAP file after the report)` | `0` |
+| 形状模式不传源码 | `PASS <报告名>` + `note  no source recognised, so density, fidelity, fix-mislabel, authz, ext-asset and row-src were not run (pass the ABAP file after the report)` | `0` |
 | 源码路径不存在 | `error no such source: ...`，一个字都没查 | `2` |
 | 报告路径不存在 | `error no such report: ...` | `2` |
 | 给了多于一个源码 | `error more than one source: ...`（不是静默取最后一个） | `2` |
 | 报告存成非 `.md` / `.markdown` | `error no report path: ...` —— 闸门认为你没给报告 | `2` |
 
-所以：形状检查的 `0` 只能读作「形状对」，**看到那条 skip note 就等于五项诊断没跑**
-（六项诊断里只有 `fix-lang` 不需要源码）。
+所以：形状检查的 `0` 只能读作「形状对」，**看到那条 skip note 就等于五项诊断外加 `row-src` 没跑**
+（六项诊断里只有 `fix-lang` 不需要源码；`row-src` 是强制项，也一起跳过）。
 这一版的闸门在源码路径写错时会**拒绝运行**而不是打印 PASS —— 上一版不是那样的，
 上一版会照跑、照打印 `PASS`、零 note。这三条语义已经改过两轮，
 全部记在 `schemas/report-contract.json` 里，闸门行为集中在 `gate_io` 段
@@ -132,7 +132,7 @@ Mermaid 标签里的裸 `<` `>` `#` → 改成全角。三层缺失**只报位�
 ### 先说版本：下面的数字不是出货版本的数字
 
 iteration-8 的全部数字都是在 **`b8f84e8`**（162 行）上测出来的。
-**出货版本是 `1.1.13`（536 行）。形状一致性有 n=3 的证据（见下，测于 1.1.5），**效果**未测出结论。**
+**出货版本是 `1.1.14`（536 行）。形状一致性有 n=3 的证据（见下，测于 1.1.5），**效果**未测出结论。**
 
 版本谱系（每一版都已归档在 `release/`，digest 见 `release/SHA256SUMS`）。
 `commit` 列是本仓库的 git id，**不是** zip 的 sha256——那是 `release/SHA256SUMS` 的事。
@@ -167,6 +167,7 @@ Not a valid object name），那几行的行数只能从 `--follow` 找到的同
 | `f3eab57` | 535 | `f3eab57` | **1.1.11**。契约不动（1.3.3）。**上一版只是把「tests/ 在包里跑不起来」写进了 README，这一版直接把文件不发出去。** 理由很直白：包里不该有跑不通的东西。做法在 `release/pack.py` 加一个 `NOT_SHIPPED = ("tests/",)` 排除名单，打包时会打印 `excluded 5 repository-only file(s)`；旁边配一条 `CRITICAL` 守卫，把 `schemas/` / `scripts/` / `references/` / `evals/` 四个闸门真要读的目录列进去，误填一个就让打包直接 `AssertionError`，而不是悄悄少发。**契约和闸门一字未动**：五个 suite 从不被 `scripts/` 导入、也不读任何契约键，所以包小 5 个文件、行为完全一致。README 的目录表把 `tests/*.py` 一行改标为「不随包发布」，「跑一遍」拆成两段——包里装好就能跑的（`report_qc.py` / `evaluate.py` 五条），和只在仓库里跑的（五个 suite，419 项）。`references/README.md` 与 `evals/README.md` 里各有一处指向 `tests/` 的交叉引用，那是指向仓库侧套件的，读包的人找不到很正常，保留 |
 | `8b4e8ca` | 536 | `8b4e8ca` | **1.1.12**。契约 1.3.3 → 1.3.4。**`--fix` 会给一份还没过闸门的报告发 `PASS`。** 量出来的：把范例报告复制出来，在一个代码块里给 `ENDFUNCTION.` 后面加一个词（形状完全没动），三个模式各跑一次——形状模式退 `1`，打 `SUBSTA   line 187 ...`、`FAIL  tampered.md  (1 defect(s))` 再跟一条 note；`--fidelity-only` 退 `1`，打 `FAIL  ...  (1 rewrite(s), 0 punctuation-only)`；`--fix` 退 **`0`**，打 `PASS`。**同一个报告，两个模式，两个不同的答案。** 原因在 `--fix` 分支：`fidelity_report()` 其实已经调了，但 `n_sub` 只喂给了 note，返回值是 `1 if left else 0`，`left` 是形状检查——**note 说了实话，退出码没听。** 而契约 `exit_codes["0"]` 本来就把「没有实质改写」写成了 `0` 的条件，所以契约和闸门说的是两件不同的事；第 6、7 步的循环只看退出码，循环会停在一个伪造的引用上。修法是让忠实度计算提到 verdict 之前、返回值改成 `1 if left or n_sub`；**note 的顺序一个字没动**，形状与 `--fix` 仍然 verdict 在前、note 在后（`notes_follow_the_verdict` 断言、`test_contract_drift.py` 钉住的就是这条）。verdict 顺手不再用一个数把两类混在一起，改成各数各的、都收在 `need the model` 上——`1 shape defect(s)`、`1 rewrite(s)`，或 ` and ` 连起来——一个总数会让读的人以为剩下的都能机械修掉。契约侧：`exit_codes["0"]` 补上「三种模式一致」，`exit_codes["1"]` 与 `conclusion_lines` 带上新措辞，`release._comment` 记下这个洞。SKILL.md 说明 `--fix` 一行分级行都不打，只用一条 note 报改写数，所以在那里 grep `SUBSTA` 是空的；README 补上 `score` / `compare` 的 `--legacy`；`test_skill.py` 加三条检查（形状模式失败、`--fix` 非零、`--fix` 不打 `PASS` 且指名 rewrite），169 → 174、合计 419 → 424 项 |
 | `e0f7612` | 536 | `e0f7612` | **1.1.13**。契约 1.3.4 → 1.3.5。**契约写了「三种模式一致」，闸门只在一种模式里兑现。** 量出来的：把 `RuntimeError` 注进 `report_qc` 的检测器，三个模式各跑一次同一个报告——形状模式退 `2`、打 `error  internal error checking ...`、无 traceback；`--fidelity-only` 退 **`1`** 加 traceback；`--fix` 退 **`1`** 加 traceback，**而且先把输出文件写完了**。`exit_codes["2"]` 从 1.3.1 起就说「in every mode」，SKILL.md 也这么说——但守卫只加在形状模式的检查循环外面，另两个分支的 `classify()` / `fix()` / `check()` / `fidelity_report()` / `all_notes()` 全是裸调用。**`1` 的意思是「查过了、有缺陷」**，第 6、7 步的循环盯着退出码，崩溃被当成缺陷：模型去修不存在的缺陷，`--fix` 还把一次没查过的运行的结果落盘。修法是 `run_detector()`——**一份**守卫、三个分支都过它——而且**消息也放进这个函数里**：按分支各抄一份正是另外两个漏掉的原因。`test_skill.py` 注入异常，三种模式各断言无 traceback、退 `2`、输出含 `the gate crashed`，共九条；在改动前的代码上 `--fidelity-only` 与 `--fix` 两条全挂（180 → 186 项）。顺手抓到两处自己引入的回归：新守卫的签名先是 `run_detector(fn, report, *args)`，而 `report()` 需要两个实参，形参名又正好叫 `report`——第一个版本把参数吞掉了，形状模式基线当场崩，`baseline report passes the gate` 这条把它挡在打包之前。契约侧：`conclusion_lines` 补上它**漏掉的唯一一种可打印形式**——`--fidelity-only` 在只剩建议级时打 `PASS  <name>  (N punctuation-only)`，verdict 仍是 `PASS`、退出码仍是 `0`，照 `conclusion_lines` 分类输出的读者会撞上契约从没提过的一行；`exit_codes["1"]` 说明，测试构造这个用例（把引用里一个空格挪进括号）并**匹配整行**，所以悄悄丢掉括号里的数也抓得住。另修两行契约自相矛盾：`source_is_optional.verdict_still_printed` 说「three diagnostics」，而 note 与 `needs_source` 都是五条；`diagnostics.enforcement` 说「note -- never changes the exit code」，而 `advisories[fidelity].enforcement` 说它的 SUBSTANTIVE 级**就是**缺陷行、进 N、进退出码——fidelity 又列在 `diagnostics` 下面，顺着读就读成纯建议，这条是真的会误导人的那一处，`enforcement` 现在把例外写出来了。README 的 `--legacy` 段是**写反的**（「加了它就跳不过去」——它是跳过校验的那个旗子），且把缺的字段说成 `evidence.quote`，实际必需的是 `evidence.<id>.report_line`；照 `evaluate.py` 重写，列出四种拒绝原因、`--report` 的要求，以及**它不豁免 `false_claims`** |
+| `1aa800f` | 536 | `1aa800f` | **1.1.14**。契约 1.3.5 → 1.3.6。**「源码是空的」和「源码只有一个空格」在闸门眼里是两件事，于是同一份干净报告能读出 28 个缺陷。** 量出来的：把范例报告对着一个只含空格和制表符的文件跑——形状模式退 `1`、打 `FAIL  (28 defect(s))`，18 条 `row-src` 加 10 条 `SUBSTA`；同一个文件喂给 `--fidelity-only` 却是 `error source is empty` 退 `2`。三个模式，一个输入，三种答案。根因是两套判空不一致：`report_qc.py` 用 `not src.strip()`，六个吃源码的检测器用 `not src`——空白串是 truthy，于是照常进来了。`classify()` 数到 0 个标识符，把每句引用判成实质改写；`row-src` 算出的 `flat_src` 是空串而不是 `None`，绕过了它自己那句 `no source given: cannot judge, so do not fail` 的出口，把每一行问题判成「没指向源码里的东西」。这是 `ReadError` 那道守卫要挡的同一类假判：判不了的被报成了结论。修法只有一处：`checks/text.py` 加 `_src_of()`，三个模块本来都从那里 import。顺手补两处对不上的文档：skip note 和 `diagnostics.needs_source` 都说五项，而 `row-src` 是第六个吃源码的、也跟着一起跳过——1.3.5 那次只把 three 改成 five，漏了它。另修 `--fix` 的写盘顺序：写文件原来夹在第二个检测器和后面三个之间，所以后三个一崩就退 `2` 说「一个字都没查」，可输出文件已经落盘了；现在四个检测器都跑完才写，拒绝运行时不留任何文件。test_skill 186 → 194。 |
 
 **契约版本与发布版本是两条独立的轴。** 契约 `version` 只在该文件自己的规则、
 阈值或 `gate_io` 行变化时递增；发布版本对措辞和闸门行为的变化也递增。
