@@ -16,7 +16,7 @@ references/large-inputs.md     大输入的实测行为（观察，不是规则�
 references/README.md           范例的出处与局限
 evals/README.md                缺陷参考的格式、用法与边界
 evals/*.defects.json           127 条缺陷 / 7 个真实源码
-tests/test_skill.py            自足检查，不依赖项目数据
+tests/test_skill.py            169 项；168 项自足，1 项要同级 Test-source/
 tests/test_contract_drift.py   契约 <-> SKILL.md <-> 闸门 三方对齐检查
 tests/test_docgen_deps.py      docgen 与 abap_deps_analyzer 的解析器与命令行
 schemas/report-contract.json   闸门规则与 skill 教学锚点的唯一来源
@@ -41,7 +41,7 @@ schemas/report-contract.json   闸门规则与 skill 教学锚点的唯一来源
 ## 跑一遍
 
 ```bash
-python tests/test_skill.py                # 169 项，自足；全过打印 N checks passed
+python tests/test_skill.py                # 169 项；168 项自足，1 项要同级 Test-source/
 python tests/test_contract_drift.py       # 123 项，契约 <-> SKILL.md <-> 闸门 三方对齐
 python tests/test_gate_enforcement.py     # 25 项，闸门执行漏洞探针
 python tests/test_fidelity_tiers.py       # 7 项，改动前后口径是否等价
@@ -59,6 +59,17 @@ python scripts/evaluate.py compare --defects D.json --a V1.json --b V2.json
 在默认 cp936 的 Windows 控制台上打印会抛 `UnicodeEncodeError`，
 而且是从缺陷循环里抛的，诊断信息会被 traceback 顶掉。
 Windows 上不需要设 `PYTHONUTF8`。
+
+**这五条只能在仓库里跑，从发布包跑不起来。** 每个 suite 都用
+`HERE = dirname(abspath(__file__))` 往上数出仓库根，再去根下找同级的
+`Test-source/` 与 `analyzing-programs-workspace/`——那两棵树明确不随 skill 发布
+（`analyzing-programs-workspace/` 是上游开发线快照）。所以装到
+`~/.agents/skills/` 之后，五个 suite 会在第一项就 `FileNotFoundError`，
+`test_skill.py` 是 168 过 1 挂（挂的是 `the exemplar's source is present`，
+它需要 `Test-source/real/` 里那份 `zbc_show_error_log`）。
+**闸门本身与它的脚本在装好的位置正常工作**——`python scripts/report_qc.py`
+在范例报告上退 `0`、打 `PASS`，这是实测的。所以上面的 419 项要在仓库里跑，
+发布包只负责让闸门和参考资料就位。
 
 **四种「没检查」的样子，其中一种仍然和通过只差一行 note。** 下表全部实测，
 SKILL.md「闸门输出」一节照抄：
@@ -108,7 +119,7 @@ Mermaid 标签里的裸 `<` `>` `#` → 改成全角。三层缺失**只报位�
 ### 先说版本：下面的数字不是出货版本的数字
 
 iteration-8 的全部数字都是在 **`b8f84e8`**（162 行）上测出来的。
-**出货版本是 `1.1.9`（535 行）。形状一致性有 n=3 的证据（见下，测于 1.1.5），**效果**未测出结论。**
+**出货版本是 `1.1.10`（535 行）。形状一致性有 n=3 的证据（见下，测于 1.1.5），**效果**未测出结论。**
 
 版本谱系（每一版都已归档在 `release/`，digest 见 `release/SHA256SUMS`）。
 `commit` 列是本仓库的 git id，**不是** zip 的 sha256——那是 `release/SHA256SUMS` 的事。
