@@ -62,8 +62,14 @@ def _extract_subprograms(source: str) -> list[dict]:
     seen_starts = set()
 
     # Method definitions
+    # Two forms in the world: `METHOD foo.` (a class-pool implementation, by far
+    # the common one) and `METHOD foo( EXPORTING ... )`. Anchoring on `\(` took
+    # only the second, so a class with six methods was reported as having none
+    # and the subprogram table fell back to the single event block. The
+    # definition-block line `METHODS: constructor ,` is not matched: `\b` after
+    # METHOD does not fire before the S, and `METHOD\s+` wants whitespace.
     method_re = re.compile(
-        r"(?i)^\s*METHOD\s+([A-Z0-9_]+)\s*\(",
+        r"(?i)^\s*METHOD\s+([A-Z0-9_]+)\b",
         re.MULTILINE,
     )
     for match in method_re.finditer(source):
@@ -73,8 +79,11 @@ def _extract_subprograms(source: str) -> list[dict]:
             continue
         seen_starts.add(start)
 
-        # Find END; to get the body
-        body_end = _find_block_end(source, start, r"END;")
+        # A METHOD block ends with ENDMETHOD, not END;. Searching for `END;`
+        # found nothing and fell through to the +2000 default, so every method
+        # body ran on past its own end into the next subprogram.
+        body_end = _find_block_end(
+            source, start, rf"ENDMETHOD\s+{re.escape(name)}\b")
         subprograms.append({
             "name": name,
             "kind": "METHOD",
