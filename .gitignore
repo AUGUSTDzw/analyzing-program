@@ -2,3 +2,5 @@
 reference
 .trash/
 .superpowers/
+abaplint-deps/
+abapSyntax/
