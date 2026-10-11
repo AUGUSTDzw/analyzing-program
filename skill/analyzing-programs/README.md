@@ -48,17 +48,19 @@ python scripts/evaluate.py score --defects D.json --verdicts MY.json
 python scripts/evaluate.py compare --defects D.json --a V1.json --b V2.json
 ```
 
+`score` / `compare` 上还有一个 `--legacy`：豁免引文校验，给没有 `evidence.quote` 的旧判分文件用。加了它就跳不过去——不带它时缺引文会被拒，带它时判分照做但 `WARNING  --legacy: citations were not verified` 会印在输出里。
+
 验证套件在仓库里跑。`tests/` 不随包发布，安装包里没有这五个文件：
 
 ```bash
-python tests/test_skill.py              # 169 项
+python tests/test_skill.py              # 174 项
 python tests/test_contract_drift.py     # 123 项，契约 <-> SKILL.md <-> 闸门 三方对齐
 python tests/test_gate_enforcement.py   # 25 项，闸门执行漏洞探针
 python tests/test_fidelity_tiers.py     # 7 项，改动前后口径是否等价
 python tests/test_docgen_deps.py        # 95 项，docgen 与依赖分析器
 ```
 
-合计 419 项。
+合计 424 项。
 
 **退出码是契约的一部分。** 所有模式在仍有缺陷时返回非零，包括 `--fidelity-only`
 与 `--fix` —— SKILL.md 第 6 步让模型"重跑到干净为止"，那条循环只能靠退出码终止。
@@ -129,7 +131,7 @@ Mermaid 标签里的裸 `<` `>` `#` → 改成全角。三层缺失**只报位�
 ### 先说版本：下面的数字不是出货版本的数字
 
 iteration-8 的全部数字都是在 **`b8f84e8`**（162 行）上测出来的。
-**出货版本是 `1.1.11`（535 行）。形状一致性有 n=3 的证据（见下，测于 1.1.5），**效果**未测出结论。**
+**出货版本是 `1.1.12`（536 行）。形状一致性有 n=3 的证据（见下，测于 1.1.5），**效果**未测出结论。**
 
 版本谱系（每一版都已归档在 `release/`，digest 见 `release/SHA256SUMS`）。
 `commit` 列是本仓库的 git id，**不是** zip 的 sha256——那是 `release/SHA256SUMS` 的事。

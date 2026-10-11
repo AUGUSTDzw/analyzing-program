@@ -190,10 +190,10 @@ def main():
     # numbers against SKILL.md's frontmatter, so an unpinned bump would sail
     # through. Update them together with the frontmatter when a release moves,
     # and read the SKILL.md anchors below as the check that they were updated.
-    check(C.get("version") == "1.3.3", "contract version is 1.3.3",
+    check(C.get("version") == "1.3.4", "contract version is 1.3.4",
           C.get("version"))
-    check(_rel.get("ships_with") == "1.1.11",
-          "contract ships with 1.1.11", _rel.get("ships_with"))
+    check(_rel.get("ships_with") == "1.1.12",
+          "contract ships with 1.1.12", _rel.get("ships_with"))
     # The frontmatter fields exist so a deployed copy can prove what it is by
     # reading itself. 1.1.2 shipped with version 1.1.1 still in its own
     # SKILL.md, so an installed copy could not have named the release it was.

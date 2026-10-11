@@ -495,25 +495,37 @@ def main(argv):
         for kind, ln, detail in left:
             where = f"line {ln}" if ln else "document"
             print(f"  {kind:6} {where:>10}  {detail}")
+        # --fix repairs mechanical defects only; fidelity violations are
+        # reported but not repaired. Read them before the verdict, because a
+        # substantive rewrite blocks 0 the same way a shape defect does, and
+        # plain mode counts it in N. Failing to move it up would print PASS
+        # and then exit 1 -- the same false reassurance as before, read from
+        # the other end.
+        n_sub, _n_pun, _tiers, fid_notes = fidelity_report(fixed, ssrc)
         # The other two modes print PASS or FAIL. A caller that greps for
         # either sees nothing from --fix, so the verdict lived only in the
         # exit code. Same vocabulary here.
-        if left:
+        if left or n_sub:
+            why = []
+            if left:
+                why.append("%d shape defect(s)" % len(left))
+            if n_sub:
+                why.append("%d rewrite(s)" % n_sub)
             print(f"FAIL  {os.path.basename(dest)}  "
-                  f"({len(left)} defect(s) need the model)")
+                  f"({' and '.join(why)} need the model)")
         else:
             print(f"PASS  {os.path.basename(dest)}")
         for note in all_notes(fixed, ssrc):
             print(f"  note  {note}")
-        # --fix repairs mechanical defects only; fidelity violations are
-        # reported but not repaired. Print them so the caller knows.
-        n_sub, n_pun, _tiers, fid_notes = fidelity_report(fixed, ssrc)
         for fn in fid_notes:
             print(f"  note  {fn}")
         # Repaired what could be repaired; whatever is left needs the model, and
         # the caller has to be able to see that. Returning 0 here made a partial
-        # repair indistinguishable from a finished one.
-        return 1 if left else 0
+        # repair indistinguishable from a finished one. A rewrite is a partial
+        # repair too: the model has to go and fix the quote, and step 7 loops on
+        # the exit code -- so 0 here was a report that passed a gate it had
+        # not been through.
+        return 1 if left or n_sub else 0
 
     # A report is a markdown file; anything else on the command line is the
     # source. An allowlist of .abap extensions used to mean a .txt or .ab1

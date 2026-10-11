@@ -1,7 +1,7 @@
 ---
 name: analyzing-programs
-version: 1.1.11
-contract: 1.3.3
+version: 1.1.12
+contract: 1.3.4
 description: Use when the user wants a deep onboarding-style analysis report for an ABAP/SAP program source file (报表程序、FORM/事件块、OO 类 CLAS、函数组、ALV 等), or pastes an ABAP / z*.abap file asking to analyze, walk-through, 讲解 its structure, execution flow, or design. Trigger on phrases like "分析这个程序/源码","走读/讲解 ABAP","代码 onboarding","源码分析/架构分析","帮我看懂这段 SAP 代码". Trigger even when the user does not explicitly say "report" but clearly wants to understand a whole program's business purpose, architecture, and risks. Do NOT use for one-line answers, non-SAP code, or pure syntax/API lookups.
 ---
 # Skill: analyzing-programs
@@ -102,8 +102,8 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 
 | 退出码 | 什么时候 | 意味着什么 |
 |---|---|---|
-| `0` | 检查跑完了，**形状无缺陷，且没有实质改写** | `PASS  <报告名>`。可能带 note，**note 不改变退出码** |
-| `1` | 跑完了，有缺陷 | 形状模式：缺陷行以 `fence` / `sec` / `sec-dup` / `prow` / `row-src` / `buck` / `ln` / `mm` / `mm-missing` / `A8-cc` / `layer-same` / `A8-pt` / `enc` 起首，**加上忠实度实质级的一行 `SUBSTA`**，然后是 `FAIL  <报告名>  (N defect(s))`，`N` 把两者都算进去。`--fidelity-only`：先打 `SUBSTA` / `PUNCT-` 分级行，末行 `FAIL  <报告名>  (N rewrite(s), M punctuation-only)`；没有实质改写则 `PASS`。`--fix`：`FAIL  <报告名>  (N defect(s) need the model)`，`N` 只数形状 |
+| `0` | 检查跑完了，**形状无缺陷，且没有实质改写**（三种模式一致） | `PASS  <报告名>`。可能带 note，**note 不改变退出码** |
+| `1` | 跑完了，有缺陷 | 形状模式：缺陷行以 `fence` / `sec` / `sec-dup` / `prow` / `row-src` / `buck` / `ln` / `mm` / `mm-missing` / `A8-cc` / `layer-same` / `A8-pt` / `enc` 起首，**加上忠实度实质级的一行 `SUBSTA`**，然后是 `FAIL  <报告名>  (N defect(s))`，`N` 把两者都算进去。`--fidelity-only`：先打 `SUBSTA` / `PUNCT-` 分级行，末行 `FAIL  <报告名>  (N rewrite(s), M punctuation-only)`；没有实质改写则 `PASS`。`--fix`：`FAIL  <报告名>  (N shape defect(s) and M rewrite(s) need the model)`，两类各数各的，只剩一类时只打那一类；**实质改写同样让 `--fix` 退 `1`**，三种模式给同一个答案 |
 | `2` | **拒绝运行：一个字都没查** | 绝大多数情况输出以 `error` 起首。两个例外不带 `error`：不带参数时打印用法说明；`--fix` 路径不足时打印 `--fix needs REPORT and SOURCE` |
 
 `2` 的全部触发条件，按模式分：
@@ -134,8 +134,9 @@ The value of this skill is the **fixed report structure** and the **three-layer 
   先把引文修干净，第 7 步才只余形状。
 - **verdict 不是最后一行。** 形状模式与 `--fix` 都在 `FAIL` / `PASS` **之后**再打 note，
   最多七条。按「末行」定位 verdict 就停，会漏掉全部 note —— 包括那条告诉你五项诊断没跑
-  的。忠实度的分级名在输出里被截成六个字符：`SUBSTANTIVE` 打成 `SUBSTA`，
-  `PUNCT-ONLY` 打成 `PUNCT-`，照全称 grep 什么都找不到。
+   的。忠实度的分级名在输出里被截成六个字符：`SUBSTANTIVE` 打成 `SUBSTA`，
+   `PUNCT-ONLY` 打成 `PUNCT-`，照全称 grep 什么都找不到。**`--fix` 一行分级行都不打**，
+   只用一条 note 说有几处改写，所以在 `--fix` 的输出里 grep `SUBSTA` 也是空的。
 
 🔴 **CHECKPOINT · 退出码 `2` 是「拒绝」，不是「通过」。**
 它意味着闸门一个字都没看。把路径改对再重跑；**不要**因为没看到 FAIL 就当没问题。
@@ -219,7 +220,7 @@ fix-mislabel 之所以存在：`abap` 与 `abap-fix` 只锁了**一个方向**�
 它**不修三层缺失** —— 那要判断后面的散文本属于哪一层，猜错会把风险论述标成"做什么"。
 原地重写**并且确实改了东西**时，它会把原文另存为 `<报告名>.bak`，并保留报告自己的换行风格。
 零修复时不写 `.bak` —— 但它仍会把重写后的文本原地写回，所以正是「什么都没修」的那次没有备份。
-修完仍有缺陷时返回 `1`，不会假装修好了。
+修完仍有缺陷时返回 `1`，不会假装修好了 —— **一句改写的引文也算**：它不是 `--fix` 能修的，所以也算「还有缺陷」，照样退 `1`，与形状模式同一个答案。
 
 所以用法是：**先按规则写对，再用 `--fix` 收机械残留**。它改不动的那些，
 正是要人判断的。

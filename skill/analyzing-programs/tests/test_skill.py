@@ -627,6 +627,33 @@ def main():
           "A8 is not mechanically repairable")
     fx = run(QC, "--fix", good, src, "-o", os.path.join(tmp, "fixed2.md"))
     check(fx.returncode == 0, "--fix exits 0 once nothing is left")
+    # The same regression in the third branch. A substantive rewrite is a
+    # defect, and plain mode counts it in N, so 0 must mean the same thing in
+    # every mode. Before this, --fix returned 0 here while plain mode returned 1
+    # for the identical report, and the verdict it printed was PASS -- a report
+    # carrying a fabricated quote passed a gate it had never been through, and
+    # step 7 would have stopped looping. Nothing in the drift suite could see
+    # it, because the exit code is a property of report_qc.py, not of the
+    # contract.
+    fbr = os.path.join(tmp, "fixbr.md")
+    io.open(fbr, "w", encoding="utf-8").write(
+        brief_report().replace("SELECT foo FROM bar INTO @DATA(ls_foo).",
+                               "SELECT foo FROM bar INTO @DATA(ls_foo). WRITE 2."))
+    pl = run(QC, fbr, src)
+    check(pl.returncode == 1 and "FAIL" in pl.stdout,
+          "plain mode fails a shape-clean report with one fabricated quote")
+    fx = run(QC, "--fix", fbr, src, "-o", os.path.join(tmp, "fixbr.out.md"))
+    check(fx.returncode == 1,
+          "--fix exits nonzero while a rewrite still needs the model",
+          "same report as plain mode above, so the exit codes must agree")
+    check("PASS" not in fx.stdout,
+          "--fix does not print PASS for a report that still needs the model",
+          "FAIL line: " + next((l for l in fx.stdout.splitlines()
+                                if l.startswith("FAIL")), "none")[:60])
+    check("shape defect" not in fx.stdout,
+          "--fix names a rewrite, not a shape defect, when only one is left")
+    check("rewrite(s)" in fx.stdout,
+          "--fix says what is left needs the model")
     # A run that fails to start and a run that reports defects used to be
     # indistinguishable: a missing file raised FileNotFoundError out of the check
     # loop, which exited 1 -- the code a real defect returns. Step 6 loops "until
