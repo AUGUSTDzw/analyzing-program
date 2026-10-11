@@ -10,7 +10,7 @@ import re
 from checks.contract import (A8_GAP, BUCKETS, CONTRACT, DIAGRAM_LANG, LAYERS,
                              LINE_NUM, PSEC_RE, ROW, SEC_RE, _NEXT_SEC_RE)
 from checks.encoding import replacement_defects
-from checks.text import (TICK, TAG, _flat, blank_fences, fence_defects,
+from checks.text import (TICK, TAG, _flat, _src_of, blank_fences, fence_defects,
                          fence_spans, layer_bodies, line_of, mermaid_labels,
                          mm_violation, source_blocks)
 
@@ -230,7 +230,7 @@ def check(s, src=None):
     if miss_b:
         bad.append(("buck", line_of(s, i) if i >= 0 else 0,
                     "section 五 missing priority bucket(s): " + " ".join(miss_b)))
-    if ROWS_REQUIRE_OBJECT and src:
+    if ROWS_REQUIRE_OBJECT and _src_of(src):
         flat_src = _flat(src).lower()
         sec5_off = s.find(sec5)
         for off, line in enumerate(sec5.split("\n")):

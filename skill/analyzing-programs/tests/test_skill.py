@@ -970,6 +970,39 @@ def main():
           "an undecodable source is refused, not scored against",
           r.stdout.strip().split("\n")[-1][:44] if r.stdout.strip() else "")
 
+    # An empty source and a source of blanks are the same thing: neither has
+    # anything to compare against. report_qc.py tested not src.strip() while
+    # every source-dependent check tested not src, so a file of blanks was
+    # truthy and reached the detectors as a real source. classify() then counted
+    # zero identifiers and called every quotation a fabrication, and row-src
+    # computed an empty flat_src instead of None, which skipped its own
+    # "no source given: cannot judge, so do not fail" hatch and reported every
+    # problem row as naming nothing. One blank file turned the report above into
+    # 28 defects, the same false verdict the undecodable-source refusal just
+    # above exists to stop: what could not be judged was reported as a
+    # judgement. The fixture below carries one quoted statement and one problem
+    # row, so both halves of it are exercised.
+    ws = os.path.join(tmp, "ws.abap")
+    io.open(ws, "w", encoding="utf-8").write("   \n\t\n")
+    r = run(QC, good, ws)
+    check(r.returncode == 0 and not any(
+        x.strip().startswith(("SUBSTA", "PUNCT-", "row-src"))
+        for x in r.stdout.splitlines()),
+          "a source of blanks is not a source that nothing matches",
+          r.stdout.strip().split("\n")[-1][:44] if r.stdout.strip() else "")
+    check("is empty" in r.stdout and "not run" in r.stdout,
+          "a source of blanks says the same thing as an empty one",
+          r.stdout.strip().split("\n")[-1][:44] if r.stdout.strip() else "")
+    wsout = os.path.join(tmp, "ws.out.md")
+    r = run(QC, "--fix", good, ws, "-o", wsout)
+    check(r.returncode == 0 and "rewrite" not in r.stdout,
+          "--fix reports no rewrites against a source of blanks",
+          r.stdout.strip().split("\n")[-1][:44] if r.stdout.strip() else "")
+    r = run(QC, "--fidelity-only", good, ws)
+    check(r.returncode == 2 and "empty" in r.stdout,
+          "--fidelity-only refuses a source of blanks, as it does an empty one")
+
+
     # The pass normalizes line endings internally and must hand the report
     # back in the shape it found it. Before this, a CRLF report came back LF
     # because the read translated and the write translated again.
@@ -1241,6 +1274,38 @@ def main():
         check("the gate crashed" in r.stdout,
               "%s: a crashing detector says nothing was checked" % mode,
               r.stdout.strip().splitlines()[-1][:70] if r.stdout.strip() else "")
+    # All four --fix detectors now run before anything is written. Until 1.3.6
+    # the write sat between the second detector and the three after it, so a
+    # crash in any of those exited 2 and said nothing had been inspected while
+    # the output file was already on disk. In place that report is usually the
+    # only copy, so the caller had to recover from a .bak rather than from a
+    # refusal.
+    for nth in (1, 2, 3, 4):
+        io.open(boom, "w", encoding="utf-8").write(
+            "import sys\n"
+            "sys.path.insert(0, %r)\n"
+            "import report_qc as R\n"
+            "_c = [0]\n"
+            "def _wrap(fn):\n"
+            "    def _w(*a, **k):\n"
+            "        _c[0] += 1\n"
+            "        if _c[0] == %d:\n"
+            "            raise RuntimeError('injected')\n"
+            "        return fn(*a, **k)\n"
+            "    return _w\n"
+            "for _n in ('check', 'classify', 'fix', 'fidelity_report',"
+            " 'all_notes'):\n"
+            "    setattr(R, _n, _wrap(getattr(R, _n)))\n"
+            "sys.exit(R.main(sys.argv))\n"
+            % (os.path.join(SKILL, "scripts"), nth))
+        co = os.path.join(tmp, "crash%d.out.md" % nth)
+        if os.path.exists(co):
+            os.remove(co)
+        r = run(boom, "--fix", bp, ev, "-o", co)
+        check(r.returncode == 2 and not os.path.exists(co),
+              "--fix: a crash in detector %d leaves no file behind" % nth,
+              "rc=%d file=%s" % (r.returncode, os.path.exists(co)))
+
 
     print()
     print("-" * 72)

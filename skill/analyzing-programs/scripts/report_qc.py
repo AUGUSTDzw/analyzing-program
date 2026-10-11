@@ -505,15 +505,6 @@ def main(argv):
         for nt in notes:
             print(f"  note  {nt}")
         dest = out or rep
-        if dest == rep and n:
-            # In place this rewrites the report, and the report is the
-            # deliverable -- usually the only copy. --fix only touches mechanical
-            # defects, but write the previous text next to it anyway.
-            io.open(rep + ".bak", "w", encoding="utf-8", newline="").write(raw)
-            print("previous text -> %s.bak" % rep)
-        written = fixed.replace("\n", "\r\n") if crlf else fixed
-        io.open(dest, "w", encoding="utf-8", newline="").write(written)
-        print(f"repaired {n} mechanical defect(s) -> {dest}")
         left = run_detector(rep, check, fixed, ssrc)
         for kind, ln, detail in left:
             where = f"line {ln}" if ln else "document"
@@ -526,6 +517,23 @@ def main(argv):
         # the other end.
         n_sub, _n_pun, _tiers, fid_notes = run_detector(
             rep, fidelity_report, fixed, ssrc)
+        tail = list(run_detector(rep, all_notes, fixed, ssrc))
+        tail.extend(fid_notes)
+        # All four detectors have returned before anything is written, so a
+        # crash in any of them leaves the report untouched. Exit 2 says nothing
+        # was inspected, and in place this report is usually the only copy -- so
+        # a crash must not be one the caller recovers from a .bak. Every detector
+        # takes the in-memory text, so nothing needed the file: the write used to
+        # sit between the detector that ran second and the three that came after.
+        if dest == rep and n:
+            # In place this rewrites the report, and the report is the
+            # deliverable -- usually the only copy. --fix only touches mechanical
+            # defects, but write the previous text next to it anyway.
+            io.open(rep + ".bak", "w", encoding="utf-8", newline="").write(raw)
+            print("previous text -> %s.bak" % rep)
+        written = fixed.replace("\n", "\r\n") if crlf else fixed
+        io.open(dest, "w", encoding="utf-8", newline="").write(written)
+        print(f"repaired {n} mechanical defect(s) -> {dest}")
         # The other two modes print PASS or FAIL. A caller that greps for
         # either sees nothing from --fix, so the verdict lived only in the
         # exit code. Same vocabulary here.
@@ -539,10 +547,8 @@ def main(argv):
                   f"({' and '.join(why)} need the model)")
         else:
             print(f"PASS  {os.path.basename(dest)}")
-        for note in run_detector(rep, all_notes, fixed, ssrc):
+        for note in tail:
             print(f"  note  {note}")
-        for fn in fid_notes:
-            print(f"  note  {fn}")
         # Repaired what could be repaired; whatever is left needs the model, and
         # the caller has to be able to see that. Returning 0 here made a partial
         # repair indistinguishable from a finished one. A rewrite is a partial
@@ -598,8 +604,8 @@ def main(argv):
         # first, and so the omission lands next to the coverage it costs rather
         # than somewhere the reader will not connect them.
         print("  note  no source recognised, so density, fidelity, fix-mislabel, "
-              "authz and ext-asset were not run (pass the ABAP file after the "
-              "report)")
+              "authz, ext-asset and row-src were not run (pass the ABAP file "
+              "after the report)")
     elif not src.strip():
         print("  note  %s is empty, so density and fidelity were not run"
               % srcs[0])

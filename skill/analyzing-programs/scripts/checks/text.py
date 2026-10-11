@@ -389,3 +389,20 @@ def _claims(body):
             continue
         out.append((i, l))
     return out
+
+
+def _src_of(src):
+    """A source with no non-whitespace content is the same as no source.
+
+    report_qc.py tests `not src.strip()` while every source-dependent check
+    tested `not src`, so a file of blanks was truthy and reached the detectors
+    as a real source. classify() then counted zero identifiers and called every
+    quoted statement a fabrication, and row-src computed an empty flat_src --
+    not None, so its own "no source given: cannot judge, so do not fail" hatch
+    was bypassed and every problem row read as naming nothing. One blank file
+    turned a clean report into 28 defects, which is the same false verdict the
+    ReadError guard in report_qc.py exists to stop: what could not be judged
+    was reported as a judgement. Normalise once, where all three modules
+    already import from.
+    """
+    return src if src and src.strip() else None

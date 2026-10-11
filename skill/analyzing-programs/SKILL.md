@@ -1,7 +1,7 @@
 ---
 name: analyzing-programs
-version: 1.1.13
-contract: 1.3.5
+version: 1.1.14
+contract: 1.3.6
 description: Use when the user wants a deep onboarding-style analysis report for an ABAP/SAP program source file (报表程序、FORM/事件块、OO 类 CLAS、函数组、ALV 等), or pastes an ABAP / z*.abap file asking to analyze, walk-through, 讲解 its structure, execution flow, or design. Trigger on phrases like "分析这个程序/源码","走读/讲解 ABAP","代码 onboarding","源码分析/架构分析","帮我看懂这段 SAP 代码". Trigger even when the user does not explicitly say "report" but clearly wants to understand a whole program's business purpose, architecture, and risks. Do NOT use for one-line answers, non-SAP code, or pure syntax/API lookups.
 ---
 # Skill: analyzing-programs
@@ -142,9 +142,9 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 它意味着闸门一个字都没看。把路径改对再重跑；**不要**因为没看到 FAIL 就当没问题。
 
 🔴 **CHECKPOINT · 源码是可选参数，所以「形状对」不等于「查过了」。**
-不带源码跑形状检查仍会打印 `PASS` 并返回 `0`，但会多出一条 note：
-`no source recognised, so density, fidelity, fix-mislabel, authz and ext-asset were not run`。
-**看到这条 note 就等于那五项诊断没跑**（六条里只有 fix-lang 不需要源码），必须带上源码重跑。第 7 步因此必须带源码，
+不带源码跑形状检查仍会打印 `PASS` 并返回 `0`（只含空白的源码文件按没给处理），但会多出一条 note：
+`no source recognised, so density, fidelity, fix-mislabel, authz, ext-asset and row-src were not run`。
+**看到这条 note 就等于那五项诊断外加 `row-src` 都没跑**（六条诊断里只有 fix-lang 不需要源码；`row-src` 是强制项，也一起跳过），必须带上源码重跑。第 7 步因此必须带源码，
 而退出码 `0` 只能读作「形状对」。
 
 两个容易踩的写法：

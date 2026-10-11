@@ -28,7 +28,7 @@ exit code. The old fidelity_note function was removed.
 import re
 
 from checks.contract import ANCHORS, DENSITY_FLOOR, FIX_LANG, LAYERS, QUOTE_LANG
-from checks.text import (_claims, _flat, block_head, fence_spans, in_risk_layer,
+from checks.text import (_claims, _flat, _src_of, block_head, fence_spans, in_risk_layer,
                          inventory, line_of, prose_end, source_blocks)
 
 # Same reason as the lists in contract.py and text.py: without one, `import *`
@@ -56,7 +56,7 @@ def density_note(s, src):
     owe one block each. A wrong floor here would fail correct reports, which is
     worse than missing a soft signal.
     """
-    if not src:
+    if not _src_of(src):
         return None
     inv = inventory(src)
     if not inv:
@@ -144,7 +144,7 @@ def fix_mislabel_note(s, src):
     Reported, not enforced, like the other three advisories -- it is a question
     for the writer, not a gate.
     """
-    if not src:
+    if not _src_of(src):
         return None
     sf = _flat(src)
     hits = []
@@ -198,7 +198,7 @@ def authz_note(s, src):
     makes. A report that answers it in prose -- either way -- should say so,
     and silence is the thing worth flagging.
     """
-    if not src:
+    if not _src_of(src):
         return None
     if re.search(r"\bAUTHORITY-CHECK\b", src, re.I):
         return None
@@ -232,7 +232,7 @@ def ext_asset_note(s, src):
     neighbourhood, because most hardcoded names are fine and flagging all of
     them would be the note nobody reads.
     """
-    if not src:
+    if not _src_of(src):
         return None
     names = set(re.findall(r"['\"]([ZIY][A-Z0-9_]*(?:_LOGO(?:_SMALL|_LARGE|_ICON)?|_ICON|_BITMAP))['\"]",
                             src))

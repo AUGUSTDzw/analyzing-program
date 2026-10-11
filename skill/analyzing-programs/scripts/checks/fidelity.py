@@ -15,7 +15,7 @@ The tier is decided by two classifiers disagreeing, not by inspecting one
 statement -- see classify(), added in the next step.
 """
 from checks.contract import QUOTE_LANG as _QUOTE_LANG
-from checks.text import _claims, _flat, fence_spans, line_of
+from checks.text import _claims, _flat, _src_of, fence_spans, line_of
 from checks.tokens import identity, tokenize
 
 _DETAIL = {
@@ -83,6 +83,7 @@ def classify(s, src):
     SUBSTANTIVE: neither algorithm is trusted to be exhaustive, so the union
     decides.
     """
+    src = _src_of(src)
     if not src:
         return []
     src_ids = _src_identities(src)
