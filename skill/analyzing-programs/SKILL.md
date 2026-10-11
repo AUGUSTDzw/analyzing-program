@@ -1,7 +1,7 @@
 ---
 name: analyzing-programs
-version: 1.1.1
-contract: 1.3.0
+version: 1.1.3
+contract: 1.3.1
 description: Use when the user wants a deep onboarding-style analysis report for an ABAP/SAP program source file (报表程序、FORM/事件块、OO 类 CLAS、函数组、ALV 等), or pastes an ABAP / z*.abap file asking to analyze, walk-through, 讲解 its structure, execution flow, or design. Trigger on phrases like "分析这个程序/源码","走读/讲解 ABAP","代码 onboarding","源码分析/架构分析","帮我看懂这段 SAP 代码". Trigger even when the user does not explicitly say "report" but clearly wants to understand a whole program's business purpose, architecture, and risks. Do NOT use for one-line answers, non-SAP code, or pure syntax/API lookups.
 ---
 # Skill: analyzing-programs
@@ -15,6 +15,20 @@ You are a senior engineer giving a colleague a code onboarding walkthrough. Give
 Default output language: Chinese. Follow the user's language if they ask in another language.
 
 The value of this skill is the **fixed report structure** and the **three-layer per-code-block format** — they make onboarding reports consistent and skimmable. Always load and follow the full rules below before writing; do not produce the report from this description alone.
+
+## 配套资源
+
+| 路径 | 用途 |
+|---|---|
+| `references/README.md` | 参考资料索引，每份文件的结论与边界都在那里 |
+| `references/example-report.md` | 唯一一份闸门零缺陷的真实报告。闸门查不出来的东西（§2 责任链表的「调用者」列、§5 的「业务后果」列）只能靠它传达 |
+| `references/abap-syntax/` | ABAP 语法与语义词表（内部表、ABAP SQL、OO、程序流逻辑、内置函数、异常、OO 设计模式、关键字总表）。写「为什么」与「风险与改进」两层要断言语法行为时**查这里**，不要凭记忆 |
+| `scripts/docgen.py` | 开工前取子程序清单。`--type onboarding src.abap -o 目录` 列出每个子程序的名字、类型与行号，可当「有没有漏读」的核对表。**它生成的正文是通用 SAP 操作模板（SE38 / F8 / F5–F7 那类），不是对这份程序的分析，不要拿去润色** |
+| `scripts/abap_deps_analyzer.py` | 依赖报告：把源码引用的对象与标准库比对，报出解析不了的引用。依赖同级 `abaplint-deps/` 作为标准库索引，**该目录不随本 skill 发布**；缺它时退出码 `1` 并打印克隆指引，那份报告不要当结论用 |
+
+前两件是写报告时要用的，后两件是可选的辅助。`references/large-inputs.md`、
+`delivery-methods.md`、`slice-and-write.md`、`output-rate.md`、`truncated-reports.md`
+是**失败模式的记录**，不是规则——规则已经写进下面的「分析流程」。
 
 ## Analysis Flow
 
@@ -79,12 +93,12 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 
 | 模式 | 触发条件 |
 |---|---|
-| 通用 | 没给参数；命令行里没有 `.md` / `.markdown` 结尾的报告路径；报告路径不存在 |
-| 形状（第 7 步） | 给了多于一个源码；源码路径不存在；**规则集 `schemas/report-contract.json` 读不到或已损坏** |
+| 通用 | 没给参数；命令行里没有 `.md` / `.markdown` 结尾的报告路径；报告路径不存在；**规则集 `schemas/report-contract.json` 读不到或已损坏**；**`scripts/checks/` 缺失或其中某个模块解析不了**；**闸门自己在检测器里抛异常** |
+| 形状（第 7 步） | 给了多于一个源码；源码路径不存在 |
 | `--fidelity-only`（第 6 步） | 源码不是**恰好一个**（0 个与 2 个都拒）；源码路径不存在；**源码是空的**；**源码不是 UTF-8** |
 | `--fix` | 少于两个路径；`-o` 后面没跟输出路径 |
 
-两条容易读错：
+三条容易读错：
 
 - **两个文件里有任何一个不是 UTF-8，三种模式都拒绝。** 读不出来就没有可比对的东西，
   比对没有意义。**这一条对报告同样成立**——报告是编辑器"另存为"的产物，
@@ -92,6 +106,11 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 - **源码是空的只在 `--fidelity-only` 下拒绝。** 形状模式还能查形状，所以它只打一条
   `note` 说明密度与忠实度没法测，然后照常返回形状结论；`--fidelity-only` 拿空源码
   做不了任何事，所以拒绝。**报告为空不在这条之列**——空文件照样按形状检查。
+- **闸门崩溃也是 `2`，不是 `1`。** 检测器抛异常会打印
+  `error  internal error checking <报告>: <类型>: <消息>` 并退出 `2`。`1` 的意思是
+  「查过了，有缺陷」——崩溃若也算 `1`，第 6、7 步会让你反复去修一份并不存在的缺陷，
+  永远到不了 `0`。看到这条 `error` 是**闸门的问题，不是报告的问题**：不要去改分析，
+  换一份源码或上报闸门缺陷。
 
 🔴 **CHECKPOINT · 退出码 `2` 是「拒绝」，不是「通过」。**
 它意味着闸门一个字都没看。把路径改对再重跑；**不要**因为没看到 FAIL 就当没问题。
@@ -121,7 +140,6 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 | fix-lang | 示意改法有没有被留在 ```abap 围栏里 | 否 |
 | fix-mislabel | 反向：```abap-fix 围栏里的语句如果**整块逐字连续出现在源码里**，它就不是改法，而是**贴错了围栏的真引用** | 是 |
 | 授权 | 源码取了数据（`SELECT` / `READ`）却**全文没有 `AUTHORITY-CHECK`**。报表跑在 `S_TCODE` 授权下，所以这**本身不一定是缺陷**——note 只问一句，不是结论。报告若给出后果（谁能因此看到什么），这条 note 就消失 | 是 |
-
 | 外部资产 | 源码把位图/图标名写成字符串字面量（`Z..._N_..._LOGO` 这类）。这类对象在目标系统里，**编译器和语法检查都看不见**；缺图时报错出现在运行期。note 报出名字与源码里 `TRY`/`EXCEPTIONS` 的总数，请你确认每个调用点是否真在某个保护里 | 是 |
 
 后两条只覆盖**可确定性判定**的那部分：`AUTHORITY-CHECK` 零次出现是事实，外部资源名是字面量也是事实。
@@ -152,8 +170,8 @@ fix-mislabel 之所以存在：`abap` 与 `abap-fix` 只锁了**一个方向**�
 函数 / MODULE / 定义 / 过程；CLASS-DATA、CLASS-METHODS 这类声明段不计入。所以把声明段
 单独写成章节不会拉低密度，但只写声明段、不展开方法会。
 
-**密度、忠实度、授权、外部资产这四项都需要源码。** 不带源码跑形状检查时它们都跑不了。
-另外两条 note（fix-lang）不需要源码。
+**密度、忠实度、fix-mislabel、授权、外部资产这五项都需要源码。** 不带源码跑形状检查时它们都跑不了。
+另外一条 note（fix-lang）不需要源码。
 
 ### 自动修：只有两类判断改不动，所以只有两类能自动修
 

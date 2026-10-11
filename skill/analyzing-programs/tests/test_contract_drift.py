@@ -186,10 +186,28 @@ def main():
     _ly = C.get("layers") or {}
     _en = C.get("encoding") or {}
     _mm = C.get("mermaid") or {}
-    check(C.get("version") == "1.3.0", "contract version is 1.3.0",
+    # The pins double as the release gate: nothing in this suite checks the two
+    # numbers against SKILL.md's frontmatter, so an unpinned bump would sail
+    # through. Update them together with the frontmatter when a release moves,
+    # and read the SKILL.md anchors below as the check that they were updated.
+    check(C.get("version") == "1.3.1", "contract version is 1.3.1",
           C.get("version"))
-    check(_rel.get("ships_with") == "1.1.2",
-          "contract ships with 1.1.2", _rel.get("ships_with"))
+    check(_rel.get("ships_with") == "1.1.3",
+          "contract ships with 1.1.3", _rel.get("ships_with"))
+    # The frontmatter fields exist so a deployed copy can prove what it is by
+    # reading itself. 1.1.2 shipped with version 1.1.1 still in its own
+    # SKILL.md, so an installed copy could not have named the release it was.
+    # Pinning the contract's numbers above is not enough, because the
+    # frontmatter is the copy that travels: these two make a bump impossible
+    # to forget, which is the gap that release had.
+    _fm = dict(l.split(": ", 1) for l in skill.split("---")[1].strip().splitlines()
+               if ": " in l)
+    check(_fm.get("contract") == C.get("version"),
+          "SKILL.md frontmatter names the contract it bundles",
+          _fm.get("contract"))
+    check(_fm.get("version") == _rel.get("ships_with"),
+          "SKILL.md frontmatter names the release it ships as",
+          _fm.get("version"))
     check(_ps.get("rows_require_source_object") is True,
           "rows_require_source_object is declared and on")
     check(_ly.get("distinct") is True,
@@ -282,6 +300,22 @@ def main():
         n = len(_re.findall(r"\b%s\b" % fn, gsrc))
         check(n >= 2, f"{fn} is called, not just defined",
               f"{fn} appears {n} time(s) in the gate package")
+
+    # ANCHORS is consumed two ways, and they need different shapes: anchors_of()
+    # formats the template with the match's groups, inventory() takes group 1.
+    # So the list is allowed entries with no capture group at all -- the six
+    # event blocks, whose keyword is the name. Anchoring on group 1 for every
+    # entry raised IndexError on the first of them and killed the gate with a
+    # traceback on exactly the classic screen programs the skill advertises,
+    # exiting 1, the defect verdict, so step 7 looped on a crash. inventory()
+    # now falls back to the template, which makes the entry's shape load-bearing:
+    # an entry that captures nothing must name itself, so its template carries
+    # no placeholder left to format. Without this the two consumers drift again.
+    _nogroup = [t for rx, t in rq.ANCHORS if rx.groups == 0]
+    _bad = [t for t in _nogroup if _re.search(r"\{\d+\}", t)]
+    check(not _bad,
+          "every ANCHORS entry without a capture group names itself through its "
+          "template", f"{len(_nogroup)} no-group entries, {len(_bad)} malformed")
 
     print()
     print("the gate reads every citation form the contract admits")
