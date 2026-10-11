@@ -71,9 +71,14 @@
 闸门只读 `schemas/report-contract.json`。
 
 **这 9 份是上游 SAP `abap-cheat-sheets` 集合（Apache-2.0）的子集，不是全集。**
-上游 `main` 分支有 37 份，本目录只收了 9 份，逐份是上游原文的逐字节拷贝
-（可与上游 git blob SHA-1 复算核对，例如 `11_Internal_Tables_Grouping.md` 对
-`3080642a8dba2d4f13208048c3e712a069ddbf9e`）。因此这几份资料内部的交叉引用会
+上游 `main` 分支有 37 份，本目录只收了 9 份，逐份照抄上游原文，一个字没改。
+内容可核对：例如 `11_Internal_Tables_Grouping.md` 对上游 git blob
+`3080642a8dba2d4f13208048c3e712a069ddbf9e`（用 `sha1("blob N\0" + 内容)` 复算）。
+**但拿发布包里的副本去核对会对不上**，原因值得知道：本仓库 `core.autocrlf=input`，
+上游 8 份 CRLF 结尾的文件进版本库时被归一化成 LF，发布包带的是归一化后的 blob
+（如 `11_...` 为 `cefecc33411f`），只有上游本来就是 LF 的 `27_Exceptions.md`
+能逐字节对上。这是换行符归一化，不是内容被改——要比对内容，就比去掉换行符差异后的文本。
+因此这几份资料内部的交叉引用会
 指向本目录里不存在的兄弟文件（`02_Structures.md`、`05_Constructor_Expressions.md`、
 `06_Dynamic_Programming.md`、`08_EML_ABAP_for_RAP.md`、`10_ABAP_SQL_Hierarchies.md`、
 `14_ABAP_Unit_Tests.md`、`15_CDS_View_Entities.md`、`16_Data_Types_and_Objects.md`、
