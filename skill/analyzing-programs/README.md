@@ -27,6 +27,8 @@ schemas/report-contract.json   闸门规则与 skill 教学锚点的唯一来源
 | `evaluate.py` | 对着冻结清单，报告漏了几条、有几条错误论断 | 判分本身对不对 |
 | `tests/test_skill.py` | 上面两个还灵不灵，尤其是**拒绝**路径与退出码 | — |
 | `tests/test_contract_drift.py` | 契约里的每条规则 SKILL.md 教了没有，反之亦然 | — |
+| `tests/test_gate_enforcement.py` | 闸门放过的报告逐条复现，先记录现状再断言应有的行为 | — |
+| `tests/test_fidelity_tiers.py` | 新旧分类口径是否等价：不泄漏、不误伤 | — |
 
 **判分是模型工作。** `evaluate.py` 的 `tasks` 子命令把问题打印出来让判分者逐条回答，
 `score` 与 `compare` 是确定性的。它保证参考完整、聚合正确、缺项不能冒充完整；
@@ -35,8 +37,10 @@ schemas/report-contract.json   闸门规则与 skill 教学锚点的唯一来源
 ## 跑一遍
 
 ```bash
-python tests/test_skill.py                # 165 项，自足；全过打印 N checks passed
-python tests/test_contract_drift.py       # 118 项，契约 <-> SKILL.md <-> 闸门 三方对齐
+python tests/test_skill.py                # 168 项，自足；全过打印 N checks passed
+python tests/test_contract_drift.py       # 121 项，契约 <-> SKILL.md <-> 闸门 三方对齐
+python tests/test_gate_enforcement.py     # 25 项，闸门执行漏洞探针
+python tests/test_fidelity_tiers.py       # 7 项，改动前后口径是否等价
 python scripts/report_qc.py REPORT SOURCE                # 格式；报告须 .md/.markdown，其余当源码
 python scripts/report_qc.py --fix REPORT SOURCE -o OUT   # 格式 + 自动修两类
 python scripts/evaluate.py tasks  --defects evals/zcl_fi_toolkit.defects.json

@@ -1,15 +1,17 @@
 """Package one release from the commit that produced it.
 
 Reads the tree out of git rather than the worktree, so the artifact is
-reproducible from history alone. Layout is asserted against the previous release
-so a silent structural change cannot ship. Run from the repository root:
+reproducible from history alone. The contract's release.ships_with is asserted
+against the version argument, and the layout delta against the previous release
+is printed, so neither a misnumbered pack nor a silent structural change ships
+unnoticed. Run from the repository root:
 
     python release/pack.py 1.1.0 <commit>
 
-The version argument is the release number; the contract's release.ships_with
-and the directory name come from it.
+The version argument is the release number; the directory name comes from it,
+and the contract's release.ships_with must agree with it.
 """
-import hashlib, os, shutil, subprocess, sys, zipfile
+import hashlib, json, os, re, shutil, subprocess, sys, zipfile
 
 VER = sys.argv[1]
 REV = sys.argv[2]
@@ -24,6 +26,13 @@ for n in names:
     rel = n[len(SRC) + 1:].replace("\\", "/")
     blobs[rel] = subprocess.run(["git", "show", "%s:%s" % (REV, n)],
                                 capture_output=True, check=True).stdout
+
+_contract = json.loads(subprocess.run(
+    ["git", "show", "%s:%s/schemas/report-contract.json" % (REV, SRC)],
+    capture_output=True, text=True, check=True).stdout)
+_ships = _contract.get("release", {}).get("ships_with")
+assert _ships == VER, ("the contract at %s declares release.ships_with %r, "
+                       "but the release number is %s" % (REV, _ships, VER))
 
 dirs = set()
 for rel in blobs:
@@ -74,6 +83,27 @@ assert files == sorted(blobs), "zip contents differ from the commit"
 for rel in files:
     assert z.read(PREFIX + "/" + rel) == blobs[rel], rel
     assert open(os.path.join(dst, rel), "rb").read() == blobs[rel], rel
+
+_prev = sorted((d for d in os.listdir("release")
+                if re.fullmatch(r"analyzing-programs-\d+\.\d+\.\d+", d) and d != PREFIX),
+               key=lambda d: tuple(int(p) for p in d[len("analyzing-programs-"):].split(".")))
+if _prev:
+    _last = os.path.join("release", _prev[-1])
+    _old = set()
+    for _r, _ds, _fs in os.walk(_last):
+        _old.update(os.path.relpath(os.path.join(_r, _f), _last).replace(os.sep, "/")
+                    for _f in _fs)
+    _set = set(files)
+    _added = [n for n in files if n not in _old]
+    _removed = [n for n in _old if n not in _set]
+    if _added or _removed:
+        print("layout changed vs %s: +%d file(s), -%d"
+              % (_prev[-1], len(_added), len(_removed)))
+        for _n in (_added + _removed)[:15]:
+            print("  %s%s" % ("+" if _n in _added else "-", _n))
+        _left = len(_added) + len(_removed) - 15
+        if _left > 0:
+            print("  ...and %d more" % _left)
 
 data = open(zp, "rb").read()
 h = hashlib.sha256(data).hexdigest()

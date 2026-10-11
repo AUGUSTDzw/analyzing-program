@@ -15,7 +15,13 @@
 *.json text eol=lf
 *.abap text eol=lf
 *.sh   text eol=lf
+*.js   text eol=lf
 *.mjs  text eol=lf
+*.txt  text eol=lf
+
+# *.js and *.txt were missing. references/abap-syntax/ABAP_keywords_master.txt
+# checked out with 891 CRLFs while its blob stayed LF, so git status read clean
+# and the worktree file was 891 bytes longer than the one the zip shipped.
 
 # The checksum manifest is the one tracked file with no extension. Written by
 # .NET on Windows it comes back CRLF, which is exactly the silent-mismatch this
