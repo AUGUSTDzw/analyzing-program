@@ -134,4 +134,11 @@ ANCHORS = [
     (re.compile(r"^\s*MODULE\s+(\w+)\s+(INPUT|OUTPUT)", re.M), "MODULE {0} {1}"),
     (re.compile(r"^\s*DEFINE\s+(\w+)", re.M), "DEFINE {0}"),
     (re.compile(r"^\s*PROCEDURE\s+(\w+)", re.M), "PROCEDURE {0}"),
+    (re.compile(r"^\s*AT\s+SELECTION-SCREEN", re.M), "AT SELECTION-SCREEN"),
+    (re.compile(r"^\s*AT\s+PF\s+(\w+)", re.M), "AT PF {0}"),
+    (re.compile(r"^\s*AT\s+USER-COMMAND", re.M), "AT USER-COMMAND"),
+    (re.compile(r"^\s*START-OF-SELECTION", re.M), "START-OF-SELECTION"),
+    (re.compile(r"^\s*END-OF-SELECTION", re.M), "END-OF-SELECTION"),
+    (re.compile(r"^\s*TOP-OF-PAGE", re.M), "TOP-OF-PAGE"),
+    (re.compile(r"^\s*INITIALIZATION", re.M), "INITIALIZATION"),
 ]

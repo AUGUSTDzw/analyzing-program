@@ -34,21 +34,58 @@ _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]{2,}")
 # says "this code uses FOR loops" would otherwise pass the source-name test
 # because FOR occurs in almost every ABAP program.
 _ABAP_KEYWORDS = frozenset([
-    "and", "as", "at", "by", "case", "catch", "clear", "collected",
-    "continue", "data", "declare", "delete", "describe", "display",
-    "do", "endcase", "endcatch", "enddo", "endif", "endfunction",
-    "endmethod", "endmodule", "endon", "endprovid", "endselect",
-    "endsql", "endtry", "endwhile", "exec", "export", "extract",
-    "fetch", "field", "fieldsymbol", "for", "form", "free", "from",
-    "function", "generate", "get", "group", "hiding", "if", "import",
-    "in", "include", "into", "interface", "is", "itab",
-    "loop", "method", "modify", "module", "mov", "nesting",
-    "or", "otherwise", "out", "performs", "place", "placing",
-    "position", "read", "receive", "ref", "refresh", "return", "returns",
-    "select", "set", "show", "skip", "source", "split", "static", "step",
-    "structure", "table", "test", "then", "to", "tokenize", "type",
-    "types", "using", "until", "value", "when", "where", "while", "with",
-    "write",
+    # OOP keywords
+    "class", "class-data", "class-methods", "class-pool", "private",
+    "public", "protected", "endclass", "endinterface", "try", "exception",
+    "exceptions", "message", "method", "interface", "implement", "alias",
+    "exporting", "importing", "changing", "returning", "receiving",
+    # Flow control
+    "else", "exit", "break", "raise", "check", "perform", "call", "submit",
+    "continue", "return", "returns", "exit-command",
+    # Database operations
+    "insert", "update", "commit", "rollback", "append", "endloop", "endform",
+    "tables", "into", "from", "where", "select", "for", "all", "entries",
+    "in", "not", "initial", "space", "up", "down", "first", "last",
+    "occurrences", "occurrence", "lines", "of",
+    # Selection screen
+    "authority-check", "send", "wait", "provide", "endprovide",
+    "enhancement", "enhancement-point", "enhancement-section",
+    "end-of-selection", "start-of-selection", "selection-screen",
+    "at-selection-screen", "at-pf", "at-user-command", "top-of-page",
+    "load-of-program", "initialization", "end-of-page", "print-control",
+    "process-before-output", "process-after-input",
+    "process-on-help-request", "process-on-value-request",
+    # Data manipulation
+    "load", "move", "move-corresponding", "sort", "compute", "concatenate",
+    "find", "replace", "shift", "translate", "condense", "count",
+    "length", "offset", "leading", "trailing", "left", "right", "length",
+    # Operators and comparisons
+    "eq", "ne", "lt", "le", "gt", "ge", "cs", "cp", "cn", "co",
+    # String and data
+    "string", "char", "numc", "dec", "int", "bool", "xstring", "bit",
+    # Types and declarations
+    "type", "types", "typed", "like", "value", "values", "default",
+    "optional", "obligatory", "mandatory", "required",
+    # Module and form
+    "module", "endmodule", "input", "output", "begin", "end", "define",
+    "enddefine", "form", "endform", "function", "endfunction",
+    # Event blocks
+    "at", "case", "when", "endcase", "loop", "endloop", "if", "endif",
+    "while", "endwhile", "do", "enddo", "catch", "endcatch", "endtry",
+    # Display and output
+    "write", "display", "show", "uline", "new-line", "new-page", "skip",
+    "title", "position", "places", "no-sign", "no-zero",
+    # SQL-related
+    "where", "having", "order", "by", "group", "distinct", "duplicates",
+    "ascending", "descending",
+    # Original keywords
+    "and", "as", "by", "clear", "collected", "data", "declare", "delete",
+    "describe", "exec", "export", "extract", "fetch", "field",
+    "fieldsymbol", "free", "generate", "get", "group", "hiding", "import",
+    "include", "is", "itab", "nesting", "otherwise", "out", "performs",
+    "place", "placing", "position", "read", "receive", "ref", "refresh",
+    "set", "source", "split", "static", "step", "structure", "table",
+    "test", "then", "to", "tokenize", "using", "until", "value", "with",
 ])
 
 
