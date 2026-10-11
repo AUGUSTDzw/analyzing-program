@@ -8,8 +8,8 @@
 
 ## 范例报告
 
-`example-report.md` 是一份**真实报告，逐字未改**，对 `scripts/report_qc.py`
-**零缺陷**。
+`example-report.md` 是一份**真实报告**，对 `scripts/report_qc.py`
+**零缺陷**——带它自己的源码一起跑也是零缺陷。
 
 不是手写的。手写的示例只能证明作者想得通；这份证明得了**这个格式可达** ——
 它是 23 份在盘报告里唯一同时满足「闸门通过 + 六节齐全 + 四桶完整 + 含 Mermaid」
@@ -43,8 +43,12 @@
 
 ### 保持有效
 
-`tests/test_skill.py` 里有一项专门跑闸门确认本文件仍然零缺陷，改坏了会 fail
-（用例名 `the shipped example report still passes`）。已做负向对照：改掉一个桶标题即失败。
+`tests/test_skill.py` 里有两项跑闸门确认本文件仍然零缺陷，改坏了会 fail：
+`the shipped example report still passes`（不带源码）与
+`the shipped example report still passes against its own source`（带
+`Test-source\real\` 下那份 `zbc_show_error_log` 源码，专治 §5 某行不标
+源码对象这种缺陷——不带源码时 `row-src` 根本不跑）。已做负向对照：
+改掉一个桶标题即失败。
 
 ## 交付方式的失败模式
 

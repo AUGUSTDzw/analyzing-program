@@ -35,11 +35,19 @@ for _stream in (sys.stdout, sys.stderr):
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SKILL = os.path.dirname(HERE)
+REPO = os.path.dirname(os.path.dirname(SKILL))
 QC = os.path.join(SKILL, "scripts", "report_qc.py")
 CHECKS = os.path.join(SKILL, "scripts", "checks")
 SCHEMAS = os.path.join(SKILL, "schemas")
 EVAL = os.path.join(SKILL, "scripts", "evaluate.py")
 EXEMPLAR = os.path.join(SKILL, "references", "example-report.md")
+# The exemplar's own source. row-src only runs when a source is passed, so the
+# source-less run above can never notice a section five row that names nothing.
+EXEMPLAR_SRC = os.path.join(
+    REPO, "Test-source", "real",
+    "hardyp__AbapToTheFuture03__src__zmonsters_p01_enablers"
+    "__zmonsters_c04_exceptions__zbc_show_error_log.fugr"
+    ".zbc_show_error_log.abap")
 
 FAILS = []
 N_OK = 0
@@ -591,6 +599,13 @@ def main():
         check(r.stdout.startswith("PASS"),
               "the shipped example report still passes",
               r.stdout.strip().split("\n")[0][:44] if r.stdout.strip() else "")
+        if not os.path.exists(EXEMPLAR_SRC):
+            check(False, "the exemplar's source is present, so row-src can be checked on it")
+        else:
+            rs = run(QC, EXEMPLAR, EXEMPLAR_SRC)
+            check(rs.stdout.startswith("PASS") and rs.returncode == 0,
+                  "the shipped example report still passes against its own source",
+                  rs.stdout.strip().split("\n")[0][:60] if rs.stdout.strip() else "")
 
     # SKILL.md step 7 tells the model to re-run the fidelity pass until it is
     # clean. That loop can only terminate if the exit status carries the verdict.

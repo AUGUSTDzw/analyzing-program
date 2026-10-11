@@ -409,6 +409,33 @@ def main():
               "the probe has teeth: a neutered gate catches none of these",
               f"neutered returned {kinds}")
 
+        # row-src is the only rule above that needs a source, and the loop
+        # passes none, so it can never fire here. PROBE 2 in
+        # test_gate_enforcement reaches it through the CLI on a different
+        # report; this pins the exemplar instead -- the report the docs tell the
+        # model to imitate -- which is where the hole actually was.
+        src_path = os.path.join(os.path.dirname(os.path.dirname(SKILL)),
+                                "Test-source", "real",
+                                "hardyp__AbapToTheFuture03__src__zmonsters_p01_enablers"
+                                "__zmonsters_c04_exceptions__zbc_show_error_log.fugr"
+                                ".zbc_show_error_log.abap")
+        if not os.path.exists(src_path):
+            check(False, "the exemplar's source is present, so row-src can be probed")
+        else:
+            src_txt = io.open(src_path, encoding="utf-8").read()
+            check(not [b for b in rq.check(base, src_txt) if b[0] == "row-src"],
+                  "the exemplar's section five names a source object in every row")
+            lines = base.split("\n")
+            i5 = next(k for k, l in enumerate(lines) if l.startswith("## 五"))
+            j5 = next((k for k in range(i5 + 1, len(lines))
+                       if lines[k].startswith("## ")), len(lines))
+            k1 = next(k for k, l in enumerate(lines[i5:j5])
+                      if l.startswith("| P0-1 ")) + i5
+            blank = base.replace(lines[k1],
+                                 "| P0-1 | 无 | 这段代码写得很好 | 无 | 无 |", 1)
+            check("row-src" in [b[0] for b in rq.check(blank, src_txt)],
+                  "a row that names nothing is detected when the source is passed")
+
     print()
     print("rule placement")
     print("-" * 74)
