@@ -53,14 +53,14 @@ python scripts/evaluate.py compare --defects D.json --a V1.json --b V2.json
 验证套件在仓库里跑。`tests/` 不随包发布，安装包里没有这五个文件：
 
 ```bash
-python tests/test_skill.py              # 174 项
+python tests/test_skill.py              # 186 项
 python tests/test_contract_drift.py     # 123 项，契约 <-> SKILL.md <-> 闸门 三方对齐
 python tests/test_gate_enforcement.py   # 25 项，闸门执行漏洞探针
 python tests/test_fidelity_tiers.py     # 7 项，改动前后口径是否等价
 python tests/test_docgen_deps.py        # 95 项，docgen 与依赖分析器
 ```
 
-合计 424 项。
+合计 436 项。
 
 **退出码是契约的一部分。** 所有模式在仍有缺陷时返回非零，包括 `--fidelity-only`
 与 `--fix` —— SKILL.md 第 6 步让模型"重跑到干净为止"，那条循环只能靠退出码终止。
@@ -74,8 +74,9 @@ Windows 上不需要设 `PYTHONUTF8`。
 `Test-source/` 与 `analyzing-programs-workspace/`——那两棵树明确不随 skill 发布
 （`analyzing-programs-workspace/` 是上游开发线快照）。所以放进包里只会得到一个
 跑不起来的东西：装到 `~/.agents/skills/` 之后五个 suite 都会在第一个 fixture 上
-`FileNotFoundError`，`test_skill.py` 是 168 过 1 挂（挂的是 `the exemplar's
-source is present`，它需要 `Test-source/real/` 里那份 `zbc_show_error_log`）。
+`FileNotFoundError`；`test_skill.py` 例外，能一路跑到最后、只挂一条（1.1.10 量到
+168 过 1 挂，挂的是 `the exemplar's source is present`，它需要 `Test-source/real/`
+里那份 `zbc_show_error_log`）。
 1.1.10 是把这句话写进 README；1.1.11 是直接不把它发出去——包里剩下的每件东西
 都能在装好的位置跑通，这句话才成立。`release/pack.py` 里有一个 `NOT_SHIPPED`
 名单加一条 `CRITICAL` 守卫，后者保证误把 `schemas/` / `scripts/` /
@@ -131,7 +132,7 @@ Mermaid 标签里的裸 `<` `>` `#` → 改成全角。三层缺失**只报位�
 ### 先说版本：下面的数字不是出货版本的数字
 
 iteration-8 的全部数字都是在 **`b8f84e8`**（162 行）上测出来的。
-**出货版本是 `1.1.12`（536 行）。形状一致性有 n=3 的证据（见下，测于 1.1.5），**效果**未测出结论。**
+**出货版本是 `1.1.13`（536 行）。形状一致性有 n=3 的证据（见下，测于 1.1.5），**效果**未测出结论。**
 
 版本谱系（每一版都已归档在 `release/`，digest 见 `release/SHA256SUMS`）。
 `commit` 列是本仓库的 git id，**不是** zip 的 sha256——那是 `release/SHA256SUMS` 的事。
@@ -165,6 +166,7 @@ Not a valid object name），那几行的行数只能从 `--follow` 找到的同
 | `510902c` | 535 | `510902c` | **1.1.10**。契约不动（1.3.3）：没有规则、阈值或 `gate_io` 行变化。发布 1.1.9 后把它装进 `~/.agents/skills/` 验了一遍才发现 README 说错了一句话——它把 `test_skill.py` 写成「自足检查，不依赖项目数据」，跑法一节也说「169 项，自足」。**从仓库根跑是这样，从安装位置跑不是。** 五个 suite 都用 `HERE = dirname(abspath(__file__))` 往上数出仓库根，再去根下找同级的 `Test-source/` 与 `analyzing-programs-workspace/`；这两棵树明确不随 skill 发布。实测（`C:\Users\DzwU\.agents\skills\analyzing-programs`）：`test_skill.py` 168 / 169，挂的那一项是 `the exemplar's source is present`——`row-src` 的守护检查，它必须拿到 `Test-source/real/` 里那份 `zbc_show_error_log`；另外四个在第一个 fixture 就 `FileNotFoundError`。**闸门本身与它的脚本在装好的位置是正常的**：同一位置 `python scripts/report_qc.py references/example-report.md <源码>` 退 `0`、打 `PASS`，实测。所以那 419 项是仓库侧的说法，README 现在把这个区别写明，而不是让拿到发布包的人以为能在消费它的那台机器上自验。契约只把 `ships_with` 挪到 1.1.10，`version` 留在 1.3.3，并记了一段说明为什么 |
 | `f3eab57` | 535 | `f3eab57` | **1.1.11**。契约不动（1.3.3）。**上一版只是把「tests/ 在包里跑不起来」写进了 README，这一版直接把文件不发出去。** 理由很直白：包里不该有跑不通的东西。做法在 `release/pack.py` 加一个 `NOT_SHIPPED = ("tests/",)` 排除名单，打包时会打印 `excluded 5 repository-only file(s)`；旁边配一条 `CRITICAL` 守卫，把 `schemas/` / `scripts/` / `references/` / `evals/` 四个闸门真要读的目录列进去，误填一个就让打包直接 `AssertionError`，而不是悄悄少发。**契约和闸门一字未动**：五个 suite 从不被 `scripts/` 导入、也不读任何契约键，所以包小 5 个文件、行为完全一致。README 的目录表把 `tests/*.py` 一行改标为「不随包发布」，「跑一遍」拆成两段——包里装好就能跑的（`report_qc.py` / `evaluate.py` 五条），和只在仓库里跑的（五个 suite，419 项）。`references/README.md` 与 `evals/README.md` 里各有一处指向 `tests/` 的交叉引用，那是指向仓库侧套件的，读包的人找不到很正常，保留 |
 | `8b4e8ca` | 536 | `8b4e8ca` | **1.1.12**。契约 1.3.3 → 1.3.4。**`--fix` 会给一份还没过闸门的报告发 `PASS`。** 量出来的：把范例报告复制出来，在一个代码块里给 `ENDFUNCTION.` 后面加一个词（形状完全没动），三个模式各跑一次——形状模式退 `1`，打 `SUBSTA   line 187 ...`、`FAIL  tampered.md  (1 defect(s))` 再跟一条 note；`--fidelity-only` 退 `1`，打 `FAIL  ...  (1 rewrite(s), 0 punctuation-only)`；`--fix` 退 **`0`**，打 `PASS`。**同一个报告，两个模式，两个不同的答案。** 原因在 `--fix` 分支：`fidelity_report()` 其实已经调了，但 `n_sub` 只喂给了 note，返回值是 `1 if left else 0`，`left` 是形状检查——**note 说了实话，退出码没听。** 而契约 `exit_codes["0"]` 本来就把「没有实质改写」写成了 `0` 的条件，所以契约和闸门说的是两件不同的事；第 6、7 步的循环只看退出码，循环会停在一个伪造的引用上。修法是让忠实度计算提到 verdict 之前、返回值改成 `1 if left or n_sub`；**note 的顺序一个字没动**，形状与 `--fix` 仍然 verdict 在前、note 在后（`notes_follow_the_verdict` 断言、`test_contract_drift.py` 钉住的就是这条）。verdict 顺手不再用一个数把两类混在一起，改成各数各的、都收在 `need the model` 上——`1 shape defect(s)`、`1 rewrite(s)`，或 ` and ` 连起来——一个总数会让读的人以为剩下的都能机械修掉。契约侧：`exit_codes["0"]` 补上「三种模式一致」，`exit_codes["1"]` 与 `conclusion_lines` 带上新措辞，`release._comment` 记下这个洞。SKILL.md 说明 `--fix` 一行分级行都不打，只用一条 note 报改写数，所以在那里 grep `SUBSTA` 是空的；README 补上 `score` / `compare` 的 `--legacy`；`test_skill.py` 加三条检查（形状模式失败、`--fix` 非零、`--fix` 不打 `PASS` 且指名 rewrite），169 → 174、合计 419 → 424 项 |
+| `e0f7612` | 536 | `e0f7612` | **1.1.13**。契约 1.3.4 → 1.3.5。**契约写了「三种模式一致」，闸门只在一种模式里兑现。** 量出来的：把 `RuntimeError` 注进 `report_qc` 的检测器，三个模式各跑一次同一个报告——形状模式退 `2`、打 `error  internal error checking ...`、无 traceback；`--fidelity-only` 退 **`1`** 加 traceback；`--fix` 退 **`1`** 加 traceback，**而且先把输出文件写完了**。`exit_codes["2"]` 从 1.3.1 起就说「in every mode」，SKILL.md 也这么说——但守卫只加在形状模式的检查循环外面，另两个分支的 `classify()` / `fix()` / `check()` / `fidelity_report()` / `all_notes()` 全是裸调用。**`1` 的意思是「查过了、有缺陷」**，第 6、7 步的循环盯着退出码，崩溃被当成缺陷：模型去修不存在的缺陷，`--fix` 还把一次没查过的运行的结果落盘。修法是 `run_detector()`——**一份**守卫、三个分支都过它——而且**消息也放进这个函数里**：按分支各抄一份正是另外两个漏掉的原因。`test_skill.py` 注入异常，三种模式各断言无 traceback、退 `2`、输出含 `the gate crashed`，共九条；在改动前的代码上 `--fidelity-only` 与 `--fix` 两条全挂（180 → 186 项）。顺手抓到两处自己引入的回归：新守卫的签名先是 `run_detector(fn, report, *args)`，而 `report()` 需要两个实参，形参名又正好叫 `report`——第一个版本把参数吞掉了，形状模式基线当场崩，`baseline report passes the gate` 这条把它挡在打包之前。契约侧：`conclusion_lines` 补上它**漏掉的唯一一种可打印形式**——`--fidelity-only` 在只剩建议级时打 `PASS  <name>  (N punctuation-only)`，verdict 仍是 `PASS`、退出码仍是 `0`，照 `conclusion_lines` 分类输出的读者会撞上契约从没提过的一行；`exit_codes["1"]` 说明，测试构造这个用例（把引用里一个空格挪进括号）并**匹配整行**，所以悄悄丢掉括号里的数也抓得住。另修两行契约自相矛盾：`source_is_optional.verdict_still_printed` 说「three diagnostics」，而 note 与 `needs_source` 都是五条；`diagnostics.enforcement` 说「note -- never changes the exit code」，而 `advisories[fidelity].enforcement` 说它的 SUBSTANTIVE 级**就是**缺陷行、进 N、进退出码——fidelity 又列在 `diagnostics` 下面，顺着读就读成纯建议，这条是真的会误导人的那一处，`enforcement` 现在把例外写出来了。README 的 `--legacy` 段是**写反的**（「加了它就跳不过去」——它是跳过校验的那个旗子），且把缺的字段说成 `evidence.quote`，实际必需的是 `evidence.<id>.report_line`；照 `evaluate.py` 重写，列出四种拒绝原因、`--report` 的要求，以及**它不豁免 `false_claims`** |
 
 **契约版本与发布版本是两条独立的轴。** 契约 `version` 只在该文件自己的规则、
 阈值或 `gate_io` 行变化时递增；发布版本对措辞和闸门行为的变化也递增。
