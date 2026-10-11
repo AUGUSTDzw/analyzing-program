@@ -1,7 +1,7 @@
 {
-  "version": "1.3.2",
+  "version": "1.3.3",
   "release": {
-    "ships_with": "1.1.8",
+    "ships_with": "1.1.9",
     "_comment": [
       "Two version numbers, and they are independent axes. `version` is this",
       "contract: it bumps when a rule, a threshold or a gate_io row changes.",
@@ -99,6 +99,24 @@
        "one, so the count of unique missing filenames stays at twelve. No reference",
        "file is read by the gate, which reads only this contract, so version stays",
        "at 1.3.2: no rule, no threshold and no row moved.",
+       "",
+       "1.3.2 -> 1.3.3 is documentation-only, and it moves version for once: every row here",
+       "describes what the gate prints, and three of them were wrong. defect_line_prefixes",
+       "named SUBSTANTIVE and PUNCT-ONLY, but report() truncates the tier with tier[:6], so",
+       "the line that starts a fidelity defect is SUBSTA and the punctuation one is PUNCT- --",
+       "a reader grepping the documented form finds nothing. exit_codes[\"0\"] said no shape",
+       "defect was found, which is not sufficient: report() returns 0 only when not bad and",
+       "not n_sub, and n_sub counts the fidelity SUBSTANTIVE findings, which shape mode also",
+       "prints and also counts in N. A shape-clean report with one fabricated quote exits 1,",
+       "so step 7 could return 1 for a report the writer believed was done. exit_codes[\"1\"]",
+       "said the verdict is last in shape mode; it is not -- the notes print after FAIL and",
+       "after PASS, up to seven of them, including the one announcing that five diagnostics",
+       "never ran. And advisories[fidelity] said enforcement is note, when the substantive",
+       "tier is a defect line: 1.0.8 introduced the two tiers and this row was never",
+       "updated, the same shape as the authz keyword list SKILL.md carried until 1.1.9,",
+       "where the documented list did not match the regex. Behaviour did not change, but",
+       "version moves anyway, because the wrong text is in the contract and the contract is",
+       "what a deployed copy proves itself with.",
        "",
       "1.3.0 -> 1.3.1 adds one exit_codes[\"2\"] trigger: an unhandled exception in",
       "a detector. It arrived with 1.1.3, which fixes inventory() for the event",
@@ -280,8 +298,8 @@
       "to main() has to be made here by hand."
     ],
     "exit_codes": {
-      "0": "every report was checked and no shape defect was found; notes may accompany it and never change it",
-      "1": "the check ran and found defects. Shape mode prints the defect lines first and `FAIL  <name>  (N defect(s))` last; --fidelity-only prints the tier lines (SUBSTANTIVE / PUNCT-ONLY) first, then `FAIL  <name>  (N rewrite(s), M punctuation-only)` or `PASS  <name>`; --fix prints `FAIL  <name>  (N defect(s) need the model)`",
+      "0": "every report was checked, no shape defect was found, and there is no substantive rewrite -- fidelity SUBSTANTIVE findings also block 0, so a shape-clean report with one fabricated quote exits 1; notes may accompany it and never change it",
+      "1": "the check ran and found defects. Shape mode prints the defect lines first -- the shape prefixes plus one SUBSTA line per fidelity SUBSTANTIVE finding, and N counts both -- then the verdict, then the notes: the verdict is not the last line in shape mode or in --fix, notes follow it. --fidelity-only prints the tier lines first (displayed as SUBSTA and PUNCT-, six characters, truncated from the canonical names), then `FAIL  <name>  (N rewrite(s), M punctuation-only)` or `PASS  <name>`, and only there is the verdict last. --fix prints `FAIL  <name>  (N defect(s) need the model)`, N counting shape only, then its notes",
       "2": "refused to run, nothing was inspected. Triggers, by mode -- the mode matters and the flat list this replaced did not say so: common, the rule set could not be read -- schemas/report-contract.json is missing or not parseable JSON / the gate's own detectors did not load -- scripts/checks/ is absent or a module in it will not parse / no arguments / no .md/.markdown path among the arguments / report path does not exist; plain, more than one source / source path does not exist; --fidelity-only, the source is not exactly one (0 and 2 both refuse) / source does not exist / the source is empty / the source is not utf-8; --fix, fewer than two paths / -o with no output path; and in all three modes a file that is not utf-8, report or source. Two triggers print no `error` line: no arguments prints the usage text, and --fix with too few paths prints `--fix needs REPORT and SOURCE`. SKILL.md records both. An empty source is NOT a refusal in plain mode -- the shape can still be checked, so it takes a note and returns the shape verdict; that scoping was the second thing the flat list got wrong. The two detectors-did-not-load triggers arrived with 1.1.0's split of report_qc.py and were missing from this row until 1.3.0: the guard prints `error  cannot load the checks at <scripts dir> (<cause>), so nothing was checked` and exits 2, in every mode, because a missing checks/ otherwise raised ImportError and an unparseable one raised SyntaxError, and both exit 1 -- the defect verdict. Those two are listed first under common because they fire at import, before argv is read, so a mode can never be the thing that decides them. 1.3.1 adds a third, in every mode: an unhandled exception inside the check loop prints `error  internal error checking <report>: <type>: <msg> -- the gate crashed, so treat this report as unchecked, not as defects found` and exits 2 -- that is the event-block IndexError that shipped in 1.1.2, which printed a traceback and exited 1, and read as a FAIL. 1.3.2 restores the rule-set trigger to this row: 1.2.4 added it alongside gate_start_refuses_without_a_rule_set, and the 1.2.6 rewrite of this string dropped only the wording, so the flat list had silently lost the earliest of the four import-time refusals -- checks/contract.py reads the JSON before anything else in the import block can fail, and a wrong relative path is the cheapest way to reach it. Nothing else in the row changed, and the gate behaves exactly as it did at 1.3.1.",
       "why_2_is_separate": "an unhandled exception exits 1, which is the code SKILL.md defines as 'the check ran and found defects', and the caller then goes and fixes defects that do not exist, or loops step 7 forever. So every refusal has to arrive through die(), including a decode failure on the report. The report side was bare at three call sites until 1.0.9: a report saved as cp936 -- what an editor's 'save as' gives on a Chinese Windows, the trap SKILL.md warns about for pasted source -- exited 1 with a traceback. The source side was guarded from the start and the rule set has its own try/except at import, so the guarantee covered one of the two files.",
       "measured": "1.0.9: every cell of SKILL.md's per-mode table was run against report_qc.py, all 13 agree, and the six non-utf-8-report cases now exit 2 in all three modes. test_skill.py carries 28 checks for it. 1.3.0: the two detectors-did-not-load triggers were measured the same way, by deleting scripts/checks/ from a copy and by appending an unparseable line to checks/text.py in a copy -- both print the error line above and exit 2. 1.3.1: the detector-crash trigger was measured by reverting the inventory() fix in a copy of the tree and checking a report against a source that declares START-OF-SELECTION -- it prints the error line above and exits 2 instead of raising IndexError and exiting 1. test_skill.py carries that source as a permanent check, asserting both that no traceback is printed and that inventory() still counts all six event blocks as a denominator, so a regression that returns an empty inventory instead of crashing is caught too. 1.3.2: the rule-set trigger was re-measured on a copy of the tree, once with schemas/ removed and once with unparseable JSON written to schemas/report-contract.json -- both print the error line of gate_start_refuses_without_a_rule_set and exit 2, in every mode."
@@ -311,10 +329,25 @@
       "needs_no_source": ["fix-lang"],
       "enforcement": "note -- never changes the exit code, so the writer has to read them"
     },
-    "defect_line_prefixes": ["fence", "sec", "sec-dup", "prow", "row-src", "buck", "ln", "mm", "mm-missing", "A8-cc", "layer-same", "A8-pt", "enc", "SUBSTANTIVE", "PUNCT-ONLY"],
+    "defect_line_prefixes": [      "fence",
+      "sec",
+      "sec-dup",
+      "prow",
+      "row-src",
+      "buck",
+      "ln",
+      "mm",
+      "mm-missing",
+      "A8-cc",
+      "layer-same",
+      "A8-pt",
+      "enc",
+      "SUBSTA",
+      "PUNCT-"],
     "fence_sorts_first": "an unclosed fence swallows the rest of the document, so nothing after it is inspected at all; fixing anything else before fixing that is wasted",
-    "conclusion_lines": ["PASS  <name>", "FAIL  <name>  (N defect(s))", "error  <what is wrong>"],
-    "fix_writes_a_backup": "--fix saves the previous text next to the report as <report>.bak before rewriting in place, and preserves the report's own CRLF/LF endings",
+    "conclusion_lines": ["PASS  <name>", "FAIL  <name>  (N defect(s))", "FAIL  <name>  (N rewrite(s), M punctuation-only)", "FAIL  <name>  (N defect(s) need the model)", "error  <what is wrong>"],
+    "notes_follow_the_verdict": "in shape mode and in --fix the verdict is followed by up to seven notes, so a reader who reads only the last line misses them all -- including the note announcing that five diagnostics never ran. Only --fidelity-only ends on its verdict",
+    "fix_writes_a_backup": "--fix saves the previous text next to the report as <report>.bak before rewriting in place, and preserves the report's own CRLF/LF endings. Only when repairs actually happened: the guard is `if dest == rep and n`, so a no-op --fix still rewrites the report in place but writes no backup",
     "skill_anchor": "退出码是唯一的机器判据"
   },
 
@@ -328,7 +361,12 @@
     },
     {
       "id": "fidelity",
-      "enforcement": "note",
+      "enforcement": "PUNCT-ONLY is a note; SUBSTANTIVE is a defect line counted in N and in the exit code",
+      "tiers": {
+        "SUBSTANTIVE": "a defect line, counted in the FAIL total and in the exit code -- it blocks exit 0 in every mode, including the shape-only steps 6 and 7",
+        "PUNCT-ONLY": "a note only, never changes the exit code; filtered out of the shape-mode defect count"
+      },
+      "display_prefix": "the gate prints tier[:6], so the canonical names appear as the six characters SUBSTA and PUNCT-",
       "why": "a fabricated block keeps six sections, three layers and four buckets; nothing structural sees it",
       "skill_anchor": "逐字符忠实"
     },

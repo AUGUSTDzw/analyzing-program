@@ -1,7 +1,7 @@
 ---
 name: analyzing-programs
-version: 1.1.8
-contract: 1.3.2
+version: 1.1.9
+contract: 1.3.3
 description: Use when the user wants a deep onboarding-style analysis report for an ABAP/SAP program source file (报表程序、FORM/事件块、OO 类 CLAS、函数组、ALV 等), or pastes an ABAP / z*.abap file asking to analyze, walk-through, 讲解 its structure, execution flow, or design. Trigger on phrases like "分析这个程序/源码","走读/讲解 ABAP","代码 onboarding","源码分析/架构分析","帮我看懂这段 SAP 代码". Trigger even when the user does not explicitly say "report" but clearly wants to understand a whole program's business purpose, architecture, and risks. Do NOT use for one-line answers, non-SAP code, or pure syntax/API lookups.
 ---
 # Skill: analyzing-programs
@@ -24,7 +24,7 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 | `references/example-report.md` | 唯一一份闸门零缺陷的真实报告——**带源码一起跑也是零缺陷**，§5 四行按 `row-src` 标了源码对象名。闸门查不出来的东西（§2 责任链表的「调用者」列、§5 的「业务后果」列）只能靠它传达 |
 | `references/abap-syntax/` | ABAP 语法与语义词表（内部表、内部表分组、ABAP SQL、OO、程序流逻辑、内置函数、异常、OO 设计模式、关键字总表）。写「为什么」与「风险与改进」两层要断言语法行为时**查这里**，不要凭记忆。**它是上游 cheat sheet 集合的子集，只有 9 份**——查不到的主题**不要凭记忆补**，按「事实性纪律」标注需核实 |
 | `scripts/docgen.py` | 开工前取子程序清单。`--type onboarding src.abap -o 目录` 列出每个子程序的名字、类型与行号，可当「有没有漏读」的核对表。**它生成的正文是通用 SAP 操作模板（SE38 / F8 / F5–F7 那类），不是对这份程序的分析，不要拿去润色** |
-| `scripts/abap_deps_analyzer.py` | 依赖报告：把源码里的**类 / 接口类型引用**与**随包**的标准库 `abaplint-deps/src`（abaplint/deps 的 184 个对象子集，MIT）比对，报出解析不了的引用，并附一份未使用代码清单。默认按脚本自身位置定位依赖目录，**不取**当前工作目录里的同名目录；`--deps` 可指向自己克隆的一份。**它不解析 `CALL FUNCTION` 与 `SELECT`**——函数模块、数据库表、数据元素一概测不到。报出的 `unresolved_type` / `unresolved_method` / `unresolved_program` 一律是 `info`：「不在随包桩库里」不等于「SAP 里没有」，**不是缺陷判定**，不要抄进报告的问题清单 |
+| `scripts/abap_deps_analyzer.py` | 依赖报告：把源码里的**类 / 接口类型引用**与**随包**的标准库 `abaplint-deps/src` 比对，报出解析不了的引用，并附一份未使用代码清单。标准库有 191 个 `.abap` 文件，其中 **184 个**带 SAP 对象扩展名（`.clas` / `.intf` / `.prog`）被索引 —— 「184 个对象」指的就是这个子集，不是文件总数（余下 7 个是 5 个 `cx_abap_*` 异常与 2 个 `type.abap`，不带对象类型后缀）。默认按脚本自身位置定位依赖目录，**不取**当前工作目录里的同名目录；`--deps` 可指向自己克隆的一份。**它不解析 `CALL FUNCTION` 与 `SELECT`**——函数模块、数据库表、数据元素一概测不到。报出的 `unresolved_type` / `unresolved_method` / `unresolved_program` 一律是 `info`：「不在随包桩库里」不等于「SAP 里没有」，**不是缺陷判定**，不要抄进报告的问题清单。**那份未使用清单更不可信**：它只数文本里的直接调用，`SET HANDLER ... FOR` 注册的事件回调（`ON_USER_COMMAND` / `ON_LINK_CLICK` 这类）会被一律报成「未使用」，实际全都在跑。先看一眼源码有没有注册，再决定要不要写进报告 |
 
 前两件是写报告时要用的，后两件是可选的辅助。`references/large-inputs.md`、
 `delivery-methods.md`、`slice-and-write.md`、`output-rate.md`、`truncated-reports.md`
@@ -60,6 +60,10 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 
 6. **全部写完之后，另起一轮，只修引文**：运行
    `python scripts/report_qc.py --fidelity-only 报告.md 源码.abap`。
+   **当前目录必须是本 skill 的根目录** —— 命令里是相对路径，闸门**不会**自己定位规则集
+   （`abap_deps_analyzer.py` 会，`report_qc.py` 不会）。目录不对是 `can't open file`，
+   那不算跑过闸门。也没有 `--help`：它按扩展名挑报告路径，`--help` 会被当成「没给报告」
+   而以 `2` 退。
    它只回答一件事：**你引用的语句是否逐字存在于源码里**。有就对照源码改正，然后重跑，
    直到**退出码为 0**为止。判据见「闸门输出」，不要靠输出文字判断。
     （报告或源码路径不存在、源码不是 UTF-8、或规则集读不到时，闸门以退出码 `2`
@@ -80,7 +84,7 @@ The value of this skill is the **fixed report structure** and the **three-layer 
    形状（六节、三层、四个优先级桶、Mermaid、位置标签）由第 7 步检查。
 
 7. **再另起一轮，跑形状闸门**：带上源码运行
-   `python scripts/report_qc.py 报告.md 源码.abap`。
+   `python scripts/report_qc.py 报告.md 源码.abap`（同样，当前目录是 skill 根目录）。
     它查：**围栏闭合**（`fence`）、六节结构、第五节至少一条问题行、三层标签、
     四个优先级桶、Mermaid 标签可渲染、位置标签不带行号。
     其中 `fence` 排序最靠前——围栏没闭合时报告后半段全部落在围栏里，其余检查全都
@@ -98,32 +102,40 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 
 | 退出码 | 什么时候 | 意味着什么 |
 |---|---|---|
-| `0` | 检查跑完了，没有形状缺陷 | `PASS  <报告名>`。可能带 note，**note 不改变退出码** |
-| `1` | 跑完了，有缺陷 | 形状模式：缺陷行以 `fence` / `sec` / `sec-dup` / `prow` / `row-src` / `buck` / `ln` / `mm` / `mm-missing` / `A8-cc` / `layer-same` / `A8-pt` / `enc` 起首，末行 `FAIL  <报告名>  (N defect(s))`。`--fidelity-only`：先打 `SUBSTANT` / `PUNCT-` 分级行，末行 `FAIL  <报告名>  (N rewrite(s), M punctuation-only)`；没有实质改写则 `PASS`。`--fix`：末行 `FAIL  <报告名>  (N defect(s) need the model)` |
+| `0` | 检查跑完了，**形状无缺陷，且没有实质改写** | `PASS  <报告名>`。可能带 note，**note 不改变退出码** |
+| `1` | 跑完了，有缺陷 | 形状模式：缺陷行以 `fence` / `sec` / `sec-dup` / `prow` / `row-src` / `buck` / `ln` / `mm` / `mm-missing` / `A8-cc` / `layer-same` / `A8-pt` / `enc` 起首，**加上忠实度实质级的一行 `SUBSTA`**，然后是 `FAIL  <报告名>  (N defect(s))`，`N` 把两者都算进去。`--fidelity-only`：先打 `SUBSTA` / `PUNCT-` 分级行，末行 `FAIL  <报告名>  (N rewrite(s), M punctuation-only)`；没有实质改写则 `PASS`。`--fix`：`FAIL  <报告名>  (N defect(s) need the model)`，`N` 只数形状 |
 | `2` | **拒绝运行：一个字都没查** | 绝大多数情况输出以 `error` 起首。两个例外不带 `error`：不带参数时打印用法说明；`--fix` 路径不足时打印 `--fix needs REPORT and SOURCE` |
 
 `2` 的全部触发条件，按模式分：
 
 | 模式 | 触发条件 |
 |---|---|
-| 通用 | 没给参数；命令行里没有 `.md` / `.markdown` 结尾的报告路径；报告路径不存在；**规则集 `schemas/report-contract.json` 读不到或已损坏**；**`scripts/checks/` 缺失或其中某个模块解析不了**；**报告或源码任一不是 UTF-8**；**闸门自己在检测器里抛异常**；**报告与源码指向同一个文件** |
+| 通用 | 没给参数；命令行里没有 `.md` / `.markdown` 结尾的报告路径；报告路径不存在；**规则集 `schemas/report-contract.json` 读不到或已损坏**；**`scripts/checks/` 缺失或其中某个模块解析不了**；**报告或源码任一不是 UTF-8**；**闸门自己在检测器里抛异常** |
 | 形状（第 7 步） | 源码路径不存在；给了多于一个源码 |
 | `--fidelity-only`（第 6 步） | 没有报告路径；源码不是**恰好一个**（0 个与 2 个都拒）；源码路径不存在；**源码是空的** |
 | `--fix` | 少于两个路径；没有报告路径；源码不是**恰好一个**；`-o` 后面没跟输出路径；**`-o` 所在目录不存在或不可写**；**`-o` 指向源码本身** |
 
-三条容易读错：
+五条容易读错：
 
 - **两个文件里有任何一个不是 UTF-8，三种模式都拒绝。** 读不出来就没有可比对的东西，
   比对没有意义。**这一条对报告同样成立**——报告是编辑器"另存为"的产物，
   在中文 Windows 上默认就是 cp936，和从 SE38 另存的源码是同一个坑。
-- **源码是空的只在 `--fidelity-only` 下拒绝。** 形状模式还能查形状，所以它只打一条
-  `note` 说明密度与忠实度没法测，然后照常返回形状结论；`--fidelity-only` 拿空源码
-  做不了任何事，所以拒绝。**报告为空不在这条之列**——空文件照样按形状检查。
+- **源码是空的只在 `--fidelity-only` 下拒绝。** 形状模式还能查形状，所以它打**两条**
+  `note` —— 一条说没有可计的分母（密度没测出来），一条说文件是空的 —— 然后照常返回
+  形状结论；`--fidelity-only` 拿空源码做不了任何事，所以拒绝。**报告为空不在这条之列**
+  —— 空文件照样按形状检查。
 - **闸门崩溃也是 `2`，不是 `1`。** 检测器抛异常会打印
-  `error  internal error checking <报告>: <类型>: <消息>` 并退出 `2`。`1` 的意思是
-  「查过了，有缺陷」——崩溃若也算 `1`，第 6、7 步会让你反复去修一份并不存在的缺陷，
-  永远到不了 `0`。看到这条 `error` 是**闸门的问题，不是报告的问题**：不要去改分析，
-  换一份源码或上报闸门缺陷。
+  `error  internal error checking <报告>: <类型>: <消息> -- the gate crashed, so treat this report as unchecked, not as defects found`
+  并退出 `2`。`1` 的意思是「查过了，有缺陷」——崩溃若也算 `1`，第 6、7 步会让你反复去修
+  一份并不存在的缺陷，永远到不了 `0`。看到这条 `error` 是**闸门的问题，不是报告的问题**：
+  不要去改分析，换一份源码或上报闸门缺陷。
+- **形状模式也查忠实度，`SUBSTA` 计入 `N`。** 所以「形状对」不等于 `0` —— 只要有一句
+  引用里的标识符、字面量或数字与源码不同，第 7 步仍然退 `1`。这正是第 6 步存在的理由：
+  先把引文修干净，第 7 步才只余形状。
+- **verdict 不是最后一行。** 形状模式与 `--fix` 都在 `FAIL` / `PASS` **之后**再打 note，
+  最多七条。按「末行」定位 verdict 就停，会漏掉全部 note —— 包括那条告诉你五项诊断没跑
+  的。忠实度的分级名在输出里被截成六个字符：`SUBSTANTIVE` 打成 `SUBSTA`，
+  `PUNCT-ONLY` 打成 `PUNCT-`，照全称 grep 什么都找不到。
 
 🔴 **CHECKPOINT · 退出码 `2` 是「拒绝」，不是「通过」。**
 它意味着闸门一个字都没看。把路径改对再重跑；**不要**因为没看到 FAIL 就当没问题。
@@ -142,14 +154,17 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 - **一次只能给一个源码。** 给两个会 `error` 退出 2，而不是静默取最后一个 ——
   后者看起来像一次成功运行，其实只拿一份报告对了个空。
 
-### 六条 note：note 不改退出码，但要看
+### 六项诊断：note 不改退出码，但要看
 
-闸门跑完还会打印最多六条 `note`。它们**不改变退出码**，所以闸门不替你判读 —— 得你自己看。
+闸门跑完还会打印最多**七**条 `note`：下面六项诊断各一条，而忠实度按严重度分两级
+（实质改写与仅标点差异各打一条），所以是七条上限。它们**不改变退出码**，所以闸门不替你
+判读 —— 得你自己看。唯一例外是忠实度的实质级：它**同时**打印一行 `SUBSTA` 缺陷并计入
+`FAIL` 的 `N`，那是一条真缺陷，不只是 note。
 
 | 诊断 | 它在问什么 | 需要源码 |
 |---|---|---|
 | 密度 | 形状完整却只是一份名录。**分组单位的展开深度**（引用的代码块数 ÷ 源码里声明的子程序数）低于契约给的 `floor_blocks_per_subprogram`（目前 `0.5`）时打一条 note。**它不改退出码**——低于下限的报告照样返回 `0`，补不补展开由你判断 | 是 |
-| 忠实度 | 你引用的语句是否逐字存在于源码 | 是 |
+| 忠实度 | 你引用的语句是否逐字存在于源码。**实质改写还会打印一行 `SUBSTA` 并计入退出码**；仅标点差异只打 note | 是 |
 | fix-lang | 示意改法有没有被留在 ```abap 围栏里 | 否 |
 | fix-mislabel | 反向：```abap-fix 围栏里的语句如果**整块逐字连续出现在源码里**，它就不是改法，而是**贴错了围栏的真引用** | 是 |
 | 授权 | 源码取了数据（`SELECT` / `READ`）却**全文没有 `AUTHORITY-CHECK`**。报表跑在 `S_TCODE` 授权下，所以这**本身不一定是缺陷**——note 只问一句，不是结论。报告若给出后果（谁能因此看到什么），这条 note 就消失 | 是 |
@@ -160,9 +175,11 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 都得你读源码自己答。note 的作用是把这个问题**摆到你面前**，不是替你下结论。
 
 ⚠️ **两条 note 的消音规则不一样，别当成同一条。**「授权」有门槛：报告里写出
-一句后果（谁能因此看到什么）它就消失。**判"写了后果"靠的是关键词命中，不是判断
-你对不对** —— 命中 `越权` / `未受控` / `无权限隔离` / `看到全量` / `任何人` /
-`其他用户` / `全部用户` / `并发权限` / `SoD` / `职责分离` 中任意一个即消音。
+一句后果（谁能因此看到什么）它就消失。**判"写了后果"靠的是正则字面匹配，不是判断
+你对不对** —— 命中下面任意一个即消音：`越权`、`未受控`、`无权限隔离`、`看到全量`、
+`任何能运行` / `任何可运行`、`任意用户`、`全体用户`、`数据权限`、`SoD`、`职责分离`。
+**这是字符串，不是近义词**：「任何人」不命中（正则要的是 `任何` 紧跟 `能运行` 或 `可运行`），
+「其他用户」不命中，「全部用户」也不命中 —— 得写 `任意用户` 或 `全体用户`。
 只写"不做权限控制"不构成回答，那只是把观察又说了一遍，正是这样被判为 partial
 的报告。
 「外部资产」**没有门槛**：源码里只要有一个位图/图标名字面量它就会发，你写多少句
@@ -193,14 +210,15 @@ fix-mislabel 之所以存在：`abap` 与 `abap-fix` 只锁了**一个方向**�
 
 ### 自动修：只有两类判断改不动，所以只有两类能自动修
 
-`--fix` 只做两件不会改变意思的事：
+`--fix` **只修**两件不会改变意思的事（它仍然会跑完全部检查并照常报告，包括忠实度）：
 
 - **位置标签里的行号** → 换成最近的前置构造名。找不到可靠锚点时**原样留下**并记一条
   note，不硬猜。
 - **Mermaid 标签里的裸 `<` `>` `#`** → 换成全角。成对的 HTML 子集标签不动。
 
 它**不修三层缺失** —— 那要判断后面的散文本属于哪一层，猜错会把风险论述标成"做什么"。
-原地重写之前它会把原文另存为 `<报告名>.bak`，并保留报告自己的换行风格。
+原地重写**并且确实改了东西**时，它会把原文另存为 `<报告名>.bak`，并保留报告自己的换行风格。
+零修复时不写 `.bak` —— 但它仍会把重写后的文本原地写回，所以正是「什么都没修」的那次没有备份。
 修完仍有缺陷时返回 `1`，不会假装修好了。
 
 所以用法是：**先按规则写对，再用 `--fix` 收机械残留**。它改不动的那些，
@@ -503,7 +521,11 @@ SELECT matnr maktx FROM makt INTO TABLE lt_makt
 - 责任链/字段配置等用 markdown 表格。
 - **Mermaid 标签安全**：节点与 participant 的显示文本不得出现裸 `<` `>` `#` 等 Mermaid 保留字符
   （会被解析为 HTML 或箭头导致不渲染）；尖括号内容改全角或去除，确保可渲染。
-  注意 `obj->method` 这类写法里的 `>` 同样算裸字符。
+  **ABAP 里最常见的碰撞是方法引用的 `->` 与 `=>`**：`cl_demo_output=>display_json( )` 里的
+  `>` 就是裸字符。两种写法：**换成全角 `＞`**（`--fix` 做的就是这件事，
+  `<`→`＜`、`>`→`＞`、`#`→`＃`），或者**把引用写成文字**（「`cl_demo_output` 的 `display_json`」）。
+  **Mermaid 标签的措辞是机械残留，不是分析**：第 6、7 步的「不许改分析」管的是论述，
+  不禁止修标签 —— `mm` 缺陷要的就是改标签。
   **例外**：`<br>` `<b>` `<i>` `<u>` `<em>` `<strong>` `<sub>` `<sup>` `<code>` `<span>`
   这类成对标签内的尖括号不算裸字符 —— 它们是 Mermaid 支持的 HTML 子集，闸门不报、
   也不该被改成全角。把原本能渲染的图改坏，比留着尖括号更糟。

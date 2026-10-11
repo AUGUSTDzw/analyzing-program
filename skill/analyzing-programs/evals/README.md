@@ -62,13 +62,14 @@ python scripts/evaluate.py compare --defects evals/D.json --a V1.json --b V2.jso
 
 ## 自带参考
 
-112 条缺陷 / 6 个真实源码：
+127 条缺陷 / 7 个真实源码：
 
 | 文件 | 缺陷数 | 源码 |
 |---|---|---|
 | `zcl_fi_toolkit.defects.json` | 38 | ZCL_FI_TOOLKIT（Keremkoseoglu，1702 行，CLASS） |
 | `z_ave_standalone.defects.json` | 22 | z_ave_standalone（ysichov，29.5k 行，CLASS-POOL） |
 | `zvend.defects.json` | 21 | zvend.abap |
+| `ztest7.defects.json` | 15 | ztest7.abap（115 行，SLIS/ALV 报表） |
 | `dialog_zmsa_r_chapter4_8.defects.json` | 11 | PROCESS BEFORE/AFTER INPUT（经典 PBO/PAI） |
 | `zbc_show_error_log.defects.json` | 10 | 函数组 / EXCEPTIONS |
 | `screen_manager_o01.defects.json` | 10 | SALV 屏幕管理器（OO 继承） |
