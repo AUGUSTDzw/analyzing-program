@@ -68,8 +68,13 @@ def _extract_subprograms(source: str) -> list[dict]:
     # and the subprogram table fell back to the single event block. The
     # definition-block line `METHODS: constructor ,` is not matched: `\b` after
     # METHOD does not fire before the S, and `METHOD\s+` wants whitespace.
+    #
+    # The anchor indents with [ \t] rather than \s: \s also matches a newline,
+    # so `^\s*METHOD` could start its match on the line above, and any
+    # subprogram preceded by a blank line came back with an anchor one line
+    # early. Horizontal whitespace only.
     method_re = re.compile(
-        r"(?i)^\s*METHOD\s+([A-Z0-9_]+)\b",
+        r"(?i)^[ \t]*METHOD\s+([A-Z0-9_]+)\b",
         re.MULTILINE,
     )
     for match in method_re.finditer(source):
@@ -83,7 +88,7 @@ def _extract_subprograms(source: str) -> list[dict]:
         # found nothing and fell through to the +2000 default, so every method
         # body ran on past its own end into the next subprogram.
         body_end = _find_block_end(
-            source, start, rf"ENDMETHOD\s+{re.escape(name)}\b")
+            source, start, r"\bENDMETHOD\b")
         subprograms.append({
             "name": name,
             "kind": "METHOD",
@@ -94,7 +99,7 @@ def _extract_subprograms(source: str) -> list[dict]:
 
     # FORM definitions
     form_re = re.compile(
-        r"(?i)^\s*FORM\s+([A-Z0-9_]+)\b",
+        r"(?i)^[ \t]*FORM\s+([A-Z0-9_]+)\b",
         re.MULTILINE,
     )
     for match in form_re.finditer(source):
@@ -104,7 +109,7 @@ def _extract_subprograms(source: str) -> list[dict]:
             continue
         seen_starts.add(start)
 
-        body_end = _find_block_end(source, start, rf"ENDFORM\s+{re.escape(name)}\b")
+        body_end = _find_block_end(source, start, r"\bENDFORM\b")
         subprograms.append({
             "name": name,
             "kind": "FORM",
@@ -115,7 +120,7 @@ def _extract_subprograms(source: str) -> list[dict]:
 
     # Function module definitions
     func_re = re.compile(
-        r"(?i)^\s*FUNCTION\s+([A-Z0-9_]+)\b",
+        r"(?i)^[ \t]*FUNCTION\s+([A-Z0-9_]+)\b",
         re.MULTILINE,
     )
     for match in func_re.finditer(source):
@@ -125,7 +130,7 @@ def _extract_subprograms(source: str) -> list[dict]:
             continue
         seen_starts.add(start)
 
-        body_end = _find_block_end(source, start, rf"ENDFUNCTION\s+{re.escape(name)}\b")
+        body_end = _find_block_end(source, start, r"\bENDFUNCTION\b")
         subprograms.append({
             "name": name,
             "kind": "FUNCTION",
@@ -162,7 +167,14 @@ def _extract_subprograms(source: str) -> list[dict]:
 
 
 def _find_block_end(source: str, start: int, end_pattern: str) -> int:
-    """Find the end of a block using a regex pattern."""
+    """Find the end of a block using a regex pattern.
+
+    Callers pass the bare end keyword, e.g. `\\bENDMETHOD\\b`, not
+    `ENDMETHOD method_name`. ABAP allows the terminator to carry the name
+    (`ENDMETHOD zcl_test.`) but never requires it, and the shipped sources
+    terminate bare. Requiring the name meant nothing matched, so every block
+    ran to the end of the file and `end` was identical for every subprogram.
+    """
     pattern = re.compile(end_pattern, re.IGNORECASE | re.MULTILINE)
     match = pattern.search(source, start + 10)
     return match.start() if match else min(start + 2000, len(source))
@@ -178,7 +190,7 @@ def _extract_classes(source: str) -> list[dict]:
     classes = []
 
     class_def_re = re.compile(
-        r"(?i)^\s*CLASS\s+([A-Z0-9_]+)\s+DEFINITION\b",
+        r"(?i)^[ \t]*CLASS\s+([A-Z0-9_]+)\s+DEFINITION\b",
         re.MULTILINE,
     )
     for match in class_def_re.finditer(source):
@@ -193,20 +205,20 @@ def _extract_classes(source: str) -> list[dict]:
 
         # Extract methods
         methods = []
-        method_re = re.compile(r"(?i)^\s*METHOD\s+([A-Z0-9_]+)\b", re.MULTILINE)
+        method_re = re.compile(r"(?i)^[ \t]*METHOD\s+([A-Z0-9_]+)\b", re.MULTILINE)
         for m in method_re.finditer(body):
             methods.append(m.group(1))
 
         # Extract interfaces
         interfaces = []
-        int_re = re.compile(r"(?i)^\s*INTERFACES\s+([A-Z0-9_]+)\b", re.MULTILINE)
+        int_re = re.compile(r"(?i)^[ \t]*INTERFACES\s+([A-Z0-9_]+)\b", re.MULTILINE)
         for i in int_re.finditer(body):
             interfaces.append(i.group(1))
 
         # Extract inheritance
         inherits = None
         inh_re = re.compile(
-            r"(?i)^\s*(?:INHERITING\s+FROM|CREATE\s+(?:PUBLIC|PROTECTED|PRIVATE))\s+([A-Z0-9_]+)",
+            r"(?i)^[ \t]*(?:INHERITING\s+FROM|CREATE\s+(?:PUBLIC|PROTECTED|PRIVATE))\s+([A-Z0-9_]+)",
             re.MULTILINE,
         )
         inh_match = inh_re.search(body[:500])
@@ -215,7 +227,7 @@ def _extract_classes(source: str) -> list[dict]:
 
         # Extract class data
         class_data = []
-        data_re = re.compile(r"(?i)^\s*(?:DATA|TYPES|CONSTANTS)\s+([A-Z0-9_]+)\b", re.MULTILINE)
+        data_re = re.compile(r"(?i)^[ \t]*(?:DATA|TYPES|CONSTANTS)\s+([A-Z0-9_]+)\b", re.MULTILINE)
         for d in data_re.finditer(body):
             class_data.append(d.group(1))
 
@@ -236,21 +248,42 @@ def _extract_forms(source: str) -> list[dict]:
     """Extract FORM procedures from source."""
     forms = []
     form_re = re.compile(
-        r"(?i)^\s*FORM\s+([A-Z0-9_]+)\s*(?:USING\s+(.*?))?",
-        re.MULTILINE | re.DOTALL,
+        r"(?i)^[ \t]*FORM\s+([A-Z0-9_]+)\b",
+        re.MULTILINE,
     )
+    # The FORM header is the text up to its own terminating period, and it is
+    # where USING lives. Three ways this has been wrong:
+    #   grouping USING into the FORM regex with `.*?` matched empty, so no FORM
+    #     ever reported a parameter;
+    #   stopping at the first period only, which dropped everything after a
+    #     CONTINUE in `USING p_b TYPE i CONTINUE p_c TYPE string.`;
+    #   reading "everything after USING", which let a `PERFORM other USING` in
+    #     the body masquerade as this FORM's own parameter list.
+    # So the header must start with USING or CONTINUE, and the clause is split
+    # on CONTINUE as well as on comma and AND.
+    header_re = re.compile(r"(?i)^[ \t\n]*(?:USING|CONTINUE)\b[ \t\n]*(.+)\Z",
+                           re.DOTALL)
     for match in form_re.finditer(source):
         form_name = match.group(1)
-        params_expr = match.group(2) or ""
 
         body_start = match.end()
-        end_marker = re.search(rf"(?i)ENDFORM\s+{re.escape(form_name)}\b", source[body_start:], re.MULTILINE)
+        end_marker = re.search(r"(?i)ENDFORM\b", source[body_start:], re.MULTILINE)
         body_end = body_start + end_marker.start() if end_marker else len(source)
+
+        # Bounded to this FORM's own body: an unbounded search would walk past
+        # the terminator and steal the next FORM's parameter list.
+        scope = source[body_start:body_end]
+        dot = scope.find(".")
+        header = scope[:dot] if dot != -1 else scope
+        params_expr = ""
+        head = header_re.match(header)
+        if head:
+            params_expr = head.group(1).strip()
 
         # Parse parameters
         params = []
         if params_expr:
-            for p in re.split(r",|\bAND\b", params_expr):
+            for p in re.split(r",|\bAND\b|\bCONTINUE\b", params_expr):
                 p = p.strip()
                 if p:
                     params.append(p)
@@ -291,7 +324,7 @@ def _extract_tables(source: str) -> list[dict]:
     into_table_re = re.compile(r"(?i)\bINTO\s+TABLE\s+([A-Z0-9_]+)", re.IGNORECASE)
     for match in into_table_re.finditer(source):
         name = match.group(1).strip()
-        if name not in seen and not name.startswith(("WS_", "LT_", "GT_")):
+        if name not in seen and not name.upper().startswith(("WS_", "LT_", "GT_")):
             seen.add(name)
             tables.append({
                 "name": name,
@@ -306,8 +339,10 @@ def _extract_calls(source: str) -> list[dict]:
     """Extract function and method calls from source."""
     calls = []
 
-    # CALL FUNCTION
-    for match in re.finditer(r"(?i)\bCALL\s+FUNCTION\s+([A-Z0-9_]+)", source):
+    # CALL FUNCTION. The name is usually quoted -- CALL FUNCTION 'Z_BC_LOG'. --
+    # and the original character class took only [A-Z0-9_], so the most common
+    # call form in ABAP produced no record at all.
+    for match in re.finditer(r"(?i)\bCALL\s+FUNCTION\s+['\"]?([A-Z0-9_]+)['\"]?", source):
         func_name = match.group(1)
         line_end = source.find("\n", match.start())
         if line_end == -1:
