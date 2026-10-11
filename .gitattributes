@@ -33,3 +33,9 @@ SHA256SUMS text eol=lf
 # re-encode it and invalidate its SHA256.
 *.zip -text
 *.pyc -text
+
+# The unpacked archives are frozen snapshots of those zips, so each file must
+# hold exactly the bytes the zip holds -- normalizing one makes a checked-out
+# archive disagree with the artifact it unpacks. 1.1.3's ABAP_notepad.xml
+# drifted that way the moment *.xml was declared text.
+release/analyzing-programs-*/** -text
