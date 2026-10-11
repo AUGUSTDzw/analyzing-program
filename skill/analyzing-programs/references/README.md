@@ -64,22 +64,24 @@
 
 ## 语法与语义
 
-`abap-syntax/` —— 8 份语法资料 + `ABAP_keywords_master.txt` 关键字总表
+`abap-syntax/` —— 9 份语法资料 + `ABAP_keywords_master.txt` 关键字总表
 + `ABAP.tmLanguage` / `ABAP_notepad.xml`（编辑器语法定义）。
 
 核对语法与关键字语义用。**它是参考资料，不是闸门的一部分** ——
 闸门只读 `schemas/report-contract.json`。
 
-**这 8 份是上游 SAP `abap-cheat-sheets` 集合的子集，不是全集。** 上游集合里有
-30 份左右，本目录只收了 8 份。因此这几份资料内部的交叉引用会指向本目录里不存在的
-兄弟文件（`05_Constructor_Expressions.md`、`06_Dynamic_Programming.md`、
-`08_EML_ABAP_for_RAP.md`、`10_ABAP_SQL_Hierarchies.md`、
-`11_Internal_Tables_Grouping.md`、`14_ABAP_Unit_Tests.md`、`15_CDS_View_Entities.md`、
-`16_Data_Types_and_Objects.md`、`17_SAP_LUW.md`、`22_Released_ABAP_Classes.md`、
-`31_WHERE_Conditions.md`、`37_Logical_Expressions_and_Functions.md`）——
+**这 9 份是上游 SAP `abap-cheat-sheets` 集合（Apache-2.0）的子集，不是全集。**
+上游 `main` 分支有 37 份，本目录只收了 9 份，逐份是上游原文的逐字节拷贝
+（可与上游 git blob SHA-1 复算核对，例如 `11_Internal_Tables_Grouping.md` 对
+`3080642a8dba2d4f13208048c3e712a069ddbf9e`）。因此这几份资料内部的交叉引用会
+指向本目录里不存在的兄弟文件（`02_Structures.md`、`05_Constructor_Expressions.md`、
+`06_Dynamic_Programming.md`、`08_EML_ABAP_for_RAP.md`、`10_ABAP_SQL_Hierarchies.md`、
+`14_ABAP_Unit_Tests.md`、`15_CDS_View_Entities.md`、`16_Data_Types_and_Objects.md`、
+`17_SAP_LUW.md`、`22_Released_ABAP_Classes.md`、`31_WHERE_Conditions.md`、
+`37_Logical_Expressions_and_Functions.md`）——
 **这些链接在本目录里点不开，是收录范围所致，不是文件损坏。** 文件名是刻意保留的：
 它告诉你该去上游集合找哪一份。需要的语义在上游找到后，若与本目录的口径冲突，
 以 ABAP Keyword Documentation 为准。
 
-反过来说：**这 8 份里没有的语义，本目录里就没有。** 写「为什么」和「风险与改进」
+反过来说：**这 9 份里没有的语义，本目录里就没有。** 写「为什么」和「风险与改进」
 要断言这样的行为时，不要凭记忆补——按 `SKILL.md` 的「事实性纪律」标注需核实。

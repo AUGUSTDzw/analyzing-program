@@ -22,7 +22,7 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 |---|---|
 | `references/README.md` | 参考资料索引，每份文件的结论与边界都在那里 |
 | `references/example-report.md` | 唯一一份闸门零缺陷的真实报告——**带源码一起跑也是零缺陷**，§5 四行按 `row-src` 标了源码对象名。闸门查不出来的东西（§2 责任链表的「调用者」列、§5 的「业务后果」列）只能靠它传达 |
-| `references/abap-syntax/` | ABAP 语法与语义词表（内部表、ABAP SQL、OO、程序流逻辑、内置函数、异常、OO 设计模式、关键字总表）。写「为什么」与「风险与改进」两层要断言语法行为时**查这里**，不要凭记忆。**它是上游 cheat sheet 集合的子集，只有 8 份**——查不到的主题**不要凭记忆补**，按「事实性纪律」标注需核实 |
+| `references/abap-syntax/` | ABAP 语法与语义词表（内部表、内部表分组、ABAP SQL、OO、程序流逻辑、内置函数、异常、OO 设计模式、关键字总表）。写「为什么」与「风险与改进」两层要断言语法行为时**查这里**，不要凭记忆。**它是上游 cheat sheet 集合的子集，只有 9 份**——查不到的主题**不要凭记忆补**，按「事实性纪律」标注需核实 |
 | `scripts/docgen.py` | 开工前取子程序清单。`--type onboarding src.abap -o 目录` 列出每个子程序的名字、类型与行号，可当「有没有漏读」的核对表。**它生成的正文是通用 SAP 操作模板（SE38 / F8 / F5–F7 那类），不是对这份程序的分析，不要拿去润色** |
 | `scripts/abap_deps_analyzer.py` | 依赖报告：把源码里的**类 / 接口类型引用**与**随包**的标准库 `abaplint-deps/src`（abaplint/deps 的 184 个对象子集，MIT）比对，报出解析不了的引用，并附一份未使用代码清单。默认按脚本自身位置定位依赖目录，**不取**当前工作目录里的同名目录；`--deps` 可指向自己克隆的一份。**它不解析 `CALL FUNCTION` 与 `SELECT`**——函数模块、数据库表、数据元素一概测不到。报出的 `unresolved_type` / `unresolved_method` / `unresolved_program` 一律是 `info`：「不在随包桩库里」不等于「SAP 里没有」，**不是缺陷判定**，不要抄进报告的问题清单 |
 
