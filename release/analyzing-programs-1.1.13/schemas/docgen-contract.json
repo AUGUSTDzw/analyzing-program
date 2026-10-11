@@ -1,0 +1,220 @@
+{
+  "version": "1.0.0",
+  "release": {
+    "ships_with": "1.1.2"
+  },
+  "_comment": [
+    "Machine-readable contract for document generation from ABAP source.",
+    "",
+    "This file defines what docgen.py must produce and what checks/docgen.py must validate.",
+    "docgen.py generates documentation from ABAP source; checks/docgen.py validates the output.",
+    "",
+    "Four document types are supported:",
+    "  - report: full analysis report (existing report_qc.py validates this)",
+    "  - class: technical documentation for ABAP classes",
+    "  - table: table structure documentation from SELECT statements",
+    "  - onboarding: onboarding guide for new developers",
+    "",
+    "Each document type has its own required_sections and structure rules.",
+    "The gate_io rules define exit codes and refusal conditions."
+  ],
+  "document_types": {
+    "report": {
+      "description": "Full analysis report with six sections (validated by report_qc.py)",
+      "validated_by": "report_qc.py",
+      "contract_file": "schemas/report-contract.json"
+    },
+    "class": {
+      "description": "Technical documentation for ABAP classes",
+      "validated_by": "docgen.py --check-class",
+      "required_sections": [
+        {
+          "id": "class-header",
+          "label": "类信息",
+          "heading_anchor": "### 类信息"
+        },
+        {
+          "id": "methods",
+          "label": "方法列表",
+          "heading_anchor": "### 方法列表"
+        },
+        {
+          "id": "dependencies",
+          "label": "依赖关系",
+          "heading_anchor": "### 依赖关系"
+        }
+      ],
+      "methods_table_columns": [
+        "方法名",
+        "访问级别",
+        "参数",
+        "返回值",
+        "异常",
+        "描述"
+      ],
+      "skill_anchor": "类文档"
+    },
+    "table": {
+      "description": "Table structure documentation from SELECT statements",
+      "validated_by": "docgen.py --check-table",
+      "required_sections": [
+        {
+          "id": "table-list",
+          "label": "数据表清单",
+          "heading_anchor": "## 数据表清单"
+        },
+        {
+          "id": "fields",
+          "label": "字段使用",
+          "heading_anchor": "## 字段使用"
+        }
+      ],
+      "fields_table_columns": [
+        "字段名",
+        "表名",
+        "类型",
+        "使用场景",
+        "筛选条件"
+      ],
+      "skill_anchor": "表文档"
+    },
+    "onboarding": {
+      "description": "Onboarding guide for new developers",
+      "validated_by": "docgen.py --check-onboarding",
+      "required_sections": [
+        {
+          "id": "overview",
+          "label": "程序概览",
+          "heading_anchor": "## 程序概览"
+        },
+        {
+          "id": "setup",
+          "label": "环境配置",
+          "heading_anchor": "## 环境配置"
+        },
+        {
+          "id": "run",
+          "label": "运行方法",
+          "heading_anchor": "## 运行方法"
+        },
+        {
+          "id": "debug",
+          "label": "调试指南",
+          "heading_anchor": "## 调试指南"
+        },
+        {
+          "id": "troubleshooting",
+          "label": "常见问题",
+          "heading_anchor": "## 常见问题"
+        }
+      ],
+      "skill_anchor": "入门指南"
+    }
+  },
+  "extraction": {
+    "subprograms": {
+      "patterns": [
+        "CLASS x IMPLEMENTATION",
+        "CLASS x DEFINITION",
+        "METHOD x",
+        "FORM x",
+        "FUNCTION x",
+        "MODULE x INPUT",
+        "MODULE x OUTPUT",
+        "DEFINE x",
+        "PROCEDURE x",
+        "AT SELECTION-SCREEN",
+        "AT PF x",
+        "AT USER-COMMAND",
+        "START-OF-SELECTION",
+        "END-OF-SELECTION",
+        "TOP-OF-PAGE",
+        "INITIALIZATION"
+      ],
+      "skill_anchor": "子程序识别"
+    },
+    "tables": {
+      "select_patterns": [
+        "SELECT .* FROM .* INTO",
+        "SELECT \\* FROM .* INTO",
+        "SELECT .* INTO TABLE",
+        "SELECT SINGLE"
+      ],
+      "join_patterns": [
+        "JOIN .* WITH .* ON",
+        "INNER JOIN",
+        "LEFT JOIN",
+        "RIGHT JOIN"
+      ],
+      "where_patterns": [
+        "WHERE .*=",
+        "WHERE .* IN",
+        "WHERE .* BETWEEN"
+      ],
+      "skill_anchor": "表提取"
+    },
+    "calls": {
+      "call_function_patterns": [
+        "CALL FUNCTION .* USING",
+        "CALL FUNCTION .* TABLES",
+        "CALL FUNCTION .* EXCEPTIONS"
+      ],
+      "call_method_patterns": [
+        "CALL METHOD .*",
+        ".*->method\\(",
+        ".*~method\\("
+      ],
+      "skill_anchor": "调用提取"
+    },
+    "events": {
+      "event_block_patterns": [
+        "AT SELECTION-SCREEN",
+        "AT PF",
+        "AT USER-COMMAND",
+        "START-OF-SELECTION",
+        "END-OF-SELECTION",
+        "INITIALIZATION"
+      ],
+      "skill_anchor": "事件块"
+    }
+  },
+  "output_formats": {
+    "markdown": {
+      "extension": ".md",
+      "description": "Markdown documentation with code blocks"
+    },
+    "json": {
+      "extension": ".json",
+      "description": "Structured JSON for programmatic consumption"
+    },
+    "html": {
+      "extension": ".html",
+      "description": "HTML documentation with embedded CSS"
+    }
+  },
+  "gate_io": {
+    "exit_codes": {
+      "0": "document generated or validated successfully",
+      "1": "validation failed: document has structural defects",
+      "2": "refused to run: source or output path does not exist, or source is not utf-8"
+    },
+    "refusal_triggers": [
+      "source path does not exist",
+      "source is not utf-8",
+      "output path directory does not exist",
+      "output path directory is not writable",
+      "no arguments provided"
+    ],
+    "skill_anchor": "退出码"
+  },
+  "validation": {
+    "required_sections": true,
+    "sections_exactly_once": false,
+    "encoding_utf8": true,
+    "no_line_numbers_in_labels": true,
+    "mermaid_safe": true,
+    "tables_well_formed": true,
+    "code_fences_closed": true,
+    "skill_anchor": "文档校验"
+  }
+}
