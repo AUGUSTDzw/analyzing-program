@@ -79,11 +79,20 @@ def inventory(src):
     and MODULE out, so a function group or a classic screen program produced an
     empty inventory and the density advisory could never fire on exactly the two
     input types the skill advertises.
+
+    Six of the anchors -- the event blocks -- declare no name to capture: START-
+    OF-SELECTION and its siblings are the name. Anchoring on m.group(1) for
+    every entry raised IndexError on the first of them, which killed the gate
+    with a traceback on exactly those classic screen programs, and exited 1 --
+    the defect verdict -- so a caller that was told to re-run until clean looped
+    on a crash. Those entries name themselves through the template instead.
+    anchors_of() already tolerated them: tmpl.format(*m.groups()) is a no-op on
+    a template with no placeholder.
     """
     out = []
-    for rx, _ in ANCHORS:
+    for rx, tmpl in ANCHORS:
         for m in rx.finditer(src):
-            n = m.group(1)
+            n = m.group(1) if rx.groups else tmpl
             if n and n not in out:
                 out.append(n)
     return out

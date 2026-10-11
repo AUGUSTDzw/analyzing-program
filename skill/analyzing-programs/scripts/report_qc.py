@@ -39,10 +39,17 @@ mode that returns 0 after printing FAIL gives the caller a termination signal
 that is always green.
 
 2 is a refusal to run, not a defect: a report path that does not exist, a source
-path that does not exist, or a source that is not utf-8. A caller that cannot tell
-the two apart treats "nothing was checked" as "nothing is wrong" -- a typo in
-the source path then reads exactly like a clean fidelity pass, which is the one
-false reassurance this script is allowed to give.
+path that does not exist, a source that is not utf-8, or the rule set and the
+detectors that read it failing to load. A caller that cannot tell the two apart
+treats "nothing was checked" as "nothing is wrong" -- a typo in the source path
+then reads exactly like a clean fidelity pass, which is the one false reassurance
+this script is allowed to give.
+
+So is a detector that crashes. An unhandled exception exits 1, the defect verdict,
+and step 7 turns that into a loop: the model edits a report whose defects do not
+exist and never reaches 0. The event-block IndexError did exactly that on the 17
+shipped sources that declare one. The check loop therefore refuses through die()
+rather than letting a traceback stand in for a finding.
 
 Defects and advisories are different things here on purpose. check() failures
 exit nonzero; the five advisories -- density, fix-lang, fix-mislabel, authz and
@@ -549,7 +556,25 @@ def main(argv):
     for p in reports:
         # report() returns 0 on PASS, N>0 on FAIL. `and 1` collapses any
         # nonzero count to 1, so rc counts failing reports, not defects.
-        rc += report(p, src) and 1
+        try:
+            rc += report(p, src) and 1
+        except Exception as e:
+            # A detector that raises is not a defect. 1 is the code SKILL.md
+            # defines as "the check ran and found defects", and step 7 tells the
+            # model to re-run until the exit code is 0 -- so an unhandled
+            # exception read as a FAIL, and the model edited a report whose
+            # defects did not exist, looping until it ran out of patience. The
+            # event-block crash died exactly this way: inventory() indexed a
+            # group that six of the ANCHORS entries do not have.
+            #
+            # Refuse the way the other four guards do instead of reporting a
+            # verdict the gate never reached. The type and message stay in the
+            # line because a bare "internal error" is not actionable, and naming
+            # the report matters: with more than one on the line, the ones before
+            # it were checked, so the message does not claim otherwise.
+            die("internal error checking %s: %s: %s -- the gate crashed, so treat "
+                "this report as unchecked, not as defects found"
+                % (p, type(e).__name__, e))
     if src is None:
         # After the verdict so a bare "report_qc.py REPORT" still reads PASS
         # first, and so the omission lands next to the coverage it costs rather

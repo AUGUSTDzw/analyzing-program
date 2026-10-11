@@ -1110,6 +1110,41 @@ def main():
           "a contiguous multi-line copy is still called out")
     check(r.returncode == 0, "that is still a note, not a failure")
 
+    # The gate must not die on a classic screen program. START-OF-SELECTION and
+    # its five siblings are event blocks, and ANCHORS gives them no capture
+    # group because the keyword is the name. Anchoring on group 1 for every
+    # entry raised IndexError on the first of them, so any report checked
+    # against the 17 shipped sources that declare one crashed with a traceback
+    # and exited 1 -- the defect verdict. SKILL.md step 7 tells the model to
+    # re-run until the exit code is 0, so the caller looped on a crash and
+    # could never tell that nothing had been checked. Asserted as behaviour,
+    # because reading the source would have told the truth: inventory() was
+    # one line short of the crash, and the docstring two lines above it already
+    # explained why the event blocks had been added.
+    print()
+    print("the gate does not die on an event block")
+    print("-" * 72)
+    ev = os.path.join(tmp, "events.abap")
+    io.open(ev, "w", encoding="utf-8").write(
+        "REPORT zevents.\n"
+        "INITIALIZATION.\n  WRITE / 'init'.\n"
+        "AT SELECTION-SCREEN.\n  WRITE / 'screen'.\n"
+        "START-OF-SELECTION.\n  WRITE / 'start'.\n"
+        "AT USER-COMMAND.\n  WRITE / 'command'.\n"
+        "END-OF-SELECTION.\n  WRITE / 'end'.\n"
+        "TOP-OF-PAGE.\n  WRITE / 'top'.\n")
+    p = os.path.join(tmp, "events.md")
+    io.open(p, "w", encoding="utf-8").write(brief_report())
+    r = run(QC, p, ev)
+    check("Traceback" not in r.stdout + r.stderr,
+          "a report checked against event blocks does not raise")
+    check(r.returncode in (0, 1, 2),
+          "an event-block run returns a verdict, not a traceback",
+          f"rc={r.returncode}")
+    check("for 6 declared subprogram(s)" in r.stdout,
+          "inventory() counts all six event blocks as a denominator",
+          r.stdout.strip().splitlines()[-1][:90] if r.stdout.strip() else "")
+
     print()
     print("-" * 72)
     if FAILS:
