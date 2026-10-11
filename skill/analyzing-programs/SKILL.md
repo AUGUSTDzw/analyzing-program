@@ -1,6 +1,6 @@
 ---
 name: analyzing-programs
-version: 1.1.5
+version: 1.1.6
 contract: 1.3.2
 description: Use when the user wants a deep onboarding-style analysis report for an ABAP/SAP program source file (报表程序、FORM/事件块、OO 类 CLAS、函数组、ALV 等), or pastes an ABAP / z*.abap file asking to analyze, walk-through, 讲解 its structure, execution flow, or design. Trigger on phrases like "分析这个程序/源码","走读/讲解 ABAP","代码 onboarding","源码分析/架构分析","帮我看懂这段 SAP 代码". Trigger even when the user does not explicitly say "report" but clearly wants to understand a whole program's business purpose, architecture, and risks. Do NOT use for one-line answers, non-SAP code, or pure syntax/API lookups.
 ---
@@ -21,10 +21,10 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 | 路径 | 用途 |
 |---|---|
 | `references/README.md` | 参考资料索引，每份文件的结论与边界都在那里 |
-| `references/example-report.md` | 唯一一份闸门零缺陷的真实报告。闸门查不出来的东西（§2 责任链表的「调用者」列、§5 的「业务后果」列）只能靠它传达 |
+| `references/example-report.md` | 唯一一份闸门零缺陷的真实报告——**带源码一起跑也是零缺陷**，§5 四行按 `row-src` 标了源码对象名。闸门查不出来的东西（§2 责任链表的「调用者」列、§5 的「业务后果」列）只能靠它传达 |
 | `references/abap-syntax/` | ABAP 语法与语义词表（内部表、ABAP SQL、OO、程序流逻辑、内置函数、异常、OO 设计模式、关键字总表）。写「为什么」与「风险与改进」两层要断言语法行为时**查这里**，不要凭记忆 |
 | `scripts/docgen.py` | 开工前取子程序清单。`--type onboarding src.abap -o 目录` 列出每个子程序的名字、类型与行号，可当「有没有漏读」的核对表。**它生成的正文是通用 SAP 操作模板（SE38 / F8 / F5–F7 那类），不是对这份程序的分析，不要拿去润色** |
-| `scripts/abap_deps_analyzer.py` | 依赖报告：把源码引用的对象与**随包**的标准库 `abaplint-deps/src`（abaplint/deps，MIT）比对，报出解析不了的引用。目录按脚本自身位置定位，与当前工作目录无关；`--deps` 可指向自己克隆的一份。它报的是「引用能否在标准库里解析」，**不是缺陷判定** |
+| `scripts/abap_deps_analyzer.py` | 依赖报告：把源码里的**类 / 接口类型引用**与**随包**的标准库 `abaplint-deps/src`（abaplint/deps 的 184 个对象子集，MIT）比对，报出解析不了的引用，并附一份未使用代码清单。默认按脚本自身位置定位依赖目录，**不取**当前工作目录里的同名目录；`--deps` 可指向自己克隆的一份。**它不解析 `CALL FUNCTION` 与 `SELECT`**——函数模块、数据库表、数据元素一概测不到。报出的 `unresolved_type` / `unresolved_method` / `unresolved_program` 一律是 `info`：「不在随包桩库里」不等于「SAP 里没有」，**不是缺陷判定**，不要抄进报告的问题清单 |
 
 前两件是写报告时要用的，后两件是可选的辅助。`references/large-inputs.md`、
 `delivery-methods.md`、`slice-and-write.md`、`output-rate.md`、`truncated-reports.md`
@@ -86,17 +86,17 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 | 退出码 | 什么时候 | 意味着什么 |
 |---|---|---|
 | `0` | 检查跑完了，没有形状缺陷 | `PASS  <报告名>`。可能带 note，**note 不改变退出码** |
-| `1` | 跑完了，有形状缺陷 | 缺陷行以 `fence` / `sec` / `prow` / `buck` / `ln` / `mm` / `A8-cc` / `A8-pt` 起首，末行 `FAIL  <报告名>  (N defect(s))`。`--fidelity-only` 只打印 `FAIL  <报告名>` 加一条 note，不打缺陷前缀行 |
+| `1` | 跑完了，有缺陷 | 形状模式：缺陷行以 `fence` / `sec` / `sec-dup` / `prow` / `row-src` / `buck` / `ln` / `mm` / `mm-missing` / `A8-cc` / `layer-same` / `A8-pt` / `enc` 起首，末行 `FAIL  <报告名>  (N defect(s))`。`--fidelity-only`：先打 `SUBSTANT` / `PUNCT-` 分级行，末行 `FAIL  <报告名>  (N rewrite(s), M punctuation-only)`；没有实质改写则 `PASS`。`--fix`：末行 `FAIL  <报告名>  (N defect(s) need the model)` |
 | `2` | **拒绝运行：一个字都没查** | 绝大多数情况输出以 `error` 起首。两个例外不带 `error`：不带参数时打印用法说明；`--fix` 路径不足时打印 `--fix needs REPORT and SOURCE` |
 
 `2` 的全部触发条件，按模式分：
 
 | 模式 | 触发条件 |
 |---|---|
-| 通用 | 没给参数；命令行里没有 `.md` / `.markdown` 结尾的报告路径；报告路径不存在；**规则集 `schemas/report-contract.json` 读不到或已损坏**；**`scripts/checks/` 缺失或其中某个模块解析不了**；**闸门自己在检测器里抛异常** |
-| 形状（第 7 步） | 给了多于一个源码；源码路径不存在 |
-| `--fidelity-only`（第 6 步） | 源码不是**恰好一个**（0 个与 2 个都拒）；源码路径不存在；**源码是空的**；**源码不是 UTF-8** |
-| `--fix` | 少于两个路径；`-o` 后面没跟输出路径 |
+| 通用 | 没给参数；命令行里没有 `.md` / `.markdown` 结尾的报告路径；报告路径不存在；**规则集 `schemas/report-contract.json` 读不到或已损坏**；**`scripts/checks/` 缺失或其中某个模块解析不了**；**报告或源码任一不是 UTF-8**；**闸门自己在检测器里抛异常**；**报告与源码指向同一个文件** |
+| 形状（第 7 步） | 源码路径不存在；给了多于一个源码 |
+| `--fidelity-only`（第 6 步） | 没有报告路径；源码不是**恰好一个**（0 个与 2 个都拒）；源码路径不存在；**源码是空的** |
+| `--fix` | 少于两个路径；没有报告路径；源码不是**恰好一个**；`-o` 后面没跟输出路径；**`-o` 所在目录不存在或不可写**；**`-o` 指向源码本身** |
 
 三条容易读错：
 
@@ -211,8 +211,9 @@ fix-mislabel 之所以存在：`abap` 与 `abap-fix` 只锁了**一个方向**�
 
 ## Report Structure（必须遵循）
 
-完整范例见 `references/example-report.md` —— 那是一份真实报告，逐字未改，
-`scripts/report_qc.py` 对它零缺陷。它比本文档更能说明 §2 的责任链表、§5 的
+完整范例见 `references/example-report.md` —— 那是一份真实报告，对
+`scripts/report_qc.py` 零缺陷，带源码一起跑也是零缺陷（§5 四行按 `row-src`
+标了源码对象名）。它比本文档更能说明 §2 的责任链表、§5 的
 「业务后果」列、§3 的分组小标题该怎么写。
 
 ```

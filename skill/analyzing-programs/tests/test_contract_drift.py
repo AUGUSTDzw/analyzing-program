@@ -192,8 +192,8 @@ def main():
     # and read the SKILL.md anchors below as the check that they were updated.
     check(C.get("version") == "1.3.2", "contract version is 1.3.2",
           C.get("version"))
-    check(_rel.get("ships_with") == "1.1.5",
-          "contract ships with 1.1.5", _rel.get("ships_with"))
+    check(_rel.get("ships_with") == "1.1.6",
+          "contract ships with 1.1.6", _rel.get("ships_with"))
     # The frontmatter fields exist so a deployed copy can prove what it is by
     # reading itself. 1.1.2 shipped with version 1.1.1 still in its own
     # SKILL.md, so an installed copy could not have named the release it was.

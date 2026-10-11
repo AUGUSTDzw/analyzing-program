@@ -41,11 +41,11 @@ schemas/report-contract.json   闸门规则与 skill 教学锚点的唯一来源
 ## 跑一遍
 
 ```bash
-python tests/test_skill.py                # 168 项，自足；全过打印 N checks passed
-python tests/test_contract_drift.py       # 121 项，契约 <-> SKILL.md <-> 闸门 三方对齐
+python tests/test_skill.py                # 169 项，自足；全过打印 N checks passed
+python tests/test_contract_drift.py       # 123 项，契约 <-> SKILL.md <-> 闸门 三方对齐
 python tests/test_gate_enforcement.py     # 25 项，闸门执行漏洞探针
 python tests/test_fidelity_tiers.py       # 7 项，改动前后口径是否等价
-python tests/test_docgen_deps.py          # 67 项，docgen 与依赖分析器
+python tests/test_docgen_deps.py          # 95 项，docgen 与依赖分析器
 python scripts/report_qc.py REPORT SOURCE                # 格式；报告须 .md/.markdown，其余当源码
 python scripts/report_qc.py --fix REPORT SOURCE -o OUT   # 格式 + 自动修两类
 python scripts/evaluate.py tasks  --defects evals/zcl_fi_toolkit.defects.json
@@ -130,6 +130,7 @@ iteration-8 的全部数字都是在 **`b8f84e8`**（162 行）上测出来的�
 | `57c75b5` | 494 | `57c75b5` | **1.1.3**。契约 1.3.0 → 1.3.1。两处闸门崩溃改成正经拒绝：`inventory()` 对事件块取 `group(1)` 抛 IndexError（事件块的 keyword 就是名字，ANCHORS 不给它 capture group），未捕获异常退 `1`——而 `1` 被定义为"查过了、有缺陷"，模型会去改不存在的缺陷；内部异常现统一走 `die()` 退 `2`。docgen 的正则锚在 `METHOD` 后的 `(` 上，六种写法里只有带参数的那种能匹配，类方法全被漏掉。`abaplint-deps` 随 skill 一起发布、按脚本自身位置解析（装好的 skill 里 CWD 从不是 skill 目录）。SKILL.md 补退出码表与资源索引。410 个文件 |
 | `75fb895` | 494 | `75fb895` | **1.1.4**。契约 1.3.1 → 1.3.2，只补文档：`exit_codes["2"]` 里"规则集读不到"这条触发器是 1.2.4 加的，1.2.6 重写那段字符串时弄丢了措辞，而它的兄弟键 `gate_start_refuses_without_a_rule_set` 一直活着——只读那张平铺表的读者已经看不到四个启动期拒绝里最早的一个。闸门行为与 1.3.1 完全一致。同批修换行符：`*.txt` / `*.js` / `*.xml` 补进 `.gitattributes`，八个 blob 重新归一化成 LF（`.gitattributes` 管不了已经提交的 blob，而 `git status` 归一化后一直读成干净），发布目录标成 `-text` 冻结以免 git 重编码破坏与 zip 的逐字节一致；`pack.py` 断言 `ships_with` 并打印与上一版的布局差异 |
 | `37ea6bd` | 494 | `37ea6bd` | **1.1.5**。docgen 四处解析缺陷 + 第五个测试套件，契约不动（1.3.2）。`_find_block_end` 要求 `ENDMETHOD` 后面跟子程序名，而 ABAP 允许但不要求带名字，于是什么都不匹配、所有块都跑到文件末尾、`end` 对每个子程序都相同；`CALL FUNCTION` 的名字从 `[A-Z0-9_]` 取，漏掉带引号的 `CALL FUNCTION 'Z_BC_LOG'`——ABAP 里最常见的那种；`USING` 被 `.*?` 组进 FORM 正则，永远匹配空，FORM 从不报参数；内部表过滤用大小写敏感的 `startswith`，`lt_tab` / `ws_data` 被当成数据库表；锚点用 `^\s*` 缩进而 `\s` 也能跨换行，被空行隔开的子程序锚点早一行。新增 `tests/test_docgen_deps.py`（67 项）覆盖 docgen 与 `abap_deps_analyzer` 的解析器、锚点与命令行——写它才把这五处挖出来 |
+| `74944da` | 495 | `74944da` | **1.1.6**。契约不动（1.3.2）。**分析器八处修复**：`--deps` 锚定脚本自身位置而非 CWD；类型引用先减去本地声明的类型名；`unknown_*` 改名 `unresolved_*` 并降为 `info`（「不在随包桩库里」不等于「SAP 里没有」）；补冒号形 `PERFORM` / `METHOD` 与类内裸调用、取标识符前先剥行内注释、每次 `analyze()` 复位状态、修 `->+` / `=>+` 的自身回归、支持 ALV 回调的字符串字面量。`tests/test_docgen_deps.py` 67 → 95，含一个「decoy CWD 放同名 deps 目录」的负向用例。**范例报告过不了自己的闸门**：`row-src` 只在传了源码时才跑，而守护它的两个测试都不带源码，§5 里 P2-3（只有 `+1` / `MIN/MAX`）、P2-4（无拉丁标识符）、P2-5（只有 `PERFORM` / `ENDFUNCTION`，均在关键字排除表内）、P3-2（只有源码外的 `c05_abap_unit`）四行被自己的规则判死——带源码跑是 exit 1。四行各补一个真实源码对象名，exit 0；`test_skill.py` 加一项带源码跑，drift 的变异探针原来同样传不出源码，现在在范例上专门跑 `row-src` 并带负向对照。168 → 169，121 → 123。**闸门文档三处与实测不符**：退出码表只列了契约 15 个缺陷前缀中的 8 个、`--fidelity-only` 输出格式写错（实际先打 `SUBSTANT` / `PUNCT-` 分级行）、退出码 `2` 的触发条件漏了「报告与源码同一文件」及 `--fix` 的三个输出路径拒绝 |
 
 **契约版本与发布版本是两条独立的轴。** 契约 `version` 只在该文件自己的规则、
 阈值或 `gate_io` 行变化时递增；发布版本对措辞和闸门行为的变化也递增。
@@ -197,7 +198,8 @@ iteration-8 的全部数字都是在 **`b8f84e8`**（162 行）上测出来的�
 
 能说的还有一条更窄但能直接验的：1.0.9 自己那份 476 行的 SKILL.md 与
 `references/example-report.md`，对 1.0.9 自己的闸门是 `PASS`、退出码 0，
-`test_skill.py` 有一项专门守它（`the shipped example report still passes`）。
+`test_skill.py` 有两项专门守它（`the shipped example report still passes`
+不带源码，`...against its own source` 带 `zbc_show_error_log` 源码）。
 那是 n=1，但它是当前版本上唯一有的一条。
 
 **这条不能支持什么**：
