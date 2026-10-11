@@ -17,6 +17,16 @@ VER = sys.argv[1]
 REV = sys.argv[2]
 SRC = "skill/analyzing-programs"
 PREFIX = "analyzing-programs-" + VER
+# Directories that live in the repository but are not part of the skill package.
+# The harness. Every suite resolves fixtures by walking up from tests/ to a
+# repository root and reading sibling Test-source/ and
+# analyzing-programs-workspace/, neither of which ships. In the package they die
+# on the first fixture, which reads as a broken release instead of a harness
+# that cannot run here. The gate and its scripts are unaffected, so they stay.
+NOT_SHIPPED = ("tests/",)
+CRITICAL = ("schemas/", "scripts/", "references/", "evals/")
+for _p in NOT_SHIPPED:
+    assert _p not in CRITICAL, "pack.py would drop a directory the gate reads: " + _p
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 names = subprocess.run(["git", "ls-tree", "-r", "--name-only", REV, "--", SRC],
@@ -33,6 +43,14 @@ _contract = json.loads(subprocess.run(
 _ships = _contract.get("release", {}).get("ships_with")
 assert _ships == VER, ("the contract at %s declares release.ships_with %r, "
                        "but the release number is %s" % (REV, _ships, VER))
+
+_dropped = sorted(r for r in blobs
+                  if any(r.startswith(p) for p in NOT_SHIPPED))
+for r in _dropped:
+    del blobs[r]
+if _dropped:
+    print("excluded %d repository-only file(s): %s"
+          % (len(_dropped), ", ".join(NOT_SHIPPED)))
 
 dirs = set()
 for rel in blobs:

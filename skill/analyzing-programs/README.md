@@ -16,10 +16,8 @@ references/large-inputs.md     大输入的实测行为（观察，不是规则�
 references/README.md           范例的出处与局限
 evals/README.md                缺陷参考的格式、用法与边界
 evals/*.defects.json           127 条缺陷 / 7 个真实源码
-tests/test_skill.py            169 项；168 项自足，1 项要同级 Test-source/
-tests/test_contract_drift.py   契约 <-> SKILL.md <-> 闸门 三方对齐检查
-tests/test_docgen_deps.py      docgen 与 abap_deps_analyzer 的解析器与命令行
 schemas/report-contract.json   闸门规则与 skill 教学锚点的唯一来源
+tests/*.py                 仓库内的验证套件，**不随包发布**（见「跑一遍」）
 ```
 
 ## 三件工具各管什么
@@ -40,18 +38,27 @@ schemas/report-contract.json   闸门规则与 skill 教学锚点的唯一来源
 
 ## 跑一遍
 
+包里的东西，装到哪儿都能跑：
+
 ```bash
-python tests/test_skill.py                # 169 项；168 项自足，1 项要同级 Test-source/
-python tests/test_contract_drift.py       # 123 项，契约 <-> SKILL.md <-> 闸门 三方对齐
-python tests/test_gate_enforcement.py     # 25 项，闸门执行漏洞探针
-python tests/test_fidelity_tiers.py       # 7 项，改动前后口径是否等价
-python tests/test_docgen_deps.py          # 95 项，docgen 与依赖分析器
 python scripts/report_qc.py REPORT SOURCE                # 格式；报告须 .md/.markdown，其余当源码
 python scripts/report_qc.py --fix REPORT SOURCE -o OUT   # 格式 + 自动修两类
 python scripts/evaluate.py tasks  --defects evals/zcl_fi_toolkit.defects.json
 python scripts/evaluate.py score --defects D.json --verdicts MY.json
 python scripts/evaluate.py compare --defects D.json --a V1.json --b V2.json
 ```
+
+验证套件在仓库里跑。`tests/` 不随包发布，安装包里没有这五个文件：
+
+```bash
+python tests/test_skill.py              # 169 项
+python tests/test_contract_drift.py     # 123 项，契约 <-> SKILL.md <-> 闸门 三方对齐
+python tests/test_gate_enforcement.py   # 25 项，闸门执行漏洞探针
+python tests/test_fidelity_tiers.py     # 7 项，改动前后口径是否等价
+python tests/test_docgen_deps.py        # 95 项，docgen 与依赖分析器
+```
+
+合计 419 项。
 
 **退出码是契约的一部分。** 所有模式在仍有缺陷时返回非零，包括 `--fidelity-only`
 与 `--fix` —— SKILL.md 第 6 步让模型"重跑到干净为止"，那条循环只能靠退出码终止。
@@ -60,16 +67,19 @@ python scripts/evaluate.py compare --defects D.json --a V1.json --b V2.json
 而且是从缺陷循环里抛的，诊断信息会被 traceback 顶掉。
 Windows 上不需要设 `PYTHONUTF8`。
 
-**这五条只能在仓库里跑，从发布包跑不起来。** 每个 suite 都用
+**为什么 `tests/` 不进包。** 每个 suite 都用
 `HERE = dirname(abspath(__file__))` 往上数出仓库根，再去根下找同级的
 `Test-source/` 与 `analyzing-programs-workspace/`——那两棵树明确不随 skill 发布
-（`analyzing-programs-workspace/` 是上游开发线快照）。所以装到
-`~/.agents/skills/` 之后，五个 suite 会在第一项就 `FileNotFoundError`，
-`test_skill.py` 是 168 过 1 挂（挂的是 `the exemplar's source is present`，
-它需要 `Test-source/real/` 里那份 `zbc_show_error_log`）。
-**闸门本身与它的脚本在装好的位置正常工作**——`python scripts/report_qc.py`
-在范例报告上退 `0`、打 `PASS`，这是实测的。所以上面的 419 项要在仓库里跑，
-发布包只负责让闸门和参考资料就位。
+（`analyzing-programs-workspace/` 是上游开发线快照）。所以放进包里只会得到一个
+跑不起来的东西：装到 `~/.agents/skills/` 之后五个 suite 都会在第一个 fixture 上
+`FileNotFoundError`，`test_skill.py` 是 168 过 1 挂（挂的是 `the exemplar's
+source is present`，它需要 `Test-source/real/` 里那份 `zbc_show_error_log`）。
+1.1.10 是把这句话写进 README；1.1.11 是直接不把它发出去——包里剩下的每件东西
+都能在装好的位置跑通，这句话才成立。`release/pack.py` 里有一个 `NOT_SHIPPED`
+名单加一条 `CRITICAL` 守卫，后者保证误把 `schemas/` / `scripts/` /
+`references/` / `evals/` 填进排除名单时打包会直接断言失败，而不是悄悄少发。
+`references/README.md` 与 `evals/README.md` 里有两处指向 `tests/` 的交叉引用，
+那是指向仓库内的套件，读发布包的人找不到很正常，不删。
 
 **四种「没检查」的样子，其中一种仍然和通过只差一行 note。** 下表全部实测，
 SKILL.md「闸门输出」一节照抄：
