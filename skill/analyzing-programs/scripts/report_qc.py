@@ -351,6 +351,28 @@ def die(msg):
     sys.exit(2)
 
 
+def run_detector(report, fn, *args):
+    """Run one detector, refusing the way the guards do if it raises.
+
+    An unhandled exception exits 1, which SKILL.md defines as "the check ran
+    and found defects", and step 7 re-runs until the exit code is 0. So a
+    crashing detector read as a FAIL, and the model edited a report whose
+    defects did not exist. The event-block crash died exactly this way:
+    inventory() indexed a group that six of the ANCHORS entries do not have.
+
+    The message lives here once. Duplicating it per mode is what left
+    --fidelity-only and --fix outside the guard in 1.3.4: the guard was added
+    around the shape loop, and the other two modes were never re-checked
+    against the promise exit_codes["2"] then made in their name.
+    """
+    try:
+        return fn(*args)
+    except Exception as e:
+        die("internal error checking %s: %s: %s -- the gate crashed, so treat "
+            "this report as unchecked, not as defects found"
+            % (report, type(e).__name__, e))
+
+
 def main(argv):
     args = argv[1:]
     if not args:
@@ -398,7 +420,7 @@ def main(argv):
                 s = read_report(p)
             except ReadError as e:
                 die(str(e))
-            tiers = classify(s, src)
+            tiers = run_detector(p, classify, s, src)
             sub = [t for t in tiers if t[0] == "SUBSTANTIVE"]
             pun = [t for t in tiers if t[0] == "PUNCT-ONLY"]
             for tier, ln, rl, detail in sorted(tiers, key=lambda x: x[1]):
@@ -478,7 +500,8 @@ def main(argv):
         # Reading universal newlines instead converted CRLF to LF, and writing
         # them back out converted LF to CRLF on Windows.
         crlf = "\r\n" in raw
-        fixed, n, notes = fix(raw.replace("\r\n", "\n"), ssrc)
+        fixed, n, notes = run_detector(
+            rep, fix, raw.replace("\r\n", "\n"), ssrc)
         for nt in notes:
             print(f"  note  {nt}")
         dest = out or rep
@@ -491,7 +514,7 @@ def main(argv):
         written = fixed.replace("\n", "\r\n") if crlf else fixed
         io.open(dest, "w", encoding="utf-8", newline="").write(written)
         print(f"repaired {n} mechanical defect(s) -> {dest}")
-        left = check(fixed, ssrc)
+        left = run_detector(rep, check, fixed, ssrc)
         for kind, ln, detail in left:
             where = f"line {ln}" if ln else "document"
             print(f"  {kind:6} {where:>10}  {detail}")
@@ -501,7 +524,8 @@ def main(argv):
         # plain mode counts it in N. Failing to move it up would print PASS
         # and then exit 1 -- the same false reassurance as before, read from
         # the other end.
-        n_sub, _n_pun, _tiers, fid_notes = fidelity_report(fixed, ssrc)
+        n_sub, _n_pun, _tiers, fid_notes = run_detector(
+            rep, fidelity_report, fixed, ssrc)
         # The other two modes print PASS or FAIL. A caller that greps for
         # either sees nothing from --fix, so the verdict lived only in the
         # exit code. Same vocabulary here.
@@ -515,7 +539,7 @@ def main(argv):
                   f"({' and '.join(why)} need the model)")
         else:
             print(f"PASS  {os.path.basename(dest)}")
-        for note in all_notes(fixed, ssrc):
+        for note in run_detector(rep, all_notes, fixed, ssrc):
             print(f"  note  {note}")
         for fn in fid_notes:
             print(f"  note  {fn}")
@@ -568,25 +592,7 @@ def main(argv):
     for p in reports:
         # report() returns 0 on PASS, N>0 on FAIL. `and 1` collapses any
         # nonzero count to 1, so rc counts failing reports, not defects.
-        try:
-            rc += report(p, src) and 1
-        except Exception as e:
-            # A detector that raises is not a defect. 1 is the code SKILL.md
-            # defines as "the check ran and found defects", and step 7 tells the
-            # model to re-run until the exit code is 0 -- so an unhandled
-            # exception read as a FAIL, and the model edited a report whose
-            # defects did not exist, looping until it ran out of patience. The
-            # event-block crash died exactly this way: inventory() indexed a
-            # group that six of the ANCHORS entries do not have.
-            #
-            # Refuse the way the other four guards do instead of reporting a
-            # verdict the gate never reached. The type and message stay in the
-            # line because a bare "internal error" is not actionable, and naming
-            # the report matters: with more than one on the line, the ones before
-            # it were checked, so the message does not claim otherwise.
-            die("internal error checking %s: %s: %s -- the gate crashed, so treat "
-                "this report as unchecked, not as defects found"
-                % (p, type(e).__name__, e))
+        rc += run_detector(p, report, p, src) and 1
     if src is None:
         # After the verdict so a bare "report_qc.py REPORT" still reads PASS
         # first, and so the omission lands next to the coverage it costs rather

@@ -621,6 +621,23 @@ def main():
     fo = run(QC, "--fidelity-only", p, src)
     check("FAIL" in fo.stdout and fo.returncode == 1,
           "--fidelity-only exits nonzero when a quotation is not in the source")
+    # The advisory tier has its own PASS form. conclusion_lines listed only
+    # `PASS  <name>`, so a reader classifying output by that list met a line it
+    # had never been told could appear -- exit 0 while punctuation was still
+    # being counted. Match the whole line, not a prefix, so a regression that
+    # quietly drops the count is caught too.
+    pun = os.path.join(tmp, "punct.md")
+    io.open(pun, "w", encoding="utf-8").write(
+        brief_report().replace("SELECT foo FROM bar INTO @DATA(ls_foo).",
+                               "SELECT foo FROM bar INTO @DATA(ls_foo )"))
+    fo = run(QC, "--fidelity-only", pun, src)
+    check("PASS  punct.md  (1 punctuation-only)" in fo.stdout,
+          "--fidelity-only counts advisory findings on the PASS line itself",
+          fo.stdout.strip().splitlines()[-1][:56] if fo.stdout.strip() else "")
+    check(fo.returncode == 0,
+          "--fidelity-only still exits 0 when the only findings are advisory")
+    check("PUNCT-" in fo.stdout,
+          "an advisory finding is still shown as a tier line")
     fx = run(QC, "--fix", nolayer, src, "-o", os.path.join(tmp, "fixed.md"))
     check(fx.returncode == 1,
           "--fix exits nonzero while defects still need the model",
@@ -1186,6 +1203,44 @@ def main():
     check("for 6 declared subprogram(s)" in r.stdout,
           "inventory() counts all six event blocks as a denominator",
           r.stdout.strip().splitlines()[-1][:90] if r.stdout.strip() else "")
+
+    # The guard above was added around the shape-mode check loop, and the promise
+    # it enforces is written for every mode: exit_codes["2"] says an unhandled
+    # exception inside the check loop refuses in every mode. The other two
+    # branches called their detectors bare, so the same crash there exited 1 with
+    # a traceback -- the code SKILL.md defines as "the check ran and found
+    # defects" -- and in --fix it did so after the output file had already been
+    # rewritten. Step 7 loops until the exit code is 0, so each of those read as
+    # a report with defects left to fix. Injected rather than read from the
+    # source, for the same reason as the event-block check above.
+    print()
+    print("a detector that raises refuses, it does not report defects")
+    print("-" * 72)
+    boom = os.path.join(tmp, "boom.py")
+    io.open(boom, "w", encoding="utf-8").write(
+        "import sys\n"
+        "sys.path.insert(0, %r)\n"
+        "import report_qc as R\n"
+        "def raise_it(*a, **k):\n"
+        "    raise RuntimeError('injected')\n"
+        "for _n in ('check', 'classify', 'fix', 'fidelity_report', 'all_notes'):\n"
+        "    setattr(R, _n, raise_it)\n"
+        "sys.exit(R.main(sys.argv))\n" % os.path.join(SKILL, "scripts"))
+    bp = os.path.join(tmp, "boom.md")
+    io.open(bp, "w", encoding="utf-8").write(brief_report())
+    for mode, argv in [("plain", [bp, ev]),
+                       ("--fidelity-only", ["--fidelity-only", bp, ev]),
+                       ("--fix", ["--fix", bp, ev, "-o",
+                                  os.path.join(tmp, "boom.out.md")])]:
+        r = run(boom, *argv)
+        check("Traceback" not in r.stdout + r.stderr,
+              "%s: an injected detector crash is not a traceback" % mode)
+        check(r.returncode == 2,
+              "%s: a crashing detector exits 2, not the defect verdict" % mode,
+              "rc=%d" % r.returncode)
+        check("the gate crashed" in r.stdout,
+              "%s: a crashing detector says nothing was checked" % mode,
+              r.stdout.strip().splitlines()[-1][:70] if r.stdout.strip() else "")
 
     print()
     print("-" * 72)

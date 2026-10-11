@@ -48,7 +48,7 @@ python scripts/evaluate.py score --defects D.json --verdicts MY.json
 python scripts/evaluate.py compare --defects D.json --a V1.json --b V2.json
 ```
 
-`score` / `compare` 上还有一个 `--legacy`：豁免引文校验，给没有 `evidence.quote` 的旧判分文件用。加了它就跳不过去——不带它时缺引文会被拒，带它时判分照做但 `WARNING  --legacy: citations were not verified` 会印在输出里。
+`score` / `compare` 上还有一个 `--legacy`：豁免**整个引文校验**，给早于引文要求的旧判分文件用。不带它，`yes` / `partial` 的判分必须有 `evidence.<id>.report_line`、`evidence.<id>.quote`，而且 quote 得真的出现在那一行——缺 `report_line`、缺 `quote`、行号越界、quote 不在该行，四种都退 `2` 拒绝，而且 `--report` 缺失时同样拒绝（否则等于把校验静默接受下来）。**它不豁免 `false_claims`**：理由缺失照样拒，因为一个吞掉它的出口会把未解释的错误计成干净结果。带它时判分照做、仍退 `0`，但 `WARNING  --legacy: citations were not verified, so every verdict is an uncheckable assertion` 会印在输出里——打上这个警告的分数不算可审计的。
 
 验证套件在仓库里跑。`tests/` 不随包发布，安装包里没有这五个文件：
 

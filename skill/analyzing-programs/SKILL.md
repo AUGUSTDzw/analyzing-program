@@ -1,7 +1,7 @@
 ---
 name: analyzing-programs
-version: 1.1.12
-contract: 1.3.4
+version: 1.1.13
+contract: 1.3.5
 description: Use when the user wants a deep onboarding-style analysis report for an ABAP/SAP program source file (报表程序、FORM/事件块、OO 类 CLAS、函数组、ALV 等), or pastes an ABAP / z*.abap file asking to analyze, walk-through, 讲解 its structure, execution flow, or design. Trigger on phrases like "分析这个程序/源码","走读/讲解 ABAP","代码 onboarding","源码分析/架构分析","帮我看懂这段 SAP 代码". Trigger even when the user does not explicitly say "report" but clearly wants to understand a whole program's business purpose, architecture, and risks. Do NOT use for one-line answers, non-SAP code, or pure syntax/API lookups.
 ---
 # Skill: analyzing-programs
@@ -103,7 +103,7 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 | 退出码 | 什么时候 | 意味着什么 |
 |---|---|---|
 | `0` | 检查跑完了，**形状无缺陷，且没有实质改写**（三种模式一致） | `PASS  <报告名>`。可能带 note，**note 不改变退出码** |
-| `1` | 跑完了，有缺陷 | 形状模式：缺陷行以 `fence` / `sec` / `sec-dup` / `prow` / `row-src` / `buck` / `ln` / `mm` / `mm-missing` / `A8-cc` / `layer-same` / `A8-pt` / `enc` 起首，**加上忠实度实质级的一行 `SUBSTA`**，然后是 `FAIL  <报告名>  (N defect(s))`，`N` 把两者都算进去。`--fidelity-only`：先打 `SUBSTA` / `PUNCT-` 分级行，末行 `FAIL  <报告名>  (N rewrite(s), M punctuation-only)`；没有实质改写则 `PASS`。`--fix`：`FAIL  <报告名>  (N shape defect(s) and M rewrite(s) need the model)`，两类各数各的，只剩一类时只打那一类；**实质改写同样让 `--fix` 退 `1`**，三种模式给同一个答案 |
+| `1` | 跑完了，有缺陷 | 形状模式：缺陷行以 `fence` / `sec` / `sec-dup` / `prow` / `row-src` / `buck` / `ln` / `mm` / `mm-missing` / `A8-cc` / `layer-same` / `A8-pt` / `enc` 起首，**加上忠实度实质级的一行 `SUBSTA`**，然后是 `FAIL  <报告名>  (N defect(s))`，`N` 把两者都算进去。`--fidelity-only`：先打 `SUBSTA` / `PUNCT-` 分级行，末行 `FAIL  <报告名>  (N rewrite(s), M punctuation-only)`；没有实质改写则 `PASS  <报告名>`，**只剩分级建议时是 `PASS  <报告名>  (M punctuation-only)`**——退出码还是 `0`，但括号里的数 grep `PASS  <报告名>` 是看不见的。`--fix`：`FAIL  <报告名>  (N shape defect(s) and M rewrite(s) need the model)`，两类各数各的，只剩一类时只打那一类；**实质改写同样让 `--fix` 退 `1`**，三种模式给同一个答案 |
 | `2` | **拒绝运行：一个字都没查** | 绝大多数情况输出以 `error` 起首。两个例外不带 `error`：不带参数时打印用法说明；`--fix` 路径不足时打印 `--fix needs REPORT and SOURCE` |
 
 `2` 的全部触发条件，按模式分：
