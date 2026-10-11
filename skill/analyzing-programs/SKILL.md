@@ -24,7 +24,7 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 | `references/example-report.md` | 唯一一份闸门零缺陷的真实报告。闸门查不出来的东西（§2 责任链表的「调用者」列、§5 的「业务后果」列）只能靠它传达 |
 | `references/abap-syntax/` | ABAP 语法与语义词表（内部表、ABAP SQL、OO、程序流逻辑、内置函数、异常、OO 设计模式、关键字总表）。写「为什么」与「风险与改进」两层要断言语法行为时**查这里**，不要凭记忆 |
 | `scripts/docgen.py` | 开工前取子程序清单。`--type onboarding src.abap -o 目录` 列出每个子程序的名字、类型与行号，可当「有没有漏读」的核对表。**它生成的正文是通用 SAP 操作模板（SE38 / F8 / F5–F7 那类），不是对这份程序的分析，不要拿去润色** |
-| `scripts/abap_deps_analyzer.py` | 依赖报告：把源码引用的对象与标准库比对，报出解析不了的引用。依赖同级 `abaplint-deps/` 作为标准库索引，**该目录不随本 skill 发布**；缺它时退出码 `1` 并打印克隆指引，那份报告不要当结论用 |
+| `scripts/abap_deps_analyzer.py` | 依赖报告：把源码引用的对象与**随包**的标准库 `abaplint-deps/src`（abaplint/deps，MIT）比对，报出解析不了的引用。目录按脚本自身位置定位，与当前工作目录无关；`--deps` 可指向自己克隆的一份。它报的是「引用能否在标准库里解析」，**不是缺陷判定** |
 
 前两件是写报告时要用的，后两件是可选的辅助。`references/large-inputs.md`、
 `delivery-methods.md`、`slice-and-write.md`、`output-rate.md`、`truncated-reports.md`
