@@ -9,6 +9,8 @@
 SKILL.md                       规则本体（358 行）
 scripts/report_qc.py           格式闸门：逐条列出违规位置，可自动修两类
 scripts/evaluate.py            内容评分：对冻结缺陷清单判分，算召回与错误论断
+scripts/docgen.py              文档生成：源码抽成类 / FORM / 函数 / 表 / 调用的清单
+scripts/abap_deps_analyzer.py  依赖分析：对照自带的 abaplint-deps 查标准对象引用
 references/example-report.md   完整范例（真实报告，逐字未改，闸门零缺陷）
 references/large-inputs.md     大输入的实测行为（观察，不是规则）
 references/README.md           范例的出处与局限
@@ -16,6 +18,7 @@ evals/README.md                缺陷参考的格式、用法与边界
 evals/*.defects.json           112 条缺陷 / 6 个真实源码
 tests/test_skill.py            自足检查，不依赖项目数据
 tests/test_contract_drift.py   契约 <-> SKILL.md <-> 闸门 三方对齐检查
+tests/test_docgen_deps.py      docgen 与 abap_deps_analyzer 的解析器与命令行
 schemas/report-contract.json   闸门规则与 skill 教学锚点的唯一来源
 ```
 
@@ -29,6 +32,7 @@ schemas/report-contract.json   闸门规则与 skill 教学锚点的唯一来源
 | `tests/test_contract_drift.py` | 契约里的每条规则 SKILL.md 教了没有，反之亦然 | — |
 | `tests/test_gate_enforcement.py` | 闸门放过的报告逐条复现，先记录现状再断言应有的行为 | — |
 | `tests/test_fidelity_tiers.py` | 新旧分类口径是否等价：不泄漏、不误伤 | — |
+| `tests/test_docgen_deps.py` | docgen 与依赖分析器的解析器、锚点与命令行是否还灵 | — |
 
 **判分是模型工作。** `evaluate.py` 的 `tasks` 子命令把问题打印出来让判分者逐条回答，
 `score` 与 `compare` 是确定性的。它保证参考完整、聚合正确、缺项不能冒充完整；
@@ -41,6 +45,7 @@ python tests/test_skill.py                # 168 项，自足；全过打印 N ch
 python tests/test_contract_drift.py       # 121 项，契约 <-> SKILL.md <-> 闸门 三方对齐
 python tests/test_gate_enforcement.py     # 25 项，闸门执行漏洞探针
 python tests/test_fidelity_tiers.py       # 7 项，改动前后口径是否等价
+python tests/test_docgen_deps.py          # 67 项，docgen 与依赖分析器
 python scripts/report_qc.py REPORT SOURCE                # 格式；报告须 .md/.markdown，其余当源码
 python scripts/report_qc.py --fix REPORT SOURCE -o OUT   # 格式 + 自动修两类
 python scripts/evaluate.py tasks  --defects evals/zcl_fi_toolkit.defects.json
@@ -102,7 +107,7 @@ Mermaid 标签里的裸 `<` `>` `#` → 改成全角。三层缺失**只报位�
 ### 先说版本：下面的数字不是出货版本的数字
 
 iteration-8 的全部数字都是在 **`b8f84e8`**（162 行）上测出来的。
-**出货版本是 `1.1.1`（358 行）。形状一致性有 n=3 的当前版本证据（见下），**效果**未测出结论。**
+**出货版本是 `1.1.5`（494 行）。形状一致性有 n=3 的当前版本证据（见下），**效果**未测出结论。**
 
 版本谱系（每一版都已归档在 `release/`，digest 见 `release/SHA256SUMS`）：
 
@@ -121,6 +126,10 @@ iteration-8 的全部数字都是在 **`b8f84e8`**（162 行）上测出来的�
 | `748f36b2` | 476 | `748f36b2` | **1.0.9**。契约 1.2.5 → 1.2.6。三处都是复审 1.0.8 时**量出来**的，不是读出来的。**报告不是 UTF-8 时闸门抛未捕获异常**——`report_qc.py` 有三处裸读报告，cp936 报告（中文 Windows 上编辑器"另存为"的默认结果）→ traceback + 退 `1`，而 `1` 被定义为"查过了、有缺陷"，与契约自己写的 "the one false reassurance this script is not allowed to give" 同形；现在与源码一样退 `2`，并加了 28 项测试覆盖三种模式 × 三种编码。契约 `exit_codes["2"]` 三处与实测不符：说"Every trigger prints a line starting with `error`"（实际无参数与 `--fix` 路径不足这两个例外不带 error）、无模式限定地列出 `source is empty`（实际只有 `--fidelity-only` 拒，形状模式打 note 后照常返回）、用字节数指认闸门（`24224` / `45523`，实际 53462，文件一改就过期）——改成按模式列并删掉字节数。**127 条缺陷里 91 条用行号做 anchor**，源码前面插一行空行、同一个 `L5` 就指向别的语句，而 `evaluate.py` 里 7 处 `anchor` 全是打印、一个都不校验；全部换成源码文本，三份缺陷集的 `source` 字段改成能打开的真实路径。测试 129 → 157，drift 107 不变 |
 | `b70980f` | 358 | `b70980f` | **1.1.0**。闸门加五条强制检查：保真改 token 序列比对、标识符/字面量/数字被改过退 1，标点级差异仍 advisory；第五节问题行必须点名源码里存在的对象；三层正文不得三行相同；散文 U+FFFD 视为失败；要求 flowchart 与 sequenceDiagram 各一张。拆分 `report_qc.py` 为 `scripts/checks/` 下四模块。**闸门变严，效果未知** |
 | `301500c` | 358 | `301500c` | **1.1.1**。四轮系统性代码审查，修复 24 个问题：错误处理（OSError 未捕获）、参数校验（报告/源码同文件、-o 路径有效性）、契约对齐（exit_codes 描述、defect_line_prefixes 缺失项）、测试覆盖（all_notes 排序固定）、缓存管理（_src_identities FIFO 驱逐）、注释修正。测试 315 项全过 |
+| `52e35cf` | 476 | `52e35cf` | **1.1.2**。契约 1.3.0。十二轮质量审查、53 处修复、315 项测试全绿 |
+| `57c75b5` | 494 | `57c75b5` | **1.1.3**。契约 1.3.0 → 1.3.1。两处闸门崩溃改成正经拒绝：`inventory()` 对事件块取 `group(1)` 抛 IndexError（事件块的 keyword 就是名字，ANCHORS 不给它 capture group），未捕获异常退 `1`——而 `1` 被定义为"查过了、有缺陷"，模型会去改不存在的缺陷；内部异常现统一走 `die()` 退 `2`。docgen 的正则锚在 `METHOD` 后的 `(` 上，六种写法里只有带参数的那种能匹配，类方法全被漏掉。`abaplint-deps` 随 skill 一起发布、按脚本自身位置解析（装好的 skill 里 CWD 从不是 skill 目录）。SKILL.md 补退出码表与资源索引。410 个文件 |
+| `75fb895` | 494 | `75fb895` | **1.1.4**。契约 1.3.1 → 1.3.2，只补文档：`exit_codes["2"]` 里"规则集读不到"这条触发器是 1.2.4 加的，1.2.6 重写那段字符串时弄丢了措辞，而它的兄弟键 `gate_start_refuses_without_a_rule_set` 一直活着——只读那张平铺表的读者已经看不到四个启动期拒绝里最早的一个。闸门行为与 1.3.1 完全一致。同批修换行符：`*.txt` / `*.js` / `*.xml` 补进 `.gitattributes`，八个 blob 重新归一化成 LF（`.gitattributes` 管不了已经提交的 blob，而 `git status` 归一化后一直读成干净），发布目录标成 `-text` 冻结以免 git 重编码破坏与 zip 的逐字节一致；`pack.py` 断言 `ships_with` 并打印与上一版的布局差异 |
+| `37ea6bd` | 494 | `37ea6bd` | **1.1.5**。docgen 四处解析缺陷 + 第五个测试套件，契约不动（1.3.2）。`_find_block_end` 要求 `ENDMETHOD` 后面跟子程序名，而 ABAP 允许但不要求带名字，于是什么都不匹配、所有块都跑到文件末尾、`end` 对每个子程序都相同；`CALL FUNCTION` 的名字从 `[A-Z0-9_]` 取，漏掉带引号的 `CALL FUNCTION 'Z_BC_LOG'`——ABAP 里最常见的那种；`USING` 被 `.*?` 组进 FORM 正则，永远匹配空，FORM 从不报参数；内部表过滤用大小写敏感的 `startswith`，`lt_tab` / `ws_data` 被当成数据库表；锚点用 `^\s*` 缩进而 `\s` 也能跨换行，被空行隔开的子程序锚点早一行。新增 `tests/test_docgen_deps.py`（67 项）覆盖 docgen 与 `abap_deps_analyzer` 的解析器、锚点与命令行——写它才把这五处挖出来 |
 
 **契约版本与发布版本是两条独立的轴。** 契约 `version` 只在该文件自己的规则、
 阈值或 `gate_io` 行变化时递增；发布版本对措辞和闸门行为的变化也递增。

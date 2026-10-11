@@ -31,9 +31,10 @@ python tests/test_skill.py
 python tests/test_contract_drift.py
 python tests/test_gate_enforcement.py
 python tests/test_fidelity_tiers.py
+python tests/test_docgen_deps.py
 ```
 
-四项都绿再发版。计数以 skill README 为准，不在这里写——写在这里就会过期
+五项都绿再发版。计数以 skill README 为准，不在这里写——写在这里就会过期
 （这一行以前记着 115 项和 105 项，实际早是 168 项和 121 项）。
 
 ## 发版
