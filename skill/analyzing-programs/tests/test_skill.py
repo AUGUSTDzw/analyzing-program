@@ -1316,7 +1316,7 @@ def main():
         "import report_qc as R\n"
         "def raise_it(*a, **k):\n"
         "    raise RuntimeError('injected')\n"
-        "for _n in ('check', 'classify', 'fix', 'fidelity_report', 'all_notes'):\n"
+        "for _n in ('check', 'fix', 'fidelity_report', 'all_notes'):\n"
         "    setattr(R, _n, raise_it)\n"
         "sys.exit(R.main(sys.argv))\n" % os.path.join(SKILL, "scripts"))
     bp = os.path.join(tmp, "boom.md")
@@ -1353,7 +1353,7 @@ def main():
             "            raise RuntimeError('injected')\n"
             "        return fn(*a, **k)\n"
             "    return _w\n"
-            "for _n in ('check', 'classify', 'fix', 'fidelity_report',"
+            "for _n in ('check', 'fix', 'fidelity_report',"
             " 'all_notes'):\n"
             "    setattr(R, _n, _wrap(getattr(R, _n)))\n"
             "sys.exit(R.main(sys.argv))\n"
@@ -1514,6 +1514,78 @@ def main():
               "%s: a directory names itself" % mode, first[:70])
         check("not readable as utf-8" not in r.stdout,
               "%s: a directory is not an encoding error" % mode)
+
+    print()
+    print("--fix takes one report, and in place is judged by path")
+    print("-" * 72)
+    # Two reports in one call repaired the first and stopped, so a caller who
+    # batched a directory of reports got one repaired file and no word about the
+    # rest. Refuse instead, naming both, and leave every file alone.
+    ra = os.path.join(tmp, "ra.md")
+    rb = os.path.join(tmp, "rb.md")
+    io.open(ra, "w", encoding="utf-8").write(brief_report())
+    io.open(rb, "w", encoding="utf-8").write(brief_report())
+    rb_before = io.open(rb, encoding="utf-8").read()
+    r = run(QC, "--fix", ra, rb, src)
+    check(r.returncode == 2,
+          "--fix: two reports refuse instead of repairing the first",
+          "rc=%d" % r.returncode)
+    check("Traceback" not in r.stdout + r.stderr,
+          "--fix: the refusal is not a traceback")
+    check(os.path.basename(ra) in r.stdout and os.path.basename(rb) in r.stdout,
+          "--fix: the refusal names both reports")
+    check(io.open(rb, encoding="utf-8").read() == rb_before,
+          "--fix: the second report is byte-identical")
+    # -o may spell the report differently (./rep3.md for rep3.md). Comparing the
+    # raw strings read such a call as an external output, so the repair ran in
+    # place and left no backup of the only copy.
+    io.open(os.path.join(tmp, "rep3.md"), "w", encoding="utf-8").write(
+        brief_report().replace("**为什么** — 索引命中。",
+                               "**为什么** — 索引命中（见 `zvend.abap:104`）。"))
+    if os.path.exists(os.path.join(tmp, "rep3.md.bak")):
+        os.remove(os.path.join(tmp, "rep3.md.bak"))
+    before3 = io.open(os.path.join(tmp, "rep3.md"), encoding="utf-8").read()
+    r = subprocess.run([sys.executable, QC, "--fix", "rep3.md", "src.abap",
+                        "-o", "./rep3.md"], capture_output=True, text=True,
+                       encoding="utf-8", cwd=tmp,
+                       env=dict(os.environ, PYTHONIOENCODING="utf-8",
+                                PYTHONUTF8="1"))
+    bak3 = os.path.join(tmp, "rep3.md.bak")
+    check(os.path.exists(bak3),
+          "--fix: an -o that spells the report differently still backs up",
+          str([x for x in r.stdout.splitlines() if "repaired" in x][:1]))
+    check(io.open(bak3, encoding="utf-8").read() == before3,
+          "--fix: that backup is the pre-fix text")
+
+    print()
+    print("--fidelity-only prints the note it was made for")
+    print("-" * 72)
+    # It called classify(), which returns the mismatches and nothing else, so
+    # step 6 -- the step whose whole point is fidelity -- read neither N of M
+    # nor the question of whether the source is the one the report was written
+    # against.
+    srcf = os.path.join(tmp, "fsrc.abap")
+    io.open(srcf, "w", encoding="utf-8").write(
+        "FUNCTION z_probe.\n  DATA ls_foo TYPE i.\n"
+        "  SELECT foo FROM bar INTO @DATA(ls_foo).\nENDFUNCTION.\n")
+    fab = brief_report().replace(
+        "```abap\nSELECT foo FROM bar INTO @DATA(ls_foo).\n```",
+        "```abap\nSELECT foo FROM bar INTO @DATA(ls_bar).\n```")
+    fp = os.path.join(tmp, "fidnote.md")
+    io.open(fp, "w", encoding="utf-8").write(fab)
+    r = run(QC, "--fidelity-only", fp, srcf)
+    notes = [x.strip() for x in r.stdout.splitlines()
+             if x.strip().startswith("note")]
+    check(r.returncode == 1, "--fidelity-only: a rewrite still exits 1",
+          "rc=%d" % r.returncode)
+    check(len(notes) >= 1, "--fidelity-only: the note is printed",
+          r.stdout.strip().splitlines()[-1][:60])
+    check(any("1 of 1 quoted statement" in x for x in notes),
+          "--fidelity-only: the note carries the denominator",
+          notes[0][:70] if notes else "no note")
+    check(any("may not be the one" in x for x in notes),
+          "--fidelity-only: the wrong-file question reaches the writer",
+          notes[0][:70] if notes else "no note")
 
     print()
     print("-" * 72)

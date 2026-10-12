@@ -112,7 +112,7 @@ try:
     # says. all_notes is called below and carries no marker.
     from checks.advisory import (authz_note, density_note, ext_asset_note,  # noqa: F401
                                  fix_lang_note, fix_mislabel_note, all_notes)
-    from checks.fidelity import classify, fidelity_report
+    from checks.fidelity import fidelity_report
 except (ImportError, SyntaxError) as _e:
     # The rule set and the checks that read it load before main() can run, so a
     # skill installed without scripts/checks/ dies here -- before main(), before
@@ -436,11 +436,7 @@ def main(argv):
             die("no report path: --fidelity-only REPORT SOURCE")
         if len(srcs) != 1:
             die("fidelity needs exactly one source path (got %d: %s)"
-                     % (len(srcs), ", ".join(srcs) or "none"))
-        # A report and a source cannot be the same file: reading the same text as
-        # both markdown and ABAP produces meaningless results.
-        if os.path.abspath(reports[0]) == os.path.abspath(srcs[0]):
-            die("report and source cannot be the same file: %s" % reports[0])
+                      % (len(srcs), ", ".join(srcs) or "none"))
         try:
             src = read_src(srcs[0])
         except ReadError as e:
@@ -463,18 +459,26 @@ def main(argv):
                 s = read_report(p)
             except ReadError as e:
                 die(str(e))
-            tiers = run_detector(p, classify, s, src)
+            # fidelity_report, not classify: this mode is the one step 6 sends
+            # the writer to, and the note it returns is the wrong-file hint --
+            # the only thing that breaks the loop when every quotation is a
+            # rewrite because the source is the wrong file. classify() returns
+            # just the tier lines, so the hint never printed here.
+            n_sub, n_pun, tiers, fid_notes = run_detector(
+                p, fidelity_report, s, src)
             sub = [t for t in tiers if t[0] == "SUBSTANTIVE"]
             pun = [t for t in tiers if t[0] == "PUNCT-ONLY"]
             for tier, ln, rl, detail in sorted(tiers, key=lambda x: x[1]):
                 print(f"  {tier[:6]:6} line {ln:>6}  {detail}: {rl[:60]}")
             if sub:
                 print(f"FAIL  {os.path.basename(p)}  "
-                      f"({len(sub)} rewrite(s), {len(pun)} punctuation-only)")
+                      f"({n_sub} rewrite(s), {n_pun} punctuation-only)")
                 rc = 1
             else:
                 print(f"PASS  {os.path.basename(p)}"
-                      + (f"  ({len(pun)} punctuation-only)" if pun else ""))
+                      + (f"  ({n_pun} punctuation-only)" if n_pun else ""))
+            for nt in fid_notes:
+                print(f"  note  {nt}")
         return rc
     if args[0] == "--fix":
         # Checked before the index is taken: indexing past the end raised
@@ -515,15 +519,22 @@ def main(argv):
         if not reports:
             die("no report path: --fix REPORT SOURCE (got: %s)"
                 % ", ".join(rest))
+        # A single -o applies to a single report, so this mode repairs one at
+        # a time. Before the check reports[0] was used and every later report was
+        # left untouched and unmentioned, while the exit code reflected only the
+        # first: the caller read one repaired report as N repaired. Plain mode
+        # and --fidelity-only both iterate every report, which is why they did
+        # not need this.
+        if len(reports) > 1:
+            die("fix takes exactly one report, got %d: %s -- run it once per "
+                "report" % (len(reports), ", ".join(reports)))
+        # Parenthesised: "%s" % x if y else z binds as ("%s" % x) if y else z,
+        # so an empty srcs produced the bare word none and lost the context that
+        # says what was refused.
         if len(srcs) != 1:
-            die("fix needs exactly one source: %s"
-                % ", ".join(srcs) if srcs else "none")
+            die("fix needs exactly one source (got %d: %s)"
+                % (len(srcs), ", ".join(srcs) or "none"))
         rep, src = reports[0], srcs[0]
-        # A report and a source cannot be the same file: reading the same text as
-        # both markdown and ABAP produces meaningless results and a ReadError that
-        # looks like corruption.
-        if os.path.abspath(rep) == os.path.abspath(src):
-            die("report and source cannot be the same file: %s" % rep)
         # Output path must not overwrite the source: --fix reads the source
         # and writes the report, so pointing -o at the source would destroy it.
         if out and os.path.abspath(out) == os.path.abspath(src):
@@ -568,7 +579,12 @@ def main(argv):
         # a crash must not be one the caller recovers from a .bak. Every detector
         # takes the in-memory text, so nothing needed the file: the write used to
         # sit between the detector that ran second and the three that came after.
-        if dest == rep and n:
+        # Normalise both sides: -o may name the report as ./r.md or with a
+        # different amount of ./ noise, which is the same in-place rewrite and
+        # therefore the same case that owes a .bak. A string comparison missed
+        # those and rewrote the only copy with nothing to recover from.
+        in_place = os.path.abspath(dest) == os.path.abspath(rep)
+        if in_place and n:
             # In place this rewrites the report, and the report is the
             # deliverable -- usually the only copy. --fix only touches mechanical
             # defects, but write the previous text next to it anyway.
@@ -628,11 +644,6 @@ def main(argv):
     for p in reports:
         if not os.path.exists(p):
             die("no such report: %s" % p)
-    # A report and a source cannot be the same file: reading the same text as
-    # both markdown and ABAP produces meaningless results and a ReadError that
-    # looks like corruption.
-    if srcs and os.path.abspath(reports[0]) == os.path.abspath(srcs[0]):
-        die("report and source cannot be the same file: %s" % reports[0])
     try:
         src = read_src(srcs[0] if srcs else None)
     except ReadError as e:

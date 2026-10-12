@@ -37,8 +37,13 @@ from checks.docgen import validate, validate_json, load_contract  # noqa: E402
 
 
 def _die(msg: str, code: int = 2) -> None:
-    """Print an error and exit with code 2."""
-    print(f"error  {msg}", file=sys.stderr)
+    """Print an error and exit with code 2.
+
+    On stdout, like report_qc.py's die(): a caller that captures one stream and
+    sees exit 2 should still see what was refused. stderr alone left the message
+    invisible to the common case of reading stdout.
+    """
+    print(f"error  {msg}")
     sys.exit(code)
 
 
@@ -708,8 +713,13 @@ def main() -> int:
 
     args = parser.parse_args()
 
-    # Load contract
-    contract = load_contract()
+    # Load contract. A missing or unreadable schema is a refusal, not an empty
+    # rule set: validating against nothing prints PASS, which is the false
+    # reassurance --validate must not give.
+    try:
+        contract = load_contract()
+    except (OSError, json.JSONDecodeError) as e:
+        _die(f"cannot read the contract at {Path(__file__).resolve().parent.parent / 'schemas' / 'docgen-contract.json'}: {e}")
 
     # Read source
     source_path = Path(args.source)
@@ -750,7 +760,12 @@ def main() -> int:
     if args.format == "html":
         output_content = _generate_html_doc(output_content)
 
-    # Validate if requested
+    # Validate if requested. The format is passed through: without it validate()
+    # fell back to "markdown" and checked an HTML document for markdown headings,
+    # which it cannot contain by construction. And validation does not stop the
+    # write -- the caller asked for a document, and rc=1 already says it carries
+    # defects, so returning here left nothing on disk to look at.
+    had_defects = False
     if args.validate:
         if args.format == "json":
             try:
@@ -759,13 +774,12 @@ def main() -> int:
             except json.JSONDecodeError:
                 defects = ["invalid JSON"]
         else:
-            defects = validate(output_content, args.type, contract)
-        
+            defects = validate(output_content, args.type, contract, args.format)
         if defects:
             print(f"FAIL  document validation ({len(defects)} defect(s))")
             for d in defects:
                 print(f"  - {d}")
-            return 1
+            had_defects = True
         else:
             print("PASS  document validation")
 
@@ -798,7 +812,7 @@ def main() -> int:
     print(f"  Format: {args.format}")
     print(f"  Size: {len(output_content)} bytes")
 
-    return 0
+    return 1 if had_defects else 0
 
 
 if __name__ == "__main__":

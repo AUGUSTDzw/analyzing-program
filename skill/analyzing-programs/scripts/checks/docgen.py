@@ -23,13 +23,16 @@ _HERE = Path(__file__).resolve().parent
 CONTRACT_PATH = _HERE.parent.parent / "schemas" / "docgen-contract.json"
 
 
-def load_contract() -> dict:
-    """Load the docgen contract schema."""
-    try:
-        text = CONTRACT_PATH.read_text(encoding="utf-8")
-        return json.loads(text)
-    except (OSError, json.JSONDecodeError):
-        return {}
+def load_contract():
+    """Load the docgen contract schema, letting the failure propagate.
+
+    Swallowing it used to return an empty dict, and an empty contract means no
+    required sections, no sections-exactly-once rule and none of the four
+    validation flags -- so --validate answered PASS on a document that had been
+    checked against nothing. report_qc refuses on the same condition, and for the
+    same reason: a verdict with no rules behind it is the one false reassurance.
+    """
+    return json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
 
 
 def _get_required_sections(doc_type: str, contract: dict) -> list[str]:
@@ -54,8 +57,11 @@ def validate(content: str, doc_type: str, contract: dict, format: str = "markdow
     if not content:
         return ["document is empty"]
 
-    # Check encoding
-    if "\ufffd" in content:
+    # Check encoding. Read from the contract with a True default so the flag is a
+    # real switch rather than decoration: the key was present in the schema and
+    # the check ran regardless, so setting encoding_utf8 to false did nothing.
+    val = contract.get("validation", {})
+    if val.get("encoding_utf8", True) and "\ufffd" in content:
         defects.append("contains replacement character (U+FFFD)")
 
     # HTML format - only basic checks
@@ -68,11 +74,16 @@ def validate(content: str, doc_type: str, contract: dict, format: str = "markdow
         return defects
 
     # Markdown format - full validation
-    # Check required sections
-    required = _get_required_sections(doc_type, contract)
-    for section in required:
-        if section and section not in content:
-            defects.append(f"missing section: {section}")
+    # Check required sections. The schema declares required_sections under
+    # validation and the list itself under document_types; before this check read
+    # neither, so the key was decoration and a false value would have been ignored.
+    if contract.get("validation", {}).get("required_sections", True):
+        required = _get_required_sections(doc_type, contract)
+        for section in required:
+            if section and section not in content:
+                defects.append(f"missing section: {section}")
+    else:
+        required = []
 
     # Check sections exactly once
     if contract.get("validation", {}).get("sections_exactly_once"):
@@ -80,10 +91,12 @@ def validate(content: str, doc_type: str, contract: dict, format: str = "markdow
             if section and content.count(section) > 1:
                 defects.append(f"section appears multiple times: {section}")
 
-    # Check for unclosed code fences
-    fence_count = content.count("```")
-    if fence_count % 2 != 0:
-        defects.append("unclosed code fence")
+    # Check for unclosed code fences, gated by the flag that used to be read by
+    # no caller at all.
+    if contract.get("validation", {}).get("code_fences_closed", True):
+        fence_count = content.count("```")
+        if fence_count % 2 != 0:
+            defects.append("unclosed code fence")
 
     # Check for line numbers in labels (should use anchors, not line numbers)
     if contract.get("validation", {}).get("no_line_numbers_in_labels"):

@@ -286,9 +286,14 @@ def main():
         r = subprocess.run([sys.executable, DOC,
                             os.path.join(tmp, "no_such.abap")],
                            capture_output=True, encoding="utf-8")
-        check(r.returncode == 2 and r.stderr.startswith("error  "),
+        check(r.returncode == 2 and r.stdout.startswith("error  "),
               "a missing source refuses with exit 2",
-              f"rc={r.returncode} {r.stderr.strip()[:50]}")
+              f"rc={r.returncode} {r.stdout.strip()[:50]}")
+        # On stdout, not stderr: report_qc prints its refusals there, so a caller
+        # reading one stream used to see exit 2 with nothing to explain it.
+        check(r.stderr.strip() == "",
+              "the refusal is not on the stream nobody reads",
+              f"stderr={r.stderr.strip()[:40]!r}")
 
         r = subprocess.run([sys.executable, DOC, prog, "--type", "class",
                             "--format", "html"],
@@ -297,6 +302,107 @@ def main():
               "html is emitted")
         check(not os.path.exists(os.path.join(tmp, "ztest.class.md")),
               "html does not leave a markdown copy behind")
+
+        # --validate used to be markdown-only in practice: validate() had a
+        # format parameter defaulting to markdown and its only call site passed
+        # three arguments, so an html document was checked for markdown headings
+        # it cannot contain by construction and failed with five false defects,
+        # on the one branch that has no pre-fix coverage to lose.
+        r = subprocess.run([sys.executable, DOC, prog, "--type", "class",
+                            "--format", "html", "--validate"],
+                           capture_output=True, encoding="utf-8")
+        check(r.returncode == 0 and "PASS" in r.stdout,
+              "--validate accepts the html it just generated",
+              r.stdout.strip()[:60])
+        check(os.path.exists(os.path.join(tmp, "ztest.class.html")),
+              "and the document is written, not only reported")
+
+        # A contract that cannot be read used to come back as {}, and {} means no
+        # required sections and no validation flags, so --validate answered PASS
+        # against nothing. Refuse, the way report_qc does for its rule set.
+        for kind in ("missing", "corrupt"):
+            root = os.path.join(tmp, "dg-" + kind)
+            shutil.copytree(os.path.join(ROOT, "scripts"),
+                            os.path.join(root, "scripts"),
+                            ignore=shutil.ignore_patterns("__pycache__"))
+            if kind == "corrupt":
+                os.makedirs(os.path.join(root, "schemas"))
+                io.open(os.path.join(root, "schemas", "docgen-contract.json"),
+                        "w", encoding="utf-8").write("{ not json")
+            gdoc = os.path.join(root, "scripts", "docgen.py")
+            r = subprocess.run([sys.executable, gdoc, prog, "--type", "class",
+                                "--validate"], capture_output=True,
+                               encoding="utf-8")
+            check(r.returncode == 2,
+                  "an %s contract exits 2, not a clean PASS" % kind,
+                  f"rc={r.returncode}")
+            check("Traceback" not in r.stdout + r.stderr,
+                  "an %s contract does not raise" % kind)
+            check(r.stdout.startswith("error  ") and "cannot read the contract"
+                  in r.stdout,
+                  "an %s contract names the contract it could not read" % kind,
+                  r.stdout.strip()[:70])
+
+        # Each validated_by value has to be a command docgen accepts; three of
+        # the four used to name a flag that argparse refuses, so the documented
+        # validator could not be run at all.
+        import json as _json
+        contract = _json.load(io.open(os.path.join(ROOT, "schemas",
+                                                   "docgen-contract.json"),
+                                      encoding="utf-8"))
+        for dt in ("class", "table", "onboarding"):
+            argv = contract["document_types"][dt]["validated_by"].split()
+            r = subprocess.run([sys.executable, DOC] + argv,
+                               capture_output=True, encoding="utf-8")
+            check("unrecognized arguments" not in r.stdout + r.stderr,
+                  "%s: the validator the contract names exists" % dt,
+                  (r.stdout + r.stderr).strip().splitlines()[0][:60]
+                  if (r.stdout + r.stderr).strip() else "")
+            # Argparse reached the source check: the flags were accepted and
+            # validation would have run, given a document.
+            check(r.returncode == 2
+                  and "source path does not exist" in r.stdout,
+                  "%s: the validator would run, given a document" % dt,
+                  r.stdout.strip()[:60])
+
+        # Three validation flags used to be decoration: validate() read no
+        # caller of them, so the checks ran unconditionally and setting a flag to
+        # false did nothing. Each break below is a document that passes shape.
+        breaks = [("encoding_utf8", "\ufffd"),
+                  ("code_fences_closed", "```abap\nDATA lv_x TYPE i.\n"),
+                  ("required_sections", "# unrelated\n\nnothing here\n")]
+        subprocess.run([sys.executable, DOC, prog, "--type", "class",
+                        "--format", "markdown"], capture_output=True,
+                       encoding="utf-8")
+        good = os.path.join(tmp, "ztest.class.md")
+        for flag, breakbit in breaks:
+            c2 = _json.loads(_json.dumps(contract))
+            c2["validation"][flag] = False
+            cp = os.path.join(tmp, "off-%s.json" % flag)
+            io.open(cp, "w", encoding="utf-8").write(_json.dumps(c2))
+            root = os.path.join(tmp, "offdir-" + flag)
+            shutil.copytree(os.path.join(ROOT, "scripts"),
+                            os.path.join(root, "scripts"),
+                            ignore=shutil.ignore_patterns("__pycache__"))
+            os.makedirs(os.path.join(root, "schemas"))
+            shutil.copy(cp, os.path.join(root, "schemas",
+                                         "docgen-contract.json"))
+            bad = os.path.join(tmp, "bad-%s.md" % flag)
+            io.open(bad, "w", encoding="utf-8").write(
+                io.open(good, encoding="utf-8").read() + breakbit)
+            r = subprocess.run([sys.executable,
+                                os.path.join(root, "scripts", "docgen.py"),
+                                bad, "--validate"], capture_output=True,
+                               encoding="utf-8")
+            check(r.returncode == 0,
+                  "--%s false really switches the %s check off"
+                  % (flag, flag.replace("_", " ")),
+                  f"rc={r.returncode}")
+            verdict = [x for x in r.stdout.splitlines()
+                       if x.startswith(("PASS", "FAIL"))]
+            check("Traceback" not in r.stdout + r.stderr,
+                  "the switch is read, not ignored by a missing key",
+                  verdict[0][:60] if verdict else "no verdict printed")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -381,9 +487,15 @@ def main():
         r = subprocess.run([sys.executable, DEPS,
                             os.path.join(neutral, "no_such.abap")],
                            capture_output=True, encoding="utf-8", cwd=neutral)
-        check(r.returncode == 1 and r.stdout.startswith("正在索引标准库"),
-              "a missing source reports after indexing, exit 1",
+        check(r.returncode == 2 and r.stdout.startswith("正在索引标准库"),
+              "a missing source reports after indexing, then refuses with 2",
               f"rc={r.returncode}")
+        # 2, not 1: 1 is the code this project gives the analysis ran and found
+        # something, so a caller keying on 1 to go and fix a program would fix a
+        # file that was never read.
+        check("error" in r.stdout,
+              "the refusal says error, so a stream reader finds it",
+              r.stdout.strip().splitlines()[-1][:50])
     finally:
         shutil.rmtree(neutral, ignore_errors=True)
 

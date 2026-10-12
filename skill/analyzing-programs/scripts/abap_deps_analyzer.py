@@ -575,14 +575,16 @@ def main():
     if deps_dir is None:
         # 依赖应当已经随 skill 打进来；到这里说明这份安装不完整，
         # 而不是用户没克隆仓库。所以先报"安装缺失"，克隆指引只作兜底。
-        print("错误: 依赖目录不存在")
+        print("error  依赖目录不存在，本次分析未运行")
         print(f"尝试的路径: {args.deps}")
         for path in possible_paths:
             print(f"  {path}")
         print("本 skill 应当自带 abaplint-deps/，请确认安装完整，"
               "或用 --deps 指向 abaplint/deps 的 src 目录")
         print("  git clone https://github.com/abaplint/deps.git abaplint-deps")
-        sys.exit(1)
+        # 退 2 而不是 1：1 在本项目里是「跑完了、有缺陷」，而这里一个字都没比。
+        # 只看退出码的调用方会把「没跑」读成「有缺陷」。
+        sys.exit(2)
 
     try:
         # 创建分析器
@@ -610,10 +612,12 @@ def main():
             sys.exit(1)
 
     except FileNotFoundError as e:
-        print(f"错误: {e}")
-        sys.exit(1)
+        # 源文件或输出目录不存在：一个字都没比，所以是拒绝，不是缺陷。
+        # 此前退 1，而 1 是「跑完了、有缺陷」。
+        print(f"error  {e}")
+        sys.exit(2)
     except Exception as e:
-        print(f"错误: {e}")
+        print(f"error  {e}")
         sys.exit(2)
 
 
