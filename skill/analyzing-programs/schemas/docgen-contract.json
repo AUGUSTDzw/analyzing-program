@@ -1,7 +1,7 @@
 {
-  "version": "1.0.1",
+  "version": "1.0.2",
   "release": {
-    "ships_with": "1.1.17"
+    "ships_with": "1.1.18"
   },
   "_comment": [
     "Machine-readable contract for document generation from ABAP source.",
@@ -25,7 +25,8 @@
     "Three validation flags were decoration; they are now real switches defaulting to true.",
     "A validation failure used to return before the write, leaving no document on disk; the document is written and rc carries the verdict.",
     "Refusals printed error on stderr; report_qc.py prints it on stdout, so a caller reading one stream saw exit 2 with no message.",
-    "abap_deps_analyzer refused with exit 1, which this project reserves for the analysis ran and found defects. It now refuses with exit 2 and prints the same error prefix."
+    "abap_deps_analyzer refused with exit 1, which this project reserves for the analysis ran and found defects. It now refuses with exit 2 and prints the same error prefix.",
+    "1.0.2 moves version because the contract now records what the seven validation flags actually do, and because the generator refuses three source shapes that used to end in a PASS about the wrong thing. A .md or .markdown source handed to docgen was parsed as ABAP and a fresh document generated about it, so --validate answered PASS for a document this tool never read; it now refuses and points at report_qc.py. A directory source was reported as not found, which sent a reader hunting for a filename; it now says it is a directory. An empty source produced a document about a program that does not exist and validated as PASS for --type onboarding and --type table; it now refuses. abap_deps_analyzer.py got the same treatment for a directory source: a directory used to fall through to its bare except and print the raw IsADirectoryError text, which names no role and matches no recorded refusal; it now says the source is a directory and was not analysed, on the same exit-2 path as missing dependencies. The flag table is unchanged; only validation._comment is new. ships_with moves to 1.1.18."
   ],
   "document_types": {
     "report": {
@@ -227,7 +228,8 @@
     "tables_well_formed": true,
     "code_fences_closed": true,
     "_comment": [
-      "Every flag here is a real switch as of 1.0.1. Three were decorative before then: required_sections, encoding_utf8 and code_fences_closed appeared in this object while validate() read no caller of them, so the checks ran unconditionally and setting them to false did nothing. They now default to true, so behaviour is unchanged while the flag means what it says."
+      "Every flag here is a real switch as of 1.0.1. Three were decorative before then: required_sections, encoding_utf8 and code_fences_closed appeared in this object while validate() read no caller of them, so the checks ran unconditionally and setting them to false did nothing. They now default to true, so behaviour is unchanged while the flag means what it says.",
+      "1.0.2 records the scope of each flag, which the table did not say. Only encoding_utf8 is read on every text format: it is checked before the format branch, so markdown and html both honour it. The other six -- required_sections, sections_exactly_once, code_fences_closed, no_line_numbers_in_labels, mermaid_safe and tables_well_formed -- sit after the html early return, so they apply to markdown alone; an html document is never checked for required sections, fences, tables or the rest. The json output is a separate code path, validate_json(), which reads none of the seven: it checks only a hardcoded list of four top-level fields plus the type-specific arrays, so toggling any flag here does not change json validation at all. Nothing was aligned, because there is no bug to fix -- the json shape has no headings, fences or tables to check -- but a caller who sets a flag expecting it to reach json will not be told."
     ],
     "skill_anchor": "文档校验"
   }

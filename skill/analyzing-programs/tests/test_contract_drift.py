@@ -190,10 +190,10 @@ def main():
     # numbers against SKILL.md's frontmatter, so an unpinned bump would sail
     # through. Update them together with the frontmatter when a release moves,
     # and read the SKILL.md anchors below as the check that they were updated.
-    check(C.get("version") == "1.3.9", "contract version is 1.3.9",
+    check(C.get("version") == "1.3.10", "contract version is 1.3.10",
           C.get("version"))
-    check(_rel.get("ships_with") == "1.1.17",
-          "contract ships with 1.1.17", _rel.get("ships_with"))
+    check(_rel.get("ships_with") == "1.1.18",
+          "contract ships with 1.1.18", _rel.get("ships_with"))
     # The frontmatter fields exist so a deployed copy can prove what it is by
     # reading itself. 1.1.2 shipped with version 1.1.1 still in its own
     # SKILL.md, so an installed copy could not have named the release it was.
@@ -506,6 +506,102 @@ def main():
     check(positions == sorted(positions, key=lambda x: x[1]),
           "all_notes() calls advisories in documented order",
           [p[0] for p in sorted(positions, key=lambda x: x[1])])
+
+    print()
+    print("contract vocabulary")
+    print("-" * 74)
+    # gate_io is the one subtree where the contract asserts what the
+    # command-line tools do. Everything else in these two files is narrative
+    # about rules, where a flag name that does not exist is only a bad memory;
+    # in gate_io it is a promise about behaviour, and it is the row a caller
+    # will key on. The probe is scoped there for a reason -- run over the whole
+    # contracts it false-alarmed twice. --fix and --fidelity-only are not
+    # argparse options, report_qc.py parses sys.argv by hand, so a "declared to
+    # argparse" test misses them both; and --check-class still sits in docgen's
+    # document_types._comment, as the record of the flag name this contract used
+    # to publish in validated_by, which argparse rightly rejects.
+    #
+    # So the test asks the weaker, honest question: does the token occur anywhere
+    # in the three CLI scripts at all? That is what the 1.3.10 note needed. It
+    # claimed the gate gained a --root trigger, and --root occurs nowhere in
+    # scripts/ -- every caller keying on that row was told about a flag that does
+    # not exist, with all 532 checks green while it happened, because the probe
+    # above asks whether a rule is enforced and taught, never whether the gate_io
+    # prose describes a tool that exists.
+    #
+    # The .py half is the same shape: a script named in gate_io must exist in this
+    # tree. It walks the whole skill, not scripts/ only, because gate_io cites
+    # test_contract_drift.py and test_skill.py to say who asserts what, and those
+    # live in tests/.
+
+    _cli = {"report_qc.py": io.open(os.path.join(SKILL, "scripts",
+                                                 "report_qc.py"),
+                                    encoding="utf-8").read(),
+            "docgen.py": io.open(os.path.join(SKILL, "scripts", "docgen.py"),
+                                 encoding="utf-8").read(),
+            "abap_deps_analyzer.py": io.open(os.path.join(SKILL, "scripts",
+                                                           "abap_deps_analyzer.py"),
+                                             encoding="utf-8").read()}
+    _skill_py = set()
+    for _r, _ds, _fs in os.walk(SKILL):
+        _ds[:] = [d for d in _ds if d != "__pycache__"]
+        _skill_py.update(f for f in _fs if f.endswith(".py"))
+    _flag_rx = _re.compile(r"(?<=[\s`\"'\(=])--?[A-Za-z][A-Za-z0-9]"
+                           r"[A-Za-z0-9\-]*\b")
+    _py_rx = _re.compile(r"[A-Za-z_][\w\-]*\.py")
+
+    def _gate_vocab(node):
+        """Flags and .py names in a gate_io subtree that exist nowhere in code."""
+        bag = []
+
+        def _walk(n):
+            if isinstance(n, dict):
+                for k, v in n.items():
+                    bag.append(str(k))
+                    _walk(v)
+            elif isinstance(n, list):
+                for v in n:
+                    _walk(v)
+            else:
+                bag.append(str(n))
+        _walk(node)
+        blob = " ".join(bag)
+        return sorted(f for f in set(_flag_rx.findall(blob))
+                      if not any(f in t for t in _cli.values())), \
+            sorted(p for p in set(_py_rx.findall(blob)) if p not in _skill_py)
+
+    for _name, _rel in (("report-contract.json", "schemas/report-contract.json"),
+                        ("docgen-contract.json", "schemas/docgen-contract.json")):
+        _p = os.path.join(SKILL, _rel)
+        if not os.path.exists(_p):
+            check(False, "%s is present, so its gate_io vocabulary can be checked"
+                  % _name)
+            continue
+        _gi = json.loads(io.open(_p, encoding="utf-8").read()).get("gate_io")
+        if not isinstance(_gi, dict):
+            continue
+        _mf, _mp = _gate_vocab(_gi)
+        check(not _mf,
+              "%s gate_io names only flags the CLI scripts accept" % _name,
+              "undeclared: %s" % _mf)
+        check(not _mp,
+              "%s gate_io names only scripts that exist here" % _name,
+              "missing: %s" % _mp)
+
+    # A probe that only ever passes is worthless: mutate gate_io the way the
+    # bogus 1.3.10 note was written and require red.
+    _mut = json.loads(io.open(CONTRACT, encoding="utf-8").read())
+    _mf2 = None
+    if isinstance(_mut.get("gate_io"), dict) and isinstance(
+            _mut["gate_io"].get("exit_codes"), dict) \
+            and "2" in _mut["gate_io"]["exit_codes"]:
+        _mut["gate_io"]["exit_codes"]["2"] += " A missing --root also refuses."
+        _mf2, _ = _gate_vocab(_mut["gate_io"])
+        check(_mf2 == ["--root"],
+              "the vocabulary probe has teeth: an invented flag goes red",
+              str(_mf2))
+    else:
+        check(False, "gate_io.exit_codes[2] is reachable, so the mutation probe runs")
 
     print()
     print("-" * 74)

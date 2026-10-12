@@ -156,9 +156,21 @@ def classify(s, src):
 def fidelity_report(s, src):
     """(n_substantive, n_punct_only, tiers, notes)."""
     found = classify(s, src)
+    probes = _quote_probes(s)
     sub = [f for f in found if f[0] == "SUBSTANTIVE"]
     pun = [f for f in found if f[0] == "PUNCT-ONLY"]
     notes = []
+    if not probes:
+        # An empty set cannot fail, and without this line the run ends PASS with
+        # no statement that fidelity counted nothing -- which reads the same as
+        # "faithful", and is the one case where the writer's quotations were
+        # stripped rather than rewritten. The 1.1.7 denominator note exists
+        # because a count without its denominator cannot be read; at M=0 there
+        # is no line at all. Shape mode already notes the other half: a source
+        # that is not given at all. This is the half where the source was given
+        # and the report has nothing to compare it against.
+        notes.append("the report has no quoted source statement, so fidelity "
+                     "was not run")
     if sub:
         # The count carries its denominator. N of M reads as a few slips; N of N
         # reads as a report and a source that were never about the same program.
@@ -167,7 +179,7 @@ def fidelity_report(s, src):
         # compute. A cutoff on identifier count would not separate the cases --
         # a comments-only file yields 6 identities and an English prose file 20,
         # both non-zero.
-        total = len(_quote_probes(s))
+        total = len(probes)
         note = "%d of %d quoted statement(s) rewrite the source" % (
             len(sub), total)
         # len(sub), not len(found): found also holds PUNCT-ONLY, and PUNCT-ONLY

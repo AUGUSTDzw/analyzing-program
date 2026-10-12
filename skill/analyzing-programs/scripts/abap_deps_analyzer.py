@@ -586,6 +586,15 @@ def main():
         # 只看退出码的调用方会把「没跑」读成「有缺陷」。
         sys.exit(2)
 
+    if os.path.isdir(args.source):
+        # docgen.py 与 report_qc.py 对同一种输入各有自己的拒绝消息，这里是同一次
+        # 拒绝换了个形状。放任它走到 analyze() 里的 open()，两个平台都会抛
+        # IsADirectoryError，被下面 except Exception 原样打出：文案既跟契约里
+        # error  <path> 的形状对不上，也会让人去改一个其实没错的路径。
+        print(f"error  {args.source} 是一个目录，不是源码文件，本次分析未运行")
+        print("分析器需要一个 .abap 文件；要分析目录里的程序，先从中选一个文件。")
+        sys.exit(2)
+
     try:
         # 创建分析器
         analyzer = ABAPDepsAnalyzer(str(deps_dir))
@@ -607,9 +616,18 @@ def main():
         else:
             print(output)
 
-        # 退出码
-        if result['summary']['errors'] > 0:
-            sys.exit(1)
+        # 退出码：跑完就是 0，不管查到几条。
+        #
+        # 这里曾经是 `if summary['errors'] > 0: sys.exit(1)`，但那行永远到不了：
+        # severity 的取值只有 'info'（四处 Issue 构造点写的都是 info），所以 errors
+        # 恒为 0。更要紧的是语义：本分析器报的是「待确认的引用（非缺陷判定）」，
+        # 不是缺陷。在本项目里退出码 1 的意思是「跑完了、有缺陷」，一个只报
+        # 待确认项的工具用那个码会让只看退出码的调用方把「有 2 条待确认」读成
+        # 「什么都没查到」，或者反过来。要看有没有待确认项，读正文的「待确认项」
+        # 计数；本工具的退出码只区分「跑完了」(0) 和「没跑」(2)。
+        #
+        # 摘要里的 错误 / 警告 两行因此恒为 0，是预留字段（severity 将来分级时
+        # 会用到），不是漏报。
 
     except FileNotFoundError as e:
         # 源文件或输出目录不存在：一个字都没比，所以是拒绝，不是缺陷。

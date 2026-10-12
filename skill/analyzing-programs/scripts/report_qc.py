@@ -415,6 +415,19 @@ def main(argv):
     if not args:
         print(__doc__)
         return 2
+    # -o only exists in --fix. Outside it the flag falls into the extension
+    # split: -o reads as a source and the output path reads as a report, so the
+    # run was refused as "more than one source: src.abap, -o (pass exactly one)"
+    # -- the flag named as a source file, the intended report lumped in with the
+    # reports. It did refuse, so nothing was checked; the likely cause, that
+    # --fix was meant to be on the line, was never said.
+    #
+    # args[0], not "--fix" anywhere: --fix is only recognised first, so a later
+    # --fix is already being read as a source path and this is not the call to
+    # rescue.
+    if "-o" in args and args[0] != "--fix":
+        die("-o is only valid with --fix, which goes first on the line -- "
+            "remove it for a shape check")
     if args and args[0] == "--fidelity-only":
         # Report only the statements that are not in the source. The format gate
         # and the structural checks are suppressed, which is what makes it
@@ -450,9 +463,20 @@ def main(argv):
         # when the later one was refused, so exit 2 -- nothing was inspected --
         # could follow a printed PASS that a caller would either discard or
         # trust, and the same call in plain mode refuses first.
+        #
+        # Existence is not the whole of that validation. read_report() also
+        # refuses a directory and a file that does not decode as utf-8, and
+        # neither shows up in os.path.exists -- so both used to fire inside the
+        # loop, after the earlier reports had printed theirs. Checking them here
+        # costs one extra read of a small file and keeps exit 2 clear of a
+        # printed verdict.
         for p in reports:
             if not os.path.exists(p):
                 die("no such report: %s" % p)
+            try:
+                read_report(p)
+            except ReadError as e:
+                die(str(e))
         rc = 0
         for p in reports:
             try:
@@ -641,9 +665,21 @@ def main(argv):
     # is fine, coverage was optional" when the user meant to give a source.
     if srcs and not os.path.exists(srcs[0]):
         die("no such source: %s" % srcs[0])
+    # Existence is not the whole pre-flight. read_report() also refuses a
+    # directory and a file that does not decode as utf-8, and neither shows up
+    # in os.path.exists. Both used to fire inside the loop below, after the
+    # earlier reports had already printed their verdict -- so a caller read
+    # "PASS  good.md" immediately above an exit 2 that says nothing was
+    # inspected, and either discarded the PASS or trusted the run. SKILL.md's
+    # trigger table and the contract's exit_codes["2"] both promise that 2
+    # never follows a printed verdict, which is why the check has to sit here.
     for p in reports:
         if not os.path.exists(p):
             die("no such report: %s" % p)
+        try:
+            read_report(p)
+        except ReadError as e:
+            die(str(e))
     try:
         src = read_src(srcs[0] if srcs else None)
     except ReadError as e:

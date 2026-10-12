@@ -186,6 +186,61 @@ def main():
     rc, _ = gate(mini, tmp, "p7_skeleton.md")
     check(rc != 0, "PROBE 7 gate REJECTS an empty skeleton (teeth intact)", f"rc={rc}")
 
+    # PROBE 8: exit 2 must not follow a printed verdict. Exit 2 means nothing
+    # was inspected, so a caller that read it found either a PASS to discard or
+    # a run to trust. Existence was pre-flighted for all reports; a directory and
+    # a report that does not decode as utf-8 both fired inside the loop, after
+    # the earlier reports had printed.
+    print()
+    print("PROBE 8: a refusal never follows a printed verdict")
+    print("-" * 72)
+    good = os.path.join(tmp, "p8_good.md")
+    io.open(good, "w", encoding="utf-8", newline="").write(base)
+    bad_utf8 = os.path.join(tmp, "p8_gbk.md")
+    io.open(bad_utf8, "wb").write(base.encode("gbk", errors="replace"))
+    bad_dir = os.path.join(tmp, "p8_dir.md")
+    os.makedirs(bad_dir, exist_ok=True)
+    for mode_label, mode in (("", ()), ("--fidelity-only", ("--fidelity-only",))):
+        for bad_label, bad in (("a directory", bad_dir),
+                               ("a report that is not utf-8", bad_utf8)):
+            r = run(*(mode + (good, bad, SRC)))
+            verdicts = [l for l in r.stdout.splitlines()
+                        if l.startswith(("PASS", "FAIL"))]
+            errs = [l for l in r.stdout.splitlines() if l.startswith("error  ")]
+            where = mode_label or "shape mode"
+            check(r.returncode == 2 and not verdicts and len(errs) == 1,
+                  "PROBE 8 %s: %s is refused before the first verdict"
+                  % (where, bad_label),
+                  "rc=%d verdicts=%d errs=%d" % (r.returncode, len(verdicts),
+                                                 len(errs)))
+    r = run(good, good, SRC)
+    check(r.returncode == 0, "PROBE 8 two good reports still pass",
+          "rc=%d" % r.returncode)
+    check(len([l for l in r.stdout.splitlines()
+               if l.startswith("PASS")]) == 2,
+          "PROBE 8 both verdicts are still printed")
+
+    # -o only exists in --fix. Outside it the flag fell into the extension split:
+    # -o read as a source and the output path read as a report, so the refusal
+    # said "more than one source" without ever naming the cause.
+    r = run(good, SRC, "-o", os.path.join(tmp, "p8_out.md"))
+    check(r.returncode == 2 and "only valid with --fix" in r.stdout,
+          "PROBE 8 -o outside --fix is refused and the cause is named",
+          "rc=%d" % r.returncode)
+
+    # A report with no quotation used to clear fidelity with no line at all,
+    # which reads as "faithful". Its source statements were stripped, not
+    # rewritten, and those are not the same event.
+    noquote = mini.replace(FENCE + "abap\nREPORT lcl_foo.\n" + FENCE, "")
+    rc, out = gate(noquote, tmp, "p8_noquote.md")
+    check("no quoted source statement" in out,
+          "PROBE 8 shape mode: a report with no quotation says so instead of "
+          "staying silent")
+    rc, out = gate(noquote, tmp, "p8_noquote_fo.md", ("--fidelity-only",))
+    check(rc == 0 and "no quoted source statement" in out,
+          "PROBE 8 --fidelity-only: the same silence is filled in",
+          "rc=%d" % rc)
+
     return finish()
 
 

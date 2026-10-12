@@ -49,12 +49,36 @@ def _die(msg: str, code: int = 2) -> None:
 
 def _read_source(path: Path) -> str:
     """Read the ABAP source file with utf-8 validation."""
+    if path.is_dir():
+        # is_file() is False for a directory as well, so the "does not exist"
+        # branch sent a reader hunting for a filename instead of telling them
+        # they pointed at a folder. report_qc.py has a specific message for the
+        # same input; this is the same refusal wearing a different shape.
+        _die(f"source path is a directory, not a source file: {path}")
     if not path.is_file():
         _die(f"source path does not exist: {path}")
+    if path.suffix.lower() in (".md", ".markdown"):
+        # --validate only checks the document this tool just generated, so a
+        # hand-written document handed in as the source gets parsed as ABAP, a
+        # fresh document is generated about it, and the run ends with PASS.
+        # That PASS was about the generated file, never about the document that
+        # was handed in, and a caller reading the exit code could not tell.
+        # Refusing here leaves that document without a verdict from this tool,
+        # which is the honest answer: this is where it does have one.
+        _die(f"source is a markdown file, not ABAP: {path} "
+             f"(check a document with scripts/report_qc.py)")
     try:
-        return path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
         _die(f"source is not utf-8: {path}")
+    if not text.strip():
+        # An empty source yields a document about a program that does not exist.
+        # --type onboarding and --type table both validated that as PASS, because
+        # the validator checks structure and not whether the document says
+        # anything. report_qc.py's --fidelity-only refuses an empty source for
+        # the same reason.
+        _die(f"source is empty: {path} (nothing to document)")
+    return text
 
 
 # ---------------------------------------------------------------------------

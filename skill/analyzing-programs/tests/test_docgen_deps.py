@@ -367,47 +367,114 @@ def main():
 
         # Three validation flags used to be decoration: validate() read no
         # caller of them, so the checks ran unconditionally and setting a flag to
-        # false did nothing. Each break below is a document that passes shape.
-        breaks = [("encoding_utf8", "\ufffd"),
-                  ("code_fences_closed", "```abap\nDATA lv_x TYPE i.\n"),
-                  ("required_sections", "# unrelated\n\nnothing here\n")]
+        # false did nothing.
+        #
+        # Called in-process, not through the command line. The round trip used to
+        # pass the document back as docgen's *source*, which parsed markdown as
+        # ABAP and validated the regenerated file -- so the assertion proved the
+        # flag was read only in a configuration docgen itself now refuses, and
+        # said nothing about the switch. validate() is the function --validate
+        # calls.
+        #
+        # Each flag needs a control. without it the test can only prove "the
+        # document still passes with the flag off", which is true for a breakbit
+        # that breaks nothing. control is the same break on the unmutated
+        # contract: empty there means the bit does not break the target check,
+        # and the test would be vacuous in either direction.
+        breaks = [("encoding_utf8", "\ufffd", "\ufffd"),
+                  ("code_fences_closed", "```abap\nDATA lv_x TYPE i.\n",
+                   "```abap\nDATA lv_x TYPE i.\n"),
+                  ("required_sections", "", "# unrelated\n\nnothing here\n")]
         subprocess.run([sys.executable, DOC, prog, "--type", "class",
                         "--format", "markdown"], capture_output=True,
                        encoding="utf-8")
         good = os.path.join(tmp, "ztest.class.md")
-        for flag, breakbit in breaks:
+        sys.path.insert(0, os.path.join(ROOT, "scripts"))
+        from checks.docgen import validate as _validate
+        good_text = io.open(good, encoding="utf-8").read()
+        for flag, breakbit, control in breaks:
             c2 = _json.loads(_json.dumps(contract))
             c2["validation"][flag] = False
-            cp = os.path.join(tmp, "off-%s.json" % flag)
-            io.open(cp, "w", encoding="utf-8").write(_json.dumps(c2))
-            root = os.path.join(tmp, "offdir-" + flag)
-            shutil.copytree(os.path.join(ROOT, "scripts"),
-                            os.path.join(root, "scripts"),
-                            ignore=shutil.ignore_patterns("__pycache__"))
-            os.makedirs(os.path.join(root, "schemas"))
-            shutil.copy(cp, os.path.join(root, "schemas",
-                                         "docgen-contract.json"))
-            bad = os.path.join(tmp, "bad-%s.md" % flag)
-            io.open(bad, "w", encoding="utf-8").write(
-                io.open(good, encoding="utf-8").read() + breakbit)
-            r = subprocess.run([sys.executable,
-                                os.path.join(root, "scripts", "docgen.py"),
-                                bad, "--validate"], capture_output=True,
-                               encoding="utf-8")
-            check(r.returncode == 0,
+            off = _validate(good_text + breakbit, "class", c2)
+            check(off == [],
                   "--%s false really switches the %s check off"
-                  % (flag, flag.replace("_", " ")),
-                  f"rc={r.returncode}")
-            verdict = [x for x in r.stdout.splitlines()
-                       if x.startswith(("PASS", "FAIL"))]
-            check("Traceback" not in r.stdout + r.stderr,
-                  "the switch is read, not ignored by a missing key",
-                  verdict[0][:60] if verdict else "no verdict printed")
+                  % (flag, flag.replace("_", " ")), str(off))
+            check(_validate(control, "class", contract) != [],
+                  "--%s is a real switch, not decoration"
+                  % flag.replace("_", " "),
+                  str(_validate(control, "class", contract)))
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
     print()
+    print("docgen: refuses an input it cannot be run on")
+    print("-" * 72)
+    tmp2, prog2 = write_program()
+    try:
+        # is_file() is False for a directory too, so the refusal read as a
+        # missing filename and sent a reader looking for one.
+        r = subprocess.run([sys.executable, DOC, tmp2, "--validate"],
+                           capture_output=True, encoding="utf-8")
+        check(r.returncode == 2 and "is a directory" in r.stdout,
+              "docgen names a directory as a directory",
+              r.stdout.strip()[:70])
+
+        # The same input reached the analyzer through a bare except, so
+        # the caller read the raw IsADirectoryError text: it names no
+        # role and matches no refusal docgen already owns. Same refusal,
+        # third shape. tmp2 is a directory in both calls, which is the
+        # point -- one typo should not cost the caller three different
+        # error messages.
+        r = subprocess.run([sys.executable, DEPS, tmp2],
+                           capture_output=True, encoding="utf-8")
+        check(r.returncode == 2,
+              "the analyzer refuses a directory source with exit 2",
+              r.stdout.strip()[:70])
+        check("Traceback" not in r.stdout + r.stderr,
+              "that refusal is a refusal, not an unhandled exception")
+        check("不是源码文件" in r.stdout,
+              "that refusal names the role, not the OS error")
+
+        # Markdown handed in as ABAP: --validate only grades the file this tool
+        # just wrote, so the verdict would have been about a regenerated
+        # document, never about the one handed in. A caller reading the exit
+        # code could not tell the difference.
+        md = os.path.join(tmp2, "handwritten.class.md")
+        io.open(md, "w", encoding="utf-8").write("# hand-written\n")
+        r = subprocess.run([sys.executable, DOC, md, "--validate"],
+                           capture_output=True, encoding="utf-8")
+        check(r.returncode == 2 and "not ABAP" in r.stdout,
+              "docgen refuses a markdown source instead of grading a "
+              "regeneration",
+              r.stdout.strip()[:70])
+        check("report_qc.py" in r.stdout,
+              "that refusal names where the document does get graded")
+
+        # An empty source documents a program that does not exist. Onboarding and
+        # table both graded that as PASS, because the validator checks structure
+        # and not whether the document says anything.
+        empty = os.path.join(tmp2, "empty.abap")
+        io.open(empty, "w", encoding="utf-8").write("\n")
+        for dt in ("onboarding", "table", "class"):
+            r = subprocess.run([sys.executable, DOC, empty, "--type", dt,
+                                "--validate"], capture_output=True,
+                               encoding="utf-8")
+            check(r.returncode == 2 and "is empty" in r.stdout,
+                  "docgen refuses an empty source with --type %s" % dt,
+                  "rc=%d %s" % (r.returncode, r.stdout.strip()[:50]))
+
+        # A real source still generates and still validates.
+        r = subprocess.run([sys.executable, DOC, prog2, "--type", "onboarding",
+                            "--validate"], capture_output=True, encoding="utf-8")
+        check(r.returncode == 0 and "PASS" in r.stdout,
+              "docgen still validates a document from a real source",
+              r.stdout.strip()[:60])
+    finally:
+        shutil.rmtree(tmp2, ignore_errors=True)
+
+    print()
     print("abap_deps_analyzer: standard library index")
+    print("-" * 72)
     print("-" * 72)
     check(os.path.isdir(DEPS_SRC), "the shipped abaplint-deps are present")
     analyzer = ABAPDepsAnalyzer(DEPS_SRC)
@@ -469,6 +536,35 @@ def main():
               f"rc={r.returncode} {r.stderr.strip()[:80]}")
         check(any("184" in ln for ln in r.stdout.splitlines()),
               "the shipped library is indexed from that directory")
+
+        # Exit code 0 whenever the analysis completes, whatever it found. severity
+        # only ever takes 'info', so the old `exit 1` branch never fired and the
+        # findings lived in the body alone: a caller keying on the exit code read
+        # "nothing found" for a source that had unresolved references.
+        finds = os.path.join(neutral, "zfinds.abap")
+        io.open(finds, "w", encoding="utf-8", newline="").write(
+            "*&report zfinds.\n"
+            "CLASS zcl_finds DEFINITION\n"
+            "  INHERITING FROM cl_abap_object\n"
+            "  CREATE PUBLIC.\n"
+            "  PUBLIC SECTION.\n"
+            "    METHODS do_work.\n"
+            "ENDCLASS.\n"
+            "CLASS zcl_finds IMPLEMENTATION.\n"
+            "  METHOD do_work.\n"
+            "    DATA lo_t TYPE REF TO zcl_not_in_bundle.\n"
+            "  ENDMETHOD.\n"
+            "ENDCLASS.\n")
+        r = subprocess.run([sys.executable, DEPS, finds, "--format", "json"],
+                           capture_output=True, encoding="utf-8", cwd=neutral)
+        doc = json.loads(r.stdout[r.stdout.index("{"):])
+        check(r.returncode == 0 and doc["summary"]["total_issues"] > 0,
+              "the analyzer exits 0 even when it has findings to read",
+              "rc=%d issues=%d" % (r.returncode,
+                                   doc["summary"]["total_issues"]))
+        check(doc["summary"]["errors"] == 0,
+              "those findings are not presented as errors",
+              str(doc["summary"]))
 
         r = subprocess.run([sys.executable, DEPS, src_path,
                             "--deps", "no/such/deps", "--format", "json"],
