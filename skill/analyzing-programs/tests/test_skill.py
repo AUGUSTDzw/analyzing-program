@@ -229,15 +229,21 @@ def main():
     # about the shape, not the message.
     clean = os.path.join(tmp, "clean.md")
     io.open(clean, "w", encoding="utf-8").write("# nothing\n")
-    for argv, what in ((["--fidelity-only", clean, clean],
-                        "--fidelity-only with the report as its own source"),
-                       (["--fidelity-only", clean, EXEMPLAR, EXEMPLAR],
+    # The sources below do not have to exist: every one of these refusals fires
+    # before any path is opened, and the two sources are named with .abap
+    # because the split is by extension -- a .md second argument would be read
+    # as a second report, not a source, and would die a different way.
+    for argv, what in (([clean, "a.abap", "b.abap"],
+                        "plain mode with two sources"),
+                       (["--fidelity-only", clean, "a.abap", "b.abap"],
                         "--fidelity-only with two sources"),
-                       (["--fix", clean, EXEMPLAR, "-o",
+                       (["--fix", clean, "a.abap", "-o",
                          os.path.join(tmp, "no_such_dir", "x.md")],
                         "--fix into a directory that does not exist")):
         r = run(QC, *argv)
-        first = r.stdout.strip().split("\n")[0] if r.stdout.strip() else ""
+        # splitlines, never .strip(): stripping would eat the two-space indent
+        # this check exists to catch, and pass.
+        first = r.stdout.splitlines()[0] if r.stdout.splitlines() else ""
         check(r.returncode == 2 and first.startswith("error  "),
               "a refusal via %s prints error at column 0" % what,
               repr(first[:44]))
