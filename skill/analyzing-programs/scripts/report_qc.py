@@ -320,6 +320,12 @@ def read_report(path):
     """
     if not path or not os.path.exists(path):
         return None
+    if os.path.isdir(path):
+        # A directory raises PermissionError from open(), which the OSError
+        # clause below turned into "not readable as utf-8", so a reader went
+        # looking for a BOM in a folder.
+        raise ReadError("%s is a directory, not a report file, so nothing "
+                        "was checked" % path)
     try:
         with io.open(path, encoding="utf-8", errors="strict", newline="") as fh:
             return fh.read()
@@ -332,6 +338,9 @@ def read_src(path):
     """Source text, or None when no usable source path was given."""
     if not path or not os.path.exists(path):
         return None
+    if os.path.isdir(path):
+        raise ReadError("%s is a directory, not a source file, so nothing "
+                        "was compared" % path)
     try:
         with io.open(path, encoding="utf-8", errors="strict", newline="") as fh:
             return fh.read()
@@ -353,6 +362,30 @@ def die(msg):
     # same refusal three different shapes.
     print(f"error  {msg}")
     sys.exit(2)
+
+
+def write_text(path, text):
+    """Write the file, refusing through die() when the write cannot happen.
+
+    The four detectors are guarded by run_detector(), but the two writes sat
+    outside any guard at all. When -o is an existing directory, an existing
+    read-only file, or -- in place -- when <report>.bak is already a directory,
+    open() raised OSError and the run ended in a traceback with exit 1. Exit 1
+    is the code steps 6 and 7 loop on, so the caller went looking for defects
+    that were never found. The pre-flight check covers only -o's directory,
+    never -o itself, which is why no test could reach it.
+
+    Nothing is written on any of those paths: the .bak goes down before the
+    report, and -o skips the .bak, so the report is never half-repaired. The
+    PASS and FAIL lines print after the write, so a refusal here leaves none
+    on stdout. The defect lines and notes printed before it say what a normal
+    run would have repaired, so a caller that greps for a verdict finds none.
+    """
+    try:
+        io.open(path, "w", encoding="utf-8", newline="").write(text)
+    except OSError as e:
+        die("could not write %s: %s: %s -- nothing was written, so this run "
+            "is not a verdict" % (path, type(e).__name__, e))
 
 
 def run_detector(report, fn, *args):
@@ -416,10 +449,16 @@ def main(argv):
             die("no such source: %s" % srcs[0])
         if not src.strip():
             die("source is empty: %s (nothing to compare against)" % srcs[0])
-        rc = 0
+        # Every report path is validated before the loop, the way plain mode
+        # does. Inside it, the earlier reports had already printed their verdict
+        # when the later one was refused, so exit 2 -- nothing was inspected --
+        # could follow a printed PASS that a caller would either discard or
+        # trust, and the same call in plain mode refuses first.
         for p in reports:
             if not os.path.exists(p):
                 die("no such report: %s" % p)
+        rc = 0
+        for p in reports:
             try:
                 s = read_report(p)
             except ReadError as e:
@@ -533,10 +572,10 @@ def main(argv):
             # In place this rewrites the report, and the report is the
             # deliverable -- usually the only copy. --fix only touches mechanical
             # defects, but write the previous text next to it anyway.
-            io.open(rep + ".bak", "w", encoding="utf-8", newline="").write(raw)
+            write_text(rep + ".bak", raw)
             print("previous text -> %s.bak" % rep)
         written = fixed.replace("\n", "\r\n") if crlf else fixed
-        io.open(dest, "w", encoding="utf-8", newline="").write(written)
+        write_text(dest, written)
         print(f"repaired {n} mechanical defect(s) -> {dest}")
         # The other two modes print PASS or FAIL. A caller that greps for
         # either sees nothing from --fix, so the verdict lived only in the

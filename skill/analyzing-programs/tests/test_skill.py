@@ -1366,6 +1366,154 @@ def main():
               "--fix: a crash in detector %d leaves no file behind" % nth,
               "rc=%d file=%s" % (r.returncode, os.path.exists(co)))
 
+    # The four detectors are guarded, but nothing guarded the write. open()
+    # raising ended --fix in a traceback with exit 1 -- the defect verdict a
+    # caller loops on -- after the report had already been read and its defects
+    # found, with the repair simply unsaved. The pre-flight check covers only
+    # the directory of -o, never -o itself, which is why no test reached it.
+    print()
+    print("--fix refuses a write that cannot happen")
+    print("-" * 72)
+    wd = os.path.join(tmp, "outdir")
+    os.makedirs(wd)
+    rep2 = os.path.join(tmp, "writefix.md")
+    io.open(rep2, "w", encoding="utf-8").write(brief_report())
+    ro2 = os.path.join(tmp, "readonly.md")
+    io.open(ro2, "w", encoding="utf-8").write(brief_report())
+    os.chmod(ro2, 0o444)
+    for label, argv in [("an existing directory", [rep2, ev, "-o", wd]),
+                        ("an existing read-only file", [rep2, ev, "-o", ro2])]:
+        r = run(QC, "--fix", *argv)
+        errs = [x for x in r.stdout.splitlines() if x.startswith("error")]
+        check("Traceback" not in r.stdout + r.stderr,
+              "--fix: %s is not a traceback" % label)
+        check(r.returncode == 2,
+              "--fix: %s exits 2, not the defect verdict" % label,
+              "rc=%d" % r.returncode)
+        check(len(errs) == 1 and "could not write" in errs[0],
+              "--fix: %s says it could not write" % label,
+              (errs[0][:60] if errs else "no error line"))
+        check("nothing was written" in r.stdout,
+              "--fix: %s says the report is untouched" % label)
+        check(not [x for x in r.stdout.splitlines()
+                   if x.startswith("PASS") or x.startswith("FAIL")],
+              "--fix: %s prints no verdict" % label)
+    # In place, the .bak is written before the report, so a .bak that
+    # already exists as a directory blocks the first of the two writes. The
+    # report needs a real repair: --fix writes nothing for a clean one, so
+    # there would be no write to fail.
+    ip = os.path.join(tmp, "inplace2.md")
+    io.open(ip, "w", encoding="utf-8").write(
+        brief_report().replace("**为什么** — 索引命中。",
+                               "**为什么** — 索引命中（见 `zvend.abap:104`）。"))
+    if os.path.exists(ip + ".bak"):
+        os.remove(ip + ".bak")
+    os.makedirs(ip + ".bak")
+    unedited = io.open(ip, encoding="utf-8").read()
+    r = run(QC, "--fix", ip, src)
+    check(r.returncode == 2 and "could not write" in r.stdout,
+          "--fix: an in-place .bak that is a directory refuses",
+          "rc=%d" % r.returncode)
+    check(io.open(ip, encoding="utf-8").read() == unedited,
+          "--fix: a refused write leaves the report byte-identical")
+
+    # PUNCT-ONLY is a quotation whose tokens DO occur in the source, only the
+    # punctuation differing. Counting it as a mismatch made the note say not
+    # one quotation matches the source in the one configuration that proves
+    # the source is the right file -- and the next line said the first one
+    # differs in punctuation only.
+    print()
+    print("the wrong-file hint fires only when every quotation is a rewrite")
+    print("-" * 72)
+    srcp = os.path.join(tmp, "hintsrc.abap")
+    io.open(srcp, "w", encoding="utf-8").write(
+        "FUNCTION z_probe.\n  DATA ls_foo TYPE i.\n"
+        "  SELECT foo FROM bar INTO @DATA(ls_foo).\nENDFUNCTION.\n")
+    R2 = "```abap\nSELECT foo FROM bar INTO @DATA(ls_foo).\n```"
+    L3 = "**做什么** — 取一行。\n**为什么** — 索引命中。\n**风险与改进** — 未判空。\n"
+    two = brief_report().replace(
+        R2, "```abap\nSELECT foo FROM bar INTO @DATA(ls_foo ).\n```\n\n"
+            "```abap\nSELECT foo FROM bar INTO @DATA(ls_other).\n```\n\n" + L3)
+    allb = brief_report().replace(
+        R2, "```abap\nSELECT foo FROM bar INTO @DATA(ls_other).\n```\n\n"
+            "```abap\nSELECT foo FROM bar INTO @DATA(ls_third).\n```\n\n" + L3)
+    for label, body in [("one punctuation-only and one substantive", two),
+                        ("two substantive", allb)]:
+        f = os.path.join(tmp, "hint.md")
+        io.open(f, "w", encoding="utf-8").write(body)
+        r = run(QC, f, srcp)
+        sub = [x for x in r.stdout.splitlines() if x.strip().startswith("SUBSTA")]
+        check(len(sub) == 1 if "punctuation" in label else len(sub) == 2,
+              "%s: only the substantive quotation is a defect line" % label,
+              "%d row(s)" % len(sub))
+        check(("not one quotation matches" in r.stdout)
+              == label.startswith("two substantive"),
+              "%s: the wrong-file hint is absent" % label)
+
+    # --fidelity-only takes several reports and used to validate them inside
+    # its loop, so it printed PASS for the earlier ones and then refused: exit
+    # 2 after a verdict already on stdout. Plain mode pre-validates every path.
+    print()
+    print("a refusal never follows a printed verdict")
+    print("-" * 72)
+    okp = os.path.join(tmp, "okreport.md")
+    io.open(okp, "w", encoding="utf-8").write(brief_report())
+    gone = os.path.join(tmp, "no-such-report.md")
+    for mode, argv in [("--fidelity-only", ["--fidelity-only", okp, gone, ev]),
+                       ("plain", [okp, gone, ev])]:
+        r = run(QC, *argv)
+        check(r.returncode == 2 and "no such report" in r.stdout,
+              "%s: a missing report path refuses" % mode,
+              "rc=%d" % r.returncode)
+        check(not [x for x in r.stdout.splitlines()
+                   if x.startswith("PASS") or x.startswith("FAIL")],
+              "%s: the refusal comes before any verdict" % mode)
+
+    # The source's identity windows are enumerated up to 30 tokens per
+    # position. A probe longer than that is not in the set at all, so it could
+    # not be found -- and since classify() trusts neither classifier and takes
+    # their union, that silence read as a SUBSTANTIVE rewrite even when the
+    # quotation was verbatim. Measured over 81 sources and 177092 statements,
+    # 8 exceeded the cap, longest 40 tokens, and each was a SUBSTANTIVE that
+    # never cleared, so steps 6 and 7 looped on a defect that does not exist.
+    print()
+    print("a long quotation is not a rewrite")
+    print("-" * 72)
+    LONG = " ".join("x%d" % i for i in range(1, 42))
+    lsrc = os.path.join(tmp, "longsrc.abap")
+    io.open(lsrc, "w", encoding="utf-8").write(
+        "FUNCTION z_long.\n  DATA ls_foo TYPE i.\n  " + LONG + ".\n"
+        "ENDFUNCTION.\n")
+    for label, stmt in [("a verbatim quotation longer than the window", LONG),
+                        ("one identifier changed at the same length",
+                         LONG.replace("x10", "zz10"))]:
+        f = os.path.join(tmp, "long.md")
+        io.open(f, "w", encoding="utf-8").write(
+            brief_report().replace("SELECT foo FROM bar INTO @DATA(ls_foo).",
+                                  stmt + "."))
+        r = run(QC, f, lsrc)
+        sub = [x for x in r.stdout.splitlines() if x.strip().startswith("SUBSTA")]
+        check(len(sub) == 0 if "verbatim" in label else len(sub) == 1,
+              "%s is classified by its content" % label,
+              "%d row(s)" % len(sub))
+
+    # open() on a directory raises PermissionError, which read_src used to
+    # report as not readable as utf-8: a PermissionError wearing an encoding
+    # error's clothes, and it sent a reader hunting for a BOM in a folder.
+    print()
+    print("a directory is not an encoding error")
+    print("-" * 72)
+    for mode, argv in [("plain", [okp, wd]),
+                       ("--fidelity-only", ["--fidelity-only", okp, wd]),
+                       ("--fix", ["--fix", okp, wd, "-o",
+                                  os.path.join(tmp, "dirsrc.out.md")])]:
+        r = run(QC, *argv)
+        first = r.stdout.strip().splitlines()[0] if r.stdout.strip() else ""
+        check(r.returncode == 2, "%s: a directory as the source exits 2" % mode)
+        check("is a directory" in r.stdout,
+              "%s: a directory names itself" % mode, first[:70])
+        check("not readable as utf-8" not in r.stdout,
+              "%s: a directory is not an encoding error" % mode)
 
     print()
     print("-" * 72)
