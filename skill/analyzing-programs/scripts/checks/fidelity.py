@@ -69,6 +69,32 @@ def _substring_mismatch(probe, flat_src):
     return _flat(probe) not in flat_src
 
 
+def _quote_probes(s):
+    """[(line, raw, probe)] for every quoted statement, matched or not.
+
+    classify() returns only the mismatches, so a caller cannot tell "3 of 40
+    quotations rewrite the source" from "3 of 3". fidelity_report() needs that
+    distinction, and only the second of the two is where "you passed the wrong
+    file" beats "you rewrote the code" as an explanation. Both halves read this
+    one probe set, so the count and the mismatches cannot drift apart.
+    """
+    out = []
+    for st, bs, be, _en, lang in fence_spans(s):
+        if lang != _QUOTE_LANG.lower():
+            continue
+        base = line_of(s, st)
+        for i, raw in _claims(s[bs:be]):
+            probe = raw.strip()
+            c = probe.find('"')
+            if c >= 0:
+                probe = probe[:c]
+            probe = probe.rstrip(".")
+            if not probe:
+                continue
+            out.append((base + 1 + i, raw.strip(), probe))
+    return out
+
+
 def classify(s, src):
     """[(tier, line, report_line, detail)] for every quoted statement.
 
@@ -89,25 +115,14 @@ def classify(s, src):
     src_ids = _src_identities(src)
     flat_src = _flat(src)
     found = []
-    for st, bs, be, _en, lang in fence_spans(s):
-        if lang != _QUOTE_LANG.lower():
+    for line, raw, probe in _quote_probes(s):
+        ident = identity(tokenize(probe))
+        new_ok = bool(ident) and ident in src_ids
+        old_ok = not _substring_mismatch(probe, flat_src)
+        if old_ok and new_ok:
             continue
-        base = line_of(s, st)
-        for i, raw in _claims(s[bs:be]):
-            probe = raw.strip()
-            c = probe.find('"')
-            if c >= 0:
-                probe = probe[:c]
-            probe = probe.rstrip(".")
-            if not probe:
-                continue
-            ident = identity(tokenize(probe))
-            new_ok = bool(ident) and ident in src_ids
-            old_ok = not _substring_mismatch(probe, flat_src)
-            if old_ok and new_ok:
-                continue
-            tier = "SUBSTANTIVE" if not new_ok else "PUNCT-ONLY"
-            found.append((tier, base + 1 + i, raw.strip(), _DETAIL[tier]))
+        tier = "SUBSTANTIVE" if not new_ok else "PUNCT-ONLY"
+        found.append((tier, line, raw, _DETAIL[tier]))
     return found
 
 
@@ -118,8 +133,21 @@ def fidelity_report(s, src):
     pun = [f for f in found if f[0] == "PUNCT-ONLY"]
     notes = []
     if sub:
-        notes.append("%d quoted statement(s) rewrite the source. First at line "
-                     "%d: %r" % (len(sub), sub[0][1], sub[0][2][:60]))
+        # The count carries its denominator. N of M reads as a few slips; N of N
+        # reads as a report and a source that were never about the same program.
+        # Only the second gets a question, because it is the one case that needs
+        # no threshold to spot: it is the boundary the classifiers already
+        # compute. A cutoff on identifier count would not separate the cases --
+        # a comments-only file yields 6 identities and an English prose file 20,
+        # both non-zero.
+        total = len(_quote_probes(s))
+        note = "%d of %d quoted statement(s) rewrite the source" % (
+            len(sub), total)
+        if len(found) == total:
+            note += (", and not one quotation matches the source -- the source "
+                     "may not be the one the report was written against")
+        note += ". First at line %d: %r" % (sub[0][1], sub[0][2][:60])
+        notes.append(note)
     if pun:
         notes.append("%d quoted statement(s) differ from the source in "
                      "punctuation only; advisory. First at line %d: %r"

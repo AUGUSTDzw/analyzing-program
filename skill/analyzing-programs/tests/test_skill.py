@@ -220,6 +220,28 @@ def main():
           "a checks module that will not parse announces nothing was checked",
           r.stdout.strip().split("\n")[0][:44] if r.stdout.strip() else "")
 
+    # A refusal is a verdict, printed like PASS and FAIL, so its first line is
+    # error at column 0 -- the shape conclusion_lines records. die() had a
+    # two-space indent while the two import-time refusals printed flush left, so
+    # the same refusal arrived three different ways and a caller matching
+    # conclusion_lines from column 0 missed every refusal that went through
+    # die(). The three paths below each die a different way; the assertion is
+    # about the shape, not the message.
+    clean = os.path.join(tmp, "clean.md")
+    io.open(clean, "w", encoding="utf-8").write("# nothing\n")
+    for argv, what in ((["--fidelity-only", clean, clean],
+                        "--fidelity-only with the report as its own source"),
+                       (["--fidelity-only", clean, EXEMPLAR, EXEMPLAR],
+                        "--fidelity-only with two sources"),
+                       (["--fix", clean, EXEMPLAR, "-o",
+                         os.path.join(tmp, "no_such_dir", "x.md")],
+                        "--fix into a directory that does not exist")):
+        r = run(QC, *argv)
+        first = r.stdout.strip().split("\n")[0] if r.stdout.strip() else ""
+        check(r.returncode == 2 and first.startswith("error  "),
+              "a refusal via %s prints error at column 0" % what,
+              repr(first[:44]))
+
     print()
     print("report_qc.py")
     print("-" * 72)
@@ -315,6 +337,38 @@ def main():
     r = run(QC, p, src)
     check("not occur in the source" in (r.stdout or ""),
           "a rewritten second block raises a fidelity note")
+
+    # A count with no denominator cannot be read: three rewrites is a few slips
+    # in a long report and total fabrication in a short one, and the fidelity
+    # note printed the count alone. The note now reads N of M, M every quoted
+    # statement in the report, and only M equal to the number of mismatches
+    # adds the question -- that is the one boundary the gate cannot otherwise
+    # separate from fabrication, and the one that needs no threshold, because a
+    # cutoff on identifier count would not separate the cases: a comments-only
+    # file yields 6 identities and an English prose file 20, both non-zero.
+    p = os.path.join(tmp, "half.md")
+    io.open(p, "w", encoding="utf-8").write(
+        two.replace("DATA ls_foo TYPE i.", "DATA ls_foo TYPE c."))
+    r = run(QC, p, src)
+    note = [x for x in r.stdout.splitlines()
+            if "quoted statement(s) rewrite" in x]
+    check(bool(note) and note[0].strip().startswith(
+        "note  1 of 2 quoted statement(s) rewrite the source. First at line"),
+          "the fidelity note counts its denominator",
+          note[0].strip()[:84] if note else "")
+    check("written against" not in r.stdout,
+          "a few slips are not accused of being the wrong source")
+    p = os.path.join(tmp, "wrongfile.md")
+    io.open(p, "w", encoding="utf-8").write(
+        two.replace("SELECT foo FROM bar", "SELECT foo FROM baz")
+            .replace("DATA ls_foo TYPE i.", "DATA ls_foo TYPE c."))
+    r = run(QC, p, src)
+    note = [x for x in r.stdout.splitlines()
+            if "quoted statement(s) rewrite" in x]
+    check(bool(note) and "2 of 2 quoted statement(s) rewrite the source"
+          in note[0] and "written against" in note[0],
+          "every quotation flagged says the source may be the wrong file",
+          note[0].strip()[:120] if note else "")
 
     # regression: _claims decided a quoted line was the report's own annotation
     # whenever it contained CJK. Chinese ABAP carries CJK in string literals and

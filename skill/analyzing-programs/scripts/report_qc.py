@@ -347,7 +347,11 @@ def die(msg):
     the run. Labelling fatal errors as notes let a caller that greps for
     advisories collect hard failures as soft ones.
     """
-    print(f"  error  {msg}")
+    # Flush left, like the import-time refusal above and checks/contract.py's:
+    # this is a verdict, in PASS/FAIL's family, not a note. The two-space indent
+    # had made SKILL.md's "the output begins with error" untrue, and gave the
+    # same refusal three different shapes.
+    print(f"error  {msg}")
     sys.exit(2)
 
 
