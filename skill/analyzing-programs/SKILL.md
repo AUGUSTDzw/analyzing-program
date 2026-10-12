@@ -1,7 +1,7 @@
 ---
 name: analyzing-programs
-version: 1.1.16
-contract: 1.3.8
+version: 1.1.17
+contract: 1.3.9
 description: Use when the user wants a deep onboarding-style analysis report for an ABAP/SAP program source file (报表程序、FORM/事件块、OO 类 CLAS、函数组、ALV 等), or pastes an ABAP / z*.abap file asking to analyze, walk-through, 讲解 its structure, execution flow, or design. Trigger on phrases like "分析这个程序/源码","走读/讲解 ABAP","代码 onboarding","源码分析/架构分析","帮我看懂这段 SAP 代码". Trigger even when the user does not explicitly say "report" but clearly wants to understand a whole program's business purpose, architecture, and risks. Do NOT use for one-line answers, non-SAP code, or pure syntax/API lookups.
 ---
 # Skill: analyzing-programs
@@ -23,8 +23,8 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 | `references/README.md` | 参考资料索引，每份文件的结论与边界都在那里 |
 | `references/example-report.md` | 唯一一份闸门零缺陷的真实报告——**带源码一起跑也是零缺陷**，§5 四行按 `row-src` 标了源码对象名。闸门查不出来的东西（§2 责任链表的「调用者」列、§5 的「业务后果」列）只能靠它传达 |
 | `references/abap-syntax/` | ABAP 语法与语义词表（内部表、内部表分组、ABAP SQL、OO、程序流逻辑、内置函数、异常、OO 设计模式、关键字总表）。写「为什么」与「风险与改进」两层要断言语法行为时**查这里**，不要凭记忆。**它是上游 cheat sheet 集合的子集，只有 9 份**——查不到的主题**不要凭记忆补**，按「事实性纪律」标注需核实 |
-| `scripts/docgen.py` | 开工前取子程序清单。`--type onboarding src.abap -o 目录` 列出每个子程序的名字、类型与行号，可当「有没有漏读」的核对表。**它生成的正文是通用 SAP 操作模板（SE38 / F8 / F5–F7 那类），不是对这份程序的分析，不要拿去润色** |
-| `scripts/abap_deps_analyzer.py` | 依赖报告：把源码里的**类 / 接口类型引用**与**随包**的标准库 `abaplint-deps/src` 比对，报出解析不了的引用，并附一份未使用代码清单。标准库有 191 个 `.abap` 文件，其中 **184 个**带 SAP 对象扩展名（`.clas` / `.intf` / `.prog`）被索引 —— 「184 个对象」指的就是这个子集，不是文件总数（余下 7 个是 5 个 `cx_abap_*` 异常与 2 个 `type.abap`，不带对象类型后缀）。默认按脚本自身位置定位依赖目录，**不取**当前工作目录里的同名目录；`--deps` 可指向自己克隆的一份。**它不解析 `CALL FUNCTION` 与 `SELECT`**——函数模块、数据库表、数据元素一概测不到。报出的 `unresolved_type` / `unresolved_method` / `unresolved_program` 一律是 `info`：「不在随包桩库里」不等于「SAP 里没有」，**不是缺陷判定**，不要抄进报告的问题清单。**那份未使用清单更不可信**：它只数文本里的直接调用，`SET HANDLER ... FOR` 注册的事件回调（`ON_USER_COMMAND` / `ON_LINK_CLICK` 这类）会被一律报成「未使用」，实际全都在跑。先看一眼源码有没有注册，再决定要不要写进报告 |
+| `scripts/docgen.py` | 开工前取子程序清单。`--type onboarding src.abap -o 目录` 列出每个子程序的名字、类型与行号，可当「有没有漏读」的核对表。**它生成的正文是通用 SAP 操作模板（SE38 / F8 / F5–F7 那类），不是对这份程序的分析，不要拿去润色**。\`--validate\` 生成后自检文档结构（配 \`--type class\` / \`--type table\` / \`--type onboarding\`；\`--type report\` 走 \`report_qc.py\`，不走这个），\`--format html\` 可以和 \`--validate\` 一起用；自检不通过退 `1`，但**文档已经写出**，改完重跑 |
+| `scripts/abap_deps_analyzer.py` | 依赖报告：把源码里的**类 / 接口类型引用**与**随包**的标准库 `abaplint-deps/src` 比对，报出解析不了的引用，并附一份未使用代码清单。标准库有 191 个 `.abap` 文件，其中 **184 个**带 SAP 对象扩展名（`.clas` / `.intf` / `.prog`）被索引 —— 「184 个对象」指的就是这个子集，不是文件总数（余下 7 个是 5 个 `cx_abap_*` 异常与 2 个 `type.abap`，不带对象类型后缀）。默认按脚本自身位置定位依赖目录，**不取**当前工作目录里的同名目录；`--deps` 可指向自己克隆的一份。**它不解析 `CALL FUNCTION` 与 `SELECT`**——函数模块、数据库表、数据元素一概测不到。报出的 `unresolved_type` / `unresolved_method` / `unresolved_program` 一律是 `info`：「不在随包桩库里」不等于「SAP 里没有」，**不是缺陷判定**，不要抄进报告的问题清单。**那份未使用清单更不可信**：它只数文本里的直接调用，`SET HANDLER ... FOR` 注册的事件回调（`ON_USER_COMMAND` / `ON_LINK_CLICK` 这类）会被一律报成「未使用」，实际全都在跑。先看一眼源码有没有注册，再决定要不要写进报告。**它自己的退出码规则**：源码路径不存在或依赖目录读不到时退 `2` 且不打印分析结论；`2` 是「拒绝运行」，`1` 才是「查过了、有结果」，别把 `2` 读成一份空报告 |
 
 前两件是写报告时要用的，后两件是可选的辅助。`references/large-inputs.md`、
 `delivery-methods.md`、`slice-and-write.md`、`output-rate.md`、`truncated-reports.md`
@@ -104,7 +104,7 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 |---|---|---|
 | `0` | 检查跑完了，**形状无缺陷，且没有实质改写**（三种模式一致） | `PASS  <报告名>`。可能带 note，**note 不改变退出码** |
 | `1` | 跑完了，有缺陷 | 形状模式：缺陷行以 `fence` / `sec` / `sec-dup` / `prow` / `row-src` / `buck` / `ln` / `mm` / `mm-missing` / `A8-cc` / `layer-same` / `A8-pt` / `enc` 起首，**加上忠实度实质级的一行 `SUBSTA`**，然后是 `FAIL  <报告名>  (N defect(s))`，`N` 把两者都算进去。`--fidelity-only`：先打 `SUBSTA` / `PUNCT-` 分级行，末行 `FAIL  <报告名>  (N rewrite(s), M punctuation-only)`；没有实质改写则 `PASS  <报告名>`，**只剩分级建议时是 `PASS  <报告名>  (M punctuation-only)`**——退出码还是 `0`，但括号里的数 grep `PASS  <报告名>` 是看不见的。`--fix`：`FAIL  <报告名>  (N shape defect(s) and M rewrite(s) need the model)`，两类各数各的，只剩一类时只打那一类；**实质改写同样让 `--fix` 退 `1`**，三种模式给同一个答案 |
-| `2` | **拒绝运行：别把输出当结论** | 所有拒绝都以 `error` 起首、**顶格不缩进**，和 `PASS` / `FAIL` 同一族。两个例外不带 `error`：不带参数时打印用法说明；`--fix` 路径不足时打印 `--fix needs REPORT and SOURCE`。**唯一一处是「读过了但没写出去」**：`--fix` 写不动时已经先读完了报告、只是存不回去，所以 `error` 明说 `nothing was written, so this run is not a verdict`，不冒充「没查」 |
+| `2` | **拒绝运行：别把输出当结论** | 所有拒绝都以 `error` 起首、**顶格不缩进**，和 `PASS` / `FAIL` 同一族。两个例外不带 `error`：不带参数时打印用法说明；`--fix` 路径不足时打印 `--fix needs REPORT and SOURCE`。**唯一一处是「读过了但没写出去」**：`--fix` 写不动时已经先读完了报告、只是存不回去，所以 `error` 明说 `nothing was written, so this run is not a verdict`，不冒充「没查」。**这时缺陷行已经先打出来了**——`error` 不是输出的第一行，`FAIL` 那行没有，因为 `FAIL` 排在写入之后 |
 
 `2` 的全部触发条件，按模式分：
 
@@ -112,8 +112,8 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 |---|---|
 | 通用 | 没给参数；命令行里没有 `.md` / `.markdown` 结尾的报告路径；报告路径不存在；**规则集 `schemas/report-contract.json` 读不到或已损坏**；**`scripts/checks/` 缺失或其中某个模块解析不了**；**报告或源码任一不是 UTF-8**；**任一路径是目录而不是文件**（报 `is a directory, not a source file`，不是编码错）；**闸门自己在检测器里抛异常** |
 | 形状（第 7 步） | 源码路径不存在；给了多于一个源码 |
-| `--fidelity-only`（第 6 步） | 没有报告路径；源码不是**恰好一个**（0 个与 2 个都拒）；源码路径不存在；**源码是空的**；**给多份报告时，所有路径先校验完才读第一份**，所以 `2` 不会跟在一条已经打出来的 `PASS` 后面 |
-| `--fix` | 少于两个路径；没有报告路径；源码不是**恰好一个**；`-o` 后面没跟输出路径；**`-o` 所在目录不存在或不可写**；**`-o` 指向源码本身**；**`-o` 本身是目录或只读文件**；**原地模式且 `<报告>.bak` 已经是个目录**（这两条是写不出去，报 `could not write ...`） |
+| `--fidelity-only`（第 6 步） | 没有报告路径；源码不是**恰好一个**（0 个与 2 个都拒）；源码路径不存在；**源码是空的**；**给多份报告时，所有路径先校验完才读第一份**，所以 `2` 不会跟在一条已经打出来的 `PASS` 后面。**可以一次给多份报告**，逐份出结论 |
+| `--fix` | **报告不是恰好一个（多于一个也拒，一次只修一份，逐份跑）**；少于两个路径；没有报告路径；源码不是**恰好一个**；`-o` 后面没跟输出路径；**`-o` 所在目录不存在或不可写**；**`-o` 指向源码本身**；**`-o` 本身是目录或只读文件**；**原地模式且 `<报告>.bak` 已经是个目录**（这两条是写不出去，报 `could not write ...`） |
 
 五条容易读错：
 
@@ -132,7 +132,7 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 - **形状模式也查忠实度，`SUBSTA` 计入 `N`。** 所以「形状对」不等于 `0` —— 只要有一句
   引用里的标识符、字面量或数字与源码不同，第 7 步仍然退 `1`。这正是第 6 步存在的理由：
   先把引文修干净，第 7 步才只余形状。
-- **verdict 不是最后一行。** 形状模式与 `--fix` 都在 `FAIL` / `PASS` **之后**再打 note，
+- **verdict 不是最后一行。** 三种模式都在 `FAIL` / `PASS` **之后**再打 note，
   最多七条。按「末行」定位 verdict 就停，会漏掉全部 note —— 包括那条告诉你五项诊断没跑
    的。忠实度的分级名在输出里被截成六个字符：`SUBSTANTIVE` 打成 `SUBSTA`，
    `PUNCT-ONLY` 打成 `PUNCT-`，照全称 grep 什么都找不到。**`--fix` 一行分级行都不打**，
