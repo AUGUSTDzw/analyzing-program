@@ -53,14 +53,14 @@ python scripts/evaluate.py compare --defects D.json --a V1.json --b V2.json
 验证套件在仓库里跑。`tests/` 不随包发布，安装包里没有这五个文件：
 
 ```bash
-python tests/test_skill.py              # 200 项
-python tests/test_contract_drift.py     # 123 项，契约 <-> SKILL.md <-> 闸门 三方对齐
+python tests/test_skill.py              # 231 项
+python tests/test_contract_drift.py     # 124 项，契约 <-> SKILL.md <-> 闸门 三方对齐
 python tests/test_gate_enforcement.py   # 25 项，闸门执行漏洞探针
 python tests/test_fidelity_tiers.py     # 7 项，改动前后口径是否等价
 python tests/test_docgen_deps.py        # 95 项，docgen 与依赖分析器
 ```
 
-合计 450 项。
+合计 482 项。
 
 **退出码是契约的一部分。** 所有模式在仍有缺陷时返回非零，包括 `--fidelity-only`
 与 `--fix` —— SKILL.md 第 6 步让模型"重跑到干净为止"，那条循环只能靠退出码终止。
@@ -132,7 +132,7 @@ Mermaid 标签里的裸 `<` `>` `#` → 改成全角。三层缺失**只报位�
 ### 先说版本：下面的数字不是出货版本的数字
 
 iteration-8 的全部数字都是在 **`b8f84e8`**（162 行）上测出来的。
-**出货版本是 `1.1.15`（536 行）。形状一致性有 n=3 的证据（见下，测于 1.1.5），**效果**未测出结论。**
+**出货版本是 `1.1.16`（536 行）。形状一致性有 n=3 的证据（见下，测于 1.1.5），**效果**未测出结论。**
 
 版本谱系（每一版都已归档在 `release/`，digest 见 `release/SHA256SUMS`）。
 `commit` 列是本仓库的 git id，**不是** zip 的 sha256——那是 `release/SHA256SUMS` 的事。
@@ -168,11 +168,8 @@ Not a valid object name），那几行的行数只能从 `--follow` 找到的同
 | `8b4e8ca` | 536 | `8b4e8ca` | **1.1.12**。契约 1.3.3 → 1.3.4。**`--fix` 会给一份还没过闸门的报告发 `PASS`。** 量出来的：把范例报告复制出来，在一个代码块里给 `ENDFUNCTION.` 后面加一个词（形状完全没动），三个模式各跑一次——形状模式退 `1`，打 `SUBSTA   line 187 ...`、`FAIL  tampered.md  (1 defect(s))` 再跟一条 note；`--fidelity-only` 退 `1`，打 `FAIL  ...  (1 rewrite(s), 0 punctuation-only)`；`--fix` 退 **`0`**，打 `PASS`。**同一个报告，两个模式，两个不同的答案。** 原因在 `--fix` 分支：`fidelity_report()` 其实已经调了，但 `n_sub` 只喂给了 note，返回值是 `1 if left else 0`，`left` 是形状检查——**note 说了实话，退出码没听。** 而契约 `exit_codes["0"]` 本来就把「没有实质改写」写成了 `0` 的条件，所以契约和闸门说的是两件不同的事；第 6、7 步的循环只看退出码，循环会停在一个伪造的引用上。修法是让忠实度计算提到 verdict 之前、返回值改成 `1 if left or n_sub`；**note 的顺序一个字没动**，形状与 `--fix` 仍然 verdict 在前、note 在后（`notes_follow_the_verdict` 断言、`test_contract_drift.py` 钉住的就是这条）。verdict 顺手不再用一个数把两类混在一起，改成各数各的、都收在 `need the model` 上——`1 shape defect(s)`、`1 rewrite(s)`，或 ` and ` 连起来——一个总数会让读的人以为剩下的都能机械修掉。契约侧：`exit_codes["0"]` 补上「三种模式一致」，`exit_codes["1"]` 与 `conclusion_lines` 带上新措辞，`release._comment` 记下这个洞。SKILL.md 说明 `--fix` 一行分级行都不打，只用一条 note 报改写数，所以在那里 grep `SUBSTA` 是空的；README 补上 `score` / `compare` 的 `--legacy`；`test_skill.py` 加三条检查（形状模式失败、`--fix` 非零、`--fix` 不打 `PASS` 且指名 rewrite），169 → 174、合计 419 → 424 项 |
 | `e0f7612` | 536 | `e0f7612` | **1.1.13**。契约 1.3.4 → 1.3.5。**契约写了「三种模式一致」，闸门只在一种模式里兑现。** 量出来的：把 `RuntimeError` 注进 `report_qc` 的检测器，三个模式各跑一次同一个报告——形状模式退 `2`、打 `error  internal error checking ...`、无 traceback；`--fidelity-only` 退 **`1`** 加 traceback；`--fix` 退 **`1`** 加 traceback，**而且先把输出文件写完了**。`exit_codes["2"]` 从 1.3.1 起就说「in every mode」，SKILL.md 也这么说——但守卫只加在形状模式的检查循环外面，另两个分支的 `classify()` / `fix()` / `check()` / `fidelity_report()` / `all_notes()` 全是裸调用。**`1` 的意思是「查过了、有缺陷」**，第 6、7 步的循环盯着退出码，崩溃被当成缺陷：模型去修不存在的缺陷，`--fix` 还把一次没查过的运行的结果落盘。修法是 `run_detector()`——**一份**守卫、三个分支都过它——而且**消息也放进这个函数里**：按分支各抄一份正是另外两个漏掉的原因。`test_skill.py` 注入异常，三种模式各断言无 traceback、退 `2`、输出含 `the gate crashed`，共九条；在改动前的代码上 `--fidelity-only` 与 `--fix` 两条全挂（180 → 186 项）。顺手抓到两处自己引入的回归：新守卫的签名先是 `run_detector(fn, report, *args)`，而 `report()` 需要两个实参，形参名又正好叫 `report`——第一个版本把参数吞掉了，形状模式基线当场崩，`baseline report passes the gate` 这条把它挡在打包之前。契约侧：`conclusion_lines` 补上它**漏掉的唯一一种可打印形式**——`--fidelity-only` 在只剩建议级时打 `PASS  <name>  (N punctuation-only)`，verdict 仍是 `PASS`、退出码仍是 `0`，照 `conclusion_lines` 分类输出的读者会撞上契约从没提过的一行；`exit_codes["1"]` 说明，测试构造这个用例（把引用里一个空格挪进括号）并**匹配整行**，所以悄悄丢掉括号里的数也抓得住。另修两行契约自相矛盾：`source_is_optional.verdict_still_printed` 说「three diagnostics」，而 note 与 `needs_source` 都是五条；`diagnostics.enforcement` 说「note -- never changes the exit code」，而 `advisories[fidelity].enforcement` 说它的 SUBSTANTIVE 级**就是**缺陷行、进 N、进退出码——fidelity 又列在 `diagnostics` 下面，顺着读就读成纯建议，这条是真的会误导人的那一处，`enforcement` 现在把例外写出来了。README 的 `--legacy` 段是**写反的**（「加了它就跳不过去」——它是跳过校验的那个旗子），且把缺的字段说成 `evidence.quote`，实际必需的是 `evidence.<id>.report_line`；照 `evaluate.py` 重写，列出四种拒绝原因、`--report` 的要求，以及**它不豁免 `false_claims`** |
 | `1aa800f` | 536 | `1aa800f` | **1.1.14**。契约 1.3.5 → 1.3.6。**「源码是空的」和「源码只有一个空格」在闸门眼里是两件事，于是同一份干净报告能读出 28 个缺陷。** 量出来的：把范例报告对着一个只含空格和制表符的文件跑——形状模式退 `1`、打 `FAIL  (28 defect(s))`，18 条 `row-src` 加 10 条 `SUBSTA`；同一个文件喂给 `--fidelity-only` 却是 `error source is empty` 退 `2`。三个模式，一个输入，三种答案。根因是两套判空不一致：`report_qc.py` 用 `not src.strip()`，六个吃源码的检测器用 `not src`——空白串是 truthy，于是照常进来了。`classify()` 数到 0 个标识符，把每句引用判成实质改写；`row-src` 算出的 `flat_src` 是空串而不是 `None`，绕过了它自己那句 `no source given: cannot judge, so do not fail` 的出口，把每一行问题判成「没指向源码里的东西」。这是 `ReadError` 那道守卫要挡的同一类假判：判不了的被报成了结论。修法只有一处：`checks/text.py` 加 `_src_of()`，三个模块本来都从那里 import。顺手补两处对不上的文档：skip note 和 `diagnostics.needs_source` 都说五项，而 `row-src` 是第六个吃源码的、也跟着一起跳过——1.3.5 那次只把 three 改成 five，漏了它。另修 `--fix` 的写盘顺序：写文件原来夹在第二个检测器和后面三个之间，所以后三个一崩就退 `2` 说「一个字都没查」，可输出文件已经落盘了；现在四个检测器都跑完才写，拒绝运行时不留任何文件。test_skill 186 → 194。 |
-
-| `d4d99cb` | 536 | `d4d99cb` | **1.1.15**。契约 1.3.6 → 1.3.7。两处都是**一行**的改动，但两处都把写下来的承诺弄假了。
-**忠实度的 note 没有分母。**它只数失配的那几条，于是「一份长报告里 3 处改写」和「一份短报告里 3 处」打印得一模一样——而短报告那种正是闸门分不出的情况。量出来的：把范例报告分别对着**一个只含注释的文件、一份英文散文、另一个无关的 ABAP 程序**跑，三份都打出与「引用全是编的」完全相同的 10 条 `SUBSTA`、退出 `1`；对着它自己的源码是 `PASS`、退 `0`。修法是 note 改成 `N of M`（`M` 是报告里引用语句的总数），**只有 `N=M` 时才多问一句「源码是不是拿错了文件」**——这是唯一一个不需要阈值的边界，因为按标识符个数卡阈值根本分不开：只含注释的源码有 6 个标识符、英文散文有 20 个，两个都非零。`classify()` 只返回失配的，于是把探针集合提成 `_quote_probes()`，分母与失配数共用同一份，免得两处再漂开。
-**拒绝运行的行有三张脸。**`die()` 打的 `error` 前面缩进两格，而两处导入期拒绝是顶格的，于是契约 `conclusion_lines` 记的 `"error  <what is wrong>"`（顶格）与 `die()` 那一路不一致，SKILL.md 那句「输出以 `error` 起首」对所有走 `die()` 的拒绝都不成立。现在三处都顶格，触发条件一字未动。
-test_skill 194 → 200（三条拒绝形态、三条分母），合计 444 → 450 项。 |
+| `d4d99cb` | 536 | `d4d99cb` | **1.1.15**。契约 1.3.6 → 1.3.7。两处都是**一行**的改动，但两处都把写下来的承诺弄假了。 **忠实度的 note 没有分母。**它只数失配的那几条，于是「一份长报告里 3 处改写」和「一份短报告里 3 处」打印得一模一样——而短报告那种正是闸门分不出的情况。量出来的：把范例报告分别对着**一个只含注释的文件、一份英文散文、另一个无关的 ABAP 程序**跑，三份都打出与「引用全是编的」完全相同的 10 条 `SUBSTA`、退出 `1`；对着它自己的源码是 `PASS`、退 `0`。修法是 note 改成 `N of M`（`M` 是报告里引用语句的总数），**只有 `N=M` 时才多问一句「源码是不是拿错了文件」**——这是唯一一个不需要阈值的边界，因为按标识符个数卡阈值根本分不开：只含注释的源码有 6 个标识符、英文散文有 20 个，两个都非零。`classify()` 只返回失配的，于是把探针集合提成 `_quote_probes()`，分母与失配数共用同一份，免得两处再漂开。 **拒绝运行的行有三张脸。**`die()` 打的 `error` 前面缩进两格，而两处导入期拒绝是顶格的，于是契约 `conclusion_lines` 记的 `"error  <what is wrong>"`（顶格）与 `die()` 那一路不一致，SKILL.md 那句「输出以 `error` 起首」对所有走 `die()` 的拒绝都不成立。现在三处都顶格，触发条件一字未动。 test_skill 194 → 200（三条拒绝形态、三条分母），合计 444 → 450 项。 |
+| `b7e8ba7` | 536 | `b7e8ba7` | **1.1.16**。契约 1.3.7 → 1.3.8。**`--fix` 把「存不回去」报成「有缺陷」。** 量出来的：`-o` 指向一个已存在的目录、指向一个只读文件、或者原地模式下 `<报告>.bak` 已经是个目录——三种都退 `1` 加 traceback，一个字都没写出去。`1` 的意思是「查过了、有缺陷」，第 6、7 步的循环盯着退出码，模型就去修从未被查出来的缺陷。检测器有 `run_detector()` 那道守卫，**写盘没有**；预检只查 `-o` 所在目录、从不查 `-o` 本身，所以没有一条测试能碰到它。修法是 `write_text()`走同一套拒绝路径：`error` 顶格、退 `2`；消息说**没写出去、这次运行不是结论**，**不说「没查」**，因为报告确实先读完了、缺陷也确实查到了，只是存不回去。`.bak` 在报告之前写、`-o` 跳过 `.bak`，所以三种情况下都不留半修好的文件。**`--fidelity-only` 会让 `2` 跟在一条已经打出来的 `PASS` 后面。**它接受多份报告，却在循环里逐个校验路径：前面几份的判决已经打印完，后面的路径不存在才拒绝——按「`2` = 一个字都没查」处理的调用方会丢掉一个真实的 `PASS`，而同一个调用在形状模式下是先拒绝、什么都不打。现在它和形状模式一样先校验完所有路径再读第一份。**忠实的引用只要超过 30 个 token 就永远是实质改写。**标识符窗口按位置最多枚举 30 个 token，更长的探针根本不在集合里，于是「查不到」被 `classify()` 的并集规则读成改写——哪怕那句引用是源码原文。量出来：81 个源码、177092 条语句里 8 条超窗，最长 40 个 token，每一条都是永不消失的 `SUBSTANTIVE`，第 6、7 步会在一个不存在的缺陷上循环到底。那些探针改成直接对源码的 token 序列线性搜一遍，窗口上限照旧，管住的还是绝大多数情形。**顺带把 1.3.7 记错了的那句注释改了。**`release._comment` 写「只有 `M` 等于失配数才多问一句源码是不是拿错了」，而 1.3.7 的代码数的正是失配数——`sub` 加 `PUNCT-ONLY`。于是那句 note 会在「有一条引用只差标点」时问你要不要换源码文件，而那恰恰是**证明源码没错**的配置：那条引用的标识符确实在源码里，只是标点不同。量出来：一条只差标点加一条实质改写，打印 `1 of 2 ... rewrite the source, and not one quotation matches the source`，下一行又说第一条只是标点差异。条件改成 `len(sub) == total`。**目录被当成源码时，报的是编码错。**`open()` 在目录上抛 `PermissionError`，`OSError` 分支把它写成 `not readable as utf-8`——戴了编码错误口罩的权限错误，读的人会去文件夹里找 BOM。现在三种模式都报 `is a directory, not a source file`。**顺手修了本文件自己。**上一行原来断在四个物理行上、前面还空了一行，表格其实在 1.1.14 就结束了，1.1.15 是段落不是表格行。已合并成一行，1.1.16 也按一行写。gate 侧在 `b7e8ba7`，契约与 SKILL.md 在 `4b05e4d`。test_skill 200 → 231（十二条写盘拒绝、四条 hint 边界、四条多报告拒绝、两条长引用、九条目录），drift 123 → 124（契约多一条 `skill_anchor`），合计 450 → 482 项。 |
 
 **契约版本与发布版本是两条独立的轴。** 契约 `version` 只在该文件自己的规则、
 阈值或 `gate_io` 行变化时递增；发布版本对措辞和闸门行为的变化也递增。
