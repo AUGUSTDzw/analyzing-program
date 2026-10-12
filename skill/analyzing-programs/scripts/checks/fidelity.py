@@ -43,7 +43,9 @@ def _src_identities(src):
 
     Cached: --fidelity-only checks multiple reports against one source. The
     cache is bounded at _MAX_CACHE entries; the oldest entry is evicted when
-    the limit is reached.
+    the limit is reached. The token sequence is stored with the windows, because
+    a probe longer than the cap is searched against it instead of being
+    re-tokenised per probe.
     """
     if src not in _src_cache:
         if len(_src_cache) >= _MAX_CACHE:
@@ -55,8 +57,33 @@ def _src_identities(src):
         for i in range(len(seq)):
             for size in range(1, min(_MAX_WINDOW, len(seq) - i) + 1):
                 windows.add(seq[i:i + size])
-        _src_cache[src] = windows
-    return _src_cache[src]
+        _src_cache[src] = (windows, seq)
+    return _src_cache[src][0]
+
+
+def _src_seq(src):
+    """The source's identity sequence, computed once per source."""
+    return _src_cache[src][1] if src in _src_cache else identity(tokenize(src))
+
+
+def _identity_in_source(ident, src):
+    """True when the probe's identity occurs contiguously in the source.
+
+    The window set answers this for probes up to _MAX_WINDOW tokens and says
+    nothing about longer ones: it cannot see them, so a statement that is in
+    the source verbatim read as absent. The pre-1.1.0 substring check never had
+    that failure, but the union rule in classify() trusts neither classifier, so
+    the cap's silence became a SUBSTANTIVE that never clears. Measured at 8 of
+    177092 statements across 81 sources, longest 40 tokens -- rare, but a report
+    quoting one loops in steps 6 and 7 on a defect that does not exist. Those
+    few probes are searched directly: O(N x L) for that one probe, instead of
+    the O(N^2) an uncapped pre-computation would cost.
+    """
+    if len(ident) <= _MAX_WINDOW:
+        return ident in _src_identities(src)
+    seq = _src_seq(src)
+    return any(seq[i:i + len(ident)] == ident
+               for i in range(len(seq) - len(ident) + 1))
 
 
 def _substring_mismatch(probe, flat_src):
@@ -117,7 +144,7 @@ def classify(s, src):
     found = []
     for line, raw, probe in _quote_probes(s):
         ident = identity(tokenize(probe))
-        new_ok = bool(ident) and ident in src_ids
+        new_ok = bool(ident) and _identity_in_source(ident, src)
         old_ok = not _substring_mismatch(probe, flat_src)
         if old_ok and new_ok:
             continue
@@ -143,7 +170,14 @@ def fidelity_report(s, src):
         total = len(_quote_probes(s))
         note = "%d of %d quoted statement(s) rewrite the source" % (
             len(sub), total)
-        if len(found) == total:
+        # len(sub), not len(found): found also holds PUNCT-ONLY, and PUNCT-ONLY
+        # means the identity tuple DOES occur in the source -- only punctuation
+        # differs. Counting it here told the writer the source was probably the
+        # wrong file in the one configuration that proves it is the right one,
+        # because a quotation matched it in its meaningful tokens. With every
+        # quotation SUBSTANTIVE the sentence is literal: none of their tokens
+        # occur there.
+        if len(sub) == total:
             note += (", and not one quotation matches the source -- the source "
                      "may not be the one the report was written against")
         note += ". First at line %d: %r" % (sub[0][1], sub[0][2][:60])

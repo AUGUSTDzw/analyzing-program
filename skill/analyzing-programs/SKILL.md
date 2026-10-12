@@ -1,7 +1,7 @@
 ---
 name: analyzing-programs
-version: 1.1.15
-contract: 1.3.7
+version: 1.1.16
+contract: 1.3.8
 description: Use when the user wants a deep onboarding-style analysis report for an ABAP/SAP program source file (报表程序、FORM/事件块、OO 类 CLAS、函数组、ALV 等), or pastes an ABAP / z*.abap file asking to analyze, walk-through, 讲解 its structure, execution flow, or design. Trigger on phrases like "分析这个程序/源码","走读/讲解 ABAP","代码 onboarding","源码分析/架构分析","帮我看懂这段 SAP 代码". Trigger even when the user does not explicitly say "report" but clearly wants to understand a whole program's business purpose, architecture, and risks. Do NOT use for one-line answers, non-SAP code, or pure syntax/API lookups.
 ---
 # Skill: analyzing-programs
@@ -104,16 +104,16 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 |---|---|---|
 | `0` | 检查跑完了，**形状无缺陷，且没有实质改写**（三种模式一致） | `PASS  <报告名>`。可能带 note，**note 不改变退出码** |
 | `1` | 跑完了，有缺陷 | 形状模式：缺陷行以 `fence` / `sec` / `sec-dup` / `prow` / `row-src` / `buck` / `ln` / `mm` / `mm-missing` / `A8-cc` / `layer-same` / `A8-pt` / `enc` 起首，**加上忠实度实质级的一行 `SUBSTA`**，然后是 `FAIL  <报告名>  (N defect(s))`，`N` 把两者都算进去。`--fidelity-only`：先打 `SUBSTA` / `PUNCT-` 分级行，末行 `FAIL  <报告名>  (N rewrite(s), M punctuation-only)`；没有实质改写则 `PASS  <报告名>`，**只剩分级建议时是 `PASS  <报告名>  (M punctuation-only)`**——退出码还是 `0`，但括号里的数 grep `PASS  <报告名>` 是看不见的。`--fix`：`FAIL  <报告名>  (N shape defect(s) and M rewrite(s) need the model)`，两类各数各的，只剩一类时只打那一类；**实质改写同样让 `--fix` 退 `1`**，三种模式给同一个答案 |
-| `2` | **拒绝运行：一个字都没查** | 所有拒绝都以 `error` 起首、**顶格不缩进**，和 `PASS` / `FAIL` 同一族。两个例外不带 `error`：不带参数时打印用法说明；`--fix` 路径不足时打印 `--fix needs REPORT and SOURCE` |
+| `2` | **拒绝运行：别把输出当结论** | 所有拒绝都以 `error` 起首、**顶格不缩进**，和 `PASS` / `FAIL` 同一族。两个例外不带 `error`：不带参数时打印用法说明；`--fix` 路径不足时打印 `--fix needs REPORT and SOURCE`。**唯一一处是「读过了但没写出去」**：`--fix` 写不动时已经先读完了报告、只是存不回去，所以 `error` 明说 `nothing was written, so this run is not a verdict`，不冒充「没查」 |
 
 `2` 的全部触发条件，按模式分：
 
 | 模式 | 触发条件 |
 |---|---|
-| 通用 | 没给参数；命令行里没有 `.md` / `.markdown` 结尾的报告路径；报告路径不存在；**规则集 `schemas/report-contract.json` 读不到或已损坏**；**`scripts/checks/` 缺失或其中某个模块解析不了**；**报告或源码任一不是 UTF-8**；**闸门自己在检测器里抛异常** |
+| 通用 | 没给参数；命令行里没有 `.md` / `.markdown` 结尾的报告路径；报告路径不存在；**规则集 `schemas/report-contract.json` 读不到或已损坏**；**`scripts/checks/` 缺失或其中某个模块解析不了**；**报告或源码任一不是 UTF-8**；**任一路径是目录而不是文件**（报 `is a directory, not a source file`，不是编码错）；**闸门自己在检测器里抛异常** |
 | 形状（第 7 步） | 源码路径不存在；给了多于一个源码 |
-| `--fidelity-only`（第 6 步） | 没有报告路径；源码不是**恰好一个**（0 个与 2 个都拒）；源码路径不存在；**源码是空的** |
-| `--fix` | 少于两个路径；没有报告路径；源码不是**恰好一个**；`-o` 后面没跟输出路径；**`-o` 所在目录不存在或不可写**；**`-o` 指向源码本身** |
+| `--fidelity-only`（第 6 步） | 没有报告路径；源码不是**恰好一个**（0 个与 2 个都拒）；源码路径不存在；**源码是空的**；**给多份报告时，所有路径先校验完才读第一份**，所以 `2` 不会跟在一条已经打出来的 `PASS` 后面 |
+| `--fix` | 少于两个路径；没有报告路径；源码不是**恰好一个**；`-o` 后面没跟输出路径；**`-o` 所在目录不存在或不可写**；**`-o` 指向源码本身**；**`-o` 本身是目录或只读文件**；**原地模式且 `<报告>.bak` 已经是个目录**（这两条是写不出去，报 `could not write ...`） |
 
 五条容易读错：
 
