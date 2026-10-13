@@ -46,6 +46,22 @@ def main():
     check(identity(tokenize("lv_x = lv_y + 1.")) == identity(tokenize("lv_x = lv_y + 1")),
           "punctuation-only change leaves identity alone")
 
+    # A comment apostrophe must not open a literal that runs past its line.
+    # zalvtree.abap line 118 has exactly this shape.
+    dont_src = ("* FIELD = 'X'. \"Don't show it\"\n"
+                "CLEAR wa_itab.\n"
+                "APPEND wa_itab TO it_itab.\n"
+                "ENDFORM.\n")
+    literals = [v for k, v in tokenize(dont_src) if k == "literal"]
+    check(all("\n" not in v for v in literals),
+          "an unmatched apostrophe in a comment cannot open a literal",
+          str(literals))
+    src_ids = identity(tokenize(dont_src))
+    probe = identity(tokenize("APPEND wa_itab TO it_itab."))
+    check(any(src_ids[i:i + len(probe)] == probe for i in range(len(src_ids))),
+          "the statements after that comment stay tokenized",
+          str(src_ids))
+
     print()
     print("archived reports")
     print("-" * 72)

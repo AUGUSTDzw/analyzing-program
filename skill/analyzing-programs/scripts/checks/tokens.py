@@ -11,12 +11,21 @@ string literal or a number that changed is a rewrite and must fail. Punctuation
 that moved is a slip and stays advisory.
 
 Identifiers and keywords are lowercased because ABAP is case-insensitive there.
+
+A literal may not cross a newline. An ABAP line ends in a period and a comment
+runs to end of line, so a quote always closes on the line it opens on.
+Leaving it unrestricted let one unmatched apostrophe in a comment -- Don't,
+It's -- open a literal that swallowed every following statement until the next
+apostrophe, pages later. For zalvtree.abap that cut the identity sequence from
+635 to 429 tokens, and 66 of 150 verbatim quotations read as fabrications: the
+tier is decided by identity alone, so the flattened-substring half matching did
+not rescue them.
 String literals are not: 'BUK' and 'bUK' are different data.
 """
 import re
 
 _TOKEN = re.compile(r"""
-      (?P<literal>'(?:[^']|'')*')
+      (?P<literal>'(?:[^'\n]|'')*')
     | (?P<number>\b\d+(?:\.\d+)?\b)
     | (?P<ident>[A-Za-z_][A-Za-z0-9_-]*)
     | (?P<punct>=>|<-|<>|>=|<=|==|!=|\*|-|\+|=|<|>|\(|\)|,|;|:|\.)
