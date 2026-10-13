@@ -1,0 +1,459 @@
+# analyzing-programs
+
+给 ABAP/SAP 源码生成结构化中文分析报告：固定六节结构，每个引用源码的代码块后面
+跟三层（做什么 / 为什么 / 风险与改进），问题按 P0–P3 分桶。
+
+## 目录
+
+```
+SKILL.md                       规则本体（535 行）
+scripts/report_qc.py           格式闸门：逐条列出违规位置，可自动修两类
+scripts/evaluate.py            内容评分：对冻结缺陷清单判分，算召回与错误论断
+scripts/docgen.py              文档生成：源码抽成类 / FORM / 函数 / 表 / 调用的清单
+scripts/abap_deps_analyzer.py  依赖分析：对照自带的 abaplint-deps 查标准对象引用
+references/example-report.md   完整范例（真实报告，逐字未改，闸门零缺陷）
+references/large-inputs.md     大输入的实测行为（观察，不是规则）
+references/README.md           范例的出处与局限
+evals/README.md                缺陷参考的格式、用法与边界
+evals/*.defects.json           127 条缺陷 / 7 个真实源码
+schemas/report-contract.json   闸门规则与 skill 教学锚点的唯一来源
+tests/*.py                 仓库内的验证套件，**不随包发布**（见「跑一遍」）
+```
+
+## 三件工具各管什么
+
+| 工具 | 回答 | 答不了 |
+|---|---|---|
+| `report_qc.py` | 形状对不对：六节、三层、四桶、无行号、Mermaid 可渲染、密度 | 分析是否正确、漏没漏 |
+| `evaluate.py` | 对着冻结清单，报告漏了几条、有几条错误论断 | 判分本身对不对 |
+| `tests/test_skill.py` | 上面两个还灵不灵，尤其是**拒绝**路径与退出码 | — |
+| `tests/test_contract_drift.py` | 契约里的每条规则 SKILL.md 教了没有，反之亦然 | — |
+| `tests/test_gate_enforcement.py` | 闸门放过的报告逐条复现，先记录现状再断言应有的行为 | — |
+| `tests/test_fidelity_tiers.py` | 新旧分类口径是否等价：不泄漏、不误伤 | — |
+| `tests/test_docgen_deps.py` | docgen 与依赖分析器的解析器、锚点与命令行是否还灵 | — |
+
+**判分是模型工作。** `evaluate.py` 的 `tasks` 子命令把问题打印出来让判分者逐条回答，
+`score` 与 `compare` 是确定性的。它保证参考完整、聚合正确、缺项不能冒充完整；
+它不保证判分是对的。
+
+## 跑一遍
+
+包里的东西，装到哪儿都能跑：
+
+```bash
+python scripts/report_qc.py REPORT SOURCE                # 格式；报告须 .md/.markdown，其余当源码
+python scripts/report_qc.py --fix REPORT SOURCE -o OUT   # 格式 + 自动修两类
+python scripts/evaluate.py tasks  --defects evals/zcl_fi_toolkit.defects.json
+python scripts/evaluate.py score --defects D.json --verdicts MY.json
+python scripts/evaluate.py compare --defects D.json --a V1.json --b V2.json
+```
+
+`score` / `compare` 上还有一个 `--legacy`：豁免**整个引文校验**，给早于引文要求的旧判分文件用。不带它，`yes` / `partial` 的判分必须有 `evidence.<id>.report_line`、`evidence.<id>.quote`，而且 quote 得真的出现在那一行——缺 `report_line`、缺 `quote`、行号越界、quote 不在该行，四种都退 `2` 拒绝，而且 `--report` 缺失时同样拒绝（否则等于把校验静默接受下来）。**它不豁免 `false_claims`**：理由缺失照样拒，因为一个吞掉它的出口会把未解释的错误计成干净结果。带它时判分照做、仍退 `0`，但 `WARNING  --legacy: citations were not verified, so every verdict is an uncheckable assertion` 会印在输出里——打上这个警告的分数不算可审计的。
+
+验证套件在仓库里跑。`tests/` 不随包发布，安装包里没有这五个文件：
+
+```bash
+python tests/test_skill.py              # 241 项
+python tests/test_contract_drift.py     # 124 项，契约 <-> SKILL.md <-> 闸门 三方对齐
+python tests/test_gate_enforcement.py   # 25 项，闸门执行漏洞探针
+python tests/test_fidelity_tiers.py     # 7 项，改动前后口径是否等价
+python tests/test_docgen_deps.py        # 117 项，docgen 与依赖分析器
+```
+
+合计 514 项。
+
+**退出码是契约的一部分。** 所有模式在仍有缺陷时返回非零，包括 `--fidelity-only`
+与 `--fix` —— SKILL.md 第 6 步让模型"重跑到干净为止"，那条循环只能靠退出码终止。
+两个脚本都自己把 stdout 重配为 UTF-8：契约里的优先级桶标记是 emoji，
+在默认 cp936 的 Windows 控制台上打印会抛 `UnicodeEncodeError`，
+而且是从缺陷循环里抛的，诊断信息会被 traceback 顶掉。
+Windows 上不需要设 `PYTHONUTF8`。
+
+**为什么 `tests/` 不进包。** 每个 suite 都用
+`HERE = dirname(abspath(__file__))` 往上数出仓库根，再去根下找同级的
+`Test-source/` 与 `analyzing-programs-workspace/`——那两棵树明确不随 skill 发布
+（`analyzing-programs-workspace/` 是上游开发线快照）。所以放进包里只会得到一个
+跑不起来的东西：装到 `~/.agents/skills/` 之后五个 suite 都会在第一个 fixture 上
+`FileNotFoundError`；`test_skill.py` 例外，能一路跑到最后、只挂一条（1.1.10 量到
+168 过 1 挂，挂的是 `the exemplar's source is present`，它需要 `Test-source/real/`
+里那份 `zbc_show_error_log`）。
+1.1.10 是把这句话写进 README；1.1.11 是直接不把它发出去——包里剩下的每件东西
+都能在装好的位置跑通，这句话才成立。`release/pack.py` 里有一个 `NOT_SHIPPED`
+名单加一条 `CRITICAL` 守卫，后者保证误把 `schemas/` / `scripts/` /
+`references/` / `evals/` 填进排除名单时打包会直接断言失败，而不是悄悄少发。
+`references/README.md` 与 `evals/README.md` 里有两处指向 `tests/` 的交叉引用，
+那是指向仓库内的套件，读发布包的人找不到很正常，不删。
+
+**四种「没检查」的样子，其中一种仍然和通过只差一行 note。** 下表全部实测，
+SKILL.md「闸门输出」一节照抄：
+
+| 情况 | 实际输出 | 退出码 |
+|---|---|---|
+| 形状模式不传源码 | `PASS <报告名>` + `note  no source recognised, so density, fidelity, fix-mislabel, authz, ext-asset and row-src were not run (pass the ABAP file after the report)` | `0` |
+| 源码路径不存在 | `error no such source: ...`，一个字都没查 | `2` |
+| 报告路径不存在 | `error no such report: ...` | `2` |
+| 给了多于一个源码 | `error more than one source: ...`（不是静默取最后一个） | `2` |
+| 报告存成非 `.md` / `.markdown` | `error no report path: ...` —— 闸门认为你没给报告 | `2` |
+
+所以：形状检查的 `0` 只能读作「形状对」，**看到那条 skip note 就等于五项诊断外加 `row-src` 没跑**
+（六项诊断里只有 `fix-lang` 不需要源码；`row-src` 是强制项，也一起跳过）。
+这一版的闸门在源码路径写错时会**拒绝运行**而不是打印 PASS —— 上一版不是那样的，
+上一版会照跑、照打印 `PASS`、零 note。这三条语义已经改过两轮，
+全部记在 `schemas/report-contract.json` 里，闸门行为集中在 `gate_io` 段
+（该段 4 个锚点，契约合计 23 个），
+`test_contract_drift.py` 逐条查它们在不在 SKILL.md 里。
+
+自动修只做两类改不动的判断：位置标签写成行号 → 改成最近的前置构造名；
+Mermaid 标签里的裸 `<` `>` `#` → 改成全角。三层缺失**只报位置不修**，
+因为那需要判断后面的散文本该属于哪一层，猜错会把风险论述标成"做什么"。
+
+## 两条实测边界
+
+- **20 条缺陷的配对比较分辨不出小效应。** 低于约 30 个百分点记作**未测量**。
+  同一个 skill 同一文件重判，召回在 0.625–0.700 之间动。
+- **大输入下预期一次任务写不完 —— 但这条只对 FI toolkit 那批成立。**
+  两个数必须带协议标签读，**不能并列**：
+
+| 观测 | 输入 | 协议 | 结果 |
+|---|---|---|---|
+| `references/large-inputs.md` | FI toolkit，约 1700 行、18 个子程序 | 更早的 harness、更早的 skill 版本 | 14 次派发完整 4/14（29%），其中 6 次静默、4 次截断 |
+| 符合性探针 + 完成率第三、四轮 | `objects_program` 1597 行、`flow_logic` 1114 行 | 当前版本，**不要求额外交付物** | **9 份报告全部产出** |
+
+第二个数只说明"这一类输入在当前版本下目前写得完"，**不构成完成率断言**。
+而"失败都死在第三节内部"这句旧的概括已经不准确：FI toolkit 那 14 次里有
+**6 次是静默**——什么都没产出，根本没走到第三节。失败有三种形态：
+静默、截断、写完但变厚变薄。细节见 `references/large-inputs.md`。
+
+## 能声明什么，不能声明什么
+
+这一节限定交付范围，不是免责声明。原始数据在
+`analyzing-programs-workspace/iteration-8/`（上游仓库，不随 skill 发布）。
+
+### 先说版本：下面的数字不是出货版本的数字
+
+iteration-8 的全部数字都是在 **`b8f84e8`**（162 行）上测出来的。
+**工作树与 `release/` 都到 `1.1.19`**（536 行，契约 1.3.10 / docgen 契约 1.0.2）：
+归档在 `release/analyzing-programs-1.1.19/`（407 文件、31 目录），zip 的 sha256 在 `release/SHA256SUMS`。
+**效果**未测出结论。**
+
+版本谱系（每一版都已归档在 `release/`，digest 见 `release/SHA256SUMS`）。
+`commit` 列是本仓库的 git id，**不是** zip 的 sha256——那是 `release/SHA256SUMS` 的事。
+**1.1.0 之前的 12 行沿用了上游血统的 id，在本仓库解析不了**（`git cat-file -t` 报
+Not a valid object name），那几行的行数只能从 `--follow` 找到的同源提交间接印证；
+1.1.0 起每行都能直接 `git show`。
+
+| 版本 | 行数 | commit | 改了什么 |
+|---|---|---|---|
+| `b8f84e8` | 162 | `b8f84e8` | **唯一被端到端测过的版本**，但没出货 |
+| `718f5988` | 215 | `718f5988` | 加第 6 步修复轮、事实性纪律、范例引用 |
+| `0dc9f17e` | 215 | `0dc9f17e` | 1.0.0。相对上一版只改了节标题与少量措辞 |
+| `006719f8` | 250 | `006719f8` | 1.0.1。加「闸门输出」一节、粘贴源码先落盘、形状闸门拆成第 7 步 |
+| `fac4d5a3` | 280 | `fac4d5a3` | **1.0.3**。闸门 / 评分脚本 / 契约 / 两个测试**整组**换成未发布开发线那份；SKILL.md 补 `fence`、`fix-mislabel`、密度与三层窗口的定义，并按新闸门的实测行为重写退出码一节 |
+| `d3c55463` | 321 | `d3c55463` | **1.0.4**。纯文档：Mermaid HTML 子集例外、教 `--fix`、大输入章节指向 `references/large-inputs.md`、修三处事实陈述（22 个百分点改为只留方向并标注幅度未测量 / 转写错误归属改正 / 失败形态补上静默） |
+| `9a013e47` | 325 | `9a013e47` | **1.0.5**。唯一一处闸门改动：`fix-mislabel` 的判据从「每条语句都在源码某处出现过」改成「整块逐字**连续**出现在源码里」。旧判据在九份真实报告上误报 5 次、全部是真改法；新判据 5 次全消，同时保留对真引用贴错围栏的检出（测试从 95 项增至 98 项，新增的负向用例就是"各行都存在但不相邻"这一例） |
+| `5b1241c` | 357 | `5b1241c` | **1.0.6**。三处闸门修复 + 文档对齐。P0-1：忠实度不再对整行中文静默放行（`WRITE / '开始'.` 被当成点评跳过，注释与字面量里的中文仍是代码）；P0-1b：省略放行只认代码部分，注释里的 `...` 不再是后门；P0-2：规则集读不到时以退出码 `2` 拒绝运行（原来未捕获异常退 `1`，而 `1` 被 SKILL.md 定义为"查过了、有缺陷"）。SKILL.md 补齐与这三处对应的说法；契约补上 `gate_start_refuses_without_a_rule_set`（1.2.3 → 1.2.4）；frontmatter 加 `version` / `contract`；测试从 98 项增至 115 项，drift 从 104 项增至 105 项 |
+| `5ff381c8` | 412 | `5ff381c8` | **1.0.7**。纯文档，零闸门改动，契约保持 1.2.4。两处来自另一台设备上的现场反馈：**三层渲染成一段**——「拆分步骤」一节推荐紧凑写法，而那个示例把三层写在连续三行上，CommonMark 视为同一段落；且它与自己的范例 `example-report.md`（三层之间有空行）矛盾。12 个三层标签行现已全部后随空行。**第一层太笼统**——`:224` 的要素清单本就在，但抽象规则句没有失败示例；现补三组「笼统→具体」对照（右侧全用范例里的真实句子）、四问自检清单，以及"每层至少点名一个源码对象"。两处都**没有**加检查器：闸门只数字符数，evals 的缺陷问的是源码不是写法 |
+| `25b711cf` | 473 | `25b711cf` | **1.0.8**。契约 1.2.4 → 1.2.5（新增两条 note）。来自 `zvend` 留出集的失败样本：**报告点名了那个标识符，然后转身去写下一条**。with_skill 臂的加权召回 1.476、without_skill 臂 1.571，符号检验 4:5、p=1.0，这轮测不出差别；但 9 条分歧里形状一致——被判 partial 的七条都属"说对了事实、没推到读者能行动的位置"（硬编码位图写成"跨行业遗留"、授权写成"不做权限控制"）。据此改三处：第三层新增「每个具体标识符必须紧跟运行期后果」的硬规则 + 两组对照；禁掉「需核实」当结论句；新增 `authz` 与 `ext-asset` 两条 note，两条都只在报告没给出后果时才发。测试 115 → 129，drift 105 → 107。**这三条是假设不是测量结果** |
+| `748f36b2` | 476 | `748f36b2` | **1.0.9**。契约 1.2.5 → 1.2.6。三处都是复审 1.0.8 时**量出来**的，不是读出来的。**报告不是 UTF-8 时闸门抛未捕获异常**——`report_qc.py` 有三处裸读报告，cp936 报告（中文 Windows 上编辑器"另存为"的默认结果）→ traceback + 退 `1`，而 `1` 被定义为"查过了、有缺陷"，与契约自己写的 "the one false reassurance this script is not allowed to give" 同形；现在与源码一样退 `2`，并加了 28 项测试覆盖三种模式 × 三种编码。契约 `exit_codes["2"]` 三处与实测不符：说"Every trigger prints a line starting with `error`"（实际无参数与 `--fix` 路径不足这两个例外不带 error）、无模式限定地列出 `source is empty`（实际只有 `--fidelity-only` 拒，形状模式打 note 后照常返回）、用字节数指认闸门（`24224` / `45523`，实际 53462，文件一改就过期）——改成按模式列并删掉字节数。**127 条缺陷里 91 条用行号做 anchor**，源码前面插一行空行、同一个 `L5` 就指向别的语句，而 `evaluate.py` 里 7 处 `anchor` 全是打印、一个都不校验；全部换成源码文本，三份缺陷集的 `source` 字段改成能打开的真实路径。测试 129 → 157，drift 107 不变 |
+| `b70980f` | 358 | `b70980f` | **1.1.0**。闸门加五条强制检查：保真改 token 序列比对、标识符/字面量/数字被改过退 1，标点级差异仍 advisory；第五节问题行必须点名源码里存在的对象；三层正文不得三行相同；散文 U+FFFD 视为失败；要求 flowchart 与 sequenceDiagram 各一张。拆分 `report_qc.py` 为 `scripts/checks/` 下四模块。**闸门变严，效果未知** |
+| `301500c` | 476 | `301500c` | **1.1.1**。四轮系统性代码审查，修复 24 个问题：错误处理（OSError 未捕获）、参数校验（报告/源码同文件、-o 路径有效性）、契约对齐（exit_codes 描述、defect_line_prefixes 缺失项）、测试覆盖（all_notes 排序固定）、缓存管理（_src_identities FIFO 驱逐）、注释修正。测试 315 项全过 |
+| `52e35cf` | 476 | `52e35cf` | **1.1.2**。契约 1.3.0。十二轮质量审查、53 处修复、315 项测试全绿 |
+| `57c75b5` | 494 | `57c75b5` | **1.1.3**。契约 1.3.0 → 1.3.1。两处闸门崩溃改成正经拒绝：`inventory()` 对事件块取 `group(1)` 抛 IndexError（事件块的 keyword 就是名字，ANCHORS 不给它 capture group），未捕获异常退 `1`——而 `1` 被定义为"查过了、有缺陷"，模型会去改不存在的缺陷；内部异常现统一走 `die()` 退 `2`。docgen 的正则锚在 `METHOD` 后的 `(` 上，六种写法里只有带参数的那种能匹配，类方法全被漏掉。`abaplint-deps` 随 skill 一起发布、按脚本自身位置解析（装好的 skill 里 CWD 从不是 skill 目录）。SKILL.md 补退出码表与资源索引。410 个文件 |
+| `75fb895` | 494 | `75fb895` | **1.1.4**。契约 1.3.1 → 1.3.2，只补文档：`exit_codes["2"]` 里"规则集读不到"这条触发器是 1.2.4 加的，1.2.6 重写那段字符串时弄丢了措辞，而它的兄弟键 `gate_start_refuses_without_a_rule_set` 一直活着——只读那张平铺表的读者已经看不到四个启动期拒绝里最早的一个。闸门行为与 1.3.1 完全一致。同批修换行符：`*.txt` / `*.js` / `*.xml` 补进 `.gitattributes`，八个 blob 重新归一化成 LF（`.gitattributes` 管不了已经提交的 blob，而 `git status` 归一化后一直读成干净），发布目录标成 `-text` 冻结以免 git 重编码破坏与 zip 的逐字节一致；`pack.py` 断言 `ships_with` 并打印与上一版的布局差异 |
+| `37ea6bd` | 494 | `37ea6bd` | **1.1.5**。docgen 四处解析缺陷 + 第五个测试套件，契约不动（1.3.2）。`_find_block_end` 要求 `ENDMETHOD` 后面跟子程序名，而 ABAP 允许但不要求带名字，于是什么都不匹配、所有块都跑到文件末尾、`end` 对每个子程序都相同；`CALL FUNCTION` 的名字从 `[A-Z0-9_]` 取，漏掉带引号的 `CALL FUNCTION 'Z_BC_LOG'`——ABAP 里最常见的那种；`USING` 被 `.*?` 组进 FORM 正则，永远匹配空，FORM 从不报参数；内部表过滤用大小写敏感的 `startswith`，`lt_tab` / `ws_data` 被当成数据库表；锚点用 `^\s*` 缩进而 `\s` 也能跨换行，被空行隔开的子程序锚点早一行。新增 `tests/test_docgen_deps.py`（67 项）覆盖 docgen 与 `abap_deps_analyzer` 的解析器、锚点与命令行——写它才把这五处挖出来 |
+| `74944da` | 494 | `74944da` | **1.1.6**。契约不动（1.3.2）。**分析器八处修复**：`--deps` 锚定脚本自身位置而非 CWD；类型引用先减去本地声明的类型名；`unknown_*` 改名 `unresolved_*` 并降为 `info`（「不在随包桩库里」不等于「SAP 里没有」）；补冒号形 `PERFORM` / `METHOD` 与类内裸调用、取标识符前先剥行内注释、每次 `analyze()` 复位状态、修 `->+` / `=>+` 的自身回归、支持 ALV 回调的字符串字面量。`tests/test_docgen_deps.py` 67 → 95，含一个「decoy CWD 放同名 deps 目录」的负向用例。**范例报告过不了自己的闸门**：`row-src` 只在传了源码时才跑，而守护它的两个测试都不带源码，§5 里 P2-3（只有 `+1` / `MIN/MAX`）、P2-4（无拉丁标识符）、P2-5（只有 `PERFORM` / `ENDFUNCTION`，均在关键字排除表内）、P3-2（只有源码外的 `c05_abap_unit`）四行被自己的规则判死——带源码跑是 exit 1。四行各补一个真实源码对象名，exit 0；`test_skill.py` 加一项带源码跑，drift 的变异探针原来同样传不出源码，现在在范例上专门跑 `row-src` 并带负向对照。168 → 169，121 → 123。**闸门文档三处与实测不符**：退出码表只列了契约 15 个缺陷前缀中的 8 个、`--fidelity-only` 输出格式写错（实际先打 `SUBSTANT` / `PUNCT-` 分级行）、退出码 `2` 的触发条件漏了「报告与源码同一文件」及 `--fix` 的三个输出路径拒绝 |
+| `aa609d5` | 513 | `aa609d5` | **1.1.7**。契约不动（1.3.2）。四处 SKILL.md 措辞修复 + 一处索引说明，全部来自**在两个真实程序上跑 skill 的实测**，不是读出来的。**`enc` 在正文里零覆盖**：它在退出码表里，但 495 行里既没有 `enc` 也没有 U+FFFD / 替换字符 / 乱码——撞上的写作者不知道改什么，更不知道修法是从源文件重新另存 UTF-8、而不是删掉替换字符。**SKILL.md 有一条事实错误**：说两条 note「都只在报告没给出后果时才发」，但只有 authz 有消音门槛，`ext_asset_note` 只要源码里有一个位图/图标字面量就必然发（它自己的 docstring 就是这么写的）。authz 的门槛本身是个十词正则，写作者完全没有可能看见，SKILL.md 现在把它列出来了。第 5 步补一个预检：这两条 note 问的东西第 6、7 步补不上——那两步不许动分析，`--fix` 也只修 `ln` 与 `mm`——必须收笔前就写进去。`references/abap-syntax` 自称一份资源，实际是上游约 30 份 cheat sheet 里的 8 份，其内部 13 处交叉引用指向从未收录的兄弟文件；索引现在写明这一点，否则 SKILL.md 一边让人「查这里」、一边禁止「凭记忆」，落到中间的题就无路可走 |
+| `51957ef` | 513 | `51957ef` | **1.1.8**。契约不动（1.3.2）。`abap-syntax` 从上游 SAP `abap-cheat-sheets` 收录第 9 份：`11_Internal_Tables_Grouping.md`（6794 B，照抄原文）。九份与上游 `main` 的 git blob SHA-1 逐一核对过、全数吻合——顺带量出一件与旧版同源的偏差：本仓库 `core.autocrlf=input`，上游 8 份 CRLF 结尾的 cheat sheet 进库时被归一化成 LF，发布包带的是归一化后的 blob（`11_...` 为 `cefecc33411f`），只有上游本来就是 LF 的 `27_Exceptions.md` 对得上；这是换行符归一化，不是内容改动，但拿包去核对的人会当成被改过，索引与契约现在都写明，免得误判。它补上的正是 1.1.7 记下的那个死角：SKILL.md 让人「查这里」，同时禁止「凭记忆」，而 `references/README.md` 明说目录里没有的语义就没有——落到这两句中间的主题没有合法路径可走。`LOOP AT ... GROUP BY` 就是这个死角：它的行为由用哪一种绑定形式决定（代表式绑定与显式键绑定、`INTO` 附加项、`GROUP INDEX` / `GROUP SIZE`、`WITHOUT MEMBERS`、成员循环），而这层语义此前只存在于未收录的兄弟文件里。索引同步改为 9 份 / 上游 37 份，补上 Apache-2.0 出处与坏链清单；收录这份带进一个未收录兄弟链接 `02_Structures.md`、同时移出 `11_Internal_Tables_Grouping.md`，唯一缺失文件名数保持 12 个。闸门不读任何参考资料、只读契约，419 项检查全过 |
+| `5336b94` | 535 | `5336b94` | **1.1.9**。契约 1.3.2 → 1.3.3，**文档修正、闸门行为一字未动**（`gate_io` 不被闸门读取，只被契约自身与 `test_contract_drift.py` 消费）。全部来自**实测对照**而非读代码：把范例报告复制出来篡改一句引用，形状模式实际打印 `SUBSTA   line 152 ...` 然后 `FAIL  (1 defect(s))` 再跟一条 note，退出 `1`——**四个说法因此作废**：exit 0 格说「没有形状缺陷」，实际还要「且无实质改写」（`report()` 只在 `not bad and not n_sub` 时退 0）；文档写分级名 `SUBSTANTIVE`，实际是 `tier[:6]` 截出的六个字符 `SUBSTA`；文档说 verdict 是末行，实际形状与 `--fix` 都在 verdict **之后**再打最多七条 note；文档说最多六条 note，实际 `all_notes()` 最多五条 + `fidelity_report()` 每级一条 = 七条。**authz 消音关键词表是照抄错版**：1.1.7 说"把十词正则列出来"，列出的十个词里有四个在正则里根本不存在（`任何人` / `其他用户` / `全部用户` / `并发权限` 一个都不命中），而真正会命中的 `任何能运行` / `任何可运行` / `任意用户` / `全体用户` / `数据权限` 一个都没写——写「其他用户」想让 note 消失，它不会消失。**其余修正**：`--fix` 零修复时不写 `.bak` 但仍原地写回；空源码在形状模式打两条 note 不是一条；崩溃那行补回被截掉的尾部；exit-2 表删掉「报告与源码同一文件」——那个守卫不可达，扩展名分流保证同一个路径不可能同时进两边；第 6/7 步补上当前目录必须是 skill 根目录（闸门不像 `abap_deps_analyzer` 那样自我定位）以及 `--help` 会被当成没给报告而退 `2`；`184 个对象` 定义清楚（191 个 `.abap` 文件里带 `.clas` / `.intf` / `.prog` 的子集）并补上未使用清单的已知假阳性（`SET HANDLER ... FOR` 注册的事件回调一律报「未使用」，实际都在跑）；Mermaid 补上方法引用 `->` / `=>` 的两种写法与「标签措辞是机械残留，不受『不许改分析』约束」。README 修掉三处互相矛盾的「出货版本」、358 → 535、22 → 23 个锚点、skip note 从三条诊断改回五条、缺陷清单 112 / 6 → 127 / 7（`ztest7.defects.json` 15 条此前两个索引都没列）、changelog 行数 `301500c` 358 → 476 与 `74944da` 495 → 494，并把列名从「sha256 前 7 位」改正为 `commit`（填的一直是 git id，且 1.1.0 之前的 12 行沿用了上游血统、在本仓库解析不了） |
+| `510902c` | 535 | `510902c` | **1.1.10**。契约不动（1.3.3）：没有规则、阈值或 `gate_io` 行变化。发布 1.1.9 后把它装进 `~/.agents/skills/` 验了一遍才发现 README 说错了一句话——它把 `test_skill.py` 写成「自足检查，不依赖项目数据」，跑法一节也说「169 项，自足」。**从仓库根跑是这样，从安装位置跑不是。** 五个 suite 都用 `HERE = dirname(abspath(__file__))` 往上数出仓库根，再去根下找同级的 `Test-source/` 与 `analyzing-programs-workspace/`；这两棵树明确不随 skill 发布。实测（`C:\Users\DzwU\.agents\skills\analyzing-programs`）：`test_skill.py` 168 / 169，挂的那一项是 `the exemplar's source is present`——`row-src` 的守护检查，它必须拿到 `Test-source/real/` 里那份 `zbc_show_error_log`；另外四个在第一个 fixture 就 `FileNotFoundError`。**闸门本身与它的脚本在装好的位置是正常的**：同一位置 `python scripts/report_qc.py references/example-report.md <源码>` 退 `0`、打 `PASS`，实测。所以那 419 项是仓库侧的说法，README 现在把这个区别写明，而不是让拿到发布包的人以为能在消费它的那台机器上自验。契约只把 `ships_with` 挪到 1.1.10，`version` 留在 1.3.3，并记了一段说明为什么 |
+| `f3eab57` | 535 | `f3eab57` | **1.1.11**。契约不动（1.3.3）。**上一版只是把「tests/ 在包里跑不起来」写进了 README，这一版直接把文件不发出去。** 理由很直白：包里不该有跑不通的东西。做法在 `release/pack.py` 加一个 `NOT_SHIPPED = ("tests/",)` 排除名单，打包时会打印 `excluded 5 repository-only file(s)`；旁边配一条 `CRITICAL` 守卫，把 `schemas/` / `scripts/` / `references/` / `evals/` 四个闸门真要读的目录列进去，误填一个就让打包直接 `AssertionError`，而不是悄悄少发。**契约和闸门一字未动**：五个 suite 从不被 `scripts/` 导入、也不读任何契约键，所以包小 5 个文件、行为完全一致。README 的目录表把 `tests/*.py` 一行改标为「不随包发布」，「跑一遍」拆成两段——包里装好就能跑的（`report_qc.py` / `evaluate.py` 五条），和只在仓库里跑的（五个 suite，419 项）。`references/README.md` 与 `evals/README.md` 里各有一处指向 `tests/` 的交叉引用，那是指向仓库侧套件的，读包的人找不到很正常，保留 |
+| `8b4e8ca` | 536 | `8b4e8ca` | **1.1.12**。契约 1.3.3 → 1.3.4。**`--fix` 会给一份还没过闸门的报告发 `PASS`。** 量出来的：把范例报告复制出来，在一个代码块里给 `ENDFUNCTION.` 后面加一个词（形状完全没动），三个模式各跑一次——形状模式退 `1`，打 `SUBSTA   line 187 ...`、`FAIL  tampered.md  (1 defect(s))` 再跟一条 note；`--fidelity-only` 退 `1`，打 `FAIL  ...  (1 rewrite(s), 0 punctuation-only)`；`--fix` 退 **`0`**，打 `PASS`。**同一个报告，两个模式，两个不同的答案。** 原因在 `--fix` 分支：`fidelity_report()` 其实已经调了，但 `n_sub` 只喂给了 note，返回值是 `1 if left else 0`，`left` 是形状检查——**note 说了实话，退出码没听。** 而契约 `exit_codes["0"]` 本来就把「没有实质改写」写成了 `0` 的条件，所以契约和闸门说的是两件不同的事；第 6、7 步的循环只看退出码，循环会停在一个伪造的引用上。修法是让忠实度计算提到 verdict 之前、返回值改成 `1 if left or n_sub`；**note 的顺序一个字没动**，形状与 `--fix` 仍然 verdict 在前、note 在后（`notes_follow_the_verdict` 断言、`test_contract_drift.py` 钉住的就是这条）。verdict 顺手不再用一个数把两类混在一起，改成各数各的、都收在 `need the model` 上——`1 shape defect(s)`、`1 rewrite(s)`，或 ` and ` 连起来——一个总数会让读的人以为剩下的都能机械修掉。契约侧：`exit_codes["0"]` 补上「三种模式一致」，`exit_codes["1"]` 与 `conclusion_lines` 带上新措辞，`release._comment` 记下这个洞。SKILL.md 说明 `--fix` 一行分级行都不打，只用一条 note 报改写数，所以在那里 grep `SUBSTA` 是空的；README 补上 `score` / `compare` 的 `--legacy`；`test_skill.py` 加三条检查（形状模式失败、`--fix` 非零、`--fix` 不打 `PASS` 且指名 rewrite），169 → 174、合计 419 → 424 项 |
+| `e0f7612` | 536 | `e0f7612` | **1.1.13**。契约 1.3.4 → 1.3.5。**契约写了「三种模式一致」，闸门只在一种模式里兑现。** 量出来的：把 `RuntimeError` 注进 `report_qc` 的检测器，三个模式各跑一次同一个报告——形状模式退 `2`、打 `error  internal error checking ...`、无 traceback；`--fidelity-only` 退 **`1`** 加 traceback；`--fix` 退 **`1`** 加 traceback，**而且先把输出文件写完了**。`exit_codes["2"]` 从 1.3.1 起就说「in every mode」，SKILL.md 也这么说——但守卫只加在形状模式的检查循环外面，另两个分支的 `classify()` / `fix()` / `check()` / `fidelity_report()` / `all_notes()` 全是裸调用。**`1` 的意思是「查过了、有缺陷」**，第 6、7 步的循环盯着退出码，崩溃被当成缺陷：模型去修不存在的缺陷，`--fix` 还把一次没查过的运行的结果落盘。修法是 `run_detector()`——**一份**守卫、三个分支都过它——而且**消息也放进这个函数里**：按分支各抄一份正是另外两个漏掉的原因。`test_skill.py` 注入异常，三种模式各断言无 traceback、退 `2`、输出含 `the gate crashed`，共九条；在改动前的代码上 `--fidelity-only` 与 `--fix` 两条全挂（180 → 186 项）。顺手抓到两处自己引入的回归：新守卫的签名先是 `run_detector(fn, report, *args)`，而 `report()` 需要两个实参，形参名又正好叫 `report`——第一个版本把参数吞掉了，形状模式基线当场崩，`baseline report passes the gate` 这条把它挡在打包之前。契约侧：`conclusion_lines` 补上它**漏掉的唯一一种可打印形式**——`--fidelity-only` 在只剩建议级时打 `PASS  <name>  (N punctuation-only)`，verdict 仍是 `PASS`、退出码仍是 `0`，照 `conclusion_lines` 分类输出的读者会撞上契约从没提过的一行；`exit_codes["1"]` 说明，测试构造这个用例（把引用里一个空格挪进括号）并**匹配整行**，所以悄悄丢掉括号里的数也抓得住。另修两行契约自相矛盾：`source_is_optional.verdict_still_printed` 说「three diagnostics」，而 note 与 `needs_source` 都是五条；`diagnostics.enforcement` 说「note -- never changes the exit code」，而 `advisories[fidelity].enforcement` 说它的 SUBSTANTIVE 级**就是**缺陷行、进 N、进退出码——fidelity 又列在 `diagnostics` 下面，顺着读就读成纯建议，这条是真的会误导人的那一处，`enforcement` 现在把例外写出来了。README 的 `--legacy` 段是**写反的**（「加了它就跳不过去」——它是跳过校验的那个旗子），且把缺的字段说成 `evidence.quote`，实际必需的是 `evidence.<id>.report_line`；照 `evaluate.py` 重写，列出四种拒绝原因、`--report` 的要求，以及**它不豁免 `false_claims`** |
+| `1aa800f` | 536 | `1aa800f` | **1.1.14**。契约 1.3.5 → 1.3.6。**「源码是空的」和「源码只有一个空格」在闸门眼里是两件事，于是同一份干净报告能读出 28 个缺陷。** 量出来的：把范例报告对着一个只含空格和制表符的文件跑——形状模式退 `1`、打 `FAIL  (28 defect(s))`，18 条 `row-src` 加 10 条 `SUBSTA`；同一个文件喂给 `--fidelity-only` 却是 `error source is empty` 退 `2`。三个模式，一个输入，三种答案。根因是两套判空不一致：`report_qc.py` 用 `not src.strip()`，六个吃源码的检测器用 `not src`——空白串是 truthy，于是照常进来了。`classify()` 数到 0 个标识符，把每句引用判成实质改写；`row-src` 算出的 `flat_src` 是空串而不是 `None`，绕过了它自己那句 `no source given: cannot judge, so do not fail` 的出口，把每一行问题判成「没指向源码里的东西」。这是 `ReadError` 那道守卫要挡的同一类假判：判不了的被报成了结论。修法只有一处：`checks/text.py` 加 `_src_of()`，三个模块本来都从那里 import。顺手补两处对不上的文档：skip note 和 `diagnostics.needs_source` 都说五项，而 `row-src` 是第六个吃源码的、也跟着一起跳过——1.3.5 那次只把 three 改成 five，漏了它。另修 `--fix` 的写盘顺序：写文件原来夹在第二个检测器和后面三个之间，所以后三个一崩就退 `2` 说「一个字都没查」，可输出文件已经落盘了；现在四个检测器都跑完才写，拒绝运行时不留任何文件。test_skill 186 → 194。 |
+| `d4d99cb` | 536 | `d4d99cb` | **1.1.15**。契约 1.3.6 → 1.3.7。两处都是**一行**的改动，但两处都把写下来的承诺弄假了。 **忠实度的 note 没有分母。**它只数失配的那几条，于是「一份长报告里 3 处改写」和「一份短报告里 3 处」打印得一模一样——而短报告那种正是闸门分不出的情况。量出来的：把范例报告分别对着**一个只含注释的文件、一份英文散文、另一个无关的 ABAP 程序**跑，三份都打出与「引用全是编的」完全相同的 10 条 `SUBSTA`、退出 `1`；对着它自己的源码是 `PASS`、退 `0`。修法是 note 改成 `N of M`（`M` 是报告里引用语句的总数），**只有 `N=M` 时才多问一句「源码是不是拿错了文件」**——这是唯一一个不需要阈值的边界，因为按标识符个数卡阈值根本分不开：只含注释的源码有 6 个标识符、英文散文有 20 个，两个都非零。`classify()` 只返回失配的，于是把探针集合提成 `_quote_probes()`，分母与失配数共用同一份，免得两处再漂开。 **拒绝运行的行有三张脸。**`die()` 打的 `error` 前面缩进两格，而两处导入期拒绝是顶格的，于是契约 `conclusion_lines` 记的 `"error  <what is wrong>"`（顶格）与 `die()` 那一路不一致，SKILL.md 那句「输出以 `error` 起首」对所有走 `die()` 的拒绝都不成立。现在三处都顶格，触发条件一字未动。 test_skill 194 → 200（三条拒绝形态、三条分母），合计 444 → 450 项。 |
+| `b7e8ba7` | 536 | `b7e8ba7` | **1.1.16**。契约 1.3.7 → 1.3.8。**`--fix` 把「存不回去」报成「有缺陷」。** 量出来的：`-o` 指向一个已存在的目录、指向一个只读文件、或者原地模式下 `<报告>.bak` 已经是个目录——三种都退 `1` 加 traceback，一个字都没写出去。`1` 的意思是「查过了、有缺陷」，第 6、7 步的循环盯着退出码，模型就去修从未被查出来的缺陷。检测器有 `run_detector()` 那道守卫，**写盘没有**；预检只查 `-o` 所在目录、从不查 `-o` 本身，所以没有一条测试能碰到它。修法是 `write_text()`走同一套拒绝路径：`error` 顶格、退 `2`；消息说**没写出去、这次运行不是结论**，**不说「没查」**，因为报告确实先读完了、缺陷也确实查到了，只是存不回去。`.bak` 在报告之前写、`-o` 跳过 `.bak`，所以三种情况下都不留半修好的文件。**`--fidelity-only` 会让 `2` 跟在一条已经打出来的 `PASS` 后面。**它接受多份报告，却在循环里逐个校验路径：前面几份的判决已经打印完，后面的路径不存在才拒绝——按「`2` = 一个字都没查」处理的调用方会丢掉一个真实的 `PASS`，而同一个调用在形状模式下是先拒绝、什么都不打。现在它和形状模式一样先校验完所有路径再读第一份。**忠实的引用只要超过 30 个 token 就永远是实质改写。**标识符窗口按位置最多枚举 30 个 token，更长的探针根本不在集合里，于是「查不到」被 `classify()` 的并集规则读成改写——哪怕那句引用是源码原文。量出来：81 个源码、177092 条语句里 8 条超窗，最长 40 个 token，每一条都是永不消失的 `SUBSTANTIVE`，第 6、7 步会在一个不存在的缺陷上循环到底。那些探针改成直接对源码的 token 序列线性搜一遍，窗口上限照旧，管住的还是绝大多数情形。**顺带把 1.3.7 记错了的那句注释改了。**`release._comment` 写「只有 `M` 等于失配数才多问一句源码是不是拿错了」，而 1.3.7 的代码数的正是失配数——`sub` 加 `PUNCT-ONLY`。于是那句 note 会在「有一条引用只差标点」时问你要不要换源码文件，而那恰恰是**证明源码没错**的配置：那条引用的标识符确实在源码里，只是标点不同。量出来：一条只差标点加一条实质改写，打印 `1 of 2 ... rewrite the source, and not one quotation matches the source`，下一行又说第一条只是标点差异。条件改成 `len(sub) == total`。**目录被当成源码时，报的是编码错。**`open()` 在目录上抛 `PermissionError`，`OSError` 分支把它写成 `not readable as utf-8`——戴了编码错误口罩的权限错误，读的人会去文件夹里找 BOM。现在三种模式都报 `is a directory, not a source file`。**顺手修了本文件自己。**上一行原来断在四个物理行上、前面还空了一行，表格其实在 1.1.14 就结束了，1.1.15 是段落不是表格行。已合并成一行，1.1.16 也按一行写。gate 侧在 `b7e8ba7`，契约与 SKILL.md 在 `4b05e4d`。test_skill 200 → 231（十二条写盘拒绝、四条 hint 边界、四条多报告拒绝、两条长引用、九条目录），drift 123 → 124（契约多一条 `skill_anchor`），合计 450 → 482 项。 |
+| `f7c1e7a` | 536 | `f7c1e7a` | **1.1.17**。契约 1.3.8 → 1.3.9（docgen 契约 1.0.0 → 1.0.1）。一轮把 1.1.16 之后读出来的问题一次性清掉，**十条里八条是「写了却没写出来」**。 **`--fix` 静默丢掉第一份以外的报告。**一次给两份报告，它修完第一份就退 `1`，第二份字节不变、输出里一个字的交代都没有——按批处理目录跑的调用方拿到一份修好的报告和一句「还剩一个改写」，以为只有一份有问题。现在多于一份直接拒绝、两份都点名，一个字不写。 **原地模式比的是字符串。**`-o` 写成 `./rep.md`、报告传 `rep.md`，字符串不等所以被判成「写到别处」，于是就地改写而不留 `.bak`——原地改坏的唯一副本没得救。现在比 `abspath`。 **`--fidelity-only` 一条 note 都不打。**它调的是 `classify()`，那个函数只返回失配的、不返回 note，于是分母、以及「源码是不是拿错了文件」那一句——整条诊断最有用的信息——在**唯一以忠实度为目的的一步**里从来没出现过。现在调 `fidelity_report`，三种模式打同一条 note。 **`docgen --format html --validate` 用自己的输出当靶子然后判它不合格。**`validate()` 有 `format` 参数、默认 `markdown`，而唯一调用它的地方传了三个参数，所以 html 那份是按 markdown 章节清单检查的——五条假「缺章节」，而且 FAIL 分支在写出文件之前就 return 了，**磁盘上什么都没有**。现在传第 4 参；FAIL 时文件照样写出，判决在退出码里。 **契约读不到就当没规则。**`load_contract()` 吞掉 `OSError` / `JSONDecodeError` 返回 `{}`，而空契约意味着没有必需章节、没有任何校验开关——`--validate` 于是对着空气判 PASS。现在让异常上浮，`main()` 按 `report_qc` 同一条路径拒绝。 **三个校验开关是装饰。**`required_sections` / `encoding_utf8` / `code_fences_closed` 在契约里声明着，代码里没有任何调用方读它们，检查无条件跑，设成 `false` 什么都不发生。现在是真开关、默认 `true`，行为不变而标志名实相符。 **`docgen._die` 打 stderr，`report_qc.die` 打 stdout**，而契约写的是 stdout——只读一个流的调用方拿到 `2` 却拿不到任何解释。现在统一 stdout。 **依赖分析器用 `1` 拒绝运行**，而 `1` 是「查过了、有结果」；中文前缀「错误：」也和契约的 `error  ` 不符。现在退 `2`、统一前缀。 **契约自己的错。**`validated_by` 三个值写成 `docgen.py --check-class` 这类根本不存在的 flag（argparse 拒收），而真正存在的 `--validate` **从未出现在任何文档里**——现在改成真实调用，SKILL.md 也第一次提了它；`exit_codes["2"]` 那句「prints no verdict」过宽：写盘拒绝前缺陷行已经先打出来了，现在改成「prints no verdict **line**」并说明`error` 不是输出的第一行。 删了三处永不可达的「报告与源码不能是同一文件」守卫。 test_skill 231 → 241（五条 `--fix` 单报告与就地备份、五条 `--fidelity-only` note），test_docgen_deps 95 → 117（html+validate、契约读不到、`validated_by` 可执行、三个开关真的能关），合计 482 → 514 项。gate 侧在 `f7c1e7a`，契约与文档在下一个提交。 |
+| `f34b7dc` | 536 | `f34b7dc` | **1.1.18**。契约 1.3.9 → 1.3.10、docgen 契约 1.0.1 → 1.0.2。把 1.1.17 复审读出来的 9 条全部修完，其中两条是**契约/SKILL.md 写了闸门没做到**：`exit 2` 仍会跟在一条已打印的 `PASS` 后（报告的可读性没进预检），`abap_deps_analyzer` 的 `exit 1` 是到不了的死代码。另加三条 docgen 拒绝（目录 / markdown / 空源码）、零引用时补一条 note、`-o` 写在 `--fix` 之外点明原因。测试 540 项：九条修复新增 24 条，另加 8 条 —— 5 条**契约词表探针**（`gate_io` 里点名的 `--flag` 与 `.py` 必须真在代码里出现，带一个把 `--root` 注进去、要求变红的变异自检），3 条分析器把目录当源码时拒绝（此前落到裸 `except`，打出原始 `IsADirectoryError` 文案，跟另外两个脚本对同一种输入给的三种拒绝对不上）。修 3 时发现两处测试自身不对（`required_sections` 那条开关从未被真正验证过），一并改掉。同一轮把契约里编出来的 `--root` 触发条件、不可读 contracts 目录三条叙述删掉，补上第 2 条修欠下的 SKILL.md 半段与 `validation._comment` 里 7 个开关的实际作用范围。 |
+| `5cd6ef3` | 536 | `5cd6ef3` | **1.1.19**。契约不动（1.3.10）：没有规则、阈值或 `gate_io` 行变化，只有 `ships_with` 走。**忠实度的身份序列会在一句注释里跑丢。**`checks/tokens.py` 的字面量分支是 `'(?:[^']|'')*'`，而 `[^']` 也匹配换行——注释里一个不配对的撇号（`Don't` / `It's`）就开着一个字面量，一路吞到下一个撇号。量出来：`zalvtree.abap` 的 identity 从 **635 个 token 掉到 429**（`APPEND` 12 → 1、`fieldcatalog` 20 → 2）。同一份报告的 150 条引用里有 **66 条判成 `SUBSTANTIVE`**、退出 `1`；逐字回读源码，**150 条全是原文、0 条改写**——闸门把「有实质改写」安在了一份诚实的报告上。分层只看 identity，`classify()` 里压平子串那一半救不了它们。**改一行**：字面量不许跨行（ABAP 语句以句点结束、注释到行尾，引号必在同一行闭合），`''` 仍算一个字面量。两条回归：**注释撇号不能开一个字面量**、**撇号后面的语句还在 token 序列里**——第一条在改前的代码上就是红的，所以它确实是探针。测试 540 → **542** 项。改前同一份报告两个模式都退 `1`，改后退 `0`、打 `PASS`，与退出码表一致。`ships_with` 移到 1.1.19：**一个写着 1.1.18 的副本，在注释里含撇号的程序上会报出从未写过的改写。** |
+
+**契约版本与发布版本是两条独立的轴。** 契约 `version` 只在该文件自己的规则、
+阈值或 `gate_io` 行变化时递增；发布版本对措辞和闸门行为的变化也递增。
+所以两者只在契约恰好一起动的时候才相等——1.0.6 与 1.0.7 都带契约 1.2.4，1.0.8 带了 1.2.5，1.0.9 带了 1.2.6。这个映射记在契约的 `release.ships_with` 里，否则光看数字分不出
+`1.2.6` 比 `1.0.9` 新还是旧。已部署的副本要能自报版本，
+所以 frontmatter 也带 `version` 与 `contract` 两个字段。
+
+| | b8f84e8（唯一端到端测过） | 748f36b2（出货） |
+|---|---|---|
+| 六节结构 / 三层格式 | 有 | 有（原样保留并扩充） |
+| 第 6 步：写完后只修引文的独立一轮 | 无 | 有 |
+| 事实性纪律章节 | **无** | 有 |
+| 逐字符忠实、不展省略的代码块规则 | 部分 | 有 |
+| 范例报告 / schemas / 评分脚本引用 | 无 | 有 |
+
+**这张表比对的两个版本都已不是出货版本。** 写这张表时出货的是 `301500c`（1.1.1），
+现在出货的是 `1.1.9`。这一栏过去一直停在一个更早的版本（1.0.5 / `9a013e47`），
+而真正的出货版本一直在往前提——是版本表先更新、这处没跟上；到 1.1.1 时仍然没跟上，
+现在对齐。表里的结论只对那两个版本成立。
+
+对齐时实测过 1.0.5 与 1.0.9 两版的 SKILL.md：上表五项**全部仍在**，没有一项被
+删改；1.0.5 之后新增的是「第 6 步」这类独立一轮、`fix-lang` 之外的第六条 note、
+第三层的运行期后果硬规则，以及「禁把『需核实』当结论句」。所以
+
+结构类规则从 `718f5988` 一路加到 `748f36b2`，是原样保留再加码的，下面的结构结论
+**很可能**仍然成立；但严格说它是在 1.0.5 那次比对上量出来的。1.0.1、1.0.3、1.0.4
+新增的内容只涉及闸门怎么判读与文字准确性，而那些说法是逐条对着
+`scripts/report_qc.py` 的控制流**实测**出来的（见契约 `gate_io`），
+**这不是效果证据**：符合性探针只证明模型照着做了，没有一轮测过照做之后报告会不会更好。
+
+**`b8f84e8` 的效果类数字不属于它当时对着的那个出货版本，这件事没有变。**
+写这张表时出货的是 `748f36b2`：它在结构一致性上有 n=9 的证据（见上一节），
+在效果上**零证据**。现在出货的是 `1.1.9`，效果类**仍然零证据**——中间没有任何一版
+补上这一块。
+
+1.0.3 的闸门比 1.0.2 严在三处，且都是 1.0.2 的缺陷：源码路径写错时**拒绝运行**
+（原来照跑并打印 `PASS`、零 note）、不带源码时**明说**三项诊断没跑（原来静默跳过）、
+报告与源码按扩展名分工而不是靠 `.abap` 后缀猜（原来会把 `.txt` 源码当报告检查，
+报出一堆不存在的缺陷）。这一版还多两类检查：`fence`（未闭合围栏会吞掉后续全部内容）
+与 `fix-mislabel`（`abap-fix` 围栏里逐字出自源码的语句 = 贴错围栏的真引用）。
+
+`b8f84e8` → `718f5988` 的对比（迭代 9）回答的正是"形状缺陷有没有减少"，
+判据已在生成之前预注册在上游仓库 `analyzing-programs-workspace/iteration-9-plan.md`
+（不随 skill 发布），只跑过 6 格 harness 验证、主判据未执行。
+它**不**回答"分析是否更准确"。
+
+### 能声明：报告结构一致性（b8f84e8）
+
+六节结构、三层格式、优先级分桶的通过率 **0.980 vs 无技能 0.554（+42.6pp）**，
+390 个配对单元上 McNemar 精确检验 **p = 5.55e-44**（170 个仅技能通过、
+5 个仅基线通过）。本 skill 的价值主张就是这套结构，在 b8f84e8 上证据充分。
+
+### 能声明：某一版出货字节产得出闸门合规的报告（`fac4d5a3`，n=9）
+
+同一批派发里顺手产生的 **9 份报告**，全部在 `fac4d5a3`（1.0.3）下生成，
+覆盖 `flow_logic`（1114 行）与 `objects_program`（1597 行）两份真实 ABAP。
+九份**全部**经发布版闸门独立复核 `PASS`、退出码 0，展开密度 1.7–2.2（下限 0.5），
+无 skip note。
+
+**这条能支持什么**：`fac4d5a3` 这版字节能产出闸门合规的报告，n=9，真实源码
+1114–1597 行。**它不覆盖 `748f36b2`** —— 从 1.0.3 到 1.0.9 闸门换了六次、SKILL.md
+换了九版，中间没有任何一轮在这个 n=9 的批次上重跑过。1.0.9 的形状闸门与 1.0.3
+是否产生同样结果，**未测**。
+
+`fac4d5a3` 是 1.0.3。1.0.9/1.1.0 另有一批 n=3 的当前版本证据，**与这批不可合并**——
+程序不同（`zvend.abap` 356 行 vs 这里的 1114–1597 行），派发条件不同（盲判 vs 单批）。
+两批各自成立，凑不出更大的 n。
+
+能说的还有一条更窄但能直接验的：1.0.9 自己那份 476 行的 SKILL.md 与
+`references/example-report.md`，对 1.0.9 自己的闸门是 `PASS`、退出码 0，
+`test_skill.py` 有两项专门守它（`the shipped example report still passes`
+不带源码，`...against its own source` 带 `zbc_show_error_log` 源码）。
+那是 n=1，但它是当前版本上唯一有的一条。
+
+**这条不能支持什么**：
+
+- **不能**支持任何"比不带 skill 更好"的结论 —— 单臂，无 baseline 对照。
+  上面那个 +42.6pp 才是带对照的数，而它属于 `b8f84e8`。
+- **不能**支持任何关于准确率、召回、缺陷发现率的断言。
+- **不能**当完成率断言：这 9 份里有一批是刻意选了写得完的输入。
+
+原始报告留在上游仓库 `analyzing-programs-workspace/`（不随 skill 发布），
+对应两轮符合性探针与完成率第三、四轮。
+
+### 1.1.0 的闸门变严了，效果仍然未知
+
+1.1.0 给闸门加了五条强制检查：编造源码、问题行写空话、三层写同一句、删光 Mermaid、
+散文坏字节，以前都能拿到 `PASS`。现在不能。
+
+**这些改动不产生任何效果证据。** 它们改的是闸门能拦住什么，不是报告分析得好不好。
+本 skill 的效果至今没有一轮测出过结论——最近一轮是 n=3 的盲判，结论是**不支持假设**
+（两臂各 1/3 达到满档，10/12 vs 9/12），详见 `analyzing-programs-workspace/exp-1.0.9/`。
+
+### 一条比召回数字更该先看的东西：这套缺陷集的区分度
+
+1.0.9 那轮 n=3 盲判里，21 条缺陷有 **7 条（33%）在六次判定中完全一致**——两臂三次
+都判 `yes`，或都判 `no`。剩下 14 条才有区分空间。
+
+也就是说整体 recall 的差距（技能臂中位 1.476 / 基线臂 1.333）**主要由生成噪声决定，
+不是由 skill 决定**。两臂的 yes 数序列是 [15,14,17] 与 [13,14,17]，几乎重合。
+
+同一条缺陷在**同一臂的不同次里**可以判 `yes` 也可以判 `no`（D16 是 yes/yes/no，
+D21 是 yes/yes/partial）。任何 n=1 的对比都在测噪声。这条应该排在所有召回数字前面读。
+
+### 不能声明：分析更准确
+
+对 77 条植入缺陷的召回，**技能 0.849 vs 基线 0.826（+2.3pp）**，
+符号检验 9 高 / 8 低 / 9 平，**p = 1.000，不显著**。
+
+评委层已经饱和：77 条里 **46 条（60%）两臂都得满分**，没有区分空间。
+剩下 21 条能动的里技能赢 12 条、输 9 条 —— 方向上没输，
+幅度却相互抵消到不可分辨。
+
+### 站得住的失败：3 条（两次运行都更差）
+
+| 缺陷 | 领域 | 技能 run1 / run2 | 基线 run1 / run2 |
+|---|---|---|---|
+| eval-4-D2 | 可编译性 | no / no | partial / yes |
+| eval-9-D2 | CDS 语义 | partial / partial | yes / yes |
+| eval-9-D6 | HTTP 资源 | partial / partial | yes / yes |
+
+三条都是**只读源码就能判定**的缺陷：`RAISE EXCEPTION TYPE cx_sy_no_data`
+（`CX_SY_NO_DATA` 是数据对象不是异常类，语法检查过不了）、CDS DDL 里写
+`cast(sy-datum …)`（ABAP 运行时字段，DDL 里不成立）、多条早退分支都没调
+`lo_client->close()`（连接不归还池）。它们不需要 SE38，不需要运行时语义。
+
+值得注意的是 b8f84e8 明确写了「指出真实问题，不回避缺陷」。
+所以这是**指令说了但没做到**的案例。成因没有定论 ——
+2×2 的单元数不足以归因，这也是为什么该结论要留给下一轮去测。
+
+### 不要当成失败：6 条只在单次运行上更差
+
+eval-11-D2、eval-5-D5、eval-7-D1、eval-8-D1、eval-12-D2、eval-1-D4
+各只有 1 次运行更差，另 1 次是平局或更好 ——
+eval-7-D1 另一次是技能 yes、基线 partial，即技能更好。
+
+同设计三次运行给过 0.605 / 0.645 / 0.737（SD 0.068）。
+n=2 下单次差异与噪声不可分辨。**交付时按 3 条读，不按 9 条读。**
+
+### 两条两臂全失：改 skill 无用
+
+eval-10-D2（条件提交 `IF p_commit EQ 'X'` 导致后台作业整轮 `MODIFY marc`
+随工作单元回滚，作业显示成功但一条都没落库）与 eval-13-D6（对**数值型**字段
+用 `W = 12` 编辑掩码，且表头是硬编码文字而非可翻译文本元素）——
+两臂两次运行全是 no。这是分析方法层的缺口，不是措辞问题。
+
+### 所以怎么交付
+
+按「结构化 onboarding 报告工具」交付，附本清单；**不要**按「分析更准确」交付。
+后者没有正向证据，还有 3 处稳定的反向证据。
+
+要支撑后者，得把评委清单的难度提到能区分两臂（46/77 饱和是根因）——
+那不是采集更多数据能解决的：加缺陷条目无效已在当前取样下证明，
+记录该次尝试的文件在上游仓库 `Test-result/noise-reduction-failed.md`
+（不随 skill 发布）。
+
+## 更新记录
+
+只记闸门与脚本的行为变更，不记分析报告的内容。每一版都归档在 `release/`，
+digest 见 `release/SHA256SUMS`。
+
+### 1.1.17 复审 → 1.1.18 修复
+
+6 组探针 + 4 组契约/文档一致性扫描，9 条发现。**下面九条在 1.1.18 里全部修完**，
+修复记录见本节末尾。
+
+**P1**
+
+**1. `exit 2` 会跟在一条已经打出来的 `PASS` 后面 —— SKILL.md 的这句承诺为假。**
+SKILL.md「闸门输出」的触发条件表（第 115 行）写着：「给多份报告时，所有路径
+先校验完才读第一份，所以 `2` 不会跟在一条已经打出来的 `PASS` 后面。」这句只对
+**路径存在性**成立。`read_report()`（`scripts/report_qc.py:314`）里另外两个拒绝
+条件仍在循环内触发：`os.path.isdir()`（:323）和 `UnicodeDecodeError`（:332）。
+
+```
+$ report_qc.py good.md bad-gbk.md src.abap
+  PASS  good.md
+  error  bad.md is not readable as utf-8 ...
+$ echo $?   →  2
+
+$ report_qc.py good.md adir.md src.abap
+  PASS  good.md
+  error  adir.md is a directory, not a report file, so nothing was checked
+$ echo $?   →  2
+```
+
+目录那条消息本身也自相矛盾：上一行刚打完 `PASS good.md`，这行说
+「nothing was checked」。形状模式和 `--fidelity-only` 都复现，两个条件都复现。
+契约 `gate_io.exit_codes["2"]` 开头那句「In every trigger except the `--fix`
+write refusal below, nothing was inspected」同样为假，而 1.3.9 那条修订只把范围
+收窄到「a report path does not exist」。27 条 gbk 测试全是单报告，循环位置
+从没被踩到。修法现成且改动小：循环前把每个报告路径的 isdir / 可解码性先过一遍，
+不用先读内容。
+
+**2. `abap_deps_analyzer` 的 `exit 1` 是死代码，摘要里两行恒为 0。**
+全脚本只有 4 处 `Issue(`（`:298 :315 :337 :353`），`severity` 的取值集是
+`{'info'}`，所以 `:469` 的 `summary['errors']` 恒为 0、`:611-612` 的
+`sys.exit(1)` 到不了、`:508` 那个 `❌ error` 分支也是死的。实测
+`zalvtree.abap`：2 个待确认引用、`错误: 0  提示: 2`，rc=0。
+
+也就是说这个分析器跑完永远退 `0`，不管查到几条 —— **只看退出码的调用方会把
+「2 条待确认」读成「什么都没查到」**。SKILL.md 第 129 行「`1` 的意思是
+『查过了，有缺陷』」说的是 `report_qc.py`（第 101 行开头限定了对象），但读者
+会顺手套到第三个脚本上；摘要里 `错误 / 警告` 两行恒 0 是同一个坑的另一种表现。
+修法两选一：让 severity 真的分级；或删掉 exit-1 分支并在 SKILL.md 明写「分析器
+完成即退 0，结论只在正文」。建议后者 —— 现在没有任何调用方依赖 `exit 1`。
+
+**P2**
+
+**3. `docgen --validate` 校验不了已经存在的文档。** 它只校验自己刚生成的产物：
+给一份手写文档当 source，它把这份 markdown 当 ABAP 去解析、再生成一份
+onboarding 文档、然后说 PASS。契约 `document_types[*].validated_by` 把这条命令
+标成该文档类型的校验器，但校验器只读 docgen 的新输出 —— 手写了一份类文档的人
+没有受支持的校验路径。
+
+**4. `docgen` 把目录报成「不存在」。** `scripts/docgen.py:52-53`（1.1.17 的代码；
+1.1.18 里已改成 L52 `if path.is_dir()` 单独判断，`path.is_file()` 下移到 L58）用
+`path.is_file()` 判断，目录得 False，于是报 `source path does not exist: <目录>`。
+姊妹脚本 report_qc 有专门的 `is a directory, not a source file`（1.1.16 就是为它
+改的）。同一份输入，两个脚本两种拒绝方式。
+
+**5. 空源码在 `docgen` 里能过。** `docgen empty.abap --type onboarding --validate`
+→ rc=0 PASS；`--type table` → rc=0 PASS；`--type class` → rc=1（3 条缺陷）。
+一个不存在的程序生出来的 onboarding 文档被判合规：校验器只查结构，不查这份
+文档有没有在讲东西。
+
+**P3**
+
+**6. `validate_json` 完全不读契约开关。** `scripts/checks/docgen.py:145` 只硬编码
+`required_fields`；那 7 个开关（`required_sections` / `sections_exactly_once` /
+`code_fences_closed` / `no_line_numbers_in_labels` / `mermaid_safe` /
+`tables_well_formed` / `encoding_utf8`）全是 markdown/html 路径在读。一个开关管
+三个格式，其中一个是静默生效的，契约里没写这层差别。
+
+**7. 零引用的报告在 `--fidelity-only` 下静默 PASS。** 有源码、但没有一条引用代码
+的报告，忠实度在空集上跑完：rc=0、`PASS`，一行提示都不打。形状模式在「没有源码」
+时会打 note（density / fidelity not run），而「报告里根本没有可比的东西」这个更
+该提示的情况什么都没有。1.3.7 那轮为「没有分母就读不出」加了 denominator note；
+M=0 时连这一行也没有。
+
+**8. `-o` 写在 `--fix` 之外会被当成源码。** `report_qc.py r.md src.abap -o out.md`
+→ `error  more than one source: src.abap, -o (pass exactly one)`。确实拒绝了，
+但消息把 `-o` 报成一个源码、把 `out.md`（真正的报告）并入报告列表；最可能的原因
+—— `--fix` 写漏了 —— 没点出来。
+
+**9. SKILL.md 第 113 行把目录的消息写成了源码版的。** 实际报告路径报的是
+`is a directory, not a report file`，源码路径报 `is a directory, not a source file`。
+表格里引号里只有后者。
+
+**本轮同时确认没问题**：`--fix` 的两条新拒绝消息、`.bak` 已存在时不覆盖、
+`-o == source` 带 `./` 噪声也能拦、docgen 那 7 条拒绝消息全在契约里
+（上一轮报过「不在任何文档」，是匹配方式的假报警）、`-o` 指向已存在的文件、
+`-o` 指向 cwd 本身（落默认文件名）、`evaluate.py` 无参仍是 rc=2。
+
+### 1.1.18：九条的去处
+
+| # | 修法 | 落在哪 | 谁守着 |
+|---|---|---|---|
+| 1 | 报告路径的**可读性**（是目录 / 不是 UTF-8）也提到循环前，形状模式与 `--fidelity-only` 两处都改；存在性检查不动 | `scripts/report_qc.py` 两处的 `read_report()` 前 | `test_gate_enforcement.py` PROBE 8（2 条件 × 2 模式 = 4 条） |
+| 2 | 删掉到不了的 `sys.exit(1)`，并把「摘要里错误/警告恒 0」写进 SKILL.md，不再让人去等一个不会来的 `1` | `scripts/abap_deps_analyzer.py`、`SKILL.md` 退出码表 | `test_docgen_deps.py`「the analyzer exits 0 even when it has findings to read」 |
+| 3 | `--validate` 拒绝 `.md` / `.markdown` 源码，并指向 `report_qc.py` | `scripts/docgen.py` `_read_source()` | `test_docgen_deps.py`「refuses a markdown source」+「names where the document does get graded」 |
+| 4 | 目录单独判断，报 `is a directory, not a source file`，不再落到「not found」 | `scripts/docgen.py` `_read_source()` | 「docgen names a directory as a directory」 |
+| 5 | 空源码三种类型一律拒绝 | `scripts/docgen.py` `_read_source()` | 三条「refuses an empty source with --type …」 |
+| 6 | 契约 `validation._comment` 写明 7 个开关只对 markdown/html 生效；`validate_json` 的差别记在 `document_types[*].validated_by` | `schemas/docgen-contract.json`（1.0.1 → 1.0.2） | —（契约内自述，闸门不读这段） |
+| 7 | 零引用时打一条 note：`no quoted source statement`，形状模式与 `--fidelity-only` 都覆盖 | `scripts/checks/fidelity.py` | PROBE 8 后两条 |
+| 8 | `-o` 出现在 `--fix` 之外直接拒绝，消息点名 `--fix` 要写在行首 | `scripts/report_qc.py` `main()` 分发前 | PROBE 8「-o outside --fix is refused and the cause is named」 |
+| 9 | 目录消息按角色分开写：报告是 `not a report file`，源码是 `not a source file` | `SKILL.md` 触发条件表、`gate_io.directory_as_source.prints` | `test_contract_drift.py` 的 `skill_anchor` 断言 |
+
+测试：**532 项全绿**（drift 124 / gate_enforcement 34 / fidelity_tiers 7 /
+skill 241 / docgen_deps 126），新增 24 条。修 3 时发现两处**测试自己也不对**，
+一并改掉：`--validate` 开关那组测试是靠「把生成出来的 `.md` 再喂回去当源码」
+才能测通开关，正撞第 3 条；`required_sections` 的那条扰动量
+`# unrelated\n\nnothing here\n` 根本触不到任何检查，开关关不关它都是 PASS——
+也就是说那条开关从来没被真正验证过。现在直接调 `validate()`，每条开关配一个
+真的能触发的对照组。
+
+契约 `1.3.9 → 1.3.10`、docgen 契约 `1.0.1 → 1.0.2`，`ships_with` 与
+SKILL.md frontmatter 一起移到 `1.1.18`，已归档在 `release/analyzing-programs-1.1.18/`（407 文件、31 目录）；
+zip 的 sha256 在 `release/SHA256SUMS`，打包提交晚于本文件所以不写。
+
+
+

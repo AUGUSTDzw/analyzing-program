@@ -1,0 +1,236 @@
+{
+  "version": "1.0.2",
+  "release": {
+    "ships_with": "1.1.19"
+  },
+  "_comment": [
+    "Machine-readable contract for document generation from ABAP source.",
+    "",
+    "This file defines what docgen.py must produce and what checks/docgen.py must validate.",
+    "docgen.py generates documentation from ABAP source; checks/docgen.py validates the output.",
+    "",
+    "Four document types are supported:",
+    "  - report: full analysis report (existing report_qc.py validates this)",
+    "  - class: technical documentation for ABAP classes",
+    "  - table: table structure documentation from SELECT statements",
+    "  - onboarding: onboarding guide for new developers",
+    "",
+    "Each document type has its own required_sections and structure rules.",
+    "The gate_io rules define exit codes and refusal conditions.",
+    "",
+    "1.0.1, shipped with 1.1.17, closed seven gaps found by re-reading the two scripts against this contract and running them.",
+    "validated_by named three flags that do not exist (--check-class, --check-table, --check-onboarding); argparse refused all three, and the real --validate flag appeared in no prose anywhere. Now the actual invocation.",
+    "--format html --validate failed its own output with five false missing-section defects. validate() had a format parameter defaulting to markdown and its only call site passed three arguments, so the HTML branch was unreachable and an HTML document was checked for markdown headings it cannot contain by construction.",
+    "load_contract() swallowed OSError and JSONDecodeError and returned {}, and an empty contract means no required sections and no validation flags, so --validate answered PASS against no rules. It now raises and main() refuses, the same way report_qc.py does for report-contract.json.",
+    "Three validation flags were decoration; they are now real switches defaulting to true.",
+    "A validation failure used to return before the write, leaving no document on disk; the document is written and rc carries the verdict.",
+    "Refusals printed error on stderr; report_qc.py prints it on stdout, so a caller reading one stream saw exit 2 with no message.",
+    "abap_deps_analyzer refused with exit 1, which this project reserves for the analysis ran and found defects. It now refuses with exit 2 and prints the same error prefix.",
+    "1.0.2 moves version because the contract now records what the seven validation flags actually do, and because the generator refuses three source shapes that used to end in a PASS about the wrong thing. A .md or .markdown source handed to docgen was parsed as ABAP and a fresh document generated about it, so --validate answered PASS for a document this tool never read; it now refuses and points at report_qc.py. A directory source was reported as not found, which sent a reader hunting for a filename; it now says it is a directory. An empty source produced a document about a program that does not exist and validated as PASS for --type onboarding and --type table; it now refuses. abap_deps_analyzer.py got the same treatment for a directory source: a directory used to fall through to its bare except and print the raw IsADirectoryError text, which names no role and matches no recorded refusal; it now says the source is a directory and was not analysed, on the same exit-2 path as missing dependencies. The flag table is unchanged; only validation._comment is new. ships_with moves to 1.1.18."
+  ],
+  "document_types": {
+    "report": {
+      "description": "Full analysis report with six sections (validated by report_qc.py)",
+      "validated_by": "report_qc.py",
+      "contract_file": "schemas/report-contract.json"
+    },
+    "class": {
+      "description": "Technical documentation for ABAP classes",
+      "validated_by": "docgen.py --type class --validate",
+      "required_sections": [
+        {
+          "id": "class-header",
+          "label": "类信息",
+          "heading_anchor": "### 类信息"
+        },
+        {
+          "id": "methods",
+          "label": "方法列表",
+          "heading_anchor": "### 方法列表"
+        },
+        {
+          "id": "dependencies",
+          "label": "依赖关系",
+          "heading_anchor": "### 依赖关系"
+        }
+      ],
+      "methods_table_columns": [
+        "方法名",
+        "访问级别",
+        "参数",
+        "返回值",
+        "异常",
+        "描述"
+      ],
+      "skill_anchor": "类文档"
+    },
+    "table": {
+      "description": "Table structure documentation from SELECT statements",
+      "validated_by": "docgen.py --type table --validate",
+      "required_sections": [
+        {
+          "id": "table-list",
+          "label": "数据表清单",
+          "heading_anchor": "## 数据表清单"
+        },
+        {
+          "id": "fields",
+          "label": "字段使用",
+          "heading_anchor": "## 字段使用"
+        }
+      ],
+      "fields_table_columns": [
+        "字段名",
+        "表名",
+        "类型",
+        "使用场景",
+        "筛选条件"
+      ],
+      "skill_anchor": "表文档"
+    },
+    "onboarding": {
+      "description": "Onboarding guide for new developers",
+      "validated_by": "docgen.py --type onboarding --validate",
+      "required_sections": [
+        {
+          "id": "overview",
+          "label": "程序概览",
+          "heading_anchor": "## 程序概览"
+        },
+        {
+          "id": "setup",
+          "label": "环境配置",
+          "heading_anchor": "## 环境配置"
+        },
+        {
+          "id": "run",
+          "label": "运行方法",
+          "heading_anchor": "## 运行方法"
+        },
+        {
+          "id": "debug",
+          "label": "调试指南",
+          "heading_anchor": "## 调试指南"
+        },
+        {
+          "id": "troubleshooting",
+          "label": "常见问题",
+          "heading_anchor": "## 常见问题"
+        }
+      ],
+      "skill_anchor": "入门指南"
+    }
+  },
+  "extraction": {
+    "subprograms": {
+      "patterns": [
+        "CLASS x IMPLEMENTATION",
+        "CLASS x DEFINITION",
+        "METHOD x",
+        "FORM x",
+        "FUNCTION x",
+        "MODULE x INPUT",
+        "MODULE x OUTPUT",
+        "DEFINE x",
+        "PROCEDURE x",
+        "AT SELECTION-SCREEN",
+        "AT PF x",
+        "AT USER-COMMAND",
+        "START-OF-SELECTION",
+        "END-OF-SELECTION",
+        "TOP-OF-PAGE",
+        "INITIALIZATION"
+      ],
+      "skill_anchor": "子程序识别"
+    },
+    "tables": {
+      "select_patterns": [
+        "SELECT .* FROM .* INTO",
+        "SELECT \\* FROM .* INTO",
+        "SELECT .* INTO TABLE",
+        "SELECT SINGLE"
+      ],
+      "join_patterns": [
+        "JOIN .* WITH .* ON",
+        "INNER JOIN",
+        "LEFT JOIN",
+        "RIGHT JOIN"
+      ],
+      "where_patterns": [
+        "WHERE .*=",
+        "WHERE .* IN",
+        "WHERE .* BETWEEN"
+      ],
+      "skill_anchor": "表提取"
+    },
+    "calls": {
+      "call_function_patterns": [
+        "CALL FUNCTION .* USING",
+        "CALL FUNCTION .* TABLES",
+        "CALL FUNCTION .* EXCEPTIONS"
+      ],
+      "call_method_patterns": [
+        "CALL METHOD .*",
+        ".*->method\\(",
+        ".*~method\\("
+      ],
+      "skill_anchor": "调用提取"
+    },
+    "events": {
+      "event_block_patterns": [
+        "AT SELECTION-SCREEN",
+        "AT PF",
+        "AT USER-COMMAND",
+        "START-OF-SELECTION",
+        "END-OF-SELECTION",
+        "INITIALIZATION"
+      ],
+      "skill_anchor": "事件块"
+    }
+  },
+  "output_formats": {
+    "markdown": {
+      "extension": ".md",
+      "description": "Markdown documentation with code blocks"
+    },
+    "json": {
+      "extension": ".json",
+      "description": "Structured JSON for programmatic consumption"
+    },
+    "html": {
+      "extension": ".html",
+      "description": "HTML documentation with embedded CSS"
+    }
+  },
+  "gate_io": {
+    "exit_codes": {
+      "0": "document generated or validated successfully; validation passed",
+      "1": "validation failed: the document was still written, rc carries the verdict. Before 1.0.1 the FAIL branch returned before the write, so a document that failed validation left nothing on disk to look at, and the caller had to guess what was wrong",
+      "2": "refused to run: nothing was generated or validated. Prints error at column 0 on stdout, matching report_qc.py; before 1.0.1 it went to stderr, where a caller reading stdout saw exit 2 with no message"
+    },
+    "refusal_triggers": [
+      "source path does not exist",
+      "source is not utf-8",
+      "output path directory does not exist",
+      "output path directory is not writable",
+      "no arguments provided",
+      "the contract cannot be read: schemas/docgen-contract.json is missing, unreadable or not parseable JSON. Before 1.0.1 checks/docgen.py swallowed this and returned an empty dict, so --validate checked the document against no rules at all and answered PASS",
+      "output path is a file rather than a directory, which mkdir reports as not writable"
+    ],
+    "skill_anchor": "退出码"
+  },
+  "validation": {
+    "required_sections": true,
+    "sections_exactly_once": false,
+    "encoding_utf8": true,
+    "no_line_numbers_in_labels": true,
+    "mermaid_safe": true,
+    "tables_well_formed": true,
+    "code_fences_closed": true,
+    "_comment": [
+      "Every flag here is a real switch as of 1.0.1. Three were decorative before then: required_sections, encoding_utf8 and code_fences_closed appeared in this object while validate() read no caller of them, so the checks ran unconditionally and setting them to false did nothing. They now default to true, so behaviour is unchanged while the flag means what it says.",
+      "1.0.2 records the scope of each flag, which the table did not say. Only encoding_utf8 is read on every text format: it is checked before the format branch, so markdown and html both honour it. The other six -- required_sections, sections_exactly_once, code_fences_closed, no_line_numbers_in_labels, mermaid_safe and tables_well_formed -- sit after the html early return, so they apply to markdown alone; an html document is never checked for required sections, fences, tables or the rest. The json output is a separate code path, validate_json(), which reads none of the seven: it checks only a hardcoded list of four top-level fields plus the type-specific arrays, so toggling any flag here does not change json validation at all. Nothing was aligned, because there is no bug to fix -- the json shape has no headings, fences or tables to check -- but a caller who sets a flag expecting it to reach json will not be told."
+    ],
+    "skill_anchor": "文档校验"
+  }
+}
