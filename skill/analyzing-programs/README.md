@@ -6,10 +6,11 @@
 ## 目录
 
 ```
-SKILL.md                       规则本体（535 行）
+SKILL.md                       规则本体（541 行）
 scripts/report_qc.py           格式闸门：逐条列出违规位置，可自动修两类
 scripts/evaluate.py            内容评分：对冻结缺陷清单判分，算召回与错误论断
 scripts/docgen.py              文档生成：源码抽成类 / FORM / 函数 / 表 / 调用的清单
+scripts/recon.py               侦察：一次调用拿到编号源码与子程序清单（分析第 1、2 步）
 scripts/abap_deps_analyzer.py  依赖分析：对照自带的 abaplint-deps 查标准对象引用
 references/example-report.md   完整范例（真实报告，逐字未改，闸门零缺陷）
 references/large-inputs.md     大输入的实测行为（观察，不是规则）
@@ -26,6 +27,7 @@ tests/*.py                 仓库内的验证套件，**不随包发布**（见�
 |---|---|---|
 | `report_qc.py` | 形状对不对：六节、三层、四桶、无行号、Mermaid 可渲染、密度 | 分析是否正确、漏没漏 |
 | `evaluate.py` | 对着冻结清单，报告漏了几条、有几条错误论断 | 判分本身对不对 |
+| `recon.py` | 源码长什么样：编号源码 + 子程序清单，一次调用拿到 | 分析是否正确、闸门是否通过 |
 | `tests/test_skill.py` | 上面两个还灵不灵，尤其是**拒绝**路径与退出码 | — |
 | `tests/test_contract_drift.py` | 契约里的每条规则 SKILL.md 教了没有，反之亦然 | — |
 | `tests/test_gate_enforcement.py` | 闸门放过的报告逐条复现，先记录现状再断言应有的行为 | — |
@@ -43,6 +45,7 @@ tests/*.py                 仓库内的验证套件，**不随包发布**（见�
 ```bash
 python scripts/report_qc.py REPORT SOURCE                # 格式；报告须 .md/.markdown，其余当源码
 python scripts/report_qc.py --fix REPORT SOURCE -o OUT   # 格式 + 自动修两类
+python scripts/recon.py SOURCE [-o OUTDIR]              # 侦察：编号源码 + 子程序清单
 python scripts/evaluate.py tasks  --defects evals/zcl_fi_toolkit.defects.json
 python scripts/evaluate.py score --defects D.json --verdicts MY.json
 python scripts/evaluate.py compare --defects D.json --a V1.json --b V2.json
@@ -132,8 +135,8 @@ Mermaid 标签里的裸 `<` `>` `#` → 改成全角。三层缺失**只报位�
 ### 先说版本：下面的数字不是出货版本的数字
 
 iteration-8 的全部数字都是在 **`b8f84e8`**（162 行）上测出来的。
-**工作树与 `release/` 都到 `1.1.19`**（536 行，契约 1.3.10 / docgen 契约 1.0.2）：
-归档在 `release/analyzing-programs-1.1.19/`（407 文件、31 目录），zip 的 sha256 在 `release/SHA256SUMS`。
+**工作树与 `release/` 都到 `1.1.20`**（541 行，契约 1.3.10 / docgen 契约 1.0.2）：
+归档在 `release/analyzing-programs-1.1.20/`（408 文件、31 目录），zip 的 sha256 在 `release/SHA256SUMS`。
 **效果**未测出结论。**
 
 版本谱系（每一版都已归档在 `release/`，digest 见 `release/SHA256SUMS`）。
@@ -175,6 +178,7 @@ Not a valid object name），那几行的行数只能从 `--follow` 找到的同
 | `f7c1e7a` | 536 | `f7c1e7a` | **1.1.17**。契约 1.3.8 → 1.3.9（docgen 契约 1.0.0 → 1.0.1）。一轮把 1.1.16 之后读出来的问题一次性清掉，**十条里八条是「写了却没写出来」**。 **`--fix` 静默丢掉第一份以外的报告。**一次给两份报告，它修完第一份就退 `1`，第二份字节不变、输出里一个字的交代都没有——按批处理目录跑的调用方拿到一份修好的报告和一句「还剩一个改写」，以为只有一份有问题。现在多于一份直接拒绝、两份都点名，一个字不写。 **原地模式比的是字符串。**`-o` 写成 `./rep.md`、报告传 `rep.md`，字符串不等所以被判成「写到别处」，于是就地改写而不留 `.bak`——原地改坏的唯一副本没得救。现在比 `abspath`。 **`--fidelity-only` 一条 note 都不打。**它调的是 `classify()`，那个函数只返回失配的、不返回 note，于是分母、以及「源码是不是拿错了文件」那一句——整条诊断最有用的信息——在**唯一以忠实度为目的的一步**里从来没出现过。现在调 `fidelity_report`，三种模式打同一条 note。 **`docgen --format html --validate` 用自己的输出当靶子然后判它不合格。**`validate()` 有 `format` 参数、默认 `markdown`，而唯一调用它的地方传了三个参数，所以 html 那份是按 markdown 章节清单检查的——五条假「缺章节」，而且 FAIL 分支在写出文件之前就 return 了，**磁盘上什么都没有**。现在传第 4 参；FAIL 时文件照样写出，判决在退出码里。 **契约读不到就当没规则。**`load_contract()` 吞掉 `OSError` / `JSONDecodeError` 返回 `{}`，而空契约意味着没有必需章节、没有任何校验开关——`--validate` 于是对着空气判 PASS。现在让异常上浮，`main()` 按 `report_qc` 同一条路径拒绝。 **三个校验开关是装饰。**`required_sections` / `encoding_utf8` / `code_fences_closed` 在契约里声明着，代码里没有任何调用方读它们，检查无条件跑，设成 `false` 什么都不发生。现在是真开关、默认 `true`，行为不变而标志名实相符。 **`docgen._die` 打 stderr，`report_qc.die` 打 stdout**，而契约写的是 stdout——只读一个流的调用方拿到 `2` 却拿不到任何解释。现在统一 stdout。 **依赖分析器用 `1` 拒绝运行**，而 `1` 是「查过了、有结果」；中文前缀「错误：」也和契约的 `error  ` 不符。现在退 `2`、统一前缀。 **契约自己的错。**`validated_by` 三个值写成 `docgen.py --check-class` 这类根本不存在的 flag（argparse 拒收），而真正存在的 `--validate` **从未出现在任何文档里**——现在改成真实调用，SKILL.md 也第一次提了它；`exit_codes["2"]` 那句「prints no verdict」过宽：写盘拒绝前缺陷行已经先打出来了，现在改成「prints no verdict **line**」并说明`error` 不是输出的第一行。 删了三处永不可达的「报告与源码不能是同一文件」守卫。 test_skill 231 → 241（五条 `--fix` 单报告与就地备份、五条 `--fidelity-only` note），test_docgen_deps 95 → 117（html+validate、契约读不到、`validated_by` 可执行、三个开关真的能关），合计 482 → 514 项。gate 侧在 `f7c1e7a`，契约与文档在下一个提交。 |
 | `f34b7dc` | 536 | `f34b7dc` | **1.1.18**。契约 1.3.9 → 1.3.10、docgen 契约 1.0.1 → 1.0.2。把 1.1.17 复审读出来的 9 条全部修完，其中两条是**契约/SKILL.md 写了闸门没做到**：`exit 2` 仍会跟在一条已打印的 `PASS` 后（报告的可读性没进预检），`abap_deps_analyzer` 的 `exit 1` 是到不了的死代码。另加三条 docgen 拒绝（目录 / markdown / 空源码）、零引用时补一条 note、`-o` 写在 `--fix` 之外点明原因。测试 540 项：九条修复新增 24 条，另加 8 条 —— 5 条**契约词表探针**（`gate_io` 里点名的 `--flag` 与 `.py` 必须真在代码里出现，带一个把 `--root` 注进去、要求变红的变异自检），3 条分析器把目录当源码时拒绝（此前落到裸 `except`，打出原始 `IsADirectoryError` 文案，跟另外两个脚本对同一种输入给的三种拒绝对不上）。修 3 时发现两处测试自身不对（`required_sections` 那条开关从未被真正验证过），一并改掉。同一轮把契约里编出来的 `--root` 触发条件、不可读 contracts 目录三条叙述删掉，补上第 2 条修欠下的 SKILL.md 半段与 `validation._comment` 里 7 个开关的实际作用范围。 |
 | `5cd6ef3` | 536 | `5cd6ef3` | **1.1.19**。契约不动（1.3.10）：没有规则、阈值或 `gate_io` 行变化，只有 `ships_with` 走。**忠实度的身份序列会在一句注释里跑丢。**`checks/tokens.py` 的字面量分支是 `'(?:[^']|'')*'`，而 `[^']` 也匹配换行——注释里一个不配对的撇号（`Don't` / `It's`）就开着一个字面量，一路吞到下一个撇号。量出来：`zalvtree.abap` 的 identity 从 **635 个 token 掉到 429**（`APPEND` 12 → 1、`fieldcatalog` 20 → 2）。同一份报告的 150 条引用里有 **66 条判成 `SUBSTANTIVE`**、退出 `1`；逐字回读源码，**150 条全是原文、0 条改写**——闸门把「有实质改写」安在了一份诚实的报告上。分层只看 identity，`classify()` 里压平子串那一半救不了它们。**改一行**：字面量不许跨行（ABAP 语句以句点结束、注释到行尾，引号必在同一行闭合），`''` 仍算一个字面量。两条回归：**注释撇号不能开一个字面量**、**撇号后面的语句还在 token 序列里**——第一条在改前的代码上就是红的，所以它确实是探针。测试 540 → **542** 项。改前同一份报告两个模式都退 `1`，改后退 `0`、打 `PASS`，与退出码表一致。`ships_with` 移到 1.1.19：**一个写着 1.1.18 的副本，在注释里含撇号的程序上会报出从未写过的改写。** |
+| `d951b4e` | 541 | `d951b4e` | **1.1.20**。契约不动（1.3.10）：没有规则、阈值或 `gate_io` 行变化，只有 `ships_with` 走。**新增 `scripts/recon.py`**，把 Analysis Flow 第 1、2 步合成一次调用：校验源码、带行号打印、再跑 `docgen.py` 读回它写出的子程序清单。原来这是三轮——docgen 只在 stdout 打四行回执（`Generated:` / `Type:` / `Format:` / `Size:`），清单在文件里，得单独读一轮。退出码只有 `0` 与 `2`、**没有 `1`**：它不判报告，所以没有东西可报成缺陷，而「任何非零都是缺陷」的调用方会去修一批从未被查过的缺陷；五条拒绝（不存在 / 目录 / markdown / 非 UTF-8 / 空文件）全部先打 `error` 再退 `2`，**且不会先打出半个源码**。清单仍由 docgen 生成，recon 只做子进程与读回，两者不会各说各话。行号用 `split("\n")` 而非 `splitlines()`——后者丢末尾空行会让整个 dump 后移一位，引用就与闸门实际检查的源码对不上（第 1、42、265 行逐字比对过）。它按自身路径定位 docgen，不要求当前目录是 skill 根目录，与 `report_qc.py` 正好相反。**没加检查**：recon 无测试守着，五个套件仍是 542 项全绿、计数不变 |
 
 **契约版本与发布版本是两条独立的轴。** 契约 `version` 只在该文件自己的规则、
 阈值或 `gate_io` 行变化时递增；发布版本对措辞和闸门行为的变化也递增。
@@ -453,6 +457,49 @@ skill 241 / docgen_deps 126），新增 24 条。修 3 时发现两处**测试�
 
 契约 `1.3.9 → 1.3.10`、docgen 契约 `1.0.1 → 1.0.2`，`ships_with` 与
 SKILL.md frontmatter 一起移到 `1.1.18`，已归档在 `release/analyzing-programs-1.1.18/`（407 文件、31 目录）；
+zip 的 sha256 在 `release/SHA256SUMS`，打包提交晚于本文件所以不写。
+
+### 1.1.19 → 1.1.20：第 1、2 步合成一轮
+
+契约不动（1.3.10）：没有规则、阈值或 `gate_io` 行变化，只有 `ships_with` 走。
+
+**新增 `scripts/recon.py`（5432 B），把 Analysis Flow 的第 1、2 步合成一次调用。**
+它做三件事：校验源码（不是 UTF-8 / 是目录 / 是 markdown / 是空的，一律拒绝）、
+把源码带行号打出来、然后把 `docgen.py` 当子进程跑一遍、读回它写出的子程序清单。
+原来这三件事是三轮调用——docgen 只在 stdout 打四行回执（`Generated:` / `Type:` /
+`Format:` / `Size:`），清单在文件里，所以清单还得单独读一轮。
+
+```
+== SOURCE  Test-source/zalvtree.abap
+== 265 line(s), 8306 bytes, utf-8 ok
+  1 | *&-----------------------------------------------------
+  ...
+== SUBPROGRAM INVENTORY  (scripts/docgen.py --type onboarding)
+...
+== docgen wrote .../zalvtree.onboarding.md (1381 bytes)
+```
+
+**退出码只有 `0` 与 `2`，没有 `1`。**它不判报告，所以没有东西可报成缺陷；
+一个把「任何非零退出」都读成「有缺陷」的调用方，会去修一批从未被查过的缺陷。
+四条拒绝（不存在 / 目录 / markdown / 非 UTF-8 / 空文件）全部先打 `error  ...`
+再退出 `2`，**且不会先打出半个源码**——拒绝运行不能被一段看起来像结论的输出垫在前面。
+
+**清单仍然由 docgen 生成，不是 recon 自己解析。**recon 跑子进程、读回它写的文件，
+这样 docgen 的提取逻辑改了什么，写报告所依据的清单就跟着变，两者不会各说各话。
+
+**行号用了 `split("\n")` 而不是 `splitlines()`。**后者会丢掉文件末尾的空行，
+整个 dump 的编号后移一位，写出来的引用就和闸门实际检查的源码对不上。
+第 1、42、265 行逐字比对过，全对。
+
+**它按自身路径定位 docgen，不要求当前目录是 skill 根目录**——和 `report_qc.py`
+正好相反，后者必须从 skill 根目录跑。SKILL.md 第 2 步的指针里写明了这条差别。
+
+**没加检查。**`recon.py` 没有测试守着，五个套件一个都没碰它。它是薄封装：
+判断逻辑是五条手写验证过的拒绝，提取逻辑在 docgen（`test_docgen_deps.py` 129 项守着）。
+所以五个套件仍是 542 项全绿，计数不变。
+
+契约 `1.3.10` 不动，`ships_with` 与 SKILL.md frontmatter 一起移到 `1.1.20`，
+已归档在 `release/analyzing-programs-1.1.20/`（408 文件、31 目录）；
 zip 的 sha256 在 `release/SHA256SUMS`，打包提交晚于本文件所以不写。
 
 
