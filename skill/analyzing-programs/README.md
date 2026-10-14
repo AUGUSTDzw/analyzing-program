@@ -54,13 +54,13 @@ python scripts/evaluate.py compare --defects D.json --a V1.json --b V2.json
 
 ```bash
 python tests/test_skill.py              # 241 项
-python tests/test_contract_drift.py     # 124 项，契约 <-> SKILL.md <-> 闸门 三方对齐
-python tests/test_gate_enforcement.py   # 25 项，闸门执行漏洞探针
-python tests/test_fidelity_tiers.py     # 7 项，改动前后口径是否等价
-python tests/test_docgen_deps.py        # 117 项，docgen 与依赖分析器
+python tests/test_contract_drift.py     # 129 项，契约 <-> SKILL.md <-> 闸门 三方对齐
+python tests/test_gate_enforcement.py   # 34 项，闸门执行漏洞探针
+python tests/test_fidelity_tiers.py     # 9 项，改动前后口径是否等价
+python tests/test_docgen_deps.py        # 129 项，docgen 与依赖分析器
 ```
 
-合计 514 项。
+合计 542 项。
 
 **退出码是契约的一部分。** 所有模式在仍有缺陷时返回非零，包括 `--fidelity-only`
 与 `--fix` —— SKILL.md 第 6 步让模型"重跑到干净为止"，那条循环只能靠退出码终止。
