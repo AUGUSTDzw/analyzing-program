@@ -47,7 +47,11 @@ ROOT = SCRIPT_DIR.parent
 
 for _stream in (sys.stdout, sys.stderr):
     try:
-        _stream.reconfigure(encoding="utf-8", errors="replace")
+        # newline="" keeps print() writing a bare \n. Windows would otherwise turn
+        # it into \r\n, so a dump line read byte for byte would carry a carriage
+        # return the source never had -- and report_qc reads the source with
+        # newline="", so the dump and the gate would disagree on it.
+        _stream.reconfigure(encoding="utf-8", errors="replace", newline="")
     except (AttributeError, ValueError):
         pass
 

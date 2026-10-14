@@ -40,6 +40,8 @@ QC = os.path.join(SKILL, "scripts", "report_qc.py")
 CHECKS = os.path.join(SKILL, "scripts", "checks")
 SCHEMAS = os.path.join(SKILL, "schemas")
 EVAL = os.path.join(SKILL, "scripts", "evaluate.py")
+RECON = os.path.join(SKILL, "scripts", "recon.py")
+DOCGEN = os.path.join(SKILL, "scripts", "docgen.py")
 EXEMPLAR = os.path.join(SKILL, "references", "example-report.md")
 # The exemplar's own source. row-src only runs when a source is passed, so the
 # source-less run above can never notice a section five row that names nothing.
@@ -1586,6 +1588,194 @@ def main():
     check(any("may not be the one" in x for x in notes),
           "--fidelity-only: the wrong-file question reaches the writer",
           notes[0][:70] if notes else "no note")
+
+    print()
+    print("scripts/recon.py")
+    print("-" * 72)
+    # Steps 1 and 2 of the Analysis Flow were three calls: check the encoding,
+    # dump the source numbered, then fetch the subprogram inventory. docgen
+    # prints a four-line receipt and writes the inventory to a file, so the
+    # inventory needed its own round, and recon.py folds all three into one.
+    #
+    # It judges no report, so there is no exit 1 to look for. The assertions that
+    # mattered were the ones invisible before: a dump line must be the source
+    # line it is labelled with, a refusal must never be preceded by half a dump,
+    # and the inventory shown must be docgen's rather than a second copy of its
+    # extraction.
+    check(os.path.exists(RECON), "scripts/recon.py present")
+    check(os.path.exists(DOCGEN),
+          "scripts/docgen.py present, recon's only dependency")
+
+    SRC = ("REPORT zz_probe.\n"
+           "FUNCTION z_one.\n"
+           "  DATA ls_one TYPE i.\n"
+           "ENDFUNCTION.\n"
+           "FUNCTION z_two.\n"
+           "  DATA ls_two TYPE i.\n"
+           "ENDFUNCTION.\n")
+    src = os.path.join(tmp, "probe.abap")
+    io.open(src, "wb").write(SRC.encode("utf-8"))
+    out = os.path.join(tmp, "probeout")
+    os.makedirs(out)
+    r = run(RECON, src, "-o", out)
+    check(r.returncode == 0, "recon exits 0 on a readable source",
+          r.stdout.strip().splitlines()[-1][:60])
+    check(r.returncode in (0, 2),
+          "recon never exits 1: it has no defects to report",
+          "rc=%d" % r.returncode)
+
+    def dump_of(stdout):
+        """{line number: text after the separator}."""
+        seen = {}
+        for ln in stdout.split("\n"):
+            m = re.match(r"^\s*(\d+)\s*\| (.*)$", ln)
+            if m:
+                seen[int(m.group(1))] = m.group(2)
+        return seen
+
+    nums = dump_of(r.stdout)
+    check(list(nums) == list(range(1, 8)),
+          "the dump is numbered from 1 to the last line", str(sorted(nums)))
+    check(all(nums[i + 1] == SRC.split("\n")[i] for i in range(7)),
+          "every dump line is the source line it is labelled with")
+    check(nums.get(7) == "ENDFUNCTION.",
+          "a source ending in a newline keeps its last line; splitlines() would drop it",
+          repr(nums.get(7)))
+
+    hdr = [x for x in r.stdout.splitlines()
+           if x.startswith("== ") and "line(s)" in x]
+    want = "== %d line(s), %d bytes, utf-8 ok" % (7, len(SRC.encode("utf-8")))
+    check(bool(hdr) and hdr[0] == want, "the header says the line and byte counts",
+          (hdr[0] if hdr else "no header") + "  want " + want)
+
+    # A byte count is a byte count. Read as characters the same file is shorter,
+    # so a header that reported the character count would make the source look
+    # smaller than it is on disk.
+    wide = "REPORT zz_wide.\nSELECT * FROM lfa1.\n\" 供应商名称\n"
+    mb = os.path.join(tmp, "wide.abap")
+    io.open(mb, "wb").write(wide.encode("utf-8"))
+    raw = io.open(mb, "rb").read()
+    rm = run(RECON, mb, "-o", out)
+    hm = [x for x in rm.stdout.splitlines()
+          if x.startswith("== ") and "line(s)" in x]
+    check(len(raw) > len(wide),
+          "that fixture is actually wider than its character count",
+          "%d bytes vs %d chars" % (len(raw), len(wide)))
+    check(bool(hm) and hm[0].endswith("%d bytes, utf-8 ok" % len(raw)),
+          "the header counts bytes, not characters",
+          (hm[0] if hm else "no header"))
+
+    # Windows source is CRLF. report_qc reads it with newline="", recon reads
+    # bytes, so both see the carriage return. A dump that quietly dropped it
+    # would let a quote copied from it fail the fidelity check.
+    crsrc = SRC.replace("\n", "\r\n")
+    cr = os.path.join(tmp, "crlf.abap")
+    io.open(cr, "wb").write(crsrc.encode("utf-8"))
+    # Read bytes, not text: text=True translates \r\n into \n and would strip the
+    # carriage return this check exists to catch, making it pass for the wrong
+    # reason.
+    rcr = subprocess.run([sys.executable, RECON, cr, "-o", out],
+                         capture_output=True,
+                         env=dict(os.environ, PYTHONIOENCODING="utf-8",
+                                  PYTHONUTF8="1"))
+    nums2 = dump_of(rcr.stdout.decode("utf-8"))
+    check(list(nums2) == list(range(1, 8)),
+          "a CRLF source keeps the same numbering", str(sorted(nums2)))
+    check(all(nums2[i + 1] == crsrc.split("\n")[i] for i in range(7)),
+          "recon neither adds nor drops the carriage return")
+
+    df = os.path.join(out, "probe.onboarding.md")
+    inv = [x for x in r.stdout.splitlines()
+           if x.startswith("== SUBPROGRAM INVENTORY")]
+    check(bool(inv), "the inventory block is present",
+          (inv[0][:70] if inv else "absent"))
+    shown = r.stdout.split(inv[0], 1)[1].split("== docgen wrote", 1)[0].strip()
+    check(shown == io.open(df, encoding="utf-8").read().strip(),
+          "the inventory recon shows is byte-identical to what docgen wrote",
+          "%d bytes" % os.path.getsize(df))
+    rcpt = [x for x in r.stdout.splitlines() if x.startswith("== docgen wrote")]
+    check(bool(rcpt) and os.path.basename(df) in rcpt[0]
+          and "%d bytes" % os.path.getsize(df) in rcpt[0],
+          "the receipt names the file and its size",
+          (rcpt[0] if rcpt else "no receipt"))
+
+    # Unlike report_qc.py, recon locates docgen by its own path, so it does not
+    # need the skill root as the current directory.
+    r3 = subprocess.run([sys.executable, RECON, src], capture_output=True,
+                        text=True, encoding="utf-8", cwd=tmp,
+                        env=dict(os.environ, PYTHONIOENCODING="utf-8",
+                                 PYTHONUTF8="1"))
+    check(r3.returncode == 0 and "== SUBPROGRAM INVENTORY" in r3.stdout,
+          "recon runs with the current directory somewhere else",
+          "rc=%d" % r3.returncode)
+
+    print()
+    print("a refusal is never preceded by half a dump")
+    print("-" * 72)
+    # Ten numbered lines followed by an error lets a reader take the run for a
+    # verdict, which is the failure shape this project has had before. Every
+    # check below therefore runs before anything is printed.
+    md = os.path.join(tmp, "note.md")
+    io.open(md, "w", encoding="utf-8").write("# not a source\n")
+    bad = os.path.join(tmp, "latin1.abap")
+    io.open(bad, "wb").write(b"REPORT z_bad.\nDATA lv \xe4 TYPE c.\n")
+    empty = os.path.join(tmp, "blank.abap")
+    io.open(empty, "wb").write(b"   \n\t\n")
+    d = os.path.join(tmp, "notasource")
+    os.makedirs(d)
+    all_clean = True
+    for label, path, own in [("a missing file", os.path.join(tmp, "absent.abap"),
+                              "does not exist"),
+                             ("a directory", d, "is a directory"),
+                             ("a markdown file", md, "markdown"),
+                             ("a non-utf-8 file", bad, "not utf-8"),
+                             ("an empty file", empty, "empty")]:
+        rr = run(RECON, path, "-o", out)
+        first = rr.stdout.strip().splitlines()[0] if rr.stdout.strip() else ""
+        all_clean = all_clean and "Traceback" not in rr.stdout + rr.stderr
+        check(rr.returncode == 2, "recon refuses %s, exit 2" % label,
+              "rc=%d" % rr.returncode)
+        check(first.startswith("error  "),
+              "recon says what it refused about %s" % label, first[:70])
+        check(own in rr.stdout,
+              "recon names the right reason for %s" % label, first[:70])
+        check(not any(re.match(r"^\s*\d+\s*\|", x) for x in rr.stdout.splitlines()),
+              "recon prints no source before refusing %s" % label)
+    check(all_clean, "no refusal path raises a traceback")
+
+    print()
+    print("recon reports docgen's outcome, and only that")
+    print("-" * 72)
+    # recon looks for docgen beside itself, so a stub in its place reaches a
+    # branch no real docgen could. One exit-0 without a file is the branch this
+    # script had no coverage for at all.
+    stub = os.path.join(tmp, "stub")
+    os.makedirs(os.path.join(stub, "scripts"))
+    shutil.copy(RECON, os.path.join(stub, "scripts", "recon.py"))
+    for name, body, want_msg in [
+            ("wrote no file",
+             "import sys\nprint(\"Generated: nowhere\")\nsys.exit(0)\n",
+             "docgen reported success but wrote no file"),
+            ("refused",
+             "import sys\nprint(\"error  docgen refused\")\nsys.exit(2)\n",
+             "docgen exited 2")]:
+        io.open(os.path.join(stub, "scripts", "docgen.py"), "w",
+                encoding="utf-8").write(body)
+        # A fresh output dir. The guard only proves that a file exists at that
+        # path, so one left there by an earlier run made this stub pass at rc=0:
+        # recon showed an inventory it had not produced. That is the guard's own
+        # limit, and it is recorded in the changelog rather than hidden.
+        fresh = os.path.join(tmp, "stubout-%s" % name)
+        os.makedirs(fresh)
+        rr = run(os.path.join(stub, "scripts", "recon.py"), src, "-o", fresh)
+        check(rr.returncode == 2,
+              "a docgen that %s leaves recon refusing" % name,
+              "rc=%d" % rr.returncode)
+        check(want_msg in rr.stdout,
+              "recon says which docgen outcome it saw for %s" % name,
+              rr.stdout.strip().splitlines()[-1][:70])
+    check("error  docgen refused" in rr.stdout,
+          "a refusing docgen has its own words echoed back")
 
     print()
     print("-" * 72)
