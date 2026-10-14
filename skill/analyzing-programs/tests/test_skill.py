@@ -1644,9 +1644,19 @@ def main():
 
     hdr = [x for x in r.stdout.splitlines()
            if x.startswith("== ") and "line(s)" in x]
-    want = "== %d line(s), %d bytes, utf-8 ok" % (7, len(SRC.encode("utf-8")))
-    check(bool(hdr) and hdr[0] == want, "the header says the line and byte counts",
-          (hdr[0] if hdr else "no header") + "  want " + want)
+    check(bool(hdr) and hdr[0].startswith(
+        "== %d line(s), %d bytes, utf-8 ok" % (7, len(SRC.encode("utf-8")))),
+          "the header says the line and byte counts",
+          (hdr[0] if hdr else "no header"))
+
+    # The reader takes the whole run on that number, so a total that did not match
+    # what went out would be a promise about size nobody could check. Bytes, not
+    # characters: the source may carry multi-byte comments.
+    mt = re.search(r"output (\d+) bytes", hdr[0]) if hdr else None
+    sent = len(r.stdout.encode("utf-8"))
+    check(bool(mt) and int(mt.group(1)) == sent,
+          "the header\'s total is the byte count that actually went out",
+          "%s bytes claimed, %d sent" % (mt.group(1) if mt else "none", sent))
 
     # A byte count is a byte count. Read as characters the same file is shorter,
     # so a header that reported the character count would make the source look
@@ -1661,9 +1671,12 @@ def main():
     check(len(raw) > len(wide),
           "that fixture is actually wider than its character count",
           "%d bytes vs %d chars" % (len(raw), len(wide)))
-    check(bool(hm) and hm[0].endswith("%d bytes, utf-8 ok" % len(raw)),
+    check(bool(hm) and ", %d bytes, utf-8 ok," % len(raw) in hm[0],
           "the header counts bytes, not characters",
           (hm[0] if hm else "no header"))
+    check(bool(hm) and (", %d bytes" % len(wide)) not in hm[0],
+          "and the character count does not appear in it",
+          "%d chars vs %d bytes" % (len(wide), len(raw)))
 
     # Windows source is CRLF. report_qc reads it with newline="", recon reads
     # bytes, so both see the carriage return. A dump that quietly dropped it
@@ -1747,8 +1760,7 @@ def main():
     print("recon reports docgen's outcome, and only that")
     print("-" * 72)
     # recon looks for docgen beside itself, so a stub in its place reaches a
-    # branch no real docgen could. One exit-0 without a file is the branch this
-    # script had no coverage for at all.
+    # branch no real docgen could.
     stub = os.path.join(tmp, "stub")
     os.makedirs(os.path.join(stub, "scripts"))
     shutil.copy(RECON, os.path.join(stub, "scripts", "recon.py"))
@@ -1774,6 +1786,12 @@ def main():
         check(want_msg in rr.stdout,
               "recon says which docgen outcome it saw for %s" % name,
               rr.stdout.strip().splitlines()[-1][:70])
+        # Docgen runs after the source checks but, from 1.1.22, before the dump is
+        # written. Before that the whole source had already gone out when docgen
+        # refused, so a reader had spent a full context on a run that was a
+        # refusal. The loop checked the reason, not the silence.
+        check(not any(re.match(r"^\s*\d+\s*\|", x) for x in rr.stdout.splitlines()),
+              "a docgen that %s prints no source at all" % name)
     check("error  docgen refused" in rr.stdout,
           "a refusing docgen has its own words echoed back")
 

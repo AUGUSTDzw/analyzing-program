@@ -1,6 +1,6 @@
 ---
 name: analyzing-programs
-version: 1.1.21
+version: 1.1.22
 contract: 1.3.10
 description: Use when the user wants a deep onboarding-style analysis report for an ABAP/SAP program source file (报表程序、FORM/事件块、OO 类 CLAS、函数组、ALV 等), or pastes an ABAP / z*.abap file asking to analyze, walk-through, 讲解 its structure, execution flow, or design. Trigger on phrases like "分析这个程序/源码","走读/讲解 ABAP","代码 onboarding","源码分析/架构分析","帮我看懂这段 SAP 代码". Trigger even when the user does not explicitly say "report" but clearly wants to understand a whole program's business purpose, architecture, and risks. Do NOT use for one-line answers, non-SAP code, or pure syntax/API lookups.
 ---
@@ -47,9 +47,12 @@ The value of this skill is the **fixed report structure** and the **three-layer 
  2. **识别子程序边界**：找出所有方法/函数/事件块/声明区，作为分组单位。
      第 1、2 步合成一次调用：`python scripts/recon.py 源码.abap` 打印编号源码和
      `scripts/docgen.py` 生成的子程序清单，所以不用再为清单单独起一轮。退出码只有
-     `0`（完成）与 `2`（拒绝，首行 `error`，且不先打出半个源码）——没有 `1`，
-     因为它不判缺陷。`-o` 指定清单落盘目录，默认是源码同目录。它按自身路径定位
-     docgen，**不要求当前目录是 skill 根目录**；第 6、7 步的闸门仍然要。
+     `0`（完成）与 `2`（拒绝，首行 `error`，且拒绝前不打印任何东西）——没有 `1`，
+     因为它不判缺陷。`-o` 指定清单落盘目录，默认是源码同目录。第二行给出这次会
+     打印的总字节数，用来掂量这一轮花了多少上下文；数字只是数字，不按大小改做法。
+     它按自身路径定位 docgen，**不要求当前目录是 skill 根目录**；第 6、7 步的闸门
+     也一样——脚本都按自身路径找依赖，只有 `python scripts/...` 这种相对写法才
+     要求 cwd 对。
  3. **确定执行流程**：按程序真实运行顺序（从入口到结束）排列这些子程序。
 4. **逐子程序分析**：每个子程序给出"做什么 / 为什么 / 风险与改进"三层。
 5. **汇总问题与评价**：把跨子程序的问题按优先级汇总，给出整体评价。
@@ -65,10 +68,11 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 
 6. **全部写完之后，另起一轮，只修引文**：运行
    `python scripts/report_qc.py --fidelity-only 报告.md 源码.abap`。
-   **当前目录必须是本 skill 的根目录** —— 命令里是相对路径，闸门**不会**自己定位规则集
-   （`abap_deps_analyzer.py` 会，`report_qc.py` 不会）。目录不对是 `can't open file`，
-   那不算跑过闸门。也没有 `--help`：它按扩展名挑报告路径，`--help` 会被当成「没给报告」
-   而以 `2` 退。
+   命令里是相对路径，**cwd 要能解析到 `scripts/`**——cwd 不对是 `can't open file`，
+   那不算跑过闸门。规则集会自己定位（按 `__file__` 找 `schemas/`，
+   `abap_deps_analyzer.py` 同理找 `abaplint-deps/`），所以用绝对路径调用脚本时
+   cwd 就是无关的。也没有 `--help`：它按扩展名挑报告路径，`--help` 会被当成
+   「没给报告」而以 `2` 退。
    它只回答一件事：**你引用的语句是否逐字存在于源码里**。有就对照源码改正，然后重跑，
    直到**退出码为 0**为止。判据见「闸门输出」，不要靠输出文字判断。
     （报告或源码路径不存在、源码不是 UTF-8、或规则集读不到时，闸门以退出码 `2`
