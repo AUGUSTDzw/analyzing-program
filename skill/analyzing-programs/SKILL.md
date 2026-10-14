@@ -1,6 +1,6 @@
 ---
 name: analyzing-programs
-version: 1.1.19
+version: 1.1.20
 contract: 1.3.10
 description: Use when the user wants a deep onboarding-style analysis report for an ABAP/SAP program source file (报表程序、FORM/事件块、OO 类 CLAS、函数组、ALV 等), or pastes an ABAP / z*.abap file asking to analyze, walk-through, 讲解 its structure, execution flow, or design. Trigger on phrases like "分析这个程序/源码","走读/讲解 ABAP","代码 onboarding","源码分析/架构分析","帮我看懂这段 SAP 代码". Trigger even when the user does not explicitly say "report" but clearly wants to understand a whole program's business purpose, architecture, and risks. Do NOT use for one-line answers, non-SAP code, or pure syntax/API lookups.
 ---
@@ -44,8 +44,13 @@ The value of this skill is the **fixed report structure** and the **three-layer 
     替换字符**，删掉它等于把丢失的内容当成没丢。
     **扩展名没有要求**：闸门按扩展名区分报告与源码，`.md` / `.markdown` 一律当报告，
    其余一律当源码，`.txt`、`.ab1` 都算源码（见第 7 步）。
-2. **识别子程序边界**：找出所有方法/函数/事件块/声明区，作为分组单位。
-3. **确定执行流程**：按程序真实运行顺序（从入口到结束）排列这些子程序。
+ 2. **识别子程序边界**：找出所有方法/函数/事件块/声明区，作为分组单位。
+     第 1、2 步合成一次调用：`python scripts/recon.py 源码.abap` 打印编号源码和
+     `scripts/docgen.py` 生成的子程序清单，所以不用再为清单单独起一轮。退出码只有
+     `0`（完成）与 `2`（拒绝，首行 `error`，且不先打出半个源码）——没有 `1`，
+     因为它不判缺陷。`-o` 指定清单落盘目录，默认是源码同目录。它按自身路径定位
+     docgen，**不要求当前目录是 skill 根目录**；第 6、7 步的闸门仍然要。
+ 3. **确定执行流程**：按程序真实运行顺序（从入口到结束）排列这些子程序。
 4. **逐子程序分析**：每个子程序给出"做什么 / 为什么 / 风险与改进"三层。
 5. **汇总问题与评价**：把跨子程序的问题按优先级汇总，给出整体评价。
 

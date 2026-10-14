@@ -1,7 +1,7 @@
 {
   "version": "1.3.10",
   "release": {
-    "ships_with": "1.1.19",
+    "ships_with": "1.1.20",
     "_comment": [
       "Two version numbers, and they are independent axes. `version` is this",
       "contract: it bumps when a rule, a threshold or a gate_io row changes.",
@@ -313,7 +313,8 @@
       "A directory passed as the source reported itself as a file that is not utf-8, which is a PermissionError wearing an encoding error's clothes, and sent a reader hunting for a BOM in a folder.",
       "ships_with moves to 1.1.16: a deployed copy that names 1.3.7 scores the same refusals as tracebacks and exit 1, and it scores the wrong boundary in advisories[1]. note_counts_its_denominator. The same gap the 1.3.5 note names for a copy that names 1.3.4.",
       "1.3.10 moves version because the gate's exit-2 pre-flight widened from existence to readability, and because one recorded refusal named only one role. A report that is a directory, or that does not decode as utf-8, used to be refused inside the loop after the earlier reports had printed their verdict, so exit 2 could follow a printed PASS that SKILL.md promised would never happen; both are now checked before any report is read, in every mode. The trigger set did not move, so nothing was added to exit_codes[2] and nothing changed in the SKILL.md rule table. directory_as_source.prints now carries both the report form and the source form where only the source form stood, so the report form a reader looked up actually resolves. ships_with moves to 1.1.18."
-    ]
+    ,
+    "1.3.10 -> 1.1.20 moves ships_with with no contract change at all: version stays at 1.3.10, because no rule, no threshold and no gate_io row moved. A new shipped script, scripts/recon.py, covers Analysis Flow steps 1 and 2 in one call: it checks the source, prints it numbered, then runs docgen as a child and reads back the file docgen wrote, so the encoding check, the numbered source and the subprogram inventory arrive in one round instead of three. The inventory previously needed its own round because docgen prints a four-line receipt to stdout and writes the inventory to a file. recon.py exits only 0 and 2, never 1: it does not judge the report, so it has nothing to report as a defect, and a caller that treats every nonzero exit as defects found would hunt for defects that were never checked. Every refusal prints an error line before anything else, so a refusal cannot be preceded by a partial dump that reads like a verdict. It locates docgen by its own path, so it does not require the current directory to be the skill root the way report_qc.py does. The extraction stays in docgen, which is what a report is written against, so the two cannot diverge. No gate check touches recon.py and nothing in this contract describes it, which is why version does not move."]
   },
   "_comment": [
     "Machine-readable contract for what a report must contain.",
