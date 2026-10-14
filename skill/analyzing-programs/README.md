@@ -136,7 +136,8 @@ Mermaid 标签里的裸 `<` `>` `#` → 改成全角。三层缺失**只报位�
 
 iteration-8 的全部数字都是在 **`b8f84e8`**（162 行）上测出来的。
 **工作树与 `release/` 都到 `1.1.21`**（541 行，契约 1.3.10 / docgen 契约 1.0.2）：
-归档在 `release/analyzing-programs-1.1.21/`，zip 的 sha256 在 `release/SHA256SUMS`。
+归档在 `release/analyzing-programs-1.1.21/`（408 文件、31 目录），
+zip 的 sha256 在 `release/SHA256SUMS`。
 **效果**未测出结论。**
 
 版本谱系（每一版都已归档在 `release/`，digest 见 `release/SHA256SUMS`）。
@@ -495,6 +496,10 @@ SKILL.md 仍是 541 行——只动了 frontmatter 的 `version`。
 顺带把上一节的「四条拒绝」改成「五条」——那句话列了五项。
 
 `_comment` 增到 312 条，`test_skill.py` 283 项，五个套件合计 584 项全绿。
+
+契约 `1.3.10` 不动，`ships_with` 与 SKILL.md frontmatter 一起移到 `1.1.21`，
+已归档在 `release/analyzing-programs-1.1.21/`（408 文件、31 目录，与 1.1.20 一字不差）；
+zip 的 sha256 在 `release/SHA256SUMS`，打包提交晚于本文件所以不写。
 
 ### 1.1.19 → 1.1.20：第 1、2 步合成一轮
 
