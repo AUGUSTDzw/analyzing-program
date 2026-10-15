@@ -500,6 +500,74 @@ docgen 的两种拒绝各自都不留下一行编号源码。
 `abap_deps_analyzer.py` 同理按 `Path(__file__).resolve().parent.parent` 索引成功。
 两个脚本都自定位。真正要求 cwd 的只有 `python scripts/...` 这种相对写法本身。
 
+### 1.1.22 → 1.1.23：四条没有测试守着的拒绝路径
+
+契约不动（1.3.10）：没有规则、阈值或 `gate_io` 行变化，只有 `ships_with` 走。
+SKILL.md 仍是 546 行——只动了 frontmatter 的 `version`。
+
+`tests/test_skill.py` 287 → 311 项。新增的 24 项里有 4 项第一次跑就失败：
+3 项是测试写错，1 项是 `recon.py` 自己的缺陷。
+
+**一、`recon.py` 违背了自己文档里的「没有 exit 1」（已修）。**
+它的 docstring 写着退出码只有 `0` 与 `2`——它不判报告，没有东西可报成缺陷，
+把每个非零退出码都当成「查出缺陷」的调用方会去修那些从未被检查出来的缺陷。
+这句话有个洞：读回 docgen 写出的文件用的是没有守卫的 `read_text()`。
+docgen 写了不是 utf-8 的字节，`UnicodeDecodeError` 就从脚本里抛出来，
+打 traceback，退出 `1`。量出来：`rc=1`、有 `Traceback`、第一行不是 `error`。
+**一次拒绝以崩溃的形式到达**，而 `1` 正是 SKILL.md 定义的「缺陷判决」。
+所有读都加了守卫；顺带把 `doc_file.stat()` 退役了——清单大小改用已经读到手的
+字节数，同一路径不再看第二次。
+
+**二、`recon.py` 把「docgen 不存在」报成「docgen 退出了 2」（已修）。**
+docgen 是按字符串路径调的，从不检查它存不存在。docgen 缺失时，退出 `2` 是
+python 自己对「打不开这个脚本」的回应，recon 却照报 `docgen exited 2`——
+**给一个从未运行的 docgen 编了个退出码**，读的人会去找一份不存在的诊断；
+而 python 写在 stderr 里的那句原因被丢掉了，因为 recon 只转发 `child.stdout`。
+现在先查 `is_file()`，缺就报 `docgen.py is not installed at <path>`。
+
+**三、`recon.py` 只转发 docgen 的 stdout（已修）。**docgen 崩溃时 traceback
+写在 stderr，于是「退出码」成了唯一交代。现在两个流都转发，**但都排在 `error`
+那行之后**——否则 docgen 的 traceback 会排在 `error` 前面，recon 自己那句
+「拒绝的第一行是 `error`」又变成假的。
+
+**四、`report_qc.py` 把「读不到」报成「不是 utf-8」（已修）。**
+`read_report` 与 `read_src` 都捕 `(UnicodeDecodeError, OSError)`，两种异常
+同一句话。实测（icacls 拒绝读，文件本身是合法 utf-8）：
+
+```
+error  ...denied.md is not readable as utf-8 ([Errno 13] Permission denied: '...'),
+so nothing was checked
+```
+
+先看到的是「不是 utf-8」，去改编码；原因其实藏在括号里。退出码 `2` 是对的，
+诊断是错的。**这个坑 1.3.10 已经踩过一次**：目录会让 `open()` 抛
+`PermissionError`，被同一句翻成 "not readable as utf-8"，"a reader went looking
+for a BOM in a folder"——所以当时加了目录判断。**只修了目录这一种，
+通用情形留着。**现在两个子句分开，拒绝读就报读不到。触发条件集没动，
+所以 `exit_codes[2]` 没加东西；`directory_as_source.why_not_encoded` 同步改了，
+因为它把 OSError 子句描述成会说 "not readable as utf-8"，现在不说了。
+
+**顺手改了 `recon.py` 一个段标题。**原来写
+`== SUBPROGRAM INVENTORY  (scripts/docgen.py --type onboarding)`，
+指的是里面那张子程序表；但 docgen 实际写出的是一份开发者入门指南，
+子程序表是七个章节之一。量出来：1334 字节、含 `FUNCTION` 的行 `0` 条、
+7 个标题里 6 个与这份程序无关，两个不同程序之间 **956 字节（72–73%）逐字节相同**。
+现在段标题写 `== DOCGEN OUTPUT`，摘要行那个数改成 `docgen block`——
+跟收条那行的 `docgen wrote ... (N bytes)` 区分开，后者是磁盘上的文件，更大，
+因为段里丢掉了末尾空白。上面 1.1.22 那节的 header 例子还写着 `inventory`、
+1.1.20 那节的段标题还写着 `SUBPROGRAM INVENTORY`，两处都是当版本的记录，
+按历史留着。
+
+**4 条新测试第一次跑就失败。**3 条是测试写错：docgen stub 的转义要多一层
+（stub 的正文是**另一个脚本的源码**，`\xff` 在测试里就成了那里的原始字节
+0xff，stub 直接语法错误）；text 跟 bytes 比，永远不等；还有一条期待 docgen 的
+收条被转发，而 docgen 是退 `0` 的，recon 不转发退 `0` 的 stdout。
+**第 4 条查出 `recon.py` 自己的缺陷**：header 的总数原本跟 `text=True` 读到的
+字节数比，而 `text=True` 会把 docgen 自己写进 markdown 的 `\r\n` 翻译成 `\n`，
+于是 recon 声称的数比测试读到的多 **41 字节**。线上走的正是 recon 声称的 1635；
+下面的 CRLF 测试早就为同样的理由按字节读——**这正是套件用字节量 dump、
+却用翻译过的文本量 header 的原因**。
+
 ### 1.1.20 → 1.1.21：给 `recon.py` 补上 42 项测试
 
 契约不动（1.3.10）：没有规则、阈值或 `gate_io` 行变化，只有 `ships_with` 走。

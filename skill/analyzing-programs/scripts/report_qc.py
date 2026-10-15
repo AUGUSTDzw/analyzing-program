@@ -321,17 +321,23 @@ def read_report(path):
     if not path or not os.path.exists(path):
         return None
     if os.path.isdir(path):
-        # A directory raises PermissionError from open(), which the OSError
-        # clause below turned into "not readable as utf-8", so a reader went
-        # looking for a BOM in a folder.
+        # open() on a directory raises PermissionError. The OSError clause below
+        # says "cannot be read", which is true but vague; naming it a directory
+        # is what keeps a reader from looking for a BOM in a folder.
         raise ReadError("%s is a directory, not a report file, so nothing "
                         "was checked" % path)
     try:
         with io.open(path, encoding="utf-8", errors="strict", newline="") as fh:
             return fh.read()
-    except (UnicodeDecodeError, OSError) as e:
+    except UnicodeDecodeError as e:
         raise ReadError("%s is not readable as utf-8 (%s), so nothing "
                         "was checked" % (path, e)) from e
+    except OSError as e:
+        # Kept apart from the clause above. A permission denial is not an
+        # encoding problem, and reporting it as one sends a reader to fix the
+        # encoding of a file that was fine and unreadable for another reason.
+        raise ReadError("%s cannot be read (%s), so nothing was checked"
+                        % (path, e)) from e
 
 
 def read_src(path):
@@ -344,9 +350,13 @@ def read_src(path):
     try:
         with io.open(path, encoding="utf-8", errors="strict", newline="") as fh:
             return fh.read()
-    except (UnicodeDecodeError, OSError) as e:
+    except UnicodeDecodeError as e:
         raise ReadError("%s is not readable as utf-8 (%s), so nothing "
                         "was compared" % (path, e)) from e
+    except OSError as e:
+        # Same reason as in read_report: a denial is not an encoding problem.
+        raise ReadError("%s cannot be read (%s), so nothing was compared"
+                        % (path, e)) from e
 
 
 def die(msg):

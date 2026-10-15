@@ -4,18 +4,22 @@
 recon.py - One-pass reconnaissance for an ABAP program analysis.
 
 Covers Analysis Flow steps 1 and 2 in a single call: check the source, print it
-numbered, then print the subprogram inventory that scripts/docgen.py produces.
+numbered, then print the onboarding document that scripts/docgen.py produces,
+which carries the subprogram table as one of its sections.
 
     python scripts/recon.py SOURCE [-o OUTDIR]
 
 Exit codes follow the rest of the gate, minus the middle one:
   0  done - the source is readable UTF-8 and the inventory was produced
   2  refused - the source cannot be read, is not UTF-8, is a directory, is a
-     markdown file, is empty, or docgen refused. "error" is the first line.
+     markdown file, is empty, docgen.py is not installed, docgen refused, or the
+     file docgen wrote is not readable. "error" is the first line.
 
 There is no exit 1. This tool does not judge the report, so it has nothing to
 report as a defect. A reader that treats every nonzero exit as "defects found"
-would go looking for defects here that were never checked.
+would go looking for defects here that were never checked. So every read below
+is guarded: an unguarded one raises straight out of the script, exits 1, and
+shows a traceback where a refusal should be.
 
 Everything that can refuse runs before anything is printed. The source is read
 and checked first, then docgen runs, and only then is the output written. A
@@ -68,13 +72,19 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 
-def _die(msg: str, code: int = 2) -> None:
+def _die(msg: str, code: int = 2, echo: str = "") -> None:
     """Print an error and exit with code 2.
+
+    The error line is first, because a caller greps for it to tell a refusal
+    from a verdict. Anything echoed goes after it: docgen's own words are
+    evidence for the refusal, not the refusal itself.
 
     On stdout, like report_qc.py and docgen.py: a caller that captures one
     stream and sees exit 2 should still see what was refused.
     """
     print(f"error  {msg}")
+    if echo:
+        sys.stdout.write(echo)
     sys.exit(code)
 
 
@@ -113,6 +123,8 @@ def main() -> int:
         text = raw.decode("utf-8")
     except UnicodeDecodeError:
         _die(f"source is not utf-8: {source_path}")
+    except OSError as e:
+        _die(f"source cannot be read: {source_path} ({e})")
     if not text.strip():
         _die(f"source is empty: {source_path} (nothing to analyse)")
 
@@ -122,14 +134,25 @@ def main() -> int:
     # output at all instead of after the whole source has gone out. It also has
     # to run first for the total below to be knowable.
     outdir = Path(args.output) if args.output else source_path.parent
+    docgen = SCRIPT_DIR / "docgen.py"
+    if not docgen.is_file():
+        # python exits 2 for a script it cannot open, and writes the reason to
+        # stderr. Without this check the message would say "docgen exited 2",
+        # which sends a reader hunting for docgen's diagnosis of a docgen that
+        # never ran.
+        _die(f"docgen.py is not installed at {docgen}, so no inventory was "
+             f"produced")
     child = subprocess.run(
-        [sys.executable, str(SCRIPT_DIR / "docgen.py"),
+        [sys.executable, str(docgen),
          "--type", "onboarding", "-o", str(outdir), str(source_path)],
         capture_output=True, text=True, encoding="utf-8",
     )
     if child.returncode != 0:
-        sys.stdout.write(child.stdout)
-        _die(f"docgen exited {child.returncode}")
+        # docgen writes its refusal to stdout and a crash to stderr. Both are
+        # echoed, after the error line, so the exit code is never the only
+        # account of what happened -- but the error line stays first.
+        _die(f"docgen exited {child.returncode}",
+             echo=child.stdout + child.stderr)
 
     doc_file = outdir / f"{source_path.stem}.onboarding.md"
     if not doc_file.is_file():
@@ -138,12 +161,28 @@ def main() -> int:
         # the only honest answer: the inventory is not in hand.
         _die(f"docgen reported success but wrote no file at {doc_file}")
 
-    inventory = doc_file.read_text(encoding="utf-8").rstrip()
+    try:
+        doc_bytes = doc_file.read_bytes()
+        inventory = doc_bytes.decode("utf-8").rstrip()
+    except UnicodeDecodeError as e:
+        # A file at that path is not proof it came from this run: an earlier run
+        # into the same -o leaves one behind, and that file is what fails here.
+        # Unguarded, read_text raised straight out and exited 1 with a traceback,
+        # so a refusal was reported in the form of a crash.
+        _die(f"{doc_file} is not readable as utf-8 ({e}), so the inventory was "
+             f"not shown")
+    except OSError as e:
+        _die(f"{doc_file} cannot be read ({e}), so the inventory was not shown")
 
     prefix = f"== SOURCE  {source_path}\n"
     dump = "".join(f"{n:>5} | {line}\n" for n, line in enumerate(lines, 1))
-    inv_hdr = "== SUBPROGRAM INVENTORY  (scripts/docgen.py --type onboarding)\n"
-    receipt = f"== docgen wrote {doc_file} ({doc_file.stat().st_size} bytes)\n"
+    # docgen's --type onboarding output is a developer guide with seven sections;
+    # the subprogram table is one of them. Naming the block "inventory" made a
+    # reader expect a list where they got an onboarding document. Reading the
+    # bytes once also retires the stat(): the size comes from the bytes already
+    # in hand, so there is no second look at a path that can change under us.
+    inv_hdr = "== DOCGEN OUTPUT  (scripts/docgen.py --type onboarding)\n"
+    receipt = f"== docgen wrote {doc_file} ({len(doc_bytes)} bytes)\n"
     inv_bytes = len(inventory.encode("utf-8"))
 
     # The summary line carries the total, and the total includes the summary
@@ -152,7 +191,7 @@ def main() -> int:
     # comment is one character but three bytes.
     def summary(total):
         return (f"== {len(lines)} line(s), {len(raw)} bytes, utf-8 ok, "
-                f"output {total} bytes, inventory {inv_bytes} bytes\n")
+                f"output {total} bytes, docgen block {inv_bytes} bytes\n")
 
     parts = (prefix, dump, "\n", inv_hdr, inventory, "\n\n", receipt)
     total = 0

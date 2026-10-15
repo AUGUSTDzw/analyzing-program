@@ -1517,6 +1517,53 @@ def main():
         check("not readable as utf-8" not in r.stdout,
               "%s: a directory is not an encoding error" % mode)
 
+    # A file that exists but cannot be read is a different failure from a file
+    # that is not utf-8. read_report and read_src both caught (UnicodeDecodeError,
+    # OSError) and reported the pair as "not readable as utf-8", which sent a
+    # reader to fix the encoding of a file that was fine and unreadable for
+    # another reason. io.open is denied in a child, because os.path.exists uses
+    # os.stat and still passes -- that is how a denial reaches the read at all.
+    print()
+    print("an unreadable file is not an encoding error")
+    print("-" * 72)
+    deny = os.path.join(tmp, "deny.py")
+    io.open(deny, "w", encoding="utf-8").write(
+        "import io as _io, os, sys\n"
+        "sys.path.insert(0, %r)\n"
+        "import report_qc as R\n"
+        "os.makedirs('present', exist_ok=True)\n"
+        "_io.open('present/rep.md', 'w', encoding='utf-8').write('# t\\n')\n"
+        "_io.open('present/src.abap', 'w', encoding='utf-8')"
+        ".write('REPORT z.\\n')\n"
+        "_real = _io.open\n"
+        "def deny(path, *a, **k):\n"
+        "    if 'present' in str(path):\n"
+        "        raise PermissionError(13, 'Permission denied', str(path))\n"
+        "    return _real(path, *a, **k)\n"
+        "_io.open = deny\n"
+        "for fn, p in ((R.read_report, 'present/rep.md'),\n"
+        "              (R.read_src, 'present/src.abap')):\n"
+        "    try:\n"
+        "        fn(p)\n"
+        "        print(fn.__name__ + ': NO RAISE')\n"
+        "    except R.ReadError as e:\n"
+        "        print(fn.__name__ + ': ' + str(e))\n"
+        % os.path.join(SKILL, "scripts"))
+    rd = subprocess.run([sys.executable, deny], capture_output=True,
+                        text=True, encoding="utf-8", cwd=tmp,
+                        env=dict(os.environ, PYTHONIOENCODING="utf-8",
+                                 PYTHONUTF8="1"))
+    lines = [x for x in rd.stdout.splitlines() if ": " in x]
+    check(len(lines) == 2, "both readers were exercised",
+          "%d line(s)" % len(lines))
+    check(all("cannot be read" in x for x in lines),
+          "an unreadable report and source are reported as unreadable",
+          lines[0][:80] if lines else "none")
+    check(all("not readable as utf-8" not in x for x in lines),
+          "an unreadable file is not called an encoding error")
+    check("Traceback" not in rd.stdout + rd.stderr,
+          "the refusal is not a traceback")
+
     print()
     print("--fix takes one report, and in place is judged by path")
     print("-" * 72)
@@ -1653,7 +1700,15 @@ def main():
     # what went out would be a promise about size nobody could check. Bytes, not
     # characters: the source may carry multi-byte comments.
     mt = re.search(r"output (\d+) bytes", hdr[0]) if hdr else None
-    sent = len(r.stdout.encode("utf-8"))
+    # Over the bytes on the wire, not over text. text=True translates the
+    # carriage returns docgen put in its own markdown, and a total counted over
+    # translated text sat 41 bytes below the one recon claimed for the same run.
+    # The CRLF test further down makes the same point about the source dump.
+    rawr = subprocess.run([sys.executable, RECON, src, "-o", out],
+                          capture_output=True,
+                          env=dict(os.environ, PYTHONIOENCODING="utf-8",
+                                   PYTHONUTF8="1"))
+    sent = len(rawr.stdout)
     check(bool(mt) and int(mt.group(1)) == sent,
           "the header\'s total is the byte count that actually went out",
           "%s bytes claimed, %d sent" % (mt.group(1) if mt else "none", sent))
@@ -1699,11 +1754,18 @@ def main():
 
     df = os.path.join(out, "probe.onboarding.md")
     inv = [x for x in r.stdout.splitlines()
-           if x.startswith("== SUBPROGRAM INVENTORY")]
-    check(bool(inv), "the inventory block is present",
+           if x.startswith("== DOCGEN OUTPUT")]
+    check(bool(inv), "the docgen block is present",
           (inv[0][:70] if inv else "absent"))
-    shown = r.stdout.split(inv[0], 1)[1].split("== docgen wrote", 1)[0].strip()
-    check(shown == io.open(df, encoding="utf-8").read().strip(),
+    check("SUBPROGRAM INVENTORY" not in r.stdout,
+          "the block is not labelled an inventory when docgen wrote a guide",
+          inv[0][:70] if inv else "absent")
+    # Over the raw bytes. The block carries docgen's own line endings, which a
+    # text-mode read translates away and so would make a transformed block look
+    # identical to the file it claims to mirror.
+    shown = rawr.stdout.decode("utf-8").split(inv[0], 1)[1]
+    shown = shown.split("== docgen wrote", 1)[0].strip()
+    check(shown.encode("utf-8") == io.open(df, "rb").read().strip(),
           "the inventory recon shows is byte-identical to what docgen wrote",
           "%d bytes" % os.path.getsize(df))
     rcpt = [x for x in r.stdout.splitlines() if x.startswith("== docgen wrote")]
@@ -1718,7 +1780,7 @@ def main():
                         text=True, encoding="utf-8", cwd=tmp,
                         env=dict(os.environ, PYTHONIOENCODING="utf-8",
                                  PYTHONUTF8="1"))
-    check(r3.returncode == 0 and "== SUBPROGRAM INVENTORY" in r3.stdout,
+    check(r3.returncode == 0 and "== DOCGEN OUTPUT" in r3.stdout,
           "recon runs with the current directory somewhere else",
           "rc=%d" % r3.returncode)
 
@@ -1764,13 +1826,29 @@ def main():
     stub = os.path.join(tmp, "stub")
     os.makedirs(os.path.join(stub, "scripts"))
     shutil.copy(RECON, os.path.join(stub, "scripts", "recon.py"))
-    for name, body, want_msg in [
-            ("wrote no file",
-             "import sys\nprint(\"Generated: nowhere\")\nsys.exit(0)\n",
-             "docgen reported success but wrote no file"),
-            ("refused",
-             "import sys\nprint(\"error  docgen refused\")\nsys.exit(2)\n",
-             "docgen exited 2")]:
+    # (name, stub body, the reason recon must quote, what docgen's own words are
+    # expected to be echoed back, and whether a traceback may appear at all.)
+    cases = [
+        ("wrote no file",
+         "import sys\nprint(\"Generated: nowhere\")\nsys.exit(0)\n",
+         "docgen reported success but wrote no file", None, False),
+        ("refused",
+         "import sys\nprint(\"error  docgen refused\")\nsys.exit(2)\n",
+         "docgen exited 2", "error  docgen refused", False),
+        ("crashed",
+         "raise RuntimeError(\"boom inside docgen\")\n",
+         "docgen exited 1", "boom inside docgen", True),
+        ("wrote a non-utf-8 file",
+         "import pathlib, sys\n"
+         "out = pathlib.Path(sys.argv[-2],\n"
+         "                  pathlib.Path(sys.argv[-1]).stem + '.onboarding.md')\n"
+         "out.write_bytes(b'\\xff\\xfe\\x00')\n"
+         "print('Generated: ' + str(out))\n",
+         # exit 0, so recon does not echo docgen's receipt: the refusal
+         # already names the file and the reason, and the receipt would
+         # add nothing.
+         "not readable as utf-8", None, False)]
+    for name, body, want_msg, echoed, crashes in cases:
         io.open(os.path.join(stub, "scripts", "docgen.py"), "w",
                 encoding="utf-8").write(body)
         # A fresh output dir. The guard only proves that a file exists at that
@@ -1783,6 +1861,9 @@ def main():
         check(rr.returncode == 2,
               "a docgen that %s leaves recon refusing" % name,
               "rc=%d" % rr.returncode)
+        check(rr.stdout.startswith("error  "),
+              "a docgen that %s still leads with error" % name,
+              rr.stdout.splitlines()[0][:60])
         check(want_msg in rr.stdout,
               "recon says which docgen outcome it saw for %s" % name,
               rr.stdout.strip().splitlines()[-1][:70])
@@ -1792,8 +1873,33 @@ def main():
         # refusal. The loop checked the reason, not the silence.
         check(not any(re.match(r"^\s*\d+\s*\|", x) for x in rr.stdout.splitlines()),
               "a docgen that %s prints no source at all" % name)
-    check("error  docgen refused" in rr.stdout,
-          "a refusing docgen has its own words echoed back")
+        # A crash is the one case where a traceback may appear: it is echoed as
+        # the only account of what happened, and it comes after the error line.
+        check(("Traceback" in rr.stdout) == crashes,
+              "a docgen that %s shows the crash and only the crash" % name)
+        if echoed is not None:
+            check(echoed in rr.stdout,
+                  "a docgen that %s has its own words echoed back" % name,
+                  rr.stdout.splitlines()[0][:70])
+
+    # A docgen that is not installed is not a docgen that refused. python exits 2
+    # for a script it cannot open, so without a check of its own the message would
+    # have said "docgen exited 2" and sent a reader after a diagnosis that does
+    # not exist. The stderr that says why is dropped, because it is python's, not
+    # docgen's.
+    os.remove(os.path.join(stub, "scripts", "docgen.py"))
+    miss = os.path.join(tmp, "stubout-missing")
+    os.makedirs(miss)
+    rr = run(os.path.join(stub, "scripts", "recon.py"), src, "-o", miss)
+    check(rr.returncode == 2 and "is not installed" in rr.stdout,
+          "recon names a docgen that is not installed",
+          rr.stdout.splitlines()[0][:70] if rr.stdout.strip() else "no output")
+    check("docgen exited" not in rr.stdout,
+          "recon quotes no exit code for a docgen that never ran")
+    check(rr.stdout.startswith("error  "),
+          "a missing docgen still leads with error")
+    check(not any(re.match(r"^\s*\d+\s*\|", x) for x in rr.stdout.splitlines()),
+          "recon prints no source before refusing a missing docgen")
 
     print()
     print("-" * 72)
