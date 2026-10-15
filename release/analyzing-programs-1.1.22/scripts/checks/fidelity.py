@@ -1,0 +1,201 @@
+"""Fidelity: does every quoted statement actually occur in the source?
+
+Two tiers, decided in the spec for 1.1.0:
+
+  PUNCT-ONLY    punctuation differs from the source but the tokens carrying
+                meaning are identical. Advisory. Exit stays 0.
+  SUBSTANTIVE   an identifier, a string literal or a number changed. The report
+                describes code that does not exist. Exit 1.
+
+Before 1.1.0 this was one note that never changed an exit code, so a report that
+invented an ABAP statement printed 'Check whether the report rewrote the source'
+and was still PASS. That is the single largest hole found on 2026-10-09.
+
+The tier is decided by two classifiers disagreeing, not by inspecting one
+statement -- see classify(), added in the next step.
+"""
+from checks.contract import QUOTE_LANG as _QUOTE_LANG
+from checks.text import _claims, _flat, _src_of, fence_spans, line_of
+from checks.tokens import identity, tokenize
+
+_DETAIL = {
+    "SUBSTANTIVE": "quoted statement does not occur in the source: an "
+                    "identifier, a literal or a number differs",
+    "PUNCT-ONLY": "punctuation differs from the source; the tokens carrying "
+                  "meaning are identical",
+}
+
+
+_MAX_WINDOW = 30
+_MAX_CACHE = 10
+_src_cache = {}
+
+
+def _src_identities(src):
+    """Every contiguous identity window up to _MAX_WINDOW tokens in the source.
+
+    A quoted statement is one statement, not a suffix. Checking identity
+    membership means checking if the probe's identity tuple appears as a
+    contiguous subsequence in the source -- which requires pre-computing
+    windows of every size, not just suffixes. Capped at _MAX_WINDOW tokens per
+    position, so the count is O(N x _MAX_WINDOW) rather than the O(N^2) a full
+    unbounded scan would produce.
+
+    Cached: --fidelity-only checks multiple reports against one source. The
+    cache is bounded at _MAX_CACHE entries; the oldest entry is evicted when
+    the limit is reached. The token sequence is stored with the windows, because
+    a probe longer than the cap is searched against it instead of being
+    re-tokenised per probe.
+    """
+    if src not in _src_cache:
+        if len(_src_cache) >= _MAX_CACHE:
+            # Evict the first-inserted entry. Dict insertion order is
+            # preserved since Python 3.7, so the first key is the oldest.
+            _src_cache.pop(next(iter(_src_cache)))
+        seq = identity(tokenize(src))
+        windows = set()
+        for i in range(len(seq)):
+            for size in range(1, min(_MAX_WINDOW, len(seq) - i) + 1):
+                windows.add(seq[i:i + size])
+        _src_cache[src] = (windows, seq)
+    return _src_cache[src][0]
+
+
+def _src_seq(src):
+    """The source's identity sequence, computed once per source."""
+    return _src_cache[src][1] if src in _src_cache else identity(tokenize(src))
+
+
+def _identity_in_source(ident, src):
+    """True when the probe's identity occurs contiguously in the source.
+
+    The window set answers this for probes up to _MAX_WINDOW tokens and says
+    nothing about longer ones: it cannot see them, so a statement that is in
+    the source verbatim read as absent. The pre-1.1.0 substring check never had
+    that failure, but the union rule in classify() trusts neither classifier, so
+    the cap's silence became a SUBSTANTIVE that never clears. Measured at 8 of
+    177092 statements across 81 sources, longest 40 tokens -- rare, but a report
+    quoting one loops in steps 6 and 7 on a defect that does not exist. Those
+    few probes are searched directly: O(N x L) for that one probe, instead of
+    the O(N^2) an uncapped pre-computation would cost.
+    """
+    if len(ident) <= _MAX_WINDOW:
+        return ident in _src_identities(src)
+    seq = _src_seq(src)
+    return any(seq[i:i + len(ident)] == ident
+               for i in range(len(seq) - len(ident) + 1))
+
+
+def _substring_mismatch(probe, flat_src):
+    """The pre-1.1.0 test: a flattened substring containment check.
+
+    Kept deliberately. It is what PUNCT-ONLY is measured against -- without it
+    there is no way to tell a punctuation slip from a rewrite, only to tell
+    'something differs' from 'nothing differs'.
+    """
+    return _flat(probe) not in flat_src
+
+
+def _quote_probes(s):
+    """[(line, raw, probe)] for every quoted statement, matched or not.
+
+    classify() returns only the mismatches, so a caller cannot tell "3 of 40
+    quotations rewrite the source" from "3 of 3". fidelity_report() needs that
+    distinction, and only the second of the two is where "you passed the wrong
+    file" beats "you rewrote the code" as an explanation. Both halves read this
+    one probe set, so the count and the mismatches cannot drift apart.
+    """
+    out = []
+    for st, bs, be, _en, lang in fence_spans(s):
+        if lang != _QUOTE_LANG.lower():
+            continue
+        base = line_of(s, st)
+        for i, raw in _claims(s[bs:be]):
+            probe = raw.strip()
+            c = probe.find('"')
+            if c >= 0:
+                probe = probe[:c]
+            probe = probe.rstrip(".")
+            if not probe:
+                continue
+            out.append((base + 1 + i, raw.strip(), probe))
+    return out
+
+
+def classify(s, src):
+    """[(tier, line, report_line, detail)] for every quoted statement.
+
+    `line` is 1-based in the report. Both classifiers run so the tier can be
+    decided by their disagreement:
+
+        old mismatch, new match   -> PUNCT-ONLY    punctuation moved
+        old mismatch, new mismatch -> SUBSTANTIVE   a name, literal or number changed
+        both match                -> faithful, nothing emitted
+
+    A statement the old check missed and the new check misses is still a
+    SUBSTANTIVE: neither algorithm is trusted to be exhaustive, so the union
+    decides.
+    """
+    src = _src_of(src)
+    if not src:
+        return []
+    src_ids = _src_identities(src)
+    flat_src = _flat(src)
+    found = []
+    for line, raw, probe in _quote_probes(s):
+        ident = identity(tokenize(probe))
+        new_ok = bool(ident) and _identity_in_source(ident, src)
+        old_ok = not _substring_mismatch(probe, flat_src)
+        if old_ok and new_ok:
+            continue
+        tier = "SUBSTANTIVE" if not new_ok else "PUNCT-ONLY"
+        found.append((tier, line, raw, _DETAIL[tier]))
+    return found
+
+
+def fidelity_report(s, src):
+    """(n_substantive, n_punct_only, tiers, notes)."""
+    found = classify(s, src)
+    probes = _quote_probes(s)
+    sub = [f for f in found if f[0] == "SUBSTANTIVE"]
+    pun = [f for f in found if f[0] == "PUNCT-ONLY"]
+    notes = []
+    if not probes:
+        # An empty set cannot fail, and without this line the run ends PASS with
+        # no statement that fidelity counted nothing -- which reads the same as
+        # "faithful", and is the one case where the writer's quotations were
+        # stripped rather than rewritten. The 1.1.7 denominator note exists
+        # because a count without its denominator cannot be read; at M=0 there
+        # is no line at all. Shape mode already notes the other half: a source
+        # that is not given at all. This is the half where the source was given
+        # and the report has nothing to compare it against.
+        notes.append("the report has no quoted source statement, so fidelity "
+                     "was not run")
+    if sub:
+        # The count carries its denominator. N of M reads as a few slips; N of N
+        # reads as a report and a source that were never about the same program.
+        # Only the second gets a question, because it is the one case that needs
+        # no threshold to spot: it is the boundary the classifiers already
+        # compute. A cutoff on identifier count would not separate the cases --
+        # a comments-only file yields 6 identities and an English prose file 20,
+        # both non-zero.
+        total = len(probes)
+        note = "%d of %d quoted statement(s) rewrite the source" % (
+            len(sub), total)
+        # len(sub), not len(found): found also holds PUNCT-ONLY, and PUNCT-ONLY
+        # means the identity tuple DOES occur in the source -- only punctuation
+        # differs. Counting it here told the writer the source was probably the
+        # wrong file in the one configuration that proves it is the right one,
+        # because a quotation matched it in its meaningful tokens. With every
+        # quotation SUBSTANTIVE the sentence is literal: none of their tokens
+        # occur there.
+        if len(sub) == total:
+            note += (", and not one quotation matches the source -- the source "
+                     "may not be the one the report was written against")
+        note += ". First at line %d: %r" % (sub[0][1], sub[0][2][:60])
+        notes.append(note)
+    if pun:
+        notes.append("%d quoted statement(s) differ from the source in "
+                     "punctuation only; advisory. First at line %d: %r"
+                     % (len(pun), pun[0][1], pun[0][2][:60]))
+    return len(sub), len(pun), found, notes
