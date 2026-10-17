@@ -65,9 +65,23 @@ def load_defects(path):
         # A traceback exits 1, the code a real recall shortfall gets, so a
         # broken reference read as a bad report.
         die([f"not parseable json: {e}"], path)
+    if not isinstance(d, dict):
+        # A reference whose root is a list parses cleanly and then dies on
+        # d.get, which exits 1 -- the code a real recall shortfall gets. The
+        # load above is guarded for exactly this reason and the indexing below
+        # was not, so a reference that was merely reshaped read as a report
+        # that had gotten worse.
+        die([f"the reference must be a json object, got {type(d).__name__}"],
+            path)
     defs = d.get("defects")
     if not isinstance(defs, list) or not defs:
         die(["`defects` is missing or empty"], path)
+    nonobj = [i for i, x in enumerate(defs) if not isinstance(x, dict)]
+    if nonobj:
+        # defs = [7] parses too, and x.get then raises AttributeError: the same
+        # exit-1 hole, one line deeper.
+        die([f"{len(nonobj)} defect(s) are not objects (entries "
+             f"{', '.join(map(str, nonobj[:3]))})"], path)
     ids = [x.get("id") for x in defs]
     bad = [i for i in ids if not i]
     if bad:
@@ -135,7 +149,10 @@ def load_verdicts(path, defects, title, need_evidence=True):
     have = set(got)
     missing = sorted(want - have)
     extra = sorted(have - want)
-    wrong = sorted(f"{k}={got[k]!r}" for k in have & want if got[k] not in SCORE)
+    wrong = sorted(f"{k}={got[k]!r}" for k in have & want
+                   if isinstance(got[k], str) and got[k] not in SCORE)
+    badtype = sorted(f"{k}={got[k]!r}" for k in have & want
+                     if not isinstance(got[k], str))
     msgs = []
     if rep is not None and not isinstance(rep, str):
         # os.path.exists on a list raises TypeError. That is a crash, not a
@@ -152,6 +169,11 @@ def load_verdicts(path, defects, title, need_evidence=True):
         msgs.append(f"verdict for unknown defect(s): {', '.join(map(str, extra))}")
     if wrong:
         msgs.append("verdict outside {yes, partial, no}: " + ", ".join(wrong))
+    if badtype:
+        # A verdict that is not a string cannot be looked up in SCORE at all:
+        # `["found"] in SCORE` raises TypeError, the same crash-not-a-rejection
+        # that the guard at the top of load_defects exists to prevent.
+        msgs.append("verdict is not a string: " + ", ".join(badtype))
     # A positive verdict must point at the report line that carries it. Borrowed
     # from archify, which never accepts a pass without an identified reviewer and
     # binds every receipt to the artifact it measured. Without this, "yes" is an

@@ -33,6 +33,19 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
+# recon.py reads this script's stdout with text=True and encoding="utf-8", so a
+# refusal that names a non-ASCII path must come back as bytes the parent can
+# decode. Without this, the parent's strict decoder returns None for
+# child.stdout and child.stdout + child.stderr raises TypeError -- recon then
+# exits 1 with an empty stdout, and a refusal arrives in the form of a crash.
+# report_qc.py and recon.py both reconfigure; this was the third script of the
+# pipe that did not, and it is the one being read.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 from checks.docgen import validate, validate_json, load_contract  # noqa: E402
 
 
@@ -71,7 +84,14 @@ def _read_source(path: Path) -> str:
         text = path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
         _die(f"source is not utf-8: {path}")
-    if not text.strip():
+    except OSError as e:
+        # Kept apart from the clause above for the same reason recon.py keeps
+        # them apart: a denial is not an encoding problem, and reporting it as
+        # one sends a reader to re-save a file that was unreadable for another
+        # reason. recon.py's OSError clause landed this release and this was the
+        # third reader that missed it.
+        _die(f"source cannot be read: {path} ({e})")
+    if not any(ch.isprintable() for ch in text.strip()):
         # An empty source yields a document about a program that does not exist.
         # --type onboarding and --type table both validated that as PASS, because
         # the validator checks structure and not whether the document says
@@ -739,10 +759,12 @@ def main() -> int:
 
     # Load contract. A missing or unreadable schema is a refusal, not an empty
     # rule set: validating against nothing prints PASS, which is the false
-    # reassurance --validate must not give.
+    # reassurance --validate must not give. ValueError covers both
+    # JSONDecodeError and the UnicodeDecodeError that read_text raises for a
+    # non-UTF-8 schema, which the earlier pair let through as exit 1.
     try:
         contract = load_contract()
-    except (OSError, json.JSONDecodeError) as e:
+    except (OSError, ValueError) as e:
         _die(f"cannot read the contract at {Path(__file__).resolve().parent.parent / 'schemas' / 'docgen-contract.json'}: {e}")
 
     # Read source

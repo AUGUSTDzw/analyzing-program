@@ -1804,7 +1804,8 @@ def main():
                              ("a directory", d, "is a directory"),
                              ("a markdown file", md, "markdown"),
                              ("a non-utf-8 file", bad, "not utf-8"),
-                             ("an empty file", empty, "empty")]:
+                             ("an empty file", empty,
+                               "no analysable content")]:
         rr = run(RECON, path, "-o", out)
         first = rr.stdout.strip().splitlines()[0] if rr.stdout.strip() else ""
         all_clean = all_clean and "Traceback" not in rr.stdout + rr.stderr
@@ -1901,6 +1902,213 @@ def main():
     check(not any(re.match(r"^\s*\d+\s*\|", x) for x in rr.stdout.splitlines()),
           "recon prints no source before refusing a missing docgen")
 
+    print()
+    print("the third script of the pipe, and the third state of a rule set")
+    print("-" * 72)
+    # recon reads docgen with text=True, encoding="utf-8" and no errors=. A
+    # child that emitted bytes that are not utf-8 made that decode return None
+    # for child.stdout, and child.stdout + child.stderr raised TypeError: exit 1
+    # with an empty stdout, so a refusal arrived in the form of a crash. docgen
+    # now reconfigures its streams like the other two scripts, and recon decodes
+    # the child with errors="replace" so child.stdout can never be None. This
+    # stub makes the second half of that fail -- the pipe, not the console.
+    io.open(os.path.join(stub, "scripts", "docgen.py"), "w",
+            encoding="utf-8").write(
+        "import sys\n"
+        "sys.stdout.buffer.write(%r)\n"
+        "sys.exit(2)\n" % b"error  cannot write to o\\xff\\xfe\\x00ut.md")
+    os.makedirs(os.path.join(tmp, "stubout-bin"))
+    rcp = run(os.path.join(stub, "scripts", "recon.py"), src, "-o",
+              os.path.join(tmp, "stubout-bin"))
+    check(rcp.returncode == 2,
+          "a child whose output is not utf-8 still leaves recon refusing")
+    check(rcp.stdout.startswith("error  "),
+          "a child whose output is not utf-8 still leads with error")
+    check("docgen exited" in rcp.stdout,
+          "a child whose output is not utf-8 is still reported as a child")
+    check("Traceback" not in rcp.stdout,
+          "decoding the child never raises",
+          rcp.stdout.strip().split("\n")[0][:44])
+    check("NoneType" not in rcp.stdout + rcp.stderr,
+          "child.stdout is not None: the TypeError is gone")
+    io.open(os.path.join(stub, "scripts", "docgen.py"), "w",
+            encoding="utf-8").write(
+        "import pathlib, sys\n"
+        "out = pathlib.Path(sys.argv[-2],\n"
+        "                  pathlib.Path(sys.argv[-1]).stem + '.onboarding.md')\n"
+        "out.write_bytes(b'\\xff\\xfe\\x00')\n"
+        "print('Generated: ' + str(out))\n")
+    fresh = os.path.join(tmp, "stubout-bin2")
+    os.makedirs(fresh)
+    rr = run(os.path.join(stub, "scripts", "recon.py"), src, "-o", fresh)
+    check(rr.returncode == 2 and rr.stdout.startswith("error  "),
+          "a docgen that crashed before the binary write is reported as one")
+    check("Traceback" not in rr.stdout,
+          "and it is still not a traceback of recon's own")
+    for tag, path in (("docgen.py", DOCGEN), ("recon.py", RECON)):
+        body = io.open(path, encoding="utf-8").read()
+        check("_stream.reconfigure(encoding=\"utf-8\"" in body,
+              "%s reconfigures its own streams" % tag)
+    check('errors="replace"' in io.open(RECON, encoding="utf-8").read(),
+          "recon decodes the child so child.stdout can never be None")
+    check('_stream.reconfigure(encoding="utf-8"' in io.open(DOCGEN,
+                                                            encoding="utf-8").read(),
+          "docgen reconfigures its streams before it prints")
+
+    # _read_source is a third function with the same two-clause shape as
+    # report_qc's read_report and read_src.
+    print()
+    print("docgen's own readers")
+    print("-" * 72)
+    deny2 = os.path.join(tmp, "deny_docgen.py")
+    io.open(deny2, "w", encoding="utf-8").write(
+        "import io as _io, os, pathlib, sys\n"
+        "sys.path.insert(0, %r)\n"
+        "import docgen as D\n"
+        "os.makedirs('present', exist_ok=True)\n"
+        "_io.open('present/src.abap', 'w', encoding='utf-8')"
+        ".write('REPORT z.\\n')\n"
+        "_real = _io.open\n"
+        "def deny(path, *a, **k):\n"
+        "    if 'present' in str(path):\n"
+        "        raise PermissionError(13, 'Permission denied', str(path))\n"
+        "    return _real(path, *a, **k)\n"
+        "_io.open = deny\n"
+        "try:\n"
+        "    D._read_source(pathlib.Path('present/src.abap'))\n"
+        "    print('NO RAISE')\n"
+        "except SystemExit as e:\n"
+        "    print('exit' + str(e.code))\n"
+        % os.path.join(SKILL, "scripts"))
+    rd2 = subprocess.run([sys.executable, deny2], capture_output=True,
+                         text=True, encoding="utf-8", cwd=tmp,
+                         env=dict(os.environ, PYTHONIOENCODING="utf-8",
+                                  PYTHONUTF8="1"))
+    lines2 = [x for x in rd2.stdout.splitlines() if ": " in x]
+    check(len(lines2) == 1, "docgen's reader was exercised",
+          "%d line(s)" % len(lines2))
+    check(lines2 and "exit2" in rd2.stdout,
+          "an unreadable source is a refusal, not a crash",
+          rd2.stdout.strip().split("\n")[-1][:70])
+    check("Traceback" not in rd2.stdout + rd2.stderr,
+          "docgen's unreadable source says so, it does not raise")
+    check("cannot be read" in rd2.stdout,
+          "docgen names the denial", rd2.stdout.strip().split("\n")[0][:60])
+    check("not utf-8" not in rd2.stdout,
+          "docgen does not call a denial an encoding error")
+
+    # .strip() removes whitespace but not control bytes, so a file with no
+    # printable character at all passed as a one-line program and got a document
+    # about a program that does not exist.
+    for name, blob in (("only null bytes", b"\x00\x00\x00"),
+                       ("only escape codes", b"\x1b\x1b\x1b")):
+        ctl = os.path.join(tmp, "ctl.abap")
+        io.open(ctl, "wb").write(blob)
+        for tool, argv in (("recon", (RECON, ctl, "-o", out)),
+                           ("docgen", (DOCGEN, "--type", "onboarding",
+                                       "-o", out, ctl))):
+            r = run(*argv)
+            check(r.returncode == 2,
+                  "%s refuses %s, exit 2" % (tool, name),
+                  "rc=%d" % r.returncode)
+            check(r.stdout.startswith("error  "),
+                  "%s says what it refused for %s" % (tool, name),
+                  r.stdout.strip().split("\n")[0][:60])
+
+    # -o is recon's flag, not docgen's, so recon owes the diagnosis.
+    for name, path in (("a missing -o", os.path.join(tmp, "never-created")),
+                       ("a -o that is a file", os.path.join(tmp, "afile"))):
+        if os.path.isfile(path) or name.startswith("a -o"):
+            io.open(path, "w").write("x")
+        r = run(RECON, src, "-o", path)
+        check(r.returncode == 2, "recon refuses %s, exit 2" % name)
+        first = r.stdout.strip().split("\n")[0]
+        check(first.startswith("error  "),
+              "recon says what it refused for %s" % name, first[:70])
+        check("output path" in r.stdout and "docgen exited" not in r.stdout,
+              "recon blames its own flag for %s, not docgen" % name,
+              first[:70])
+
+    # json.load accepts {"version": "1.3.10"}, and the trigger names only
+    # "missing or not parseable". The derivation below the load was the third
+    # state, and it died there with a KeyError -- exit 1, the code a real
+    # defect verdict gets, for a rule set that was merely reshaped.
+    print()
+    print("a rule set that parses is not a rule set that is right")
+    print("-" * 72)
+    for idx, (name, body) in enumerate((
+            ("an object with no sections", '{"version": "1.3.10"}'),
+            ("a list at the root", '[1, 2]'),
+            ("an object with an empty sections list", '{"sections": []}'))):
+        root = os.path.join(tmp, "shape-%d" % idx)
+        os.makedirs(os.path.join(root, "scripts"))
+        os.makedirs(os.path.join(root, "schemas"))
+        io.open(os.path.join(root, "schemas", "report-contract.json"),
+                "w", encoding="utf-8").write(body)
+        shutil.copy(QC, os.path.join(root, "scripts", "report_qc.py"))
+        shutil.copytree(CHECKS, os.path.join(root, "scripts", "checks"),
+                        ignore=shutil.ignore_patterns("__pycache__"))
+        rep = os.path.join(tmp, "shape.md")
+        io.open(rep, "w", encoding="utf-8").write(brief_report())
+        r = run(os.path.join(root, "scripts", "report_qc.py"), rep)
+        check(r.returncode == 2,
+              "%s exits 2, not 1" % name, "rc=%d" % r.returncode)
+        check("Traceback" not in r.stdout + r.stderr,
+              "%s is a refusal" % name)
+        check("cannot read the rule set" in r.stdout,
+              "%s is refused by the rule-set guard" % name)
+
+    print()
+    print("evaluate.py: a reshaped reference is a refusal")
+    print("-" * 72)
+    io.open(os.path.join(tmp, "e_array.json"), "w").write("[]\n")
+    io.open(os.path.join(tmp, "e_scalar.json"), "w").write('{"defects": [7]}\n')
+    io.open(os.path.join(tmp, "e_good.json"), "w", encoding="utf-8").write(
+        '{"defects": [{"id": "D1", "question": "Is it absent?", '
+        '"anchors": ["REPORT"]}]}')
+    io.open(os.path.join(tmp, "e_vlist.json"), "w").write(
+        '{"report": null, "verdicts": {"D1": ["found"]}, '
+        '"false_claims": []}')
+    io.open(os.path.join(tmp, "e_vstr.json"), "w").write(
+        '{"report": null, "verdicts": {"D1": "maybe"}, '
+        '"false_claims": []}')
+    for name, argv in (
+            ("array at the root", ["tasks", "--defects",
+                                   os.path.join(tmp, "e_array.json")]),
+            ("a defect entry that is a scalar", ["tasks", "--defects",
+                                                 os.path.join(tmp, "e_scalar.json")]),
+            ("a verdict that is a list", ["score", "--defects",
+                                          os.path.join(tmp, "e_good.json"),
+                                          "--verdicts",
+                                          os.path.join(tmp, "e_vlist.json"),
+                                          "--legacy"]),
+            ("a verdict outside the vocabulary", ["score", "--defects",
+                                                 os.path.join(tmp, "e_good.json"),
+                                                 "--verdicts",
+                                                 os.path.join(tmp, "e_vstr.json"),
+                                                 "--legacy"])):
+        r = run(EVAL, *argv)
+        check(r.returncode == 2, "%s exits 2, not 1" % name,
+              "rc=%d" % r.returncode)
+        check("REJECTED" in r.stdout, "%s is reported as a rejection" % name)
+        check("Traceback" not in r.stdout + r.stderr,
+              "%s is not a crash" % name)
+    check("must be a json object" in
+          run(EVAL, "tasks", "--defects",
+              os.path.join(tmp, "e_array.json")).stdout,
+          "evaluate names a root that is not an object")
+    check("are not objects" in
+          run(EVAL, "tasks", "--defects",
+              os.path.join(tmp, "e_scalar.json")).stdout,
+          "evaluate names an entry that is not an object")
+    check("verdict is not a string" in
+          run(EVAL, "score", "--defects", os.path.join(tmp, "e_good.json"),
+              "--verdicts", os.path.join(tmp, "e_vlist.json"),
+              "--legacy").stdout,
+          "evaluate names a verdict that is not a string")
+
+    print()
+    print("-" * 72)
     print()
     print("-" * 72)
     if FAILS:

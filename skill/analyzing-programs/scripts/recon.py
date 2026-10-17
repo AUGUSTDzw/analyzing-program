@@ -125,8 +125,13 @@ def main() -> int:
         _die(f"source is not utf-8: {source_path}")
     except OSError as e:
         _die(f"source cannot be read: {source_path} ({e})")
-    if not text.strip():
-        _die(f"source is empty: {source_path} (nothing to analyse)")
+    if not any(ch.isprintable() for ch in text.strip()):
+        # .strip() handles whitespace but not control bytes: "\x00\x00".strip()
+        # is non-empty, so a file with no printable character at all passed as a
+        # one-line program and got a document about a program that does not
+        # exist. Same hole at docgen.py's own read.
+        _die(f"source has no analysable content: {source_path} "
+             f"(nothing to analyse)")
 
     lines = _numbered(text)
 
@@ -134,6 +139,15 @@ def main() -> int:
     # output at all instead of after the whole source has gone out. It also has
     # to run first for the total below to be knowable.
     outdir = Path(args.output) if args.output else source_path.parent
+    if args.output and not outdir.is_dir():
+        # Passing it on left "docgen exited 2" first with the real reason on
+        # the second line, and for -o <file> docgen reported WinError 183
+        # (already exists) as "the directory is not writable" -- a permissions
+        # problem that was actually a wrong kind of path.
+        if outdir.is_file():
+            _die(f"output path is a file, not a directory: {outdir}")
+        _die(f"output path is not a directory: {outdir} "
+             f"(create it, or drop -o to write next to the source)")
     docgen = SCRIPT_DIR / "docgen.py"
     if not docgen.is_file():
         # python exits 2 for a script it cannot open, and writes the reason to
@@ -146,6 +160,7 @@ def main() -> int:
         [sys.executable, str(docgen),
          "--type", "onboarding", "-o", str(outdir), str(source_path)],
         capture_output=True, text=True, encoding="utf-8",
+        errors="replace",
     )
     if child.returncode != 0:
         # docgen writes its refusal to stdout and a crash to stderr. Both are

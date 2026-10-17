@@ -47,7 +47,18 @@ CONTRACT_PATH = os.path.join(_HERE, "..", "..", "schemas", "report-contract.json
 try:
     with io.open(CONTRACT_PATH, encoding="utf-8") as _fh:
         CONTRACT = json.load(_fh)
-except (OSError, ValueError) as _e:
+    # A contract that parses but is missing a key reached the derivation below
+    # and died there with a KeyError, which exited 1 -- the code a real defect
+    # verdict gets -- for a rule set that was merely reshaped. json.load accepts
+    # {"version": "1.3.10"}; the trigger names only "missing or not parseable",
+    # so the third state needed raising back into this guard.
+    for _k in ("sections", "layers", "problem_section", "mermaid",
+               "forbidden_in_location_labels", "sections_exactly_once",
+               "encoding", "gate_io", "advisories", "loop_position",
+               "claim_separation"):
+        if _k not in CONTRACT:
+            raise KeyError(_k)
+except (OSError, ValueError, KeyError, TypeError) as _e:
     # The rule set is read before the script can run, so a missing or corrupt
     # contract dies here -- before main(), before every exit-2 guard below.
     # An unhandled exception exits 1, which SKILL.md defines as "the check ran
