@@ -135,8 +135,8 @@ Mermaid 标签里的裸 `<` `>` `#` → 改成全角。三层缺失**只报位�
 ### 先说版本：下面的数字不是出货版本的数字
 
 iteration-8 的全部数字都是在 **`b8f84e8`**（162 行）上测出来的。
-**工作树与 `release/` 都到 `1.1.22`**（546 行，契约 1.3.10 / docgen 契约 1.0.2）：
-归档在 `release/analyzing-programs-1.1.21/`（408 文件、31 目录），
+**工作树与 `release/` 都到 `1.1.24`**（546 行，契约 1.3.10 / docgen 契约 1.0.2）：
+归档在 `release/analyzing-programs-1.1.24/`（408 文件、31 目录），
 zip 的 sha256 在 `release/SHA256SUMS`。
 **效果**未测出结论。**
 
@@ -183,6 +183,7 @@ Not a valid object name），那几行的行数只能从 `--follow` 找到的同
 | `63c16cc` | 541 | `63c16cc` | **1.1.21**。契约不动（1.3.10）：没有规则、阈值或 `gate_io` 行变化，只有 `ships_with` 走，SKILL.md 仍是 541 行。**给 `recon.py` 补上 42 项测试**，`test_skill.py` 241 → 283，五个套件 584 项全绿。1.1.20 发布时五个套件一条都没碰它。**两条新测试第一次跑就失败，两条都是 `recon.py` 自己的缺陷**：一是它的 `stdout` 被 Windows 翻译了——dump 每行结尾都带一个源码里不存在的回车，而闸门读源码不翻译，dump 和闸门对同一行永远差一个字符；二是它的守卫只证明「那个路径上有文件」，上一次跑留下的同名旧文件足以让一份它没生产的清单被当成自己的产出报成功（记录未修）。`_comment` 增到 312 条 |
 | `ca8e133` | 546 | `ca8e133` | **1.1.22**。契约不动（1.3.10）：没有规则、阈值或 `gate_io` 行变化，只有 `ships_with` 走，SKILL.md 541 → 546 行。**拒绝之前不再打印任何东西**：`recon.py` 先跑 `docgen.py` 再写 dump，否则 docgen 拒绝时整份源码已经打出去了（最大的语料文件是 29564 行 / 1517397 字节）。header 第二行现在给出这次会打印的总字节数，按字节算，中文注释一个字三个字节。`test_skill.py` 283 → 287，五个套件 588 项全绿。补上 1.1.21 漏掉的那条断言——docgen 拒绝必须不留下任何编号行。顺带修掉 SKILL.md 第 6 步一句说反了的话：两个脚本都自定位。
 | `dc3e95d` | 546 | `dc3e95d` | **1.1.23**。契约不动（1.3.10）：没有规则、阈值或 `gate_io` 行变化，只有 `ships_with` 走，SKILL.md 仍是 546 行。**四条没有测试守着的拒绝路径**：`recon.py` 违背了自己文档里的「没有 exit 1」——读回 docgen 写出的文件用的是没有守卫的 `read_text()`，docgen 写了非 utf-8 字节就以 traceback 退 `1`，而 `1` 正是「缺陷判决」；docgen 缺失时报「docgen 退出了 2」，给一个从未运行的 docgen 编了个退出码，python 写在 stderr 里的原因被丢掉；只转发 docgen 的 stdout，崩溃时退出码成了唯一交代；`report_qc.py` 把「读不到」报成「不是 utf-8」——`read_report` 与 `read_src` 都捕 `(UnicodeDecodeError, OSError)`，两种异常同一句话，1.3.10 只修了目录那一种。段标题改成 `== DOCGEN OUTPUT`、摘要行的数改成 `docgen block`。`tests/test_skill.py` 287 → 311 项，5 个套件 612 项全绿。 |
+| `143b290` | 546 | `143b290` | **1.1.24**。契约不动（1.3.10）：没有规则、阈值或 `gate_io` 行变化，只有 `ships_with` 走，SKILL.md 仍是 546 行。**九条 1.1.23 没有测试守着的缺陷**：`recon.py` 读 docgen 时 `child.stdout` 回来 `None`，`+ child.stderr` 抛 `TypeError`——拒绝以崩溃的形式到达；`checks/contract.py` 在 load 之后的推导里抛 `KeyError`，拿「有缺陷」的退出码报一份被重排过的规则集；`evaluate.py` 三处假定输入就是它写代码时那个形状；`docgen.py` 加载契约漏了 `UnicodeDecodeError`、`_read_source` 把两个子句合成一个；`recon.py` 把自己拥有的 `-o` 交给 docgen 诊断；`.strip()` 收下一个全 null 字节的源；`SKILL.md` 还把那段叫「清单」。`tests/test_skill.py` 311 → 365 项，五个套件 666 项全绿。 |
 
 **契约版本与发布版本是两条独立的轴。** 契约 `version` 只在该文件自己的规则、
 阈值或 `gate_io` 行变化时递增；发布版本对措辞和闸门行为的变化也递增。
@@ -568,6 +569,80 @@ for a BOM in a folder"——所以当时加了目录判断。**只修了目录�
 于是 recon 声称的数比测试读到的多 **41 字节**。线上走的正是 recon 声称的 1635；
 下面的 CRLF 测试早就为同样的理由按字节读——**这正是套件用字节量 dump、
 却用翻译过的文本量 header 的原因**。
+
+### 1.1.23 → 1.1.24：九条 1.1.23 没有测试守着的缺陷
+
+契约不动（1.3.10）：没有规则、阈值或 `gate_io` 行变化，只有 `ships_with` 走。
+SKILL.md 仍是 546 行——只动了 frontmatter 的 `version` 和两处措辞。
+
+`tests/test_skill.py` 311 → 365 项，五个套件 612 → 666 项全绿。九条里
+**四条是「拒绝以崩溃的形式到达」**：traceback、退 `1`，而 `1` 在本项目里
+是「查过了、有缺陷」——调用方会去修一批从未被查过的东西。
+
+**一、`recon.py` 读 docgen 时 `child.stdout` 会是 `None`（已修）。**
+`subprocess.run(..., text=True, encoding="utf-8")` 没给 `errors=`：子进程写出
+非 UTF-8 字节时，严格解码器把 `child.stdout` 返回 `None`，于是
+`child.stdout + child.stderr` 抛 `TypeError`。量出来：`rc=1`、stdout 是空的、
+首行不是 `error`。拒绝以崩溃的形式到了调用方。两个方向都修：`docgen.py` 补上
+另外两个兄弟早就有的 stream `reconfigure`——它是被读的那一个，之前恰好没有；
+`recon.py` 读子进程时加 `errors="replace"`，所以 `child.stdout` 永远不是 `None`。
+
+**二、`checks/contract.py` 在 load 之后的推导里死掉（已修）。**
+`json.load` 接受 `{"version": "1.3.10"}`，规则集能解析但少了 `sections`，
+于是在 load 之后那段推导抛 `KeyError`，退 `1`——拿「查过了、有缺陷」的退出码
+报一份只是被重排过的规则集。顶层键现在在同一个 `try` 里先查一遍，`except`
+扩到 `KeyError` 与 `TypeError`：`json.load` 能返回的任何形状都被规则集那道
+守卫拒绝，说的是 trigger 早就承诺的 `cannot read the rule set` /
+`nothing was checked`。
+
+**三、`evaluate.py` 假定输入就是它写代码时那个形状（已修）。**根是数组撞
+`d.get`；`defects` 里一条标量撞 `x.get`；一条 verdict 的值是列表，被拿去当
+dict 的键。三个都是 traceback、退 `1`。现在分别点名：
+`the reference must be a json object`、`N defect(s) are not objects`、
+`verdict is not a string`。
+
+**四、`docgen.py` 加载契约时漏了 `UnicodeDecodeError`（已修）。**原来是
+`except (OSError, JSONDecodeError)`：契约文件存在但不是 UTF-8，就绕过守卫成了
+traceback。`ValueError` 两者都覆盖——`JSONDecodeError` 是它的子类。
+
+**三条是「崩溃没发生，但话说不准」。**
+
+**五、`docgen.py` 的 `_read_source` 把两个子句合成一个（已修）。**原来是
+`except (UnicodeDecodeError, OSError)`：源文件存在但读不了，被报成
+「不是 utf-8」。`report_qc.py` 在 1.1.23 修过同一个误诊，`_read_source` 是
+第三个同样形状的读者，也是漏掉的那个。两个子句现在分开。
+
+**六、`recon.py` 把自己拥有的 `-o` 交给 docgen 去诊断（已修）。**原来 `-o`
+指错时先打 `docgen exited 2`，真原因在第二行；而 `-o` 指向一个文件时 docgen
+报的是 `WinError 183`（已存在）——一个权限问题，实际是路径的种类错了。
+现在 `recon.py` 先查自己的 flag 并点名：
+`output path is a file, not a directory`，或
+`output path is not a directory: ... (create it, or drop -o to write next to the source)`。
+
+**七、一份没有打印字符的源被当成一行程序收下（已修）。**`.strip()` 去掉的是
+空白，不是控制字节：`"\x00\x00".strip()` 非空。一份全 null 字节的文件被当成
+一行程序，然后为一份不存在的程序生成了一份文档。`recon.py` 与 `docgen.py`
+现在要求至少一个 `isprintable()` 的字符。
+
+**八、`SKILL.md` 里唯一的措辞债（已修）。**它还在把 docgen 写出的那段叫
+「清单」，读者照着找 `== SUBPROGRAM INVENTORY`——找的是 1.1.23 就不再出货的
+那个段标题。现在写 `== DOCGEN OUTPUT`，并说明子程序表只是 docgen 那七节里的
+其中一节。
+
+**九、记下来不修的那一条。**`recon.py` 的收条会回显它收到的输出路径，所以
+`output N bytes` 那个数随路径长度变，而同行的 `docgen block` 不变。总数说的是
+它数的东西，只是不恒定；读者要核对的是那个不变的数，所以记进契约、不改。
+
+另有两处按现状留着，都不属于崩溃类：`abap_deps_analyzer.py` 仍在两处用
+`errors='ignore'` 解码源码（`report_qc.py` 对同一件事是拒绝），`evaluate.py`
+与 `abap_deps_analyzer.py` 都没有 stream `reconfigure`——但它们都不是被别的脚本
+读的子进程，所以第一条那个失效方式到不了它们。
+
+trigger 集合没动，所以 `exit_codes[2]` 没加东西：1.1.23 时是 traceback 的那些
+拒绝，现在是拒绝本身。契约 `_comment` 增到 315 条。契约 `1.3.10` 不动，
+`ships_with` 与 SKILL.md frontmatter 一起移到 `1.1.24`，
+已归档在 `release/analyzing-programs-1.1.24/`（408 文件、31 目录）；
+zip 的 sha256 在 `release/SHA256SUMS`，打包提交晚于本文件所以不写。
 
 ### 1.1.20 → 1.1.21：给 `recon.py` 补上 42 项测试
 
