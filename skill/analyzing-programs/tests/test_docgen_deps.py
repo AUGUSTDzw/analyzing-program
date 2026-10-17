@@ -343,6 +343,118 @@ def main():
                   "an %s contract names the contract it could not read" % kind,
                   r.stdout.strip()[:70])
 
+        # The two above cover a contract that cannot be read. One that parses and
+        # is shaped wrong reached validate() and died there: document_types as a
+        # number raised AttributeError out of contract.get(), and {} answered PASS
+        # against no required sections and no flags -- the same false reassurance
+        # this section exists to stop, through a different door. load_contract now
+        # checks presence and shape, and the catch in main() widened to KeyError
+        # and TypeError, so both are refused at the contract.
+        import json as _jd
+        _base = _jd.load(io.open(os.path.join(ROOT, "schemas",
+                                              "docgen-contract.json"),
+                                 encoding="utf-8"))
+
+        def _copy():
+            return _jd.loads(_jd.dumps(_base))
+
+        def _shape(label, doc):
+            root = os.path.join(tmp, "dg-shape")
+            if os.path.isdir(root):
+                shutil.rmtree(root)
+            os.makedirs(os.path.join(root, "schemas"))
+            io.open(os.path.join(root, "schemas", "docgen-contract.json"),
+                    "w", encoding="utf-8").write(_jd.dumps(doc))
+            shutil.copytree(os.path.join(ROOT, "scripts"),
+                            os.path.join(root, "scripts"),
+                            ignore=shutil.ignore_patterns("__pycache__"))
+            r = subprocess.run([sys.executable,
+                                os.path.join(root, "scripts", "docgen.py"),
+                                prog, "--type", "class", "--validate"],
+                               capture_output=True, encoding="utf-8")
+            check(r.returncode == 2,
+                  "a contract with %s exits 2, not a clean PASS" % label,
+                  "rc=%d" % r.returncode)
+            check("Traceback" not in r.stdout + r.stderr,
+                  "a contract with %s does not raise" % label)
+            check("cannot read the contract" in r.stdout,
+                  "a contract with %s is refused at the contract, not in validate"
+                  % label,
+                  r.stdout.strip()[:70])
+
+        def _at(key, value):
+            d = _copy()
+            d[key] = value
+            return d
+
+        def _secs(value):
+            d = _copy()
+            d["document_types"]["class"]["required_sections"] = value
+            return d
+
+        _shape("no rules at all", {})
+        _shape("a list at the root", [])
+        _shape("document_types as a number", _at("document_types", 3))
+        _shape("validation as a number", _at("validation", 3))
+        _shape("required_sections as a string", _secs("x"))
+        _shape("a section with no heading_anchor", _secs([{"label": "x"}]))
+
+        # The two above cover a contract that cannot be read. One that parses and
+        # is shaped wrong reached validate() and died there: document_types as a
+        # number raised AttributeError out of contract.get(), and {} answered PASS
+        # against no required sections and no flags -- the same false reassurance
+        # this section exists to stop, through a different door. load_contract now
+        # checks presence and shape, and the catch in main() widened to KeyError
+        # and TypeError, so both are refused at the contract.
+        import json as _jd
+        _base = _jd.load(io.open(os.path.join(ROOT, "schemas",
+                                              "docgen-contract.json"),
+                                 encoding="utf-8"))
+
+        def _copy():
+            return _jd.loads(_jd.dumps(_base))
+
+        def _shape(label, doc):
+            root = os.path.join(tmp, "dg-shape")
+            if os.path.isdir(root):
+                shutil.rmtree(root)
+            os.makedirs(os.path.join(root, "schemas"))
+            io.open(os.path.join(root, "schemas", "docgen-contract.json"),
+                    "w", encoding="utf-8").write(_jd.dumps(doc))
+            shutil.copytree(os.path.join(ROOT, "scripts"),
+                            os.path.join(root, "scripts"),
+                            ignore=shutil.ignore_patterns("__pycache__"))
+            r = subprocess.run([sys.executable,
+                                os.path.join(root, "scripts", "docgen.py"),
+                                prog, "--type", "class", "--validate"],
+                               capture_output=True, encoding="utf-8")
+            check(r.returncode == 2,
+                  "a contract with %s exits 2, not a clean PASS" % label,
+                  "rc=%d" % r.returncode)
+            check("Traceback" not in r.stdout + r.stderr,
+                  "a contract with %s does not raise" % label)
+            check("cannot read the contract" in r.stdout,
+                  "a contract with %s is refused at the contract, not in validate"
+                  % label,
+                  r.stdout.strip()[:70])
+
+        def _at(key, value):
+            d = _copy()
+            d[key] = value
+            return d
+
+        def _secs(value):
+            d = _copy()
+            d["document_types"]["class"]["required_sections"] = value
+            return d
+
+        _shape("no rules at all", {})
+        _shape("a list at the root", [])
+        _shape("document_types as a number", _at("document_types", 3))
+        _shape("validation as a number", _at("validation", 3))
+        _shape("required_sections as a string", _secs("x"))
+        _shape("a section with no heading_anchor", _secs([{"label": "x"}]))
+
         # Each validated_by value has to be a command docgen accepts; three of
         # the four used to name a flag that argparse refuses, so the documented
         # validator could not be run at all.
@@ -459,9 +571,26 @@ def main():
             r = subprocess.run([sys.executable, DOC, empty, "--type", dt,
                                 "--validate"], capture_output=True,
                                encoding="utf-8")
-            check(r.returncode == 2 and "is empty" in r.stdout,
+            check(r.returncode == 2 and "no analysable content" in r.stdout,
                   "docgen refuses an empty source with --type %s" % dt,
                   "rc=%d %s" % (r.returncode, r.stdout.strip()[:50]))
+
+        # U+FFFD is the corruption signature the encoding rule exists to
+        # catch, and isprintable() is True of it, so a source that is
+        # nothing but replacement characters passed the empty check and got
+        # a document about a program that does not exist -- one per type.
+        junk = os.path.join(tmp2, "junk.abap")
+        io.open(junk, "wb").write((("\ufffd" * 9000)
+                                  .encode("utf-8")))
+        for dt in ("onboarding", "table", "class"):
+            r = subprocess.run([sys.executable, DOC, junk, "--type", dt,
+                                "--validate"], capture_output=True,
+                               encoding="utf-8")
+            check(r.returncode == 2 and "no analysable content" in r.stdout,
+                  "docgen refuses a U+FFFD-only source with --type %s" % dt,
+                  "rc=%d %s" % (r.returncode, r.stdout.strip()[:50]))
+            check("Traceback" not in r.stdout + r.stderr,
+                  "that refusal on --type %s does not raise" % dt)
 
         # A real source still generates and still validates.
         r = subprocess.run([sys.executable, DOC, prog2, "--type", "onboarding",

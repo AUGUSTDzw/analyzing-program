@@ -1018,11 +1018,12 @@ def main():
     # and keeps going. Fidelity-only has nothing to compare against, so it
     # refuses -- before this it reported "no such source", which was a lie.
     r = run(QC, good, emp)
-    check("is empty" in r.stdout and "not run" in r.stdout,
+    check("no analysable content" in r.stdout and "not run" in r.stdout,
           "an empty source says what it could not measure",
           r.stdout.strip().split("\n")[-1][:44])
     r = run(QC, "--fidelity-only", good, emp)
-    check(r.returncode == 2 and "empty" in r.stdout and "Traceback" not in r.stderr,
+    check(r.returncode == 2 and "no analysable content" in r.stdout
+          and "Traceback" not in r.stderr,
           "--fidelity-only refuses an empty source, not a missing one",
           r.stdout.strip().split("\n")[-1][:44] if r.stdout.strip() else "")
     binf = os.path.join(tmp, "bad.abap")
@@ -1052,7 +1053,7 @@ def main():
         for x in r.stdout.splitlines()),
           "a source of blanks is not a source that nothing matches",
           r.stdout.strip().split("\n")[-1][:44] if r.stdout.strip() else "")
-    check("is empty" in r.stdout and "not run" in r.stdout,
+    check("no analysable content" in r.stdout and "not run" in r.stdout,
           "a source of blanks says the same thing as an empty one",
           r.stdout.strip().split("\n")[-1][:44] if r.stdout.strip() else "")
     wsout = os.path.join(tmp, "ws.out.md")
@@ -1061,8 +1062,36 @@ def main():
           "--fix reports no rewrites against a source of blanks",
           r.stdout.strip().split("\n")[-1][:44] if r.stdout.strip() else "")
     r = run(QC, "--fidelity-only", good, ws)
-    check(r.returncode == 2 and "empty" in r.stdout,
+    check(r.returncode == 2 and "no analysable content" in r.stdout,
           "--fidelity-only refuses a source of blanks, as it does an empty one")
+
+    # The two shapes the blank check could not reach. `.strip()` removes
+    # whitespace and control bytes are not whitespace, so a file of NUL bytes
+    # survived it and the gate scored the report against a source with
+    # nothing in it -- the same false verdict as a blank one. isprintable()
+    # alone is no better: it is True of U+FFFD, so a source that is nothing
+    # but the replacement character passed, and a document was generated
+    # about a program that does not exist. Both now take the blank line.
+    for label, payload in (("NUL bytes", b"\x00" * 500),
+                           ("only U+FFFD", (("\ufffd" * 9000)
+                                            .encode("utf-8")))):
+        junk = os.path.join(tmp, "junk.abap")
+        io.open(junk, "wb").write(payload)
+        r = run(QC, good, junk)
+        check("no analysable content" in r.stdout and "not run" in r.stdout,
+              "a source of %s says what the gate could not measure" % label,
+              r.stdout.strip().split("\n")[-1][:44] if r.stdout.strip() else "")
+        check(not any(x.strip().startswith(("SUBSTA", "PUNCT-", "row-src"))
+                      for x in r.stdout.splitlines()),
+              "a source of %s is not scored against as a real source" % label)
+        r = run(QC, "--fidelity-only", good, junk)
+        check(r.returncode == 2 and "no analysable content" in r.stdout
+              and "Traceback" not in r.stdout + r.stderr,
+              "--fidelity-only refuses a source of %s" % label,
+              "rc=%d" % r.returncode)
+        check(not any(x.strip().startswith(("SUBSTA", "PUNCT-", "row-src"))
+                      for x in r.stdout.splitlines()),
+              "the refusal on a source of %s names nothing else" % label)
 
 
     # The pass normalizes line endings internally and must hand the report
@@ -2057,7 +2086,69 @@ def main():
               "%s is a refusal" % name)
         check("cannot read the rule set" in r.stdout,
               "%s is refused by the rule-set guard" % name)
+        # The loop above covers a rule set that is missing keys. A key that is
+        # present and of the wrong type reached the derivation instead: buckets as
+        # a number raised TypeError from "".join(), advisories as [] raised
+        # StopIteration from next(), and a pattern that does not compile raised
+        # re.error. None of the three was in the catch, so each exited 1 with a
+        # traceback -- the defect verdict, for a rule set that was only mistyped.
+    _base = json.load(io.open(os.path.join(SCHEMAS, "report-contract.json"),
+                              encoding="utf-8"))
+    for idx, (name, path, value) in enumerate((
+            ("buckets is a number", ("problem_section", "buckets"), 5),
+            ("patterns is a string",
+             ("forbidden_in_location_labels", "patterns"), "x"),
+            ("advisories is an empty list", ("advisories",), []),
+            ("forbid_in_display_text is 0",
+             ("mermaid", "forbid_in_display_text"), 0),
+            ("a pattern that does not compile",
+             ("forbidden_in_location_labels", "patterns"),
+             [{"id": "x", "regex": "["}]))):
+        c = json.loads(json.dumps(_base))
+        node = c
+        for key in path[:-1]:
+            node = node[key]
+        node[path[-1]] = value
+        root = os.path.join(tmp, "typed-%d" % idx)
+        os.makedirs(os.path.join(root, "scripts"))
+        os.makedirs(os.path.join(root, "schemas"))
+        io.open(os.path.join(root, "schemas", "report-contract.json"),
+                "w", encoding="utf-8").write(json.dumps(c))
+        shutil.copytree(CHECKS, os.path.join(root, "scripts", "checks"),
+                        ignore=shutil.ignore_patterns("__pycache__"))
+        shutil.copy(QC, os.path.join(root, "scripts", "report_qc.py"))
+        r = run(os.path.join(root, "scripts", "report_qc.py"), rep)
+        check(r.returncode == 2,
+              "%s exits 2, not 1" % name, "rc=%d" % r.returncode)
+        check("Traceback" not in r.stdout + r.stderr,
+              "%s is a refusal, not a crash" % name)
+        check("cannot read the rule set" in r.stdout,
+              "%s is refused by the rule-set guard" % name,
+              r.stdout.strip()[:60])
 
+    # recon.py reads the predicate from checks/source.py, with a fallback for the
+    # layout the stub tests above run it in -- recon.py beside nothing but
+    # docgen.py. Two definitions can drift, so compare them on the same inputs.
+    print()
+    print("recon's fallback predicate agrees with the one it imports")
+    print("-" * 72)
+    import importlib.util
+    fb = os.path.join(tmp, "fallback")
+    os.makedirs(fb)
+    shutil.copy(RECON, os.path.join(fb, "recon.py"))
+    _spec = importlib.util.spec_from_file_location(
+        "recon_fallback", os.path.join(fb, "recon.py"))
+    _mod = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    sys.path.insert(0, os.path.join(SKILL, "scripts"))
+    from checks.source import has_content as _shared
+    for _t in ("", "   \n\t", "\x00" * 500, "\ufffd" * 9000,
+               "\ufffd" * 90 + "\n", "\ufffd" * 90 + "REPORT z.",
+               "REPORT z.\n", None):
+        check(_mod.has_content(_t) is _shared(_t),
+              "recon's fallback agrees on %r" % (_t[:12] if _t else _t,),
+              "%s vs %s" % (_mod.has_content(_t), _shared(_t)))
+    
     print()
     print("evaluate.py: a reshaped reference is a refusal")
     print("-" * 72)

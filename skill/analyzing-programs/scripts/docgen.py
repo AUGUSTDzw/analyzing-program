@@ -47,6 +47,7 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 from checks.docgen import validate, validate_json, load_contract  # noqa: E402
+from checks.source import has_content  # noqa: E402
 
 
 def _die(msg: str, code: int = 2) -> None:
@@ -91,13 +92,13 @@ def _read_source(path: Path) -> str:
         # reason. recon.py's OSError clause landed this release and this was the
         # third reader that missed it.
         _die(f"source cannot be read: {path} ({e})")
-    if not any(ch.isprintable() for ch in text.strip()):
-        # An empty source yields a document about a program that does not exist.
-        # --type onboarding and --type table both validated that as PASS, because
-        # the validator checks structure and not whether the document says
-        # anything. report_qc.py's --fidelity-only refuses an empty source for
-        # the same reason.
-        _die(f"source is empty: {path} (nothing to document)")
+    if not has_content(text):
+        # A source with nothing analysable in it yields a document about a program
+        # that does not exist. --type onboarding and --type table both validated
+        # that as PASS, because the validator checks structure and not whether the
+        # document says anything. report_qc.py's --fidelity-only and recon.py
+        # refuse the same shape, through the same predicate.
+        _die(f"source has no analysable content: {path} (nothing to document)")
     return text
 
 
@@ -761,10 +762,14 @@ def main() -> int:
     # rule set: validating against nothing prints PASS, which is the false
     # reassurance --validate must not give. ValueError covers both
     # JSONDecodeError and the UnicodeDecodeError that read_text raises for a
-    # non-UTF-8 schema, which the earlier pair let through as exit 1.
+    # non-UTF-8 schema, which the earlier pair let through as exit 1. KeyError
+    # and TypeError are the presence and shape checks inside load_contract(): a
+    # schema that parses but carries no document_types, or carries one that is not
+    # an object, used to escape this guard and raise AttributeError out of
+    # validate().
     try:
         contract = load_contract()
-    except (OSError, ValueError) as e:
+    except (OSError, ValueError, KeyError, TypeError) as e:
         _die(f"cannot read the contract at {Path(__file__).resolve().parent.parent / 'schemas' / 'docgen-contract.json'}: {e}")
 
     # Read source

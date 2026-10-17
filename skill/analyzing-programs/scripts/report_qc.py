@@ -113,6 +113,7 @@ try:
     from checks.advisory import (authz_note, density_note, ext_asset_note,  # noqa: F401
                                  fix_lang_note, fix_mislabel_note, all_notes)
     from checks.fidelity import fidelity_report
+    from checks.source import has_content
 except (ImportError, SyntaxError) as _e:
     # The rule set and the checks that read it load before main() can run, so a
     # skill installed without scripts/checks/ dies here -- before main(), before
@@ -466,8 +467,9 @@ def main(argv):
             die(str(e))
         if src is None:
             die("no such source: %s" % srcs[0])
-        if not src.strip():
-            die("source is empty: %s (nothing to compare against)" % srcs[0])
+        if not has_content(src):
+            die("source has no analysable content: %s "
+                "(nothing to compare against)" % srcs[0])
         # Every report path is validated before the loop, the way plain mode
         # does. Inside it, the earlier reports had already printed their verdict
         # when the later one was refused, so exit 2 -- nothing was inspected --
@@ -706,9 +708,9 @@ def main(argv):
         print("  note  no source recognised, so density, fidelity, fix-mislabel, "
               "authz, ext-asset and row-src were not run (pass the ABAP file "
               "after the report)")
-    elif not src.strip():
-        print("  note  %s is empty, so density and fidelity were not run"
-              % srcs[0])
+    elif not has_content(src):
+        print("  note  %s has no analysable content, so density and fidelity "
+              "were not run" % srcs[0])
     return 0 if rc == 0 else 1
 
 

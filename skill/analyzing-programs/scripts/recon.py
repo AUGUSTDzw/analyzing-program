@@ -71,6 +71,28 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+# The one predicate for "does this source carry anything" lives in
+# checks/source.py, which recon.py, docgen.py, report_qc.py and
+# checks.text._src_of all read, so no two of them can draw the line in a
+# different place: `.strip()` passes a file of null bytes, and isprintable()
+# passes a file of replacement characters.
+#
+# The fallback is for one layout only. The stub tests run recon.py beside nothing
+# but docgen.py, and a bare import there would raise ImportError straight out of
+# this file -- exit 1, the code a defect verdict gets, for a script that should
+# have said it could not run. It is not reachable from a shipped package, where
+# checks/ always ships beside recon.py. tests/test_skill.py compares the fallback
+# against the original on the same inputs, so the two cannot drift.
+try:
+    from checks.source import has_content
+except ImportError:
+    def has_content(src):
+        return any(ch.isprintable() and ch != "\ufffd"
+                   for ch in (src or "").strip())
+
 
 def _die(msg: str, code: int = 2, echo: str = "") -> None:
     """Print an error and exit with code 2.
@@ -125,11 +147,14 @@ def main() -> int:
         _die(f"source is not utf-8: {source_path}")
     except OSError as e:
         _die(f"source cannot be read: {source_path} ({e})")
-    if not any(ch.isprintable() for ch in text.strip()):
-        # .strip() handles whitespace but not control bytes: "\x00\x00".strip()
-        # is non-empty, so a file with no printable character at all passed as a
-        # one-line program and got a document about a program that does not
-        # exist. Same hole at docgen.py's own read.
+    if not has_content(text):
+        # has_content is the one predicate recon, docgen and report_qc share. It
+        # is stricter than `.strip()`, which removes whitespace and not control
+        # bytes, so "\x00" * 500 survived and a file with nothing in it passed as
+        # a one-line program. It is also stricter than isprintable() alone, which
+        # is True of U+FFFD: a source that was nothing but the replacement
+        # character -- the corruption signature the encoding rule exists to catch --
+        # also passed, and got a document about a program that does not exist.
         _die(f"source has no analysable content: {source_path} "
              f"(nothing to analyse)")
 

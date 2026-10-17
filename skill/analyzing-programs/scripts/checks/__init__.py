@@ -2,6 +2,7 @@
 
 Modules:
   contract.py   -- rule set loaded from schemas/report-contract.json
+  source.py     -- has_content: does a source carry anything analysable
   text.py       -- pure text utilities (fence spans, anchors, layers)
   structure.py  -- structural checks (sections, layers, fences, Mermaid)
   advisory.py   -- advisory notes (density, fix-lang, authz, ext-asset)

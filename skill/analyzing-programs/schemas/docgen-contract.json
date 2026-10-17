@@ -1,7 +1,7 @@
 {
-  "version": "1.0.2",
+  "version": "1.0.3",
   "release": {
-    "ships_with": "1.1.19"
+    "ships_with": "1.1.25"
   },
   "_comment": [
     "Machine-readable contract for document generation from ABAP source.",
@@ -26,7 +26,8 @@
     "A validation failure used to return before the write, leaving no document on disk; the document is written and rc carries the verdict.",
     "Refusals printed error on stderr; report_qc.py prints it on stdout, so a caller reading one stream saw exit 2 with no message.",
     "abap_deps_analyzer refused with exit 1, which this project reserves for the analysis ran and found defects. It now refuses with exit 2 and prints the same error prefix.",
-    "1.0.2 moves version because the contract now records what the seven validation flags actually do, and because the generator refuses three source shapes that used to end in a PASS about the wrong thing. A .md or .markdown source handed to docgen was parsed as ABAP and a fresh document generated about it, so --validate answered PASS for a document this tool never read; it now refuses and points at report_qc.py. A directory source was reported as not found, which sent a reader hunting for a filename; it now says it is a directory. An empty source produced a document about a program that does not exist and validated as PASS for --type onboarding and --type table; it now refuses. abap_deps_analyzer.py got the same treatment for a directory source: a directory used to fall through to its bare except and print the raw IsADirectoryError text, which names no role and matches no recorded refusal; it now says the source is a directory and was not analysed, on the same exit-2 path as missing dependencies. The flag table is unchanged; only validation._comment is new. ships_with moves to 1.1.18."
+    "1.0.2 moves version because the contract now records what the seven validation flags actually do, and because the generator refuses three source shapes that used to end in a PASS about the wrong thing. A .md or .markdown source handed to docgen was parsed as ABAP and a fresh document generated about it, so --validate answered PASS for a document this tool never read; it now refuses and points at report_qc.py. A directory source was reported as not found, which sent a reader hunting for a filename; it now says it is a directory. An empty source produced a document about a program that does not exist and validated as PASS for --type onboarding and --type table; it now refuses. abap_deps_analyzer.py got the same treatment for a directory source: a directory used to fall through to its bare except and print the raw IsADirectoryError text, which names no role and matches no recorded refusal; it now says the source is a directory and was not analysed, on the same exit-2 path as missing dependencies. The flag table is unchanged; only validation._comment is new. ships_with moves to 1.1.18.",
+    "1.0.3 moves version and ships_with together, because the generator now refuses one more shape of contract. checks/docgen.py's load_contract() read the schema and returned it, and validate() assumed the shape: document_types as a number made contract.get(\"document_types\", {}).get() raise AttributeError out of validate() and exit 1, the defect verdict, for a contract that was only reshaped. And a root object with no rules at all answered PASS against no required sections and no validation flags -- a verdict with nothing behind it, which is the false reassurance --validate exists not to give, and the one a reader would assume the 1.0.1 unreadable-contract refusal had already covered. load_contract() now checks presence and shape in the same call as the read, main() widened its catch to KeyError and TypeError alongside OSError and ValueError, and both refuse at the contract on the same line as the unreadable one. This is the guard checks/contract.py has carried for report-contract.json since 1.2.4, which the twin never got: the report contract's guard was widened at 1.1.24 and 1.3.11 and recorded in its own _comment, while this file had none at all. No rule and no flag moved; only the refusal and its record."
   ],
   "document_types": {
     "report": {
@@ -206,7 +207,7 @@
     "exit_codes": {
       "0": "document generated or validated successfully; validation passed",
       "1": "validation failed: the document was still written, rc carries the verdict. Before 1.0.1 the FAIL branch returned before the write, so a document that failed validation left nothing on disk to look at, and the caller had to guess what was wrong",
-      "2": "refused to run: nothing was generated or validated. Prints error at column 0 on stdout, matching report_qc.py; before 1.0.1 it went to stderr, where a caller reading stdout saw exit 2 with no message"
+      "2": "refused to run: nothing was generated or validated. Prints error at column 0 on stdout, matching report_qc.py; before 1.0.1 it went to stderr, where a caller reading stdout saw exit 2 with no message. 1.0.3 adds the shaped-wrong contract above as a trigger: it prints the same cannot read the contract line, because the check runs in load_contract with the read, so there is nothing to distinguish it for"
     },
     "refusal_triggers": [
       "source path does not exist",
@@ -215,7 +216,8 @@
       "output path directory is not writable",
       "no arguments provided",
       "the contract cannot be read: schemas/docgen-contract.json is missing, unreadable or not parseable JSON. Before 1.0.1 checks/docgen.py swallowed this and returned an empty dict, so --validate checked the document against no rules at all and answered PASS",
-      "output path is a file rather than a directory, which mkdir reports as not writable"
+      "output path is a file rather than a directory, which mkdir reports as not writable",
+      "the contract parses but is shaped wrong: a root that is not an object, a missing document_types or validation, document_types or validation that is not an object, required_sections that is not a list, or a section with no string heading_anchor. Before 1.0.3 a root object with no rules at all answered PASS against no required sections and no flags, and document_types as a number raised AttributeError out of validate() and exited 1 -- the defect verdict, for a contract that was only reshaped"
     ],
     "skill_anchor": "退出码"
   },

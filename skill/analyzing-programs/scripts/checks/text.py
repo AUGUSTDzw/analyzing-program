@@ -10,6 +10,14 @@ Extracted verbatim from report_qc.py in 1.1.0. Behaviour is unchanged.
 import re
 
 from .contract import ANCHORS, LAYERS, MM_BAD, QUOTE_LANG
+from .source import has_content  # noqa: F401
+
+# has_content is defined in checks/source.py, not here, because that module
+# imports no rule set. docgen.py and recon.py read it too, and they have no
+# business with a report; importing it from here would have made them die on
+# the report contract's words when that file was missing. It is not in this
+# __all__: the gate imports it from checks.source directly, the same way it
+# imports check from checks.structure.
 
 # Same reason as the list in contract.py: without it `import *` hands `re` to
 # report_qc.py as well. ANCHORS/MM_BAD/QUOTE_LANG are re-exported out of
@@ -392,7 +400,7 @@ def _claims(body):
 
 
 def _src_of(src):
-    """A source with no non-whitespace content is the same as no source.
+    """A source with no analysable character is the same as no source.
 
     report_qc.py tests `not src.strip()` while every source-dependent check
     tested `not src`, so a file of blanks was truthy and reached the detectors
@@ -405,4 +413,4 @@ def _src_of(src):
     was reported as a judgement. Normalise once, where all three modules
     already import from.
     """
-    return src if src and src.strip() else None
+    return src if has_content(src) else None

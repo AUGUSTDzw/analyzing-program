@@ -23,6 +23,14 @@ _HERE = Path(__file__).resolve().parent
 CONTRACT_PATH = _HERE.parent.parent / "schemas" / "docgen-contract.json"
 
 
+# The two objects validate() indexes into, and the shape of the list it walks.
+# json.loads accepts a contract that is well-formed JSON and still unusable:
+# document_types = 3 makes contract.get("document_types", {}).get("class") raise
+# AttributeError out of validate() and exit 1, and {} answers PASS against no
+# required sections and no flags at all.
+_CONTRACT_SHAPES = (("document_types", dict), ("validation", dict))
+
+
 def load_contract():
     """Load the docgen contract schema, letting the failure propagate.
 
@@ -31,8 +39,35 @@ def load_contract():
     validation flags -- so --validate answered PASS on a document that had been
     checked against nothing. report_qc refuses on the same condition, and for the
     same reason: a verdict with no rules behind it is the one false reassurance.
+
+    Presence and shape are checked in this call as well, so a contract that
+    parses but is mistyped is refused with this same wording instead of raising
+    AttributeError out of validate() and exiting 1. checks/contract.py carries the
+    same guard for report-contract.json; this is its twin, which had none at all
+    until now -- the guard 1.1.24 wrote for the report contract was never written
+    for this one, and it is the one a reader would assume was covered.
     """
-    return json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
+    data = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise TypeError("the contract root is not an object")
+    for _key, _want in _CONTRACT_SHAPES:
+        if _key not in data:
+            raise KeyError(_key)
+        if not isinstance(data[_key], _want):
+            raise TypeError("%s is %s, not an object"
+                            % (_key, type(data[_key]).__name__))
+    for _name, _spec in data["document_types"].items():
+        if not isinstance(_spec, dict):
+            raise TypeError("document_types.%s is not an object" % _name)
+        _secs = _spec.get("required_sections")
+        if _secs is not None and not isinstance(_secs, list):
+            raise TypeError("document_types.%s.required_sections is not a list" % _name)
+        for _i, _s in enumerate(_secs or []):
+            if not isinstance(_s, dict) or not isinstance(
+                    _s.get("heading_anchor"), str):
+                raise TypeError("document_types.%s.required_sections[%d] needs a "
+                                "string heading_anchor" % (_name, _i))
+    return data
 
 
 def _get_required_sections(doc_type: str, contract: dict) -> list[str]:
