@@ -135,8 +135,8 @@ Mermaid 标签里的裸 `<` `>` `#` → 改成全角。三层缺失**只报位�
 ### 先说版本：下面的数字不是出货版本的数字
 
 iteration-8 的全部数字都是在 **`b8f84e8`**（162 行）上测出来的。
-**工作树与 `release/` 都到 `1.1.24`**（546 行，契约 1.3.10 / docgen 契约 1.0.2）：
-归档在 `release/analyzing-programs-1.1.24/`（408 文件、31 目录），
+**工作树与 `release/` 都到 `1.1.25`**（546 行，契约 1.3.11 / docgen 契约 1.0.3）：
+归档在 `release/analyzing-programs-1.1.25/`（409 文件、31 目录），
 zip 的 sha256 在 `release/SHA256SUMS`。
 **效果**未测出结论。**
 
@@ -184,6 +184,7 @@ Not a valid object name），那几行的行数只能从 `--follow` 找到的同
 | `ca8e133` | 546 | `ca8e133` | **1.1.22**。契约不动（1.3.10）：没有规则、阈值或 `gate_io` 行变化，只有 `ships_with` 走，SKILL.md 541 → 546 行。**拒绝之前不再打印任何东西**：`recon.py` 先跑 `docgen.py` 再写 dump，否则 docgen 拒绝时整份源码已经打出去了（最大的语料文件是 29564 行 / 1517397 字节）。header 第二行现在给出这次会打印的总字节数，按字节算，中文注释一个字三个字节。`test_skill.py` 283 → 287，五个套件 588 项全绿。补上 1.1.21 漏掉的那条断言——docgen 拒绝必须不留下任何编号行。顺带修掉 SKILL.md 第 6 步一句说反了的话：两个脚本都自定位。
 | `dc3e95d` | 546 | `dc3e95d` | **1.1.23**。契约不动（1.3.10）：没有规则、阈值或 `gate_io` 行变化，只有 `ships_with` 走，SKILL.md 仍是 546 行。**四条没有测试守着的拒绝路径**：`recon.py` 违背了自己文档里的「没有 exit 1」——读回 docgen 写出的文件用的是没有守卫的 `read_text()`，docgen 写了非 utf-8 字节就以 traceback 退 `1`，而 `1` 正是「缺陷判决」；docgen 缺失时报「docgen 退出了 2」，给一个从未运行的 docgen 编了个退出码，python 写在 stderr 里的原因被丢掉；只转发 docgen 的 stdout，崩溃时退出码成了唯一交代；`report_qc.py` 把「读不到」报成「不是 utf-8」——`read_report` 与 `read_src` 都捕 `(UnicodeDecodeError, OSError)`，两种异常同一句话，1.3.10 只修了目录那一种。段标题改成 `== DOCGEN OUTPUT`、摘要行的数改成 `docgen block`。`tests/test_skill.py` 287 → 311 项，5 个套件 612 项全绿。 |
 | `143b290` | 546 | `143b290` | **1.1.24**。契约不动（1.3.10）：没有规则、阈值或 `gate_io` 行变化，只有 `ships_with` 走，SKILL.md 仍是 546 行。**九条 1.1.23 没有测试守着的缺陷**：`recon.py` 读 docgen 时 `child.stdout` 回来 `None`，`+ child.stderr` 抛 `TypeError`——拒绝以崩溃的形式到达；`checks/contract.py` 在 load 之后的推导里抛 `KeyError`，拿「有缺陷」的退出码报一份被重排过的规则集；`evaluate.py` 三处假定输入就是它写代码时那个形状；`docgen.py` 加载契约漏了 `UnicodeDecodeError`、`_read_source` 把两个子句合成一个；`recon.py` 把自己拥有的 `-o` 交给 docgen 诊断；`.strip()` 收下一个全 null 字节的源；`SKILL.md` 还把那段叫「清单」。`tests/test_skill.py` 311 → 365 项，五个套件 666 项全绿。 |
+| `0b7322f` | 546 | `0b7322f` | **1.1.25**。契约 1.3.10 → 1.3.11、docgen 契约 1.0.2 → 1.0.3，SKILL.md 仍是 546 行。**四条读出来的「形状错」：三条是拒绝以崩溃的形式到达，一条是静默判 PASS**。`checks/contract.py` 的守卫只包住「规则在不在」、包不住「规则都在之后怎么算」——四条派生量在 `try` 之外算，`buckets` / `patterns` / `advisories` / `forbid_in_display_text` 给错类型分别抛 `StopIteration` / `LookupError` / `TypeError` / `re.error`，全部 traceback 退 `1`，而规则集能解析、键也齐，只是类型错了；1.1.24 记的「catch 已盖住 `json.load` 能返回的任何形状」当时就是错的，存在检查与派生量是两条 `try`。docgen 契约**一道形状检查都没有**：根节点是 `{}`、一条规则都没有时，`validate()` 拿空章节表对一份报告判 PASS——必需章节一项不落地「通过」，因为一项都没要求。「源码有没有内容」原来四个地方三个写法互不一致：`.strip()` 收下全 null 字节的源，`isprintable()` 收下只有 U+FFFD 的源——而 U+FFFD 正是 `encoding` 那条规则存在的理由，于是给一个**不存在的程序**生成了文档。现在合成一个谓词 `has_content()`，落在新增的 `scripts/checks/source.py`；它不 import 规则集，`docgen.py` 与 `recon.py` 才能读它而不把 report 契约一起背上（第一版放进 `checks/text.py` 时，`docgen.py` 在 report 契约缺失时会拿那份契约的词拒绝自己——一份关于错误文件的拒绝）。三处消息对齐到 `recon.py` 早就用的那句 `no analysable content`。`tests/test_skill.py` 365 → 396 项、`tests/test_docgen_deps.py` 126 → 171 项，五个套件 666 → 739 项全绿。复审另读出的五条本轮明确不动，量与理由记在下面的 changelog |
 
 **契约版本与发布版本是两条独立的轴。** 契约 `version` 只在该文件自己的规则、
 阈值或 `gate_io` 行变化时递增；发布版本对措辞和闸门行为的变化也递增。
@@ -643,6 +644,81 @@ trigger 集合没动，所以 `exit_codes[2]` 没加东西：1.1.23 时是 trace
 `ships_with` 与 SKILL.md frontmatter 一起移到 `1.1.24`，
 已归档在 `release/analyzing-programs-1.1.24/`（408 文件、31 目录）；
 zip 的 sha256 在 `release/SHA256SUMS`，打包提交晚于本文件所以不写。
+
+### 1.1.24 → 1.1.25：四条读出来的「形状错」
+
+契约 `1.3.10 → 1.3.11`、docgen 契约 `1.0.2 → 1.0.3`：各有一条 `gate_io` 行动了
+（一条改触发措辞、一条加成员），`release.ships_with` 与 SKILL.md frontmatter
+一起走到 `1.1.25`；SKILL.md 仍是 546 行——只动了 frontmatter 那两个字段。
+
+`tests/test_skill.py` 365 → 396 项、`tests/test_docgen_deps.py` 126 → 171 项，
+五个套件 666 → 739 项全绿。四条里**三条是「拒绝以崩溃的形式到达」**：
+traceback、退 `1`，而 `1` 在本项目里是「查过了、有缺陷」——调用方会去修一批
+从未被查过的缺陷。第四条更糟，是**静默判 PASS**：一个字都不报，读的人会以为
+报告是干净的。
+
+**一、`checks/contract.py` 的守卫只盖住前半段（已修）。**
+1.1.24 把顶层键检查挪进了 `try`，但那个 `try` 包住的是「规则在不在」，
+包不住「规则都在之后怎么算」——四条派生量在 `try` 之外算。
+`buckets` 给个数字、`patterns` 给个字符串、`advisories` 给个空表、
+`forbid_in_display_text` 给个非字符串形状，四种写法分别让派生量抛
+`StopIteration`、`LookupError`、`TypeError`、`re.error` 之一，
+全部 traceback、退 `1`——**规则集能解析、键也齐，只是类型错了**。
+派生量现在在同一个 `try` 里，`except` 补上这四个异常名，
+说的是 trigger 早就承诺的 `cannot read the rule set` / `nothing was checked`，
+退 `2`。`gate_start_refuses_without_a_rule_set.trigger` 的措辞跟着改：
+原来只写「missing or not parseable」，现在补上「或者某条规则在、
+但类型不是派生量要的那个」。**1.1.24 那句「catch 已盖住 `json.load` 能返回的
+任何形状」当时就是错的**——存在检查与派生量是两条 `try`，
+它的 `_comment` 里记的是理想而不是代码。
+
+**二、docgen 契约一道形状检查都没有（已修）。**
+`checks/docgen.py` 的 `load_contract()` 读到就返回，`validate()` 直接假定形状。
+根节点是 `{}`、一条规则都没有时，`validate()` 拿空章节表对着一份报告判 **PASS**——
+必需章节一项不落地「通过」，因为一项都没要求；`document_types` 给个数字时
+`contract.get("document_types", {}).get()` 抛 `AttributeError`，退 `1`。
+前者是 `--validate` 存在就是为了不给的那句假保证，而且是读的人会假定 1.0.1 那条
+「契约读不到就拒绝」已经盖住的场景——读不到会拒绝，读得到但一条规则没有不会。
+现在 `load_contract()` 在**读的同一个调用里**检查存在与形状：根节点必须是对象、
+`document_types` 与 `validation` 必须在且是对象、`required_sections` 必须是 list、
+每节的 `heading_anchor` 必须是字符串；`main()` 的 `except` 从
+`(OSError, ValueError)` 扩到再加 `KeyError` 与 `TypeError`。
+report 契约那道守卫从 1.2.4 就有、1.1.24 与 1.3.11 两轮都拓宽过并记在
+它自己的 `_comment` 里，这份一份都没有。
+
+**三、`has_content()`：同一个判断原来有三个互不一致的写法（已修）。**
+「源码有没有内容」散在四个地方，三处各说各话：`.strip()` 去空白不去控制字节，
+全 null 字节的源判「有内容」，闸门照常打分，报出**从来不是缺陷**的忠实度缺陷；
+`isprintable()` 对 U+FFFD 返回 `True`，一句只有替换字符的源也判「有内容」——
+而 U+FFFD 正是 `encoding` 那条规则存在的理由，于是给一个**不存在的程序**
+生成了文档。现在合成一个谓词 `has_content()`，落在新增的
+`scripts/checks/source.py`。
+**这里有个坑值得记：**第一版把它放进 `checks/text.py`，
+结果 `docgen.py` 在 `report-contract.json` 缺失时开始拿**那份契约的词**拒绝自己——
+一份关于错误文件的拒绝。`source.py` 不 import 规则集，
+`docgen.py` 与 `recon.py` 才能读它而不把 report 契约一起背上。
+`recon.py` 另留一份 fallback 给 stub 测试那种布局（它旁边只有 `docgen.py`），
+并加了一条测试把两份谓词喂同一批输入逐个比对，让它们漂不了。
+三处消息对齐到 `recon.py` 早就用的那句 `no analysable content`：
+`report_qc.py` 与 `docgen.py` 原来都说 `is empty`，现在三处说同一件事。
+
+**顺带量出一件事：**`schemas/report-contract.json` 不是任何 `json.dumps` 设置
+能复现的——它保留手写键序、CJK 以原始 UTF-8 存，还有一行 3 空格缩进
+夹在一群 4 空格里。用 `ensure_ascii=True, sort_keys=True` 重写一遍
+会动 500 行只为改 4 个值。这版的补丁是在原文上做字符串替换，只动该动的行
+（两份契约各 14 与 12 行）；`docgen-contract.json` 正好相反，
+`json.dumps(d, ensure_ascii=False, indent=2)` 能逐字节复现它，那份照常用 dumps。
+
+**记录、本轮不动的五条**，都在复审那轮的量里，不是没看见：
+`evaluate.py` 与 `abap_deps_analyzer.py` 都没有 stream `reconfigure`
+（上一节记下的那两条，理由也还是那条：它们不是被别的脚本读的子进程）；
+`--fix` 的 `-o` 指到别处会直接覆盖目标、不留 `.bak`，33 字节被 36966 字节顶掉；
+`--fix` 的收条与实际改动对不上——CRLF 数 1 → 348，收条报 `repaired 0`；
+`abap_deps_analyzer.py` 的 cp936 渲染失败会被报成 `rc=2`，
+也就是「查过了、没有东西可报」；契约里 11 个「必须存在」的键有三个
+（`gate_io`、`loop_position`、`claim_separation`）除了契约自己的存在检查与
+`test_contract_drift.py` 之外没有任何读取方，闸门不读它们——所以「存在」这条
+检查对它们等于检查文档自述。
 
 ### 1.1.20 → 1.1.21：给 `recon.py` 补上 42 项测试
 
