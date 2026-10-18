@@ -6,7 +6,7 @@
 ## 目录
 
 ```
-SKILL.md                       规则本体（541 行）
+SKILL.md                       规则本体（545 行）
 scripts/report_qc.py           格式闸门：逐条列出违规位置，可自动修两类
 scripts/evaluate.py            内容评分：对冻结缺陷清单判分，算召回与错误论断
 scripts/docgen.py              文档生成：源码抽成类 / FORM / 函数 / 表 / 调用的清单
@@ -56,20 +56,21 @@ python scripts/evaluate.py compare --defects D.json --a V1.json --b V2.json
 验证套件在仓库里跑。`tests/` 不随包发布，安装包里没有这五个文件：
 
 ```bash
-python tests/test_skill.py              # 287 项
+python tests/test_skill.py              # 399 项
 python tests/test_contract_drift.py     # 129 项，契约 <-> SKILL.md <-> 闸门 三方对齐
 python tests/test_gate_enforcement.py   # 34 项，闸门执行漏洞探针
 python tests/test_fidelity_tiers.py     # 9 项，改动前后口径是否等价
-python tests/test_docgen_deps.py        # 129 项，docgen 与依赖分析器
+python tests/test_docgen_deps.py        # 171 项，docgen 与依赖分析器
 ```
 
-合计 588 项。
+合计 742 项。
 
 **退出码是契约的一部分。** 所有模式在仍有缺陷时返回非零，包括 `--fidelity-only`
 与 `--fix` —— SKILL.md 第 6 步让模型"重跑到干净为止"，那条循环只能靠退出码终止。
-两个脚本都自己把 stdout 重配为 UTF-8：契约里的优先级桶标记是 emoji，
-在默认 cp936 的 Windows 控制台上打印会抛 `UnicodeEncodeError`，
-而且是从缺陷循环里抛的，诊断信息会被 traceback 顶掉。
+五个脚本都自己把 stdout 与 stderr 重配为 UTF-8：契约里的优先级桶标记是 emoji，
+在 cp936（中文 Windows 的默认）上打印会抛 `UnicodeEncodeError`，
+依赖分析器的报告整篇是中文、在 cp437 上同样会抛。1.1.26 之前这个 guard
+只覆盖其中三个，漏掉的那两个见下面的 `1.1.25 → 1.1.26` 那条。
 Windows 上不需要设 `PYTHONUTF8`。
 
 **为什么 `tests/` 不进包。** 每个 suite 都用
@@ -135,8 +136,8 @@ Mermaid 标签里的裸 `<` `>` `#` → 改成全角。三层缺失**只报位�
 ### 先说版本：下面的数字不是出货版本的数字
 
 iteration-8 的全部数字都是在 **`b8f84e8`**（162 行）上测出来的。
-**工作树与 `release/` 都到 `1.1.25`**（546 行，契约 1.3.11 / docgen 契约 1.0.3）：
-归档在 `release/analyzing-programs-1.1.25/`（409 文件、31 目录），
+**工作树与 `release/` 都到 `1.1.26`**（545 行，契约 1.3.11 / docgen 契约 1.0.3）：
+归档在 `release/analyzing-programs-1.1.26/`（409 文件、31 目录），
 zip 的 sha256 在 `release/SHA256SUMS`。
 **效果**未测出结论。**
 
@@ -185,6 +186,7 @@ Not a valid object name），那几行的行数只能从 `--follow` 找到的同
 | `dc3e95d` | 546 | `dc3e95d` | **1.1.23**。契约不动（1.3.10）：没有规则、阈值或 `gate_io` 行变化，只有 `ships_with` 走，SKILL.md 仍是 546 行。**四条没有测试守着的拒绝路径**：`recon.py` 违背了自己文档里的「没有 exit 1」——读回 docgen 写出的文件用的是没有守卫的 `read_text()`，docgen 写了非 utf-8 字节就以 traceback 退 `1`，而 `1` 正是「缺陷判决」；docgen 缺失时报「docgen 退出了 2」，给一个从未运行的 docgen 编了个退出码，python 写在 stderr 里的原因被丢掉；只转发 docgen 的 stdout，崩溃时退出码成了唯一交代；`report_qc.py` 把「读不到」报成「不是 utf-8」——`read_report` 与 `read_src` 都捕 `(UnicodeDecodeError, OSError)`，两种异常同一句话，1.3.10 只修了目录那一种。段标题改成 `== DOCGEN OUTPUT`、摘要行的数改成 `docgen block`。`tests/test_skill.py` 287 → 311 项，5 个套件 612 项全绿。 |
 | `143b290` | 546 | `143b290` | **1.1.24**。契约不动（1.3.10）：没有规则、阈值或 `gate_io` 行变化，只有 `ships_with` 走，SKILL.md 仍是 546 行。**九条 1.1.23 没有测试守着的缺陷**：`recon.py` 读 docgen 时 `child.stdout` 回来 `None`，`+ child.stderr` 抛 `TypeError`——拒绝以崩溃的形式到达；`checks/contract.py` 在 load 之后的推导里抛 `KeyError`，拿「有缺陷」的退出码报一份被重排过的规则集；`evaluate.py` 三处假定输入就是它写代码时那个形状；`docgen.py` 加载契约漏了 `UnicodeDecodeError`、`_read_source` 把两个子句合成一个；`recon.py` 把自己拥有的 `-o` 交给 docgen 诊断；`.strip()` 收下一个全 null 字节的源；`SKILL.md` 还把那段叫「清单」。`tests/test_skill.py` 311 → 365 项，五个套件 666 项全绿。 |
 | `0b7322f` | 546 | `0b7322f` | **1.1.25**。契约 1.3.10 → 1.3.11、docgen 契约 1.0.2 → 1.0.3，SKILL.md 仍是 546 行。**四条读出来的「形状错」：三条是拒绝以崩溃的形式到达，一条是静默判 PASS**。`checks/contract.py` 的守卫只包住「规则在不在」、包不住「规则都在之后怎么算」——四条派生量在 `try` 之外算，`buckets` / `patterns` / `advisories` / `forbid_in_display_text` 给错类型分别抛 `StopIteration` / `LookupError` / `TypeError` / `re.error`，全部 traceback 退 `1`，而规则集能解析、键也齐，只是类型错了；1.1.24 记的「catch 已盖住 `json.load` 能返回的任何形状」当时就是错的，存在检查与派生量是两条 `try`。docgen 契约**一道形状检查都没有**：根节点是 `{}`、一条规则都没有时，`validate()` 拿空章节表对一份报告判 PASS——必需章节一项不落地「通过」，因为一项都没要求。「源码有没有内容」原来四个地方三个写法互不一致：`.strip()` 收下全 null 字节的源，`isprintable()` 收下只有 U+FFFD 的源——而 U+FFFD 正是 `encoding` 那条规则存在的理由，于是给一个**不存在的程序**生成了文档。现在合成一个谓词 `has_content()`，落在新增的 `scripts/checks/source.py`；它不 import 规则集，`docgen.py` 与 `recon.py` 才能读它而不把 report 契约一起背上（第一版放进 `checks/text.py` 时，`docgen.py` 在 report 契约缺失时会拿那份契约的词拒绝自己——一份关于错误文件的拒绝）。三处消息对齐到 `recon.py` 早就用的那句 `no analysable content`。`tests/test_skill.py` 365 → 396 项、`tests/test_docgen_deps.py` 129 → 171 项，五个套件 666 → 739 项全绿。复审另读出的五条本轮明确不动，量与理由记在下面的 changelog |
+| `ed2aa21` | 545 | `ed2aa21` | **1.1.26**。契约不动（1.3.11）：没有规则、阈值或 `gate_io` 行变化，只有 `ships_with` 走；docgen 契约也不动（1.0.3 / ships_with 1.1.25），这次改的两个脚本都不属于它。SKILL.md 仍是 545 行——只动了 frontmatter 的 `version`。**上一轮记下的理由写错了**：`evaluate.py` 与 `abap_deps_analyzer.py` 没有 stream `reconfigure`，理由写的是「它们不是被别的脚本读的子进程，所以那个失效方式到不了它们」——入口是它们**自己的** stdout，不是子进程的。分析器的报告整篇是中文，在 cp936（中文 Windows 的默认）或 cp437 上 `print()` 抛 `UnicodeEncodeError`，被外层 `except Exception` 抓住、打一行 error、退 `2`——「拒绝了、没查过」，而这个运行跑完了分析、产出就在手里，一个字都没送到调用方。量在同一份源码上：默认编码 `rc=0`，cp437 与 cp936 修前都是 `rc=2`，修完三种都是 `rc=0`；cp936 下漏出去那半截本身还是乱码。同一缺陷 1.1.10 修过一次、只把它藏了：当时 handler 的前缀是中文，cp437 下 handler 在自己那两个汉字上崩，traceback 顶掉诊断、退 `1`（「跑完了、有缺陷」），而报告根本没产出；后来把前缀改成 ASCII 的 `error`，traceback 没了、**退出码还停在 2**，就这么活到本轮。守这个 guard 的断言只列了两个脚本，`report_qc.py` 从 **1.1.0** 就有它、**从来没有断言过**，循环现在列全五个。`tests/test_skill.py` 396 → 399 项，五个套件 739 → 742 项全绿。另记一处记错的行数：SKILL.md 从 1.1.22 起就是 545 行，1.1.22–1.1.25 四行写的 546 都多了一行 |
 
 **契约版本与发布版本是两条独立的轴。** 契约 `version` 只在该文件自己的规则、
 阈值或 `gate_io` 行变化时递增；发布版本对措辞和闸门行为的变化也递增。
@@ -719,6 +721,72 @@ report 契约那道守卫从 1.2.4 就有、1.1.24 与 1.3.11 两轮都拓宽过
 （`gate_io`、`loop_position`、`claim_separation`）除了契约自己的存在检查与
 `test_contract_drift.py` 之外没有任何读取方，闸门不读它们——所以「存在」这条
 检查对它们等于检查文档自述。
+
+### 1.1.25 → 1.1.26：那个「到不了」的理由是错的
+
+契约不动（1.3.11）：没有规则、阈值或 `gate_io` 行变化，只有 `ships_with` 走。
+docgen 契约也不动（1.0.3 / ships_with 1.1.25）：这次改的两个脚本都不属于它，
+它上一次随 1.1.25 动过。SKILL.md 仍是 545 行——只动了 frontmatter 的 `version`。
+
+`tests/test_skill.py` 396 → 399 项，五个套件 739 → 742 项全绿。
+上一节记下五条、明确不动，这轮关掉第一条与第四条，其余三条记在这节结尾。
+
+**一、失效方式到得了它们，入口只是不是子进程的 stdout（已修）。**
+上一节记的理由原话是「它们不是被别的脚本读的子进程，所以那个失效方式到不了它们」。
+前半句是对的，结论是错的：`abap_deps_analyzer.py` 的报告整篇是中文，它自己的
+`print()` 就是那个入口。cp936 是中文 Windows 的默认 codepage，收得了 CJK，
+但收不了报告里的箭头与书名号之类的符号；cp437 什么都收不了。`print()` 抛
+`UnicodeEncodeError`，落在最外层那个 `except Exception` 里，打一行 error、退 `2`。
+`2` 的意思是「拒绝了、没查过」——而这个运行**跑完了分析**，产出就在手里。
+调用方被告知工具没跑，而它跑了、查到了东西，那些结果一个字都没送到。
+
+量在同一份源码上（本轮没改那份源码）：默认编码 `rc=0`；cp437 与 cp936 修之前
+都是 `rc=2`，修完三种都是 `rc=0`。cp936 下更麻烦：`print()` 是流式的，
+前面那半截已经出去了，而且是按 cp936 编的字节——调用方拿到一小段乱码
+加一个「没查过」的退出码，两种都没法用。
+
+**二、同一个缺陷 1.1.10 修过一次，那次只把它藏了。**
+1.1.10 时那个 `except` 的前缀是中文的。于是 cp437 下 handler 在**自己那两个汉字**上
+抛 `UnicodeEncodeError`，traceback 顶掉诊断，退 `1`——本项目里「分析跑完了、有缺陷」
+的码，而报告根本没产出。后来把前缀改成 ASCII 的 `error`，traceback 没了、
+**退出码还停在 `2`**，缺陷就凭这一手活到了 1.1.26。
+
+它也解释了上一节为什么没看出来：1.1.24 → 1.1.25 那条把 `rc=2` 注解成
+「查过了、没有东西可报」，正好写反了——`2` 是拒绝，`0` 才是查过没有缺陷。
+一个跑完了分析的运行被报成「查过了、没事」，和报成「拒绝了」一样都是假保证，
+而后者还更符合直觉，所以没人去问。
+
+**三、`evaluate.py` 也补上，它本来不会崩（预防性）。**
+`evaluate.py` 自己的源码里一个非 ASCII 字符都没有，这个缺陷在它身上从来不会发生。
+但它的 `tasks` 子命令打印的是**判分者给的缺陷参考里**的 anchor 与标识符——
+那份文件是作者用什么语言写就用什么语言，而 `tasks` 是唯一打印外部文本的确定性子命令。
+`recon.py` 也是源码零非 ASCII 却照样带着这个 guard，同一个理由：它打印输入源文件的内容。
+
+**四、守这个 guard 的断言只覆盖了两个脚本（已修）。**
+断言循环原来是 `("docgen.py", DOCGEN), ("recon.py", RECON)` 两项。`report_qc.py`
+从 **1.1.0** 就有这个 guard——量的是 `release/` 里各版的归档，1.1.0 那份第 65 行
+就是那个循环，上面的注释写的理由是「契约里的优先级桶标记是 emoji」——
+**从来没有断言过**。所以后补的脚本可以静悄悄掉出去，事实上就是这样掉的：
+1.1.21 给 `recon.py` 补 `newline=""` 的那 42 项新测试全是 `recon.py` 自己的，
+没有一条问「别的脚本有没有」。循环现在列全五个脚本，`test_contract_drift.py`
+的 `ships_with` 同步走到 1.1.26，version 仍是 1.3.11。
+
+顺带量出来两个记错的版本号：`recon.py` 的编码 reconfigure 是 **1.1.20** 就有的
+（它第一次进包的那版，两参形式），1.1.21 加的是第三个参数 `newline=""`；
+`docgen.py` 的 **1.1.24** 是对的。契约 `_comment` 里那两处写的是 1.1.11 与 1.1.21，
+已从归档逐个量过、改回。
+
+**五、顺手量出一处记错四版的行数。**
+SKILL.md 从 1.1.22 起就是 **545 行**。版本表里 1.1.22、1.1.23、1.1.24、1.1.25
+四行全写成 546，状态块也写着 546。这轮只改状态块与新增的行，那四行留原样，
+改的数记在这里。
+
+**这一版没动的三条。**`--fix` 的 `-o` 指向已存在的文件会直接覆盖、不留 `.bak`
+（33 字节被 36966 字节顶掉）；`--fix` 的收条与实改对不上（CRLF 数 1 → 348、
+收条报 `repaired 0`）。两条是同一个函数的两半，要动就得把 `--fix` 的输出路径预检
+与收条计数一起重写，不是加一个判断能收的活，留下一轮。契约里 11 个「必须存在」
+的键有三个（`gate_io`、`loop_position`、`claim_separation`）没有任何读取方，
+这条仍然成立——它属于契约设计而非本轮的崩溃类，理由与上一节相同。
 
 ### 1.1.20 → 1.1.21：给 `recon.py` 补上 42 项测试
 
