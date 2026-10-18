@@ -1,7 +1,7 @@
 ---
 name: analyzing-programs
-version: 1.1.26
-contract: 1.3.11
+version: 1.1.27
+contract: 1.3.12
 description: Use when the user wants a deep onboarding-style analysis report for an ABAP/SAP program source file (报表程序、FORM/事件块、OO 类 CLAS、函数组、ALV 等), or pastes an ABAP / z*.abap file asking to analyze, walk-through, 讲解 its structure, execution flow, or design. Trigger on phrases like "分析这个程序/源码","走读/讲解 ABAP","代码 onboarding","源码分析/架构分析","帮我看懂这段 SAP 代码". Trigger even when the user does not explicitly say "report" but clearly wants to understand a whole program's business purpose, architecture, and risks. Do NOT use for one-line answers, non-SAP code, or pure syntax/API lookups.
 ---
 # Skill: analyzing-programs
@@ -122,7 +122,7 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 | 通用 | 没给参数；命令行里没有 `.md` / `.markdown` 结尾的报告路径；报告路径不存在；**规则集 `schemas/report-contract.json` 读不到或已损坏**；**`scripts/checks/` 缺失或其中某个模块解析不了**；**报告或源码任一不是 UTF-8**；**任一路径是目录而不是文件**（报告路径报 `is a directory, not a report file`，源码路径报 `is a directory, not a source file`——都不是编码错）；**`-o` 出现在 `--fix` 之外**（`-o` 只属于 `--fix`；原先它被当成源码、输出路径被当成报告，报成 `more than one source`）；**闸门自己在检测器里抛异常** |
 | 形状（第 7 步） | 源码路径不存在；给了多于一个源码 |
 | `--fidelity-only`（第 6 步） | 没有报告路径；源码不是**恰好一个**（0 个与 2 个都拒）；源码路径不存在；**源码是空的**；**给多份报告时，每份报告的存在性、是不是目录、能不能按 UTF-8 解开，三样都在打第一条结论之前查完**，所以 `2` 不会跟在一条已经打出来的 `PASS` 后面。**可以一次给多份报告**，逐份出结论 |
-| `--fix` | **报告不是恰好一个（多于一个也拒，一次只修一份，逐份跑）**；少于两个路径；没有报告路径；源码不是**恰好一个**；`-o` 后面没跟输出路径；**`-o` 所在目录不存在或不可写**；**`-o` 指向源码本身**；**`-o` 本身是目录或只读文件**；**原地模式且 `<报告>.bak` 已经是个目录**（这两条是写不出去，报 `could not write ...`） |
+| `--fix` | **报告不是恰好一个（多于一个也拒，一次只修一份，逐份跑）**；少于两个路径；没有报告路径；源码不是**恰好一个**；`-o` 后面没跟输出路径；**`-o` 所在目录不存在或不可写**；**`-o` 指向源码本身**；**`-o` 本身是目录或只读文件**；**`<输出目标>.bak` 已经存在——文件或目录，原地与 `-o` 都一样**（这两条是写不出去，报 `could not write ...`） |
 
 五条容易读错：
 
@@ -227,8 +227,11 @@ fix-mislabel 之所以存在：`abap` 与 `abap-fix` 只锁了**一个方向**�
 - **Mermaid 标签里的裸 `<` `>` `#`** → 换成全角。成对的 HTML 子集标签不动。
 
 它**不修三层缺失** —— 那要判断后面的散文本属于哪一层，猜错会把风险论述标成"做什么"。
-原地重写**并且确实改了东西**时，它会把原文另存为 `<报告名>.bak`，并保留报告自己的换行风格。
-零修复时不写 `.bak` —— 但它仍会把重写后的文本原地写回，所以正是「什么都没修」的那次没有备份。
+它写之前先比一次字节：**目标文件已有的内容跟要写的不一样，就先把已有内容另存为 `<目标>.bak`**。
+原地时目标是报告本身，通常也是唯一的那份；`-o` 指向别的文件时，那个文件也可能是别人要的交付物。
+所以条件不是「修了几处」，而是「这次写入会不会丢掉东西」：一次什么都没修出来的运行，只要把一个别人的文件换成了报告，同样先留备份；字节完全一样——原地零修复——就不留，这正是原地 `--fix` 能连着跑两次的原因。
+`.bak` 那个路径已经存在就**拒绝写**，文件或目录都算，报 `could not write ...`：那份备份是上一次留下的版本，是退回时唯一的路，覆盖它等于把退路删掉。
+换行是逐个位置带回去的：报告里几处 CRLF、几处 LF，输出还是那样，不整篇统一成一种风格——修复不该顺手把报告重存一遍。
 修完仍有缺陷时返回 `1`，不会假装修好了 —— **一句改写的引文也算**：它不是 `--fix` 能修的，所以也算「还有缺陷」，照样退 `1`，与形状模式同一个答案。
 
 所以用法是：**先按规则写对，再用 `--fix` 收机械残留**。它改不动的那些，

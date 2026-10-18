@@ -259,6 +259,32 @@ def fix(s, src):
     return s, n + m, notes
 
 
+def restore_endings(original, repaired):
+    """Reattach the report's own breaks to the repaired text.
+
+    A repair rewrites tokens inside a line and never adds or removes one, so
+    break i of the repaired text is break i of the report. Carrying them back
+    one for one is what preserving the report's endings means. Choosing one
+    style for the whole document instead read "the report has a CRLF somewhere"
+    as "the report is CRLF" and turned one CRLF among fifty-five LFs into
+    fifty-six CRLFs -- a whole-file re-save that a repair should not do, and
+    one the receipt still reported as repairing nothing.
+    """
+    src_lines = original.split("\n")
+    out_lines = repaired.split("\n")
+    if len(src_lines) != len(out_lines):
+        # Unreachable for a repair, but do not guess if the assumption breaks:
+        # fall back to the one style the report actually used.
+        return repaired.replace("\n", "\r\n") if "\r\n" in original else repaired
+    parts = []
+    for i, line in enumerate(out_lines):
+        parts.append(line)
+        if i + 1 < len(src_lines):
+            parts.append("\r" if src_lines[i].endswith("\r") else "")
+            parts.append("\n")
+    return "".join(parts)
+
+
 # ----------------------------------------------------------------------- main
 
 def report(path, src=None):
@@ -397,6 +423,30 @@ def write_text(path, text):
     except OSError as e:
         die("could not write %s: %s: %s -- nothing was written, so this run "
             "is not a verdict" % (path, type(e).__name__, e))
+
+
+def save_backup(dest, prior):
+    """Write dest + ".bak" holding the bytes dest held before this write.
+
+    Refuses rather than overwrites when a backup is already there: that copy is
+    an earlier version of the report, the one worth recovering, and replacing it
+    silently is the loss this exists to prevent. It also refuses when the write
+    fails, because exit 1 is the verdict a caller loops on, so a failed backup
+    must not read as defects found. Bytes on purpose: a report that is not
+    utf-8 is still worth keeping.
+    """
+    bak = dest + ".bak"
+    if os.path.lexists(bak):
+        die("could not write %s: a backup is already there, so it was left "
+            "alone -- nothing was written, so this run is not a verdict"
+            % bak)
+    try:
+        with io.open(bak, "wb") as fh:
+            fh.write(prior)
+    except OSError as e:
+        die("could not write %s: %s: %s -- nothing was written, so this run "
+            "is not a verdict" % (bak, type(e).__name__, e))
+    print("previous text -> %s" % bak)
 
 
 def run_detector(report, fn, *args):
@@ -589,7 +639,6 @@ def main(argv):
         # endings on the way out: a repair should not re-save the document.
         # Reading universal newlines instead converted CRLF to LF, and writing
         # them back out converted LF to CRLF on Windows.
-        crlf = "\r\n" in raw
         fixed, n, notes = run_detector(
             rep, fix, raw.replace("\r\n", "\n"), ssrc)
         for nt in notes:
@@ -615,18 +664,21 @@ def main(argv):
         # a crash must not be one the caller recovers from a .bak. Every detector
         # takes the in-memory text, so nothing needed the file: the write used to
         # sit between the detector that ran second and the three that came after.
-        # Normalise both sides: -o may name the report as ./r.md or with a
-        # different amount of ./ noise, which is the same in-place rewrite and
-        # therefore the same case that owes a .bak. A string comparison missed
-        # those and rewrote the only copy with nothing to recover from.
-        in_place = os.path.abspath(dest) == os.path.abspath(rep)
-        if in_place and n:
-            # In place this rewrites the report, and the report is the
-            # deliverable -- usually the only copy. --fix only touches mechanical
-            # defects, but write the previous text next to it anyway.
-            write_text(rep + ".bak", raw)
-            print("previous text -> %s.bak" % rep)
-        written = fixed.replace("\n", "\r\n") if crlf else fixed
+        written = restore_endings(raw, fixed)
+        # A backup exists exactly when this write would lose something: the
+        # destination already holds bytes that differ from the repair. In place
+        # that is the report, usually the only copy; via -o it may be someone
+        # else's. Comparing bytes rather than counting repairs keeps the -o case
+        # honest too -- a repair that found nothing still replaces a foreign
+        # file with the report, and those bytes would be gone. A no-op --fix
+        # writes back the same bytes and owes none, which is what makes an
+        # in-place --fix safe to run twice.
+        old_bytes = None
+        if os.path.isfile(dest):
+            with io.open(dest, "rb") as fh:
+                old_bytes = fh.read()
+        if old_bytes is not None and old_bytes != written.encode("utf-8"):
+            save_backup(dest, old_bytes)
         write_text(dest, written)
         print(f"repaired {n} mechanical defect(s) -> {dest}")
         # The other two modes print PASS or FAIL. A caller that greps for

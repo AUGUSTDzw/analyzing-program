@@ -1449,6 +1449,117 @@ def main():
     check(io.open(ip, encoding="utf-8").read() == unedited,
           "--fix: a refused write leaves the report byte-identical")
 
+    # A repair rewrites tokens inside a line and never adds or removes one, so
+    # break i of the repaired text is break i of the report. Carrying the breaks
+    # back one for one is what preserving the report's own endings means. The
+    # boolean test read "the report has a CRLF somewhere" as "the report is
+    # CRLF" and turned one CRLF among fifty-five LFs into fifty-six CRLFs -- a
+    # whole-file re-save, reported by a receipt that said it had repaired
+    # nothing.
+    def readt(p):
+        """A text file, or None when the write it should have come from did not.
+
+        newline="" on purpose: the default mode is universal newlines and turns
+        CRLF into LF, which is exactly what these checks are about.
+        """
+        try:
+            return io.open(p, encoding="utf-8", newline="").read()
+        except OSError:
+            return None
+
+    def breaks(text):
+        """The breaks of text in order: 1 for CRLF, 0 for LF."""
+        out, i = [], 0
+        while i < len(text):
+            if text.startswith("\r\n", i):
+                out.append(1)
+                i += 2
+            elif text[i] == "\n":
+                out.append(0)
+                i += 1
+            else:
+                i += 1
+        return tuple(out)
+
+    print()
+    print("--fix carries the report's own endings back")
+    print("-" * 72)
+    body = brief_report().replace("**为什么** — 索引命中。",
+                                  "**为什么** — 索引命中（见 `zvend.abap:104`）。")
+    for i, (label, text) in enumerate([
+            ("every break CRLF", body.replace("\n", "\r\n")),
+            ("every break LF", body),
+            ("one CRLF among LFs", body.replace("\n", "\r\n", 1))]):
+        mp = os.path.join(tmp, "ends%d.md" % i)
+        io.open(mp, "w", encoding="utf-8", newline="").write(text)
+        op = mp + ".out.md"
+        r = run(QC, "--fix", mp, src, "-o", op)
+        got = readt(op)
+        check(breaks(got) == breaks(text),
+              "--fix keeps the breaks a %s report had" % label,
+              "in=%d out=%d" % (len(breaks(text)), len(breaks(got))))
+        check("zvend.abap:104" not in got,
+              "--fix still repairs inside a %s report" % label)
+    check(sum(breaks(body.replace("\n", "\r\n", 1))) == 1,
+          "the mixed case really is one CRLF among LFs")
+
+    # In place the backup holds the report's bytes, breaks included, so a
+    # recovery hands back the file the report was before the run.
+    mp = os.path.join(tmp, "ends-in.md")
+    mixed = body.replace("\n", "\r\n", 1)
+    io.open(mp, "w", encoding="utf-8", newline="").write(mixed)
+    r = run(QC, "--fix", mp, src)
+    check(readt(mp + ".bak") == mixed,
+          "--fix: the in-place backup keeps the report's breaks")
+
+    # -o may name a file that already holds someone else's report. Replacing it
+    # would leave nothing to recover from, so the rule in place applies: save
+    # the previous text before the write.
+    print()
+    print("--fix keeps the file an -o replaces")
+    print("-" * 72)
+    rep4 = os.path.join(tmp, "ovr.md")
+    io.open(rep4, "w", encoding="utf-8").write(body)
+    foreign = os.path.join(tmp, "foreign.md")
+    io.open(foreign, "w", encoding="utf-8", newline="").write(
+        "# someone else's file\n")
+    foreign_before = readt(foreign)
+    if os.path.lexists(foreign + ".bak"):
+        os.remove(foreign + ".bak")
+    r = run(QC, "--fix", rep4, src, "-o", foreign)
+    check(os.path.exists(foreign + ".bak"),
+          "--fix: the file an -o replaces is saved first",
+          "rc=%d" % r.returncode)
+    check(readt(foreign + ".bak") == foreign_before,
+          "--fix: that backup is the file's own previous text")
+    fixed_target = readt(foreign)
+    check(fixed_target is not None and "zvend.abap:104" not in fixed_target,
+          "--fix: the target now holds the repaired report")
+
+    # A second run would overwrite that backup, and the first version of the
+    # report is the one worth recovering. Refuse instead, so the caller decides
+    # rather than losing it.
+    ip2 = os.path.join(tmp, "ipbak.md")
+    io.open(ip2, "w", encoding="utf-8").write(body)
+    io.open(ip2 + ".bak", "w", encoding="utf-8", newline="").write(
+        "an earlier backup\n")
+    ip2_before = readt(ip2)
+    r = run(QC, "--fix", ip2, src)
+    check(r.returncode == 2,
+          "--fix: a backup that already exists refuses",
+          "rc=%d" % r.returncode)
+    check("could not write" in r.stdout and "nothing was written" in r.stdout,
+          "--fix: the refusal says it wrote nothing")
+    check("Traceback" not in r.stdout + r.stderr,
+          "--fix: the refusal is not a crash")
+    check(not [x for x in r.stdout.splitlines()
+               if x.startswith("PASS") or x.startswith("FAIL")],
+          "--fix: it prints no verdict")
+    check(readt(ip2 + ".bak") == "an earlier backup\n",
+          "--fix: the earlier backup survives the refusal")
+    check(readt(ip2) == ip2_before,
+          "--fix: it leaves the report byte-identical")
+
     # PUNCT-ONLY is a quotation whose tokens DO occur in the source, only the
     # punctuation differing. Counting it as a mismatch made the note say not
     # one quotation matches the source in the one configuration that proves
