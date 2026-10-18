@@ -42,6 +42,7 @@ SCHEMAS = os.path.join(SKILL, "schemas")
 EVAL = os.path.join(SKILL, "scripts", "evaluate.py")
 RECON = os.path.join(SKILL, "scripts", "recon.py")
 DOCGEN = os.path.join(SKILL, "scripts", "docgen.py")
+DEPS = os.path.join(SKILL, "scripts", "abap_deps_analyzer.py")
 EXEMPLAR = os.path.join(SKILL, "references", "example-report.md")
 # The exemplar's own source. row-src only runs when a source is passed, so the
 # source-less run above can never notice a section five row that names nothing.
@@ -1974,7 +1975,9 @@ def main():
           "a docgen that crashed before the binary write is reported as one")
     check("Traceback" not in rr.stdout,
           "and it is still not a traceback of recon's own")
-    for tag, path in (("docgen.py", DOCGEN), ("recon.py", RECON)):
+    for tag, path in (("report_qc.py", QC), ("docgen.py", DOCGEN),
+                      ("recon.py", RECON), ("evaluate.py", EVAL),
+                      ("abap_deps_analyzer.py", DEPS)):
         body = io.open(path, encoding="utf-8").read()
         check("_stream.reconfigure(encoding=\"utf-8\"" in body,
               "%s reconfigures its own streams" % tag)

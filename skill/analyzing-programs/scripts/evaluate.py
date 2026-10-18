@@ -46,6 +46,12 @@ import os
 import re
 import sys
 
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 SCORE = {"yes": 1.0, "partial": 0.5, "no": 0.0}
 
 
