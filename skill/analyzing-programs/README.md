@@ -38,6 +38,23 @@ tests/*.py                 仓库内的验证套件，**不随包发布**（见�
 `score` 与 `compare` 是确定性的。它保证参考完整、聚合正确、缺项不能冒充完整；
 它不保证判分是对的。
 
+## 元工具（Meta Tools）
+
+这些工具不用于写报告，而是用于**维护 skill 本身**。在修改 SKILL.md、审查报告质量、
+或评估 skill 效果时运行。
+
+| 工具 | 回答 | 退出码 |
+|---|---|---|
+| `scripts/lint_skill.py` | SKILL.md 是否符合 `schemas/skill-contract.json` 规范 | `0` 通过，`1` 有缺陷，`2` 拒绝 |
+| `scripts/dedup.py` | markdown 文件里有没有语义重复的章节 | `0` 无重复，`1` 有重复，`2` 拒绝 |
+| `scripts/lift.py` | 两份 verdict 的 recall 差异是否显著 | `0` 报告完成，`2` 拒绝 |
+| `scripts/security_probe.py` | `report_qc.py --fix` 能不能扛住 17 组对抗输入 | `0` 全部通过，`1` 有失败，`2` 拒绝 |
+| `scripts/index.py` | references/ 里哪份文件跟查询最相关 | `0` 成功，`2` 拒绝 |
+| `scripts/evolve.py` | 历史报告里 P0-P3 有什么模式，SKILL.md 该怎么改 | `0` 完成，`2` 拒绝 |
+
+这些工具是 tier-1（结构检查）、tier-2（语义去重）、tier-3（行为测量）三层评估模型
+的实现。完整模型见 [NVIDIA/SkillEvaluator](https://github.com/NVIDIA/SkillEvaluator)。
+
 ## 跑一遍
 
 包里的东西，装到哪儿都能跑：
@@ -49,6 +66,18 @@ python scripts/recon.py SOURCE [-o OUTDIR]              # 侦察：编号源码 
 python scripts/evaluate.py tasks  --defects evals/zcl_fi_toolkit.defects.json
 python scripts/evaluate.py score --defects D.json --verdicts MY.json
 python scripts/evaluate.py compare --defects D.json --a V1.json --b V2.json
+```
+
+元工具（可选，用于维护 skill）：
+
+```bash
+python scripts/lint_skill.py SKILL.md                   # 检查 SKILL.md 规范
+python scripts/dedup.py SKILL.md                        # 检测重复章节
+python scripts/lift.py --defects D.json --with-skill W.json --without-skill B.json
+python scripts/security_probe.py --verbose              # 安全探针
+python scripts/index.py build references/               # 构建搜索索引
+python scripts/index.py query references/index.json QUERY
+python scripts/evolve.py --results Test-result/         # 挖掘历史报告
 ```
 
 `score` / `compare` 上还有一个 `--legacy`：豁免**整个引文校验**，给早于引文要求的旧判分文件用。不带它，`yes` / `partial` 的判分必须有 `evidence.<id>.report_line`、`evidence.<id>.quote`，而且 quote 得真的出现在那一行——缺 `report_line`、缺 `quote`、行号越界、quote 不在该行，四种都退 `2` 拒绝，而且 `--report` 缺失时同样拒绝（否则等于把校验静默接受下来）。**它不豁免 `false_claims`**：理由缺失照样拒，因为一个吞掉它的出口会把未解释的错误计成干净结果。带它时判分照做、仍退 `0`，但 `WARNING  --legacy: citations were not verified, so every verdict is an uncheckable assertion` 会印在输出里——打上这个警告的分数不算可审计的。

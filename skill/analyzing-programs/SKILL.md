@@ -30,6 +30,23 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 `delivery-methods.md`、`slice-and-write.md`、`output-rate.md`、`truncated-reports.md`
 是**失败模式的记录**，不是规则——规则已经写进下面的「分析流程」。
 
+## 元工具（Meta Tools）
+
+这些工具不用于写报告，而是用于**维护 skill 本身**。在修改 SKILL.md、审查报告质量、
+或评估 skill 效果时运行。
+
+| 路径 | 用途 | 退出码 |
+|---|---|---|
+| `scripts/lint_skill.py` | 检查 SKILL.md 是否符合 `schemas/skill-contract.json` 规范（frontmatter、必需标题、触发短语、禁止模式）。用于提交前自检 | `0` 通过，`1` 有缺陷，`2` 拒绝（文件不存在/损坏） |
+| `scripts/dedup.py` | 检测 markdown 文件中语义重复的章节（Jaccard 相似度）。用于检查 SKILL.md 或 references/ 是否有冗余 | `0` 无重复，`1` 有重复，`2` 拒绝 |
+| `scripts/lift.py` | 对比两份 verdict JSON 的 recall 差异，运行符号检验。用于评估 skill 是否真的提升了报告质量 | `0` 报告完成，`2` 拒绝（输入错误） |
+| `scripts/security_probe.py` | 用 17 组对抗输入测试 `report_qc.py --fix` 的健壮性（伪造引用、编码损坏、围栏失衡等）。用于安全审计 | `0` 全部通过，`1` 有失败，`2` 拒绝 |
+| `scripts/index.py` | 为 references/ 构建搜索索引（TF-IDF 排序）。`build` 写 index.json，`query` 检索 | `0` 成功，`2` 拒绝 |
+| `scripts/evolve.py` | 挖掘 Test-result/ 历史报告中的 P0-P3 模式，输出 SKILL.md 更新建议。只建议不写入 | `0` 完成，`2` 拒绝 |
+
+这些工具是 tier-1（结构检查）、tier-2（语义去重）、tier-3（行为测量）三层评估模型
+的实现。完整模型见 NVIDIA/SkillEvaluator。
+
 ## Analysis Flow
 
 1. **通读源码**：扫描入口、目录结构、依赖、声明段，识别程序类型（报表/服务/库/工具）与核心特征。
