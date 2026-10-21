@@ -33,6 +33,11 @@ tests/*.py                 仓库内的验证套件，**不随包发布**（见�
 | `tests/test_gate_enforcement.py` | 闸门放过的报告逐条复现，先记录现状再断言应有的行为 | — |
 | `tests/test_fidelity_tiers.py` | 新旧分类口径是否等价：不泄漏、不误伤 | — |
 | `tests/test_docgen_deps.py` | docgen 与依赖分析器的解析器、锚点与命令行是否还灵 | — |
+| `tests/test_lint_skill.py` | SKILL.md 是否符合 skill-contract.json 规范 | — |
+| `tests/test_dedup.py` | SKILL.md 里有没有语义重复的章节 | — |
+| `tests/test_lift.py` | 两份 verdict 的 recall 差异是否显著 | — |
+| `tests/test_index.py` | references/ 搜索索引构建与检索是否正确 | — |
+| `tests/test_evolve.py` | 历史报告 P0-P3 模式挖掘与 SKILL.md 建议是否合理 | — |
 
 **判分是模型工作。** `evaluate.py` 的 `tasks` 子命令把问题打印出来让判分者逐条回答，
 `score` 与 `compare` 是确定性的。它保证参考完整、聚合正确、缺项不能冒充完整；
@@ -92,7 +97,7 @@ python tests/test_fidelity_tiers.py     # 9 项，改动前后口径是否等价
 python tests/test_docgen_deps.py        # 171 项，docgen 与依赖分析器
 ```
 
-合计 759 项。
+合计 986 项。
 
 **退出码是契约的一部分。** 所有模式在仍有缺陷时返回非零，包括 `--fidelity-only`
 与 `--fix` —— SKILL.md 第 6 步让模型"重跑到干净为止"，那条循环只能靠退出码终止。
