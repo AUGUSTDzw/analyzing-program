@@ -322,34 +322,44 @@ fix-mislabel 之所以存在：`abap` 与 `abap-fix` 只锁了**一个方向**�
 超过则按 `A8-pt` 报（有评述、缺标签）。
 
 ### 第一层：做什么
-- 用连贯自然语言描述，核心句式："从哪张表/数据源，用什么条件，取/做什么数据，得到什么结果，存到哪里/回填到哪"。
-- 不要逐句拆碎成"第 X 行：…"的流水账。
-- 用 markdown 列表分段，一项一个动作（取数 / 遍历 / 回填 / 排序 / 装配…），每项一句，不要挤成一长段。
+- **展开成带编号/字段/条件的清单，不要一句话概括。** 一句话的"处理物料数据，填充内表"是标题摘要，不是第一层——它没告诉读者取了什么、怎么驱动的、条件是什么、写到哪里。
+- **每项写清四件事**：① 取什么数据（表名/字段名/结构名）② 怎么驱动（SELECT/LOOP/READ/APPEND 等动作）③ 条件是什么（WHERE 条件、区间、系统字段、判空）④ 写到哪里（内表名、变量名、屏幕输出、写库）。
+- **用 markdown 有序列表编号**（① ② ③ 或 1. 2. 3.），每项一个动作，不要挤成一长段。
+- **不要逐句拆碎成"第 X 行：…"的流水账**——那是代码走查，不是业务描述。
 
 #### 写完对照一遍：笼统 vs 具体
 
-上面那句式是**检查清单**，不是可以跳过的手续。写完第一层，逐项自问四件事：
+上面那四条是**检查清单**，不是可以跳过的手续。写完第一层，逐项自问：
 
-**数据源**（哪张表/哪个类/哪个 FM）· **筛选条件**（什么 WHERE、什么区间、什么 sy- 字段）
-· **取什么数据**（哪几个字段、什么结构）· **结果去哪**（装进哪张内表、回填哪一列、输出到哪里）
+**取什么**（哪张表/哪个类/哪个 FM 的哪几个字段）· **怎么驱动**（SELECT/LOOP/READ/APPEND 的动作链）
+· **条件是什么**（WHERE 条件、选择屏区间、sy- 字段、判空逻辑）· **写到哪里**（哪张内表、哪个变量、哪列、屏幕还是数据库）
 
-四问里有两问答不上来，就是写笼统了。对照：
+四条里有两条答不上来，就是写笼统了。对照：
 
 ```
 ❌ 处理物料数据，填充内表。
-✅ 从 MARA 按 matnr IN s_matnr 取 MATNR 一列装进 it_mara，筛选条件是选择屏区间。
+
+✅ ① 从 MARA 取 MATNR 一列，条件 matnr IN s_matnr，装进 it_mara
+    ② 以 it_mara 的 MATNR 为键，FOR ALL ENTRIES 从 MAKT 取 MATNR+MAKTX，
+       条件 spras = 'EN'，装进 it_makt
+    ③ 遍历 it_mara，READ TABLE it_makt 做半连接，把 MATNR+MAKTX 拼成
+       wa_final 追加到 it_final
 ```
 
 ```
 ❌ 调用消息类显示提示。
-✅ 通过全局类 ZCL_BC_SCREEN_MESSAGE 的静态方法 OUTPUT，把字符串 'Show Error Log'
-   后面拼接上消息类中的文本 001，作为一条屏幕提示输出。
+
+✅ ① 从全局类 ZCL_BC_SCREEN_MESSAGE 取静态方法 OUTPUT
+    ② 把字符串 'Show Error Log' 拼接上消息类文本 001
+    ③ 作为屏幕提示输出到会话
 ```
 
 ```
 ❌ 遍历错误日志，更新行数。
-✅ 遍历错误日志内表，从第 7 行起每读到一行就把函数组全局变量 GD_END_LINE 加 1，
-   加到 35 就不再加。净效果：错误超过 6 条时列表框每多一条就长高一行。
+
+✅ ① 遍历错误日志内表，从第 7 行起逐行读取
+    ② 每读到一行就把函数组全局变量 GD_END_LINE 加 1
+    ③ 加到 35 停止；净效果：错误超过 6 条时列表框每多一条就长高一行
 ```
 
 **每层至少点名一个源码里的具体对象**——表名、类名、方法名、变量名，用反引号标出来。
@@ -411,7 +421,8 @@ fix-mislabel 之所以存在：`abap` 与 `abap-fix` 只锁了**一个方向**�
 SELECT matnr FROM mara INTO TABLE it_mara WHERE matnr IN s_matnr.
 ```
 
-**做什么** — 只取 MATNR 一列装进 `it_mara`，筛选条件是选择屏区间。
+**做什么** —
+① 从 `MARA` 取 `MATNR` 一列，条件 `matnr IN s_matnr`，装进 `it_mara`。
 
 **为什么** — MARA 有 200+ 字段，投影取列省内存；MATNR 上有索引，区间扫描代价可控。
 
@@ -424,7 +435,8 @@ DATA: lt_mara TYPE TABLE OF mara-matnr,
       lt_makt TYPE TABLE OF makt-maktx.
 ```
 
-**做什么** — 声明两张窄内表，`lt_mara` 存物料号、`lt_makt` 存描述。
+**做什么** —
+① 声明两张窄内表：`lt_mara` 存物料号（`mara-matnr`）、`lt_makt` 存描述（`makt-maktx`）。
 
 **为什么** — 只装用得到的列，避免把宽结构整体搬进内存。
 
@@ -435,7 +447,9 @@ SELECT matnr maktx FROM makt INTO TABLE lt_makt
   FOR ALL ENTRIES IN lt_mara WHERE matnr = lt_mara-matnr AND spras = 'EN'.
 ```
 
-**做什么** — 取 MATNR + MAKTX，用 FOR ALL ENTRIES 与 lt_mara 做内连接。
+**做什么** —
+① 从 `MAKT` 取 `MATNR` + `MAKTX`，以 `lt_mara` 的 `MATNR` 为键做 `FOR ALL ENTRIES`
+   半连接，条件 `spras = 'EN'`，装进 `lt_makt`。
 
 **为什么** — 命中 MAKT 的 MATNR+SPRAS 索引前缀，比裸 JOIN 更可控。
 
