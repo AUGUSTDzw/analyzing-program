@@ -1,7 +1,7 @@
 ---
 name: analyzing-programs
-version: 1.1.30
-contract: 1.3.13
+version: 1.1.31
+contract: 1.3.14
 description: Use when the user wants a deep onboarding-style analysis report for an ABAP/SAP program source file (报表程序、FORM/事件块、OO 类 CLAS、函数组、ALV 等), or pastes an ABAP / z*.abap file asking to analyze, walk-through, 讲解 its structure, execution flow, or design. Trigger on phrases like "分析这个程序/源码","走读/讲解 ABAP","代码 onboarding","源码分析/架构分析","帮我看懂这段 SAP 代码". Trigger even when the user does not explicitly say "report" but clearly wants to understand a whole program's business purpose, architecture, and risks. Do NOT use for one-line answers, non-SAP code, or pure syntax/API lookups.
 ---
 # Skill: analyzing-programs
@@ -137,7 +137,7 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 | 退出码 | 什么时候 | 意味着什么 |
 |---|---|---|
 | `0` | 检查跑完了，**形状无缺陷，且没有实质改写**（三种模式一致） | `PASS  <报告名>`。可能带 note，**note 不改变退出码** |
-| `1` | 跑完了，有缺陷 | 形状模式：缺陷行以 `fence` / `sec` / `sec-dup` / `prow` / `row-src` / `buck` / `ln` / `mm` / `mm-missing` / `A8-cc` / `layer-same` / `A8-pt` / `enc` / `esc` 起首，**加上忠实度实质级的一行 `SUBSTA`**，然后是 `FAIL  <报告名>  (N defect(s))`，`N` 把两者都算进去。`--fidelity-only`：先打 `SUBSTA` / `PUNCT-` 分级行，末行 `FAIL  <报告名>  (N rewrite(s), M punctuation-only)`；没有实质改写则 `PASS  <报告名>`，**只剩分级建议时是 `PASS  <报告名>  (M punctuation-only)`**——退出码还是 `0`，但括号里的数 grep `PASS  <报告名>` 是看不见的。`--fix`：`FAIL  <报告名>  (N shape defect(s) and M rewrite(s) need the model)`，两类各数各的，只剩一类时只打那一类；**实质改写同样让 `--fix` 退 `1`**，三种模式给同一个答案 |
+| `1` | 跑完了，有缺陷 | 形状模式：缺陷行以 `fence` / `sec` / `sec-dup` / `prow` / `row-src` / `buck` / `ln` / `mm` / `mm-missing` / `A8-cc` / `A8-list` / `layer-same` / `A8-pt` / `enc` / `esc` 起首，**加上忠实度实质级的一行 `SUBSTA`**，然后是 `FAIL  <报告名>  (N defect(s))`，`N` 把两者都算进去。`--fidelity-only`：先打 `SUBSTA` / `PUNCT-` 分级行，末行 `FAIL  <报告名>  (N rewrite(s), M punctuation-only)`；没有实质改写则 `PASS  <报告名>`，**只剩分级建议时是 `PASS  <报告名>  (M punctuation-only)`**——退出码还是 `0`，但括号里的数 grep `PASS  <报告名>` 是看不见的。`--fix`：`FAIL  <报告名>  (N shape defect(s) and M rewrite(s) need the model)`，两类各数各的，只剩一类时只打那一类；**实质改写同样让 `--fix` 退 `1`**，三种模式给同一个答案 |
 | `2` | **拒绝运行：别把输出当结论** | 所有拒绝都以 `error` 起首、**顶格不缩进**，和 `PASS` / `FAIL` 同一族。两个例外不带 `error`：不带参数时打印用法说明；`--fix` 路径不足时打印 `--fix needs REPORT and SOURCE`。**唯一一处是「读过了但没写出去」**：`--fix` 写不动时已经先读完了报告、只是存不回去，所以 `error` 明说 `nothing was written, so this run is not a verdict`，不冒充「没查」。**这时缺陷行已经先打出来了**——`error` 不是输出的第一行，`FAIL` 那行没有，因为 `FAIL` 排在写入之后 |
 
 `2` 的全部触发条件，按模式分：
@@ -330,7 +330,7 @@ fix-mislabel 之所以存在：`abap` 与 `abap-fix` 只锁了**一个方向**�
 超过则按 `A8-pt` 报（有评述、缺标签）。
 
 ### 第一层：做什么
-- **展开成带编号/字段/条件的清单，不要一句话概括。** 一句话的"处理物料数据，填充内表"是标题摘要，不是第一层——它没告诉读者取了什么、怎么驱动的、条件是什么、写到哪里。
+- **展开成带编号/字段/条件的清单，不要一句话概括。** 一句话的"处理物料数据，填充内表"是标题摘要，不是第一层——它没告诉读者取了什么、怎么驱动的、条件是什么、写到哪里。**这条由闸门 `A8-list` 强制执行**：第一层正文里的清单条目数少于所引代码块的语句数就报——1 句代码至少 1 条，多句代码至少 2 条。
 - **每项写清四件事**：① 取什么数据（表名/字段名/结构名）② 怎么驱动（SELECT/LOOP/READ/APPEND 等动作）③ 条件是什么（WHERE 条件、区间、系统字段、判空）④ 写到哪里（内表名、变量名、屏幕输出、写库）。
 - **用 markdown 有序列表编号**（① ② ③ 或 1. 2. 3.），每项一个动作，不要挤成一长段。
 - **不要逐句拆碎成"第 X 行：…"的流水账**——那是代码走查，不是业务描述。
@@ -374,9 +374,9 @@ fix-mislabel 之所以存在：`abap` 与 `abap-fix` 只锁了**一个方向**�
 `做什么` / `为什么` 两层尤其要用：**点名对象的层，读者才能回源码核对；不点名的层只能靠信任。**
 范例报告里 5 条 `做什么` 全部点名了源码对象，可以直接当标尺比。
 
-⚠️ 闸门查不出笼统。它只查标签在不在、窗口正文有没有超过 20 字；
+⚠️ 闸门查得出**清单的形状**，查不出**条目的具体度**。`A8-list` 只在条目数少于代码块语句数时报：一个条目覆盖十句话也照样通过，条目里写没写清 WHERE 条件它看不出来。
 `evals/` 里的缺陷问的也是"报告有没有指出源码里的某个缺陷"，不是"写得细不细"。
-所以这一层只有你自己把关。
+所以形状交给闸门，内容仍然是你自己把关。
 
 ### 第二层：为什么 / 设计点评
 - 讲动机、权衡、替代方案代价。不只是"用了什么"，而是"为什么适合这场景"。

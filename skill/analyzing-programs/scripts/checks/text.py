@@ -23,10 +23,11 @@ from .source import has_content  # noqa: F401
 # report_qc.py as well. ANCHORS/MM_BAD/QUOTE_LANG are re-exported out of
 # contract.py and belong to its __all__, not to a second one here.
 __all__ = ["TICK", "TAG", "FENCE_MARK", "mm_violation", "NODE", "mermaid_labels",
-           "inventory", "lang_of", "fence_spans", "fence_defects", "blank_fences",
-           "anchors_of", "anchor_for", "block_head", "in_risk_layer", "PROSE_END",
-           "prose_end", "source_blocks", "layer_bodies", "line_of", "cite_extent",
-           "ELIDE", "PAREN_NOTE", "CJK", "STR_LIT", "PUNCT"]
+            "inventory", "lang_of", "fence_spans", "fence_defects", "blank_fences",
+            "anchors_of", "anchor_for", "block_head", "in_risk_layer", "PROSE_END",
+            "prose_end", "source_blocks", "layer_bodies", "layer_body", "LIST_ITEM",
+            "line_of", "cite_extent", "ELIDE", "PAREN_NOTE", "CJK", "STR_LIT",
+            "PUNCT"]
 
 TICK = re.compile(r"`([^`\n]{2,80})`")
 # Mermaid renders this HTML subset, so these are the only angle brackets a label
@@ -283,6 +284,32 @@ def layer_bodies(gap):
         if body:
             out.setdefault(m.group(1), body)
     return out
+
+
+# Circled digits, markdown ordered, or markdown bullets -- the three markers
+# SKILL.md prescribes for segmenting the first layer. `^` matches offset zero as
+# well as a line start, so a single item written on the label's own line counts.
+LIST_ITEM = re.compile(
+    r"^[ \t]*(?:[\u2460-\u246B]|\d+[.\uff0e\u3001)]|[+\-*])\s+\S", re.M)
+
+
+def layer_body(gap, label):
+    """One layer's prose inside a window: from its label to the next label.
+
+    layer_bodies() reads only the first line after a label, which is what makes
+    "three layers carrying one sentence" detectable. That same limitation made a
+    one-sentence first layer look exactly like a segmented list, so the list rule
+    needs this: the whole body, up to the next layer label or the window's end.
+    """
+    head = re.compile(r"^[ \t]*[-*]?\s*(?:\*\*)?" + re.escape(label)
+                      + r"(?:\*\*)?\s*[\uff1a:\u2014\u2013-]?\s*", re.M)
+    m = head.search(gap)
+    if not m:
+        return ""
+    st = m.end()
+    nxt = re.search(r"^[ \t]*[-*]?\s*(?:\*\*)?(%s)(?:\*\*)?\s*[\uff1a:\u2014\u2013-]?\s*"
+                    % "|".join(re.escape(l) for l in LAYERS), gap[st:], re.M)
+    return gap[st:st + nxt.start()] if nxt else gap[st:]
 
 
 def line_of(s, off):

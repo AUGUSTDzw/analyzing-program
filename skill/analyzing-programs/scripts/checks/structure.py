@@ -8,17 +8,24 @@ signature and every kind string are unchanged from the single-file gate; the
 import re
 
 from checks.contract import (A8_GAP, BUCKETS, CONTRACT, DIAGRAM_LANG, LAYERS,
-                             LINE_NUM, PSEC_RE, ROW, SEC_RE, _NEXT_SEC_RE)
+                             LINE_NUM, PSEC_RE, QUOTE_LANG, ROW, SEC_RE,
+                             _NEXT_SEC_RE)
 from checks.encoding import replacement_defects
 from checks.escape import escape_defects
-from checks.text import (TICK, TAG, _flat, _src_of, blank_fences, fence_defects,
-                         fence_spans, layer_bodies, line_of, mermaid_labels,
-                         mm_violation, source_blocks)
+from checks.text import (LIST_ITEM, TICK, TAG, _flat, _src_of, blank_fences,
+                         fence_defects, fence_spans, layer_bodies, layer_body,
+                         line_of, mermaid_labels, mm_violation, source_blocks)
 
 SECTIONS_EXACTLY_ONCE = CONTRACT.get("sections_exactly_once", False)
 LAYERS_DISTINCT = CONTRACT["layers"].get("distinct", False)
 ROWS_REQUIRE_OBJECT = CONTRACT["problem_section"].get("rows_require_source_object", False)
 REQUIRED_DIAGRAMS = tuple(CONTRACT["mermaid"].get("required_diagrams") or ())
+
+DW = CONTRACT["layers"].get("do_what") or {}
+DW_KIND = DW.get("violation_kind", "A8-list")
+DW_MIN = DW.get("items_min_per_block", 2)
+DW_ONE = DW.get("single_statement_items", 1)
+DO_WHAT_LIST = bool(DW)
 
 # Same reason as the lists in contract.py and text.py: without one, `import *`
 # into report_qc.py hands every name above to that module as well -- and a
@@ -145,6 +152,34 @@ def _missing_diagrams(s):
             for t in REQUIRED_DIAGRAMS if t not in have]
 
 
+# Lines that carry no action: a comment, a blank, or the boundary of a block.
+_COMMENT = ("*", "\u0022")
+_STRUCT = ("FORM", "ENDFORM", "FUNCTION", "ENDFUNCTION", "START-OF-SELECTION",
+           "ENDLOOP", "ENDCASE", "ENDWHILE", "ENDDO", "ENDIF", "ENDTRY",
+           "ENDPROVIDE")
+
+
+def _statements(blk):
+    """Executable statement lines in one quoted block -- the denominator for
+    A8-list.
+
+    One list item per statement is the bar SKILL.md sets for the first layer, so
+    the count decides how many items the layer owes. Comments and blanks carry no
+    action; a block opener or closer is a boundary, not an action. A statement
+    continued by a trailing marker makes its next line count too, which
+    over-counts rather than under-counts.
+    """
+    n = 0
+    for raw in blk.splitlines():
+        t = raw.strip()
+        if not t or t[0] in _COMMENT:
+            continue
+        if t.split(None, 1)[0].upper().rstrip(":.") in _STRUCT:
+            continue
+        n += 1
+    return n
+
+
 # ------------------------------------------------------------------- checking
 
 def check(s, src=None):
@@ -155,6 +190,10 @@ def check(s, src=None):
     fixtures.
     """
     bad = []
+
+    # Block start -> block text, for the statement count behind A8-list.
+    BLOCKS = {st: s[bs:be] for st, bs, be, _en, lang in fence_spans(s)
+              if lang == QUOTE_LANG.lower()}
 
     present = sum(1 for rx, _ in SEC_RE if rx.search(s))
     if present < len(SEC_RE):
@@ -176,6 +215,18 @@ def check(s, src=None):
                     bad.append(("layer-same", line_of(s, st),
                                 "all three layers carry the same text: %r"
                                 % next(iter(bodies.values()))[:40]))
+            if DO_WHAT_LIST:
+                # LAYERS[0] is the first layer by contract order, the one whose
+                # shape this rule polices. A8-cc and A8-pt stay ahead of it: a
+                # block with no prose at all is reported for that first.
+                n_items = len(LIST_ITEM.findall(layer_body(gap, LAYERS[0])))
+                n_stmt = _statements(BLOCKS[st])
+                need = DW_ONE if n_stmt <= 1 else DW_MIN
+                if n_items < need:
+                    bad.append((DW_KIND, line_of(s, st),
+                                "%s is a paragraph, not a segmented list: "
+                                "%d item(s) for %d statement(s)"
+                                % (LAYERS[0], n_items, n_stmt)))
             continue
         ln = line_of(s, st)
         kind = "A8-cc" if len(gap.strip()) <= A8_GAP else "A8-pt"

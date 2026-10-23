@@ -63,13 +63,76 @@ def bail(label):
     return finish()
 
 
+
+
+DOT, SEMI, COMMA = "\u3002", "\uff1b", "\uff0c"
+MARKS = "\u2460\u2461\u2462\u2463\u2464\u2465\u2466\u2467\u2468\u2469"
+
+
+def _items(body):
+    """A first layer's sentences, split only outside backtick spans.
+
+    Splitting at a mark inside a span would break the quoted source statement and
+    make a clean baseline read as rewritten, which would hide the defect the
+    probe it feeds is meant to measure. If one sentence remains, the last comma
+    outside a span is used so the layer still segments.
+    """
+    parts, cur, depth = [], "", 0
+    for ch in body:
+        if ch == "`":
+            depth ^= 1
+        elif depth == 0 and ch in (DOT, SEMI):
+            parts.append(cur)
+            cur = ""
+        else:
+            cur += ch
+    parts.append(cur)
+    parts = [p for p in parts if p.strip()]
+    if len(parts) == 1:
+        depth, cut = 0, -1
+        for i, ch in enumerate(parts[0]):
+            if ch == "`":
+                depth ^= 1
+            elif ch == COMMA and depth == 0:
+                cut = i
+        if 0 < cut < len(parts[0]) - 1:
+            head, tail = parts[0][:cut], parts[0][cut + 1:]
+            if head.strip() and tail.strip():
+                parts = [head.strip(), tail.strip()]
+    return parts
+
+
+def listify(text):
+    """Give every first layer the segmented form A8-list requires.
+
+    BASE is a 2026-10-09 experiment artifact: what the skill wrote before this
+    rule existed, with a judge verdict already recorded against it. Rewriting it
+    to comply would change what that run produced, so the baseline is derived
+    instead -- its own sentences re-emitted as list items, no word invented.
+    """
+    out = []
+    for line in text.split("\n"):
+        m = re.match(r"^(\*\*" + LAYERS[0] + r"\*\*\s*[\u2014\u2013:-]\s*)(.+)$",
+                     line)
+        if not m:
+            out.append(line)
+            continue
+        head, body = m.group(1), m.group(2).strip()
+        out.append(head)
+        for k, part in enumerate(_items(body)[:len(MARKS)]):
+            out.append(MARKS[k] + " " + part.strip())
+    return "\n".join(out)
+
+
 def main():
-    base = io.open(BASE, encoding="utf-8").read()
+    raw = io.open(BASE, encoding="utf-8").read()
+    base = listify(raw)
     tmp = tempfile.mkdtemp()
     print("enforcement probes (current behaviour, see module docstring)")
     print("-" * 72)
     rc0, _ = gate(base, tmp, "p0_baseline.md")
-    check(rc0 == 0, "baseline report passes the gate", f"rc={rc0}")
+    check(rc0 == 0, "baseline passes once its first layers are "
+                           "segmented", f"rc={rc0}")
 
     m = re.search(FENCE + "abap\n(.*?)" + FENCE, base, re.S)
     if m is None:
@@ -271,6 +334,26 @@ def main():
     rc, out = gate(quiet, tmp, "p9_quoted.md")
     check("esc" not in out, "PROBE 9 a quoted escape is not residue",
           out.strip().splitlines()[0][:80] if out.strip() else "")
+
+    # PROBE 10: the first layer written as a paragraph instead of a segmented
+    # list. raw is BASE before listify(), so it is the unsegmented baseline --
+    # the shape the rule was added for. The rule checks the count of list items
+    # against the number of statements in the quoted block, so it cannot tell a
+    # specific item from a vague one.
+    print()
+    print("PROBE 10: a first layer written as a paragraph is a defect")
+    print("-" * 72)
+    check(listify(raw) != raw,
+          "PROBE 10 precondition: raw still carries an unsegmented first layer")
+    rc, out = gate(raw, tmp, "p10_paragraph.md")
+    check(rc != 0, "PROBE 10 gate now REJECTS first layers written as paragraphs",
+          f"rc={rc}")
+    check("A8-list" in out, "PROBE 10 reported as kind 'A8-list'",
+          out.strip().splitlines()[0][:80] if out.strip() else "")
+    check("segmented list" in out, "PROBE 10 names what the layer owed")
+    rc2, out2 = gate(base, tmp, "p10_listified.md")
+    check(rc2 == 0 and "A8-list" not in out2,
+          "PROBE 10 the segmented baseline is clean", f"rc={rc2}")
     return finish()
 
 
