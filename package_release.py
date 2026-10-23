@@ -17,6 +17,22 @@ file that declares it means the directory name, the zip name and the SHA256SUMS
 entry cannot disagree with what the skill says it is. An argument would have been
 a fourth place for that number to live.
 
+What is not shipped
+-------------------
+NOT_SHIPPED holds repository-only paths that must never reach a release. Every
+suite under tests/ resolves fixtures by walking up from tests/ to a repository
+root and reading sibling Test-source/ and analyzing-programs-workspace/, neither
+of which ships; in an installed package they die on the first fixture, which
+reads as a broken release rather than a harness that cannot run here. CRITICAL
+lists the paths the gate and its scripts read, and the assertion below refuses to
+let NOT_SHIPPED overlap them, so an over-eager exclusion cannot silently drop code.
+
+verify() checks an already-packed release against NOT_SHIPPED as well as against
+its zip and its digest. That check has to walk an unfiltered view: walk_clean
+applies NOT_SHIPPED on the way out, so a verifier that walked the same filtered
+tree would report a polluted release clean. That is exactly how 1.1.29 shipped
+its whole harness and still passed --verify at 461 entries.
+
 Usage
 -----
     python package_release.py                ship the current version
@@ -27,7 +43,7 @@ Usage
 Exit codes
 ----------
 0  shipped, or verified clean
-1  refused to overwrite, or a mismatch was found
+1  refused to overwrite, or a mismatch or a repository-only file was found
 2  an input is missing or unreadable
 """
 import hashlib
@@ -40,6 +56,29 @@ import zipfile
 
 EXCLUDE_DIRS = ("__pycache__", ".pytest_cache", ".git")
 
+# Repository-only paths that must never reach a release. Every suite under
+# tests/ resolves fixtures by walking up from tests/ to a repository root and
+# reading sibling Test-source/ and analyzing-programs-workspace/, neither of
+# which ships. In an installed package they die on the first fixture, which
+# reads as a broken release rather than a harness that cannot run here. The
+# gate and its scripts are unaffected, so they stay.
+NOT_SHIPPED = ("tests/",)
+
+# The paths the gate and its scripts actually read. Dropping one of these ships
+# a broken skill, so NOT_SHIPPED must not overlap them in either direction.
+CRITICAL = ("schemas/", "scripts/", "references/", "evals/")
+
+for _p in NOT_SHIPPED:
+    for _c in CRITICAL:
+        assert not (_p.startswith(_c) or _c.startswith(_p)), (
+            "NOT_SHIPPED %r overlaps CRITICAL %r, which the gate reads"
+            % (_p, _c))
+
+
+def is_shipped(arcname):
+    """False for a repository-only path that must not reach the package."""
+    return not any(arcname.startswith(p) for p in NOT_SHIPPED)
+
 
 def read_version(skill_md):
     """The version the skill declares about itself, or None."""
@@ -49,10 +88,39 @@ def read_version(skill_md):
 
 
 def walk_clean(root):
-    """(arcname, fullpath) for every file under root, excluding build noise.
+    """(arcname, fullpath) for every shippable file under root.
 
-    Directory entries are yielded first with a trailing slash, matching the
-    layout the earlier releases were packed with.
+    Skips build noise (EXCLUDE_DIRS, *.pyc) and repository-only paths
+    (NOT_SHIPPED). Directory entries are yielded first with a trailing slash,
+    matching the layout the earlier releases were packed with.
+
+    arcname is relative to root's parent, which is how the archives were laid
+    out. NOT_SHIPPED is matched against the path relative to root itself --
+    matching it against arcname would never fire, since every arcname is
+    prefixed with the package directory name.
+    """
+    base = os.path.dirname(root.rstrip(os.sep))
+    root_ = root.rstrip(os.sep)
+    for cur, dirs, files in os.walk(root):
+        dirs[:] = sorted(d for d in dirs if d not in EXCLUDE_DIRS)
+        arc = os.path.relpath(cur, base).replace(os.sep, "/")
+        rel = os.path.relpath(cur, root_).replace(os.sep, "/")
+        prefix = "" if rel == "." else rel + "/"
+        if is_shipped(prefix):
+            yield arc + "/", None
+        for f in sorted(files):
+            if f.endswith(".pyc") or not is_shipped(prefix + f):
+                continue
+            yield arc + "/" + f, os.path.join(cur, f)
+
+
+def walk_all(root):
+    """(arcname, fullpath) for every file under root, minus build noise only.
+
+    Deliberately ignores NOT_SHIPPED: verifying an already-packed release needs
+    to see everything that is actually there, or a polluted release looks
+    self-consistent and the check that should catch it cannot fire. walk_clean
+    filters NOT_SHIPPED because it builds the archive.
     """
     base = os.path.dirname(root.rstrip(os.sep))
     for cur, dirs, files in os.walk(root):
@@ -63,6 +131,19 @@ def walk_clean(root):
             if f.endswith(".pyc"):
                 continue
             yield arc + "/" + f, os.path.join(cur, f)
+
+
+def not_shipped_in(root):
+    """arcnames of NOT_SHIPPED files present under root, if any."""
+    root_ = root.rstrip(os.sep)
+    out = []
+    for arc, full in walk_all(root):
+        if full is None:
+            continue
+        rel = os.path.relpath(full, root_).replace(os.sep, "/")
+        if not is_shipped(rel):
+            out.append(arc)
+    return sorted(out)
 
 
 def sha256(path):
@@ -84,16 +165,31 @@ def verify(release_dir, dirname):
 
     with zipfile.ZipFile(zippath) as zf:
         zset = set(zf.namelist())
-    # Same generator as the packer: os.walk hands out basenames, so relativising
-    # one against the release dir is the wrong answer -- distinct files sharing a
-    # name collapse onto a single path and the comparison fails on every release.
-    dset = set(a for a, _ in walk_clean(dest))
+    # walk_all, not walk_clean: filtering NOT_SHIPPED here would make a polluted
+    # release look self-consistent, since the directory really does hold those
+    # files. os.walk hands out basenames, so relativising one against the release
+    # dir is the wrong answer -- distinct files sharing a name collapse onto a
+    # single path and the comparison fails on every release.
+    dset = set(a for a, _ in walk_all(dest))
     if dset == zset:
         print("  ok    zip contents match the directory (%d entries)" % len(zset))
     else:
         print("  FAIL  zip and directory disagree: %d only in zip, %d only in dir"
               % (len(zset - dset), len(dset - zset)))
         rc = 1
+
+    # Zip entries and not_shipped_in both use arcnames relative to release/, so
+    # strip the release-dir prefix before testing against NOT_SHIPPED.
+    prefix = dirname + "/"
+    zstray = sorted(n for n in zset
+                    if n.startswith(prefix) and not is_shipped(n[len(prefix):]))
+    stray = sorted(set(not_shipped_in(dest)) | set(zstray))
+    if stray:
+        print("  FAIL  %d repository-only file(s) shipped, excluded as %s: %s"
+              % (len(stray), " ".join(NOT_SHIPPED), ", ".join(stray[:5])))
+        rc = 1
+    else:
+        print("  ok    no repository-only path in the release")
 
     if os.path.exists(sums):
         with io.open(sums, encoding="utf-8") as fh:
@@ -140,6 +236,16 @@ def ship(pkg_dir, release_dir):
 
     shutil.copytree(pkg_dir, dest,
                     ignore=shutil.ignore_patterns(*EXCLUDE_DIRS, "*.pyc"))
+    # copytree's ignore matches basenames, which is the wrong unit for a path
+    # prefix, so NOT_SHIPPED is pruned from the copied tree. walk_clean already
+    # keeps the zip clean; the directory half ships alongside it and is what
+    # verify() reads, so leaving these behind would fail its own check.
+    for _p in NOT_SHIPPED:
+        _victim = os.path.join(dest, _p.rstrip("/"))
+        if os.path.isdir(_victim):
+            shutil.rmtree(_victim)
+        elif os.path.isfile(_victim):
+            os.remove(_victim)
 
     with zipfile.ZipFile(zippath, "w", zipfile.ZIP_DEFLATED) as zf:
         for arc, full in walk_clean(dest):
