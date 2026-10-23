@@ -6,19 +6,34 @@
 ## 目录
 
 ```
-SKILL.md                       规则本体（548 行）
-scripts/report_qc.py           格式闸门：逐条列出违规位置，可自动修两类
-scripts/evaluate.py            内容评分：对冻结缺陷清单判分，算召回与错误论断
-scripts/docgen.py              文档生成：源码抽成类 / FORM / 函数 / 表 / 调用的清单
-scripts/recon.py               侦察：一次调用拿到编号源码与子程序清单（分析第 1、2 步）
-scripts/abap_deps_analyzer.py  依赖分析：对照自带的 abaplint-deps 查标准对象引用
-references/example-report.md   完整范例（真实报告，逐字未改，闸门零缺陷）
-references/large-inputs.md     大输入的实测行为（观察，不是规则）
-references/README.md           范例的出处与局限
-evals/README.md                缺陷参考的格式、用法与边界
-evals/*.defects.json           127 条缺陷 / 7 个真实源码
-schemas/report-contract.json   闸门规则与 skill 教学锚点的唯一来源
-tests/*.py                 仓库内的验证套件，**不随包发布**（见「跑一遍」）
+SKILL.md                         规则本体（587 行）
+scripts/report_qc.py             格式闸门：逐条列出违规位置，可自动修两类
+scripts/evaluate.py              内容评分：对冻结缺陷清单判分，算召回与错误论断
+scripts/docgen.py                文档生成：源码抽成类 / FORM / 函数 / 表 / 调用的清单
+scripts/recon.py                 侦察：一次调用拿到编号源码与子程序清单（分析第 1、2 步）
+scripts/abap_deps_analyzer.py    依赖分析：对照自带的 abaplint-deps 查标准对象引用
+scripts/checks/                  闸门检测器：结构 / 文本 / 编码 / 忠实度 / 令牌 / 引文 / 建议
+scripts/lint_skill.py            元工具：SKILL.md 对照 skill-contract.json 检查（见下节）
+scripts/dedup.py                 元工具：语义重复章节检测
+scripts/lift.py                  元工具：两份 verdict 的 recall 差异与符号检验
+scripts/security_probe.py        元工具：17 组对抗输入压测 --fix
+scripts/index.py                 元工具：references/ 的 TF-IDF 搜索索引
+scripts/evolve.py                元工具：历史报告 P0-P3 模式挖掘与更新建议
+references/example-report.md     完整范例（真实报告，逐字未改，闸门零缺陷）
+references/abap-syntax/          ABAP 语法与语义速查，9 份
+references/large-inputs.md       大输入的实测行为（观察，不是规则）
+references/README.md             范例的出处与局限
+references/delivery-methods.md   失败模式记录（观察，不是规则）
+references/output-rate.md        失败模式记录（观察，不是规则）
+references/slice-and-write.md    失败模式记录（观察，不是规则）
+references/truncated-reports.md  失败模式记录（观察，不是规则）
+evals/README.md                  缺陷参考的格式、用法与边界
+evals/*.defects.json             127 条缺陷 / 7 个真实源码
+schemas/report-contract.json     报告闸门规则与 skill 教学锚点的唯一来源
+schemas/docgen-contract.json     docgen 输出与校验的规则
+schemas/skill-contract.json      SKILL.md 自身的规则，lint_skill.py 读它
+abaplint-deps/                   自带的标准库桩，依赖分析器读它
+tests/*.py                       仓库内的验证套件，10 个，**不随包发布**（见「跑一遍」）
 ```
 
 ## 三件工具各管什么
@@ -87,21 +102,31 @@ python scripts/evolve.py --results Test-result/         # 挖掘历史报告
 
 `score` / `compare` 上还有一个 `--legacy`：豁免**整个引文校验**，给早于引文要求的旧判分文件用。不带它，`yes` / `partial` 的判分必须有 `evidence.<id>.report_line`、`evidence.<id>.quote`，而且 quote 得真的出现在那一行——缺 `report_line`、缺 `quote`、行号越界、quote 不在该行，四种都退 `2` 拒绝，而且 `--report` 缺失时同样拒绝（否则等于把校验静默接受下来）。**它不豁免 `false_claims`**：理由缺失照样拒，因为一个吞掉它的出口会把未解释的错误计成干净结果。带它时判分照做、仍退 `0`，但 `WARNING  --legacy: citations were not verified, so every verdict is an uncheckable assertion` 会印在输出里——打上这个警告的分数不算可审计的。
 
-验证套件在仓库里跑。`tests/` 不随包发布，安装包里没有这五个文件：
+验证套件在仓库里跑。`tests/` 不随包发布，安装包里没有这十个文件：
 
 ```bash
 python tests/test_skill.py              # 416 项
-python tests/test_contract_drift.py     # 129 项，契约 <-> SKILL.md <-> 闸门 三方对齐
-python tests/test_gate_enforcement.py   # 34 项，闸门执行漏洞探针
+python tests/test_contract_drift.py     # 138 项，契约 <-> SKILL.md <-> 闸门 三方对齐
+python tests/test_gate_enforcement.py   # 41 项，闸门执行漏洞探针
 python tests/test_fidelity_tiers.py     # 9 项，改动前后口径是否等价
 python tests/test_docgen_deps.py        # 171 项，docgen 与依赖分析器
+python tests/test_lint_skill.py         # 41 项，SKILL.md 对照 skill-contract.json
+python tests/test_dedup.py              # 33 项，语义重复章节
+python tests/test_lift.py               # 35 项，两份 verdict 的 recall 差异与符号检验
+python tests/test_index.py              # 37 项，references/ 搜索索引构建与检索
+python tests/test_evolve.py             # 25 项，历史报告 P0-P3 模式挖掘与更新建议
 ```
 
-合计 986 项。
+合计 946 项，十个套件。仓库根还有一个 `run_tests.py`（不随包发布，和
+`package_release.py` 一起只活在仓库里）：它逐个跑这十个套件加两个元脚本
+（`lint_skill.py`、`security_probe.py`），解析每个套件自己印的那行
+`N checks passed, M failed` 汇总成真实总数——汇总数不是猜的。`lint_skill.py`
+只印 `PASS` 不带数，它会被标成 unverified 而不是算绿；`security_probe.py`
+是 17 项。所以全部跑完是 12 个套件、963 项带数断言。
 
 **退出码是契约的一部分。** 所有模式在仍有缺陷时返回非零，包括 `--fidelity-only`
 与 `--fix` —— SKILL.md 第 6 步让模型"重跑到干净为止"，那条循环只能靠退出码终止。
-五个脚本都自己把 stdout 与 stderr 重配为 UTF-8：契约里的优先级桶标记是 emoji，
+十一个脚本都自己把 stdout 与 stderr 重配为 UTF-8：契约里的优先级桶标记是 emoji，
 在 cp936（中文 Windows 的默认）上打印会抛 `UnicodeEncodeError`，
 依赖分析器的报告整篇是中文、在 cp437 上同样会抛。1.1.26 之前这个 guard
 只覆盖其中三个，漏掉的那两个见下面的 `1.1.25 → 1.1.26` 那条。
@@ -111,16 +136,25 @@ Windows 上不需要设 `PYTHONUTF8`。
 `HERE = dirname(abspath(__file__))` 往上数出仓库根，再去根下找同级的
 `Test-source/` 与 `analyzing-programs-workspace/`——那两棵树明确不随 skill 发布
 （`analyzing-programs-workspace/` 是上游开发线快照）。所以放进包里只会得到一个
-跑不起来的东西：装到 `~/.agents/skills/` 之后五个 suite 都会在第一个 fixture 上
-`FileNotFoundError`；`test_skill.py` 例外，能一路跑到最后、只挂一条（1.1.10 量到
-168 过 1 挂，挂的是 `the exemplar's source is present`，它需要 `Test-source/real/`
-里那份 `zbc_show_error_log`）。
+跑不起来的东西：装到 `~/.agents/skills/` 之后四个 suite 会在第一个 fixture 上
+`FileNotFoundError`（`test_gate_enforcement.py`、`test_fidelity_tiers.py`、
+`test_docgen_deps.py` 要 `Test-source/` 或 `analyzing-programs-workspace/`），
+`test_skill.py` 与 `test_contract_drift.py` 能一路跑到最后、各只挂一条
+（挂的是 `the exemplar's source is present`，它需要 `Test-source/real/` 里那份
+`zbc_show_error_log`）。在仓库里跑是绿的，因为往上数层恰好能走到真的仓库根——
+量要装到仓库外才量得出来。
 1.1.10 是把这句话写进 README；1.1.11 是直接不把它发出去——包里剩下的每件东西
-都能在装好的位置跑通，这句话才成立。`release/pack.py` 里有一个 `NOT_SHIPPED`
-名单加一条 `CRITICAL` 守卫，后者保证误把 `schemas/` / `scripts/` /
-`references/` / `evals/` 填进排除名单时打包会直接断言失败，而不是悄悄少发。
-`references/README.md` 与 `evals/README.md` 里有两处指向 `tests/` 的交叉引用，
-那是指向仓库内的套件，读发布包的人找不到很正常，不删。
+都能在装好的位置跑通，这句话才成立。仓库根的 `package_release.py` 里有一个
+`NOT_SHIPPED` 名单加一条 `CRITICAL` 守卫，后者保证误把 `schemas/` / `scripts/` /
+`references/` / `evals/` 填进排除名单时打包会直接断言失败，而不是悄悄少发；
+`--verify` 还会拿一份**不**经过 `NOT_SHIPPED` 过滤的遍历去核对已发的包，
+否则一个被污染的包在过滤后的视图里显得自洽，检查永远不触发。
+这条守卫 1.1.28 那次重写打包器时丢掉过一次：1.1.29 把十个测试文件连同整个 harness
+发进了包，`--verify` 在 461 个条目上照报 clean——两个方向都用的同一个已丢的排除。
+1.1.30 把它补回，并给 `--verify` 加上 repository-only 检查，所以现在能拦。
+1.1.29 本身没修：`release/` 是 append-only，它记的 digest 对得上它自己那个带
+harness 的 zip。`references/README.md` 与 `evals/README.md` 里有两处指向 `tests/`
+的交叉引用，那是指向仓库内的套件，读发布包的人找不到很正常，不删。
 
 **四种「没检查」的样子，其中一种仍然和通过只差一行 note。** 下表全部实测，
 SKILL.md「闸门输出」一节照抄：
@@ -170,11 +204,14 @@ Mermaid 标签里的裸 `<` `>` `#` → 改成全角。三层缺失**只报位�
 ### 先说版本：下面的数字不是出货版本的数字
 
 iteration-8 的全部数字都是在 **`b8f84e8`**（162 行）上测出来的。
-**工作树与 `release/` 都到 `1.1.27`**（548 行，契约 1.3.12 / docgen 契约 1.0.3）：
-归档在 `release/analyzing-programs-1.1.27/`（409 文件、31 目录），
-zip 的 sha256 在 `release/SHA256SUMS`。1.1.27 改的是 `--fix` 的写出与备份行为，
-SKILL.md 告诉写作者这些时报什么的那一段跟着重写（原来写的是旧的、不全的同一个守卫）；
-docgen 契约不动（1.0.3 / ships_with 1.1.25），这次没碰属于它的东西。
+**工作树与 `release/` 都到 `1.1.30`**（587 行，契约 1.3.13 / docgen 契约 1.0.3）：
+归档在 `release/analyzing-programs-1.1.30/`（417 文件、33 目录），
+zip 的 sha256 在 `release/SHA256SUMS`。1.1.30 改的是打包器：1.1.29 那份重写
+丢掉了 `release/pack.py` 的 `NOT_SHIPPED` 与 `CRITICAL` 守卫，于是把整个测试 harness
+发进了包，而 `--verify` 照报 clean——本版纳回守卫并给 `--verify` 加上
+repository-only 检查。契约没有规则或阈值变化，只走 `ships_with`；docgen 契约
+也不动（1.0.3 / ships_with 1.1.25），这次没碰属于它的东西。
+**1.1.28 从未归档**（git 里有 bump，`release/` 里没有），从 1.1.27 直接跳到 1.1.29。
 **效果**未测出结论。**
 
 版本谱系（每一版都已归档在 `release/`，digest 见 `release/SHA256SUMS`）。
@@ -224,6 +261,9 @@ Not a valid object name），那几行的行数只能从 `--follow` 找到的同
 | `0b7322f` | 546 | `0b7322f` | **1.1.25**。契约 1.3.10 → 1.3.11、docgen 契约 1.0.2 → 1.0.3，SKILL.md 仍是 546 行。**四条读出来的「形状错」：三条是拒绝以崩溃的形式到达，一条是静默判 PASS**。`checks/contract.py` 的守卫只包住「规则在不在」、包不住「规则都在之后怎么算」——四条派生量在 `try` 之外算，`buckets` / `patterns` / `advisories` / `forbid_in_display_text` 给错类型分别抛 `StopIteration` / `LookupError` / `TypeError` / `re.error`，全部 traceback 退 `1`，而规则集能解析、键也齐，只是类型错了；1.1.24 记的「catch 已盖住 `json.load` 能返回的任何形状」当时就是错的，存在检查与派生量是两条 `try`。docgen 契约**一道形状检查都没有**：根节点是 `{}`、一条规则都没有时，`validate()` 拿空章节表对一份报告判 PASS——必需章节一项不落地「通过」，因为一项都没要求。「源码有没有内容」原来四个地方三个写法互不一致：`.strip()` 收下全 null 字节的源，`isprintable()` 收下只有 U+FFFD 的源——而 U+FFFD 正是 `encoding` 那条规则存在的理由，于是给一个**不存在的程序**生成了文档。现在合成一个谓词 `has_content()`，落在新增的 `scripts/checks/source.py`；它不 import 规则集，`docgen.py` 与 `recon.py` 才能读它而不把 report 契约一起背上（第一版放进 `checks/text.py` 时，`docgen.py` 在 report 契约缺失时会拿那份契约的词拒绝自己——一份关于错误文件的拒绝）。三处消息对齐到 `recon.py` 早就用的那句 `no analysable content`。`tests/test_skill.py` 365 → 396 项、`tests/test_docgen_deps.py` 129 → 171 项，五个套件 666 → 739 项全绿。复审另读出的五条本轮明确不动，量与理由记在下面的 changelog |
 | `ed2aa21` | 545 | `ed2aa21` | **1.1.26**。契约不动（1.3.11）：没有规则、阈值或 `gate_io` 行变化，只有 `ships_with` 走；docgen 契约也不动（1.0.3 / ships_with 1.1.25），这次改的两个脚本都不属于它。SKILL.md 仍是 545 行——只动了 frontmatter 的 `version`。**上一轮记下的理由写错了**：`evaluate.py` 与 `abap_deps_analyzer.py` 没有 stream `reconfigure`，理由写的是「它们不是被别的脚本读的子进程，所以那个失效方式到不了它们」——入口是它们**自己的** stdout，不是子进程的。分析器的报告整篇是中文，在 cp936（中文 Windows 的默认）或 cp437 上 `print()` 抛 `UnicodeEncodeError`，被外层 `except Exception` 抓住、打一行 error、退 `2`——「拒绝了、没查过」，而这个运行跑完了分析、产出就在手里，一个字都没送到调用方。量在同一份源码上：默认编码 `rc=0`，cp437 与 cp936 修前都是 `rc=2`，修完三种都是 `rc=0`；cp936 下漏出去那半截本身还是乱码。同一缺陷 1.1.10 修过一次、只把它藏了：当时 handler 的前缀是中文，cp437 下 handler 在自己那两个汉字上崩，traceback 顶掉诊断、退 `1`（「跑完了、有缺陷」），而报告根本没产出；后来把前缀改成 ASCII 的 `error`，traceback 没了、**退出码还停在 2**，就这么活到本轮。守这个 guard 的断言只列了两个脚本，`report_qc.py` 从 **1.1.0** 就有它、**从来没有断言过**，循环现在列全五个。`tests/test_skill.py` 396 → 399 项，五个套件 739 → 742 项全绿。另记一处记错的行数：SKILL.md 从 1.1.22 起就是 545 行，1.1.22–1.1.25 四行写的 546 都多了一行 |
 | `487b002` | 548 | `487b002` | **1.1.27**。契约 1.3.11 → 1.3.12，动的两行都是 `gate_io`；docgen 契约不动（1.0.3 / ships_with 1.1.25），这次改的 `--fix` 不属于它。SKILL.md 545 → 548 行。**上一节记下没动的两条，都是「写一个已存在的路径时，旧内容不留一份」。** **`--fix -o` 对已存在的文件静默覆盖。**重新量：`-o` 指向一个 33 字节的文件，运行完它变成 889 字节、打印 `repaired 1 mechanical defect(s)`、退 `0`，临时目录里**一个 `.bak` 都没有**。根在两边：写盘前的预检只看 `-o` **所在目录**存不存在、可不可写，**从不看 `-o` 本身**；备份的条件是 `dest == rep and n`——只在原地、且确实修了一处才写 `.bak`，`-o` 那半边永远用不上备份，且什么都检不出来报。「预检只涵盖 `-o` 所在目录、从未涵盖 `-o` 本身」这句还是契约自己记的，记完没动。 **第二轮 `--fix` 覆盖第一轮的 `.bak`。**连跑两轮原地修复、每轮都确实修了一处，`.bak` 先 833 字节、再 829 字节：第一轮那份没了，没有 `.bak.2`，也没有一个字的交代；而只有第一轮那份才是能退回的——第二轮写下的是第二轮前的文本，它没帮你找得更早。修法是在写之前看 `.bak` 那个路径是否已存在，**存在就拒绝**，文件或目录都算。之前只有目录形态会到达（`IsADirectoryError`，测试里有一条），而**文件才是常态**。`exit_codes[2]` 的触发条件一字未加，只把「`.bak` 是目录」扩展成「`.bak` 存在」。 **换行不是统一，是逐个位置带回去。**原来用一个布尔：报告里有没有 CRLF。一份 1 处 CRLF + 55 处 LF 的报告输出成 56 处 CRLF + 0 处 LF，回执却印 `repaired 0 mechanical defect(s)`——**报告没改动一处，文件却整篇换了换行**。改成把每个换行带回自己的位置（修复只改行内文本、不增减行数），回执与文件于是在**构造上**一致：1 处 CRLF + 55 处 LF 进去，1 处 CRLF + 55 处 LF 出来，字节完全一样。 **改的是备份的条件，不是备份的时机。**条件从「确实修了什么」换成「这次写入会不会丢掉什么」：一次什么都没修出来的运行，只要它把一个别人的文件换成了报告，同样先留备份；字节完全一样（原地零修复）就不留——这正是原地 `--fix` 能连着跑两次的原因。`.bak` 那份是上一次运行留下的版本、是退回时唯一的路，覆盖它等于把退路删掉，所以拒绝而不是覆盖；消息仍是 `could not write ... -- nothing was written`。 `tests/test_skill.py` 399 → 416（17 项：全 CRLF / 全 LF / 混合三种风格各要带回原换行、各要确实修到；`-o` 写出前先救已存在的文件并比字节；`.bak` 已存在时拒绝写入；其中两条在修前的代码上是红的，所以它们确实是探针），五个套件 742 → **759** 项全绿（416 + 171 + 129 + 9 + 34），`test_contract_drift.py` 的两个 pin 与两个 `_comment` 条数同步，`verify_ship.py` 14/14。另记一条**不动**：契约声明 11 个必须存在的键，其中 `gate_io`、`loop_position`、`claim_separation` 三个没有读取方——不是崩溃，是契约设计问题（写进契约而不让闸门读，是文档还是规则），保持记录。 |
+| `9cc86fd` | 565 | `9cc86fd` | **1.1.28**。契约不动（1.3.12）：没有规则、阈值或 `gate_io` 行变化，只有 `ships_with` 走。SKILL.md 548 → 565 行。**六个元工具**，都是维护 skill 本身用的、不被闸门调用：`lint_skill.py`（SKILL.md 对照 `schemas/skill-contract.json` 检查）、`dedup.py`（语义重复章节）、`lift.py`（两份 verdict 的 recall 差异与符号检验）、`security_probe.py`（17 组对抗输入压测 `--fix`）、`index.py`（`references/` 的 TF-IDF 搜索索引）、`evolve.py`（历史报告 P0-P3 模式挖掘与更新建议）。同一提交加 `schemas/skill-contract.json` 58 行——SKILL.md 自己的规则第一次有了可机检的来源，之前那套写法纪律只存在于人眼。五套新测试：`test_lint_skill` 41、`test_dedup` 33、`test_lift` 35、`test_index` 37、`test_evolve` 25。**这一版没有归档**：git 里有 `9cc86fd` 与 bump 提交 `7639efc`，但 `release/` 里没有 `analyzing-programs-1.1.28/`、`SHA256SUMS` 里也没有它的一行——下一个归档直接是 1.1.29。装 `release/` 的人拿到的仍是 1.1.27。**提交消息里的「986 项（759 existing + 227 new）」两个数都不对**：五个新套件是 171 项、再加 `security_probe.py` 的 17 项共 188 项，加上原五个套件的 759 项是 947——而且 drift 与 gate_enforcement 在 1.1.29 又各增了一些。这个数当时是从提交里抄进 README 的，1.1.30 换成实测值 |
+| `5784c52` | 587 | `5784c52` | **1.1.29**。契约 1.3.12 → 1.3.13，SKILL.md 565 → 587 行。**新增 `esc` 缺陷类型**：源码里的转义序列（`%_` / `+CONCAT` / 字符串拼接）被报告写成转义残留的字面形态，读的人以为那是程序里真的字符串。新增 `scripts/checks/escape.py`（69 行），`esc` 进 `defect_line_prefixes`，`test_gate_enforcement.py` 34 → 41、`test_contract_drift.py` 129 → 138。同批 `0243ce2` 把散落的检查入口收成一个 `run_tests.py` 与一个 `package_release.py`，版本从 SKILL.md frontmatter 读而不是从参数读——参数会是那串版本号活着的第四个地方。归档 `461` 个 zip 条目、sha256 `2545abab`。**这个包带着自己的测试 harness**，见下一行 |
+| `0243ce2` | 587 | `0243ce2` | **1.1.30**。契约不动（1.3.13）：没有规则、阈值或 `gate_io` 行变化，只有 `ships_with` 走；docgen 契约也不动（1.0.3 / ships_with 1.1.25）。SKILL.md 仍是 587 行——只动了 frontmatter 的 `version`。**`0243ce2` 重写打包器时丢掉了 `release/pack.py` 里的那条守卫**：旧版有 `NOT_SHIPPED = ("tests/",)` 加一条 `CRITICAL` 断言，新版只有 `EXCLUDE_DIRS`，于是 1.1.29 把十个测试文件连同整个 harness 发进了包。量出来：`--verify` 在那个 461 条目的包上照报 `zip contents match` 与 `SHA256SUMS matches` 两条 `ok`——那版**根本不存在** NOT_SHIPPED 这份名单，`--verify` 只比 zip 与目录、查 digest，而这两件都真的对上了（461 条目两边一致，digest 也吻合），所以它没有东西可查。新检查加进来之后就必须小心一件事：`verify()` 的目录侧若走 `walk_clean()`，会被过滤掉的正是它要抓的东西——被污染的包在那份视图里显得自洽，检查永不触发。所以目录侧走 `walk_all()`，两份视图都是不过滤的，比对与检查都成立。装到仓库外才量得出失败：四个 suite 在第一个 fixture 就 `FileNotFoundError`，`test_skill.py` 与 `test_contract_drift.py` 各挂一条 `the exemplar's source is present`。修法是三处：`NOT_SHIPPED` 与 `CRITICAL` 补回并加**双向**前缀断言（旧版只查 `_p not in CRITICAL`，`"scri"`、`"schema"`、`"scripts/checks/"` 都会漏过去，现在 `NOT_SHIPPED ⊆ CRITICAL` 也不放行）；`verify()` 改用 `walk_all()` 这份**不过滤**的遍历，并新增 repository-only 检查；`ship()` 从拷贝树里 prune 掉 NOT_SHIPPED（`copytree` 的 `ignore` 按 basename 匹配，路径前缀交给它不生效）。验证：`--verify 1.1.29` 退 `1` 并列出 11 个 repository-only 文件（`tests/` 目录条目加十个测试），`--verify 1.1.27` 全绿退 `0`。**1.1.29 本身不修**：`release/` 是 append-only，它记的 digest 对得上它自己那个带 harness 的 zip，改它等于篡改一份已签发的归档。归档 `450` 个 zip 条目（417 文件、33 目录）。同批把 README 同步到现状：目录清单补上 `scripts/checks/` 与六个元工具、`schemas/` 另两份契约、`abaplint-deps/` 与四份失败模式记录；「跑一遍」补五套新测试并改成实测的 946 项（十个套件）与 `run_tests.py`；`tests/` 一节把 1.1.10 量到的失败形态改成本轮的实测、把 `release/pack.py` 改成 `package_release.py` 并记下这次回归；`五个脚本` 的 UTF-8 守卫改成十一个；版本表与本节补齐 1.1.28 起三行 |
 
 **契约版本与发布版本是两条独立的轴。** 契约 `version` 只在该文件自己的规则、
 阈值或 `gate_io` 行变化时递增；发布版本对措辞和闸门行为的变化也递增。
@@ -979,6 +1019,93 @@ SKILL.md 545 → 548 行：`--fix` 那段把备份的条件、拒绝写入、换
 告诉写作者的那句原来只写了「原地重写并且确实改了东西」，
 与修完的守卫已经不是同一回事了，重写。`1.1.22 – 1.1.25` 四行的 546
 仍然留原样，同上一节。
+
+### 1.1.27 → 1.1.28：六个元工具，以及一个没有归档的版本
+
+契约不动（1.3.12），只有 `ships_with` 走；SKILL.md 548 → 565 行。
+
+这一版加的东西全是**维护 skill 本身**的，闸门不读它们，报告也不经过它们：
+`lint_skill.py` 让 SKILL.md 对照 `schemas/skill-contract.json` 被机器检查——之前那套
+写法纪律只存在于人眼，改一句不会有任何东西变红；`dedup.py` 找语义重复的章节；
+`lift.py` 比两份 verdict 的 recall 差异并做符号检验；`security_probe.py` 用 17 组
+对抗输入压 `--fix`；`index.py` 给 `references/` 建 TF-IDF 索引；`evolve.py` 挖历史
+报告的 P0-P3 模式。五套新测试随之落地：41 + 33 + 35 + 37 + 25 = 171 项。
+
+**这一版没有归档。**git 里有 `9cc86fd` 和 bump 提交 `7639efc`，但 `release/` 里没有
+`analyzing-programs-1.1.28/`，`SHA256SUMS` 里也没有它的一行。下一个归档直接跳到
+1.1.29，所以从 `release/` 装的人拿到的还是 1.1.27——六个元工具和五套新测试
+在他们手里不存在。1.1.30 起归档恢复连续。
+
+**提交消息里的「986 项」是错的，而且错了两个数。**`9cc86fd` 写
+「759 existing + 227 new」。新的部分是 171（五个套件）加 17（`security_probe.py`）
+共 188，不是 227；原五个套件在 1.1.29 又各增了些，drift 129 → 138、
+gate_enforcement 34 → 41。这个 986 当时被抄进了 README 的「跑一遍」一节并活了两版。
+1.1.30 换成实测值：十个套件 946 项，`run_tests.py` 另外跑两个元脚本。
+
+### 1.1.28 → 1.1.29：`esc` —— 转义残留写成散文
+
+契约 1.3.12 → 1.3.13，SKILL.md 565 → 587 行。
+
+源码里用 `%_` / `+CONCAT` / 字符串拼接做转义的写法，报告有时把它写成转义残留的
+字面形态——读的人以为那串字符是程序里真实存在的字符串。新增 `scripts/checks/escape.py`
+（69 行）与 `esc` 缺陷类型，`esc` 进 `defect_line_prefixes`；
+`test_gate_enforcement.py` 34 → 41，`test_contract_drift.py` 129 → 138。
+
+同批的 `0243ce2` 把散落的检查入口收成一个 `run_tests.py` 和一个 `package_release.py`。
+后者从 SKILL.md frontmatter 读版本号而不是从参数读——参数会是那串版本活得着的
+第四个地方（目录名、zip 名、`SHA256SUMS` 条目已经占三个了）。归档 461 个 zip 条目、
+sha256 `2545abab`，提交消息记的是 427 文件。
+
+**这个包带着自己的测试 harness。**见下一节。
+
+### 1.1.29 → 1.1.30：打包器丢掉的守卫
+
+契约不动（1.3.13），只有 `ships_with` 走；SKILL.md 仍是 587 行，只动了 frontmatter
+的 `version`。
+
+`0243ce2` 重写打包器时，`release/pack.py` 里的 `NOT_SHIPPED = ("tests/",)` 和它旁边
+的 `CRITICAL` 断言一起没了，新版只剩 `EXCLUDE_DIRS`（`__pycache__` 一类）。于是 1.1.29
+把十个测试文件连同整个 harness 发进了包。
+
+量出来的失败形态有两层。**第一层**：`--verify` 在那个 461 条目的包上照报 clean。
+它只比 zip 与目录、查 digest，而这两件都真的对上了——两个文件都带 harness，461
+条目两边一致，digest 也吻合。没有 NOT_SHIPPED，就没有东西可查。
+**第二层**：装到仓库外才量得出危害。四个 suite（`test_gate_enforcement.py`、
+`test_fidelity_tiers.py`、`test_docgen_deps.py`）在第一个 fixture 就 `FileNotFoundError`，
+`test_skill.py` 与 `test_contract_drift.py` 能一路跑到最后、各只挂一条
+`the exemplar's source is present`（它需要 `Test-source/real/` 里那份
+`zbc_show_error_log`）。在仓库里跑是绿的，因为往上数层恰好能走到真的仓库根——
+这句话 1.1.10 就写过，1.1.11 靠不发它解决了，1.1.29 把这条路重新打开。
+
+修法是三处，全在 `package_release.py`：
+
+1. `NOT_SHIPPED` 与 `CRITICAL` 补回，并加**双向**前缀断言。旧版只查
+   `assert _p not in CRITICAL`，那是精确成员检查——`"scri"`、`"schema"`、
+   `"scripts/checks/"` 全都会放行，而它们一样会删掉闸门要读的目录。现在两个方向都拦。
+2. `verify()` 的目录侧改用新增的 `walk_all()`——**不过滤** NOT_SHIPPED 的遍历——
+   并新增 repository-only 检查。这一步不能省：新检查要抓的正是过滤会删掉的东西，
+   目录侧若也走 `walk_clean()`，被污染的包在那份视图里显得自洽，检查永不触发。
+3. `ship()` 从拷贝树里 prune 掉 NOT_SHIPPED。`copytree` 的 `ignore` 按 basename
+   匹配，路径前缀交给它不生效；而 zip 侧走 `walk_clean` 是干净的，目录侧若不 prune
+   就会过不了自己新加的 `verify()`。
+
+验证：`--verify analyzing-programs-1.1.29` 退 `1`，列出 11 个 repository-only 文件
+（`tests/` 目录条目加十个测试）；`--verify analyzing-programs-1.1.27` 全绿退 `0`。
+打包侧 461 → 450 条目，少的正是那 11 个。
+
+**1.1.29 本身不修。**`release/` 是 append-only，`package_release.py` 拒绝覆盖已存在的
+归档；而它记的那条 digest 确实对得上它自己那个带 harness 的 zip。改它等于篡改一份
+已签发的归档，不如让它带着这条记录留着。`release/pack.py` 也没有删——它是 `NOT_SHIPPED`
+与 `CRITICAL` 这两个名字的出处，留着当参照。
+
+归档 450 个 zip 条目（417 文件、33 目录）。
+
+同批把 README 同步到现状：目录清单补上 `scripts/checks/`、六个元工具、
+`schemas/` 另两份契约、`abaplint-deps/` 与四份失败模式记录；「跑一遍」补五套新测试，
+测试数改成实测值（drift 129 → 138、gate_enforcement 34 → 41），删掉那个 986、
+补 `run_tests.py` 入口；`tests/` 一节把 1.1.10 量到的失败形态换成本轮的实测、
+把 `release/pack.py` 改成 `package_release.py`；`五个脚本` 的 UTF-8 守卫改成十一个；
+本表的 1.1.28 起三行与这三个节补齐。
 
 
 
