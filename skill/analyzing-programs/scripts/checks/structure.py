@@ -10,6 +10,7 @@ import re
 from checks.contract import (A8_GAP, BUCKETS, CONTRACT, DIAGRAM_LANG, LAYERS,
                              LINE_NUM, PSEC_RE, ROW, SEC_RE, _NEXT_SEC_RE)
 from checks.encoding import replacement_defects
+from checks.escape import escape_defects
 from checks.text import (TICK, TAG, _flat, _src_of, blank_fences, fence_defects,
                          fence_spans, layer_bodies, line_of, mermaid_labels,
                          mm_violation, source_blocks)
@@ -244,4 +245,8 @@ def check(s, src=None):
                             "problem row names no object from the source: %r"
                             % line.strip()[:60]))
     bad.extend(replacement_defects(s))
+    # Both prose-integrity faults sit here, outside every structural loop: each
+    # scans the whole document rather than one section or fence, and neither
+    # needs a source, so neither belongs with the source-dependent checks above.
+    bad.extend(escape_defects(s))
     return bad

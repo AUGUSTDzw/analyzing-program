@@ -1,7 +1,7 @@
 ---
 name: analyzing-programs
-version: 1.1.28
-contract: 1.3.12
+version: 1.1.29
+contract: 1.3.13
 description: Use when the user wants a deep onboarding-style analysis report for an ABAP/SAP program source file (报表程序、FORM/事件块、OO 类 CLAS、函数组、ALV 等), or pastes an ABAP / z*.abap file asking to analyze, walk-through, 讲解 its structure, execution flow, or design. Trigger on phrases like "分析这个程序/源码","走读/讲解 ABAP","代码 onboarding","源码分析/架构分析","帮我看懂这段 SAP 代码". Trigger even when the user does not explicitly say "report" but clearly wants to understand a whole program's business purpose, architecture, and risks. Do NOT use for one-line answers, non-SAP code, or pure syntax/API lookups.
 ---
 # Skill: analyzing-programs
@@ -59,6 +59,14 @@ The value of this skill is the **fixed report structure** and the **three-layer 
     替换字符。闸门以 `enc` 缺陷报出，退出码是 `1` 不是 `2` —— `2` 是读不出来，
     `enc` 是读得出来但已经坏了。改法是回原文件重新另存为 UTF-8；**不要手动删掉
     替换字符**，删掉它等于把丢失的内容当成没丢。
+    还有第四种：**文件是合法 UTF-8、字符也没有丢，但转义被当成文本写了出来**——
+    本该断行的地方，正文里坐着字面的反斜杠加 n，或者被某个工具转成了反引号包着的
+    n。这是转义残留，闸门以 `esc` 缺陷报出，退出码同样是 `1` 不是 `2`
+    —— 读得出来，而且是坏在正文里。改法是把它还原成真的换行；**`--fix` 不修它**，
+    因为它和 `ln`、`mm` 不同：那两处只有唯一正确的替换，而该在哪断行只有写报告的
+    人知道，机械改写等于替你编一句正文。围栏里的代码不算——那是要引用的语句。
+    正文里要引一个字面转义就给它加反引号：反引号里的 `\n` 是你在说这个名字，
+    不会被算成残留。
     **扩展名没有要求**：闸门按扩展名区分报告与源码，`.md` / `.markdown` 一律当报告，
    其余一律当源码，`.txt`、`.ab1` 都算源码（见第 7 步）。
  2. **识别子程序边界**：找出所有方法/函数/事件块/声明区，作为分组单位。
@@ -129,7 +137,7 @@ The value of this skill is the **fixed report structure** and the **three-layer 
 | 退出码 | 什么时候 | 意味着什么 |
 |---|---|---|
 | `0` | 检查跑完了，**形状无缺陷，且没有实质改写**（三种模式一致） | `PASS  <报告名>`。可能带 note，**note 不改变退出码** |
-| `1` | 跑完了，有缺陷 | 形状模式：缺陷行以 `fence` / `sec` / `sec-dup` / `prow` / `row-src` / `buck` / `ln` / `mm` / `mm-missing` / `A8-cc` / `layer-same` / `A8-pt` / `enc` 起首，**加上忠实度实质级的一行 `SUBSTA`**，然后是 `FAIL  <报告名>  (N defect(s))`，`N` 把两者都算进去。`--fidelity-only`：先打 `SUBSTA` / `PUNCT-` 分级行，末行 `FAIL  <报告名>  (N rewrite(s), M punctuation-only)`；没有实质改写则 `PASS  <报告名>`，**只剩分级建议时是 `PASS  <报告名>  (M punctuation-only)`**——退出码还是 `0`，但括号里的数 grep `PASS  <报告名>` 是看不见的。`--fix`：`FAIL  <报告名>  (N shape defect(s) and M rewrite(s) need the model)`，两类各数各的，只剩一类时只打那一类；**实质改写同样让 `--fix` 退 `1`**，三种模式给同一个答案 |
+| `1` | 跑完了，有缺陷 | 形状模式：缺陷行以 `fence` / `sec` / `sec-dup` / `prow` / `row-src` / `buck` / `ln` / `mm` / `mm-missing` / `A8-cc` / `layer-same` / `A8-pt` / `enc` / `esc` 起首，**加上忠实度实质级的一行 `SUBSTA`**，然后是 `FAIL  <报告名>  (N defect(s))`，`N` 把两者都算进去。`--fidelity-only`：先打 `SUBSTA` / `PUNCT-` 分级行，末行 `FAIL  <报告名>  (N rewrite(s), M punctuation-only)`；没有实质改写则 `PASS  <报告名>`，**只剩分级建议时是 `PASS  <报告名>  (M punctuation-only)`**——退出码还是 `0`，但括号里的数 grep `PASS  <报告名>` 是看不见的。`--fix`：`FAIL  <报告名>  (N shape defect(s) and M rewrite(s) need the model)`，两类各数各的，只剩一类时只打那一类；**实质改写同样让 `--fix` 退 `1`**，三种模式给同一个答案 |
 | `2` | **拒绝运行：别把输出当结论** | 所有拒绝都以 `error` 起首、**顶格不缩进**，和 `PASS` / `FAIL` 同一族。两个例外不带 `error`：不带参数时打印用法说明；`--fix` 路径不足时打印 `--fix needs REPORT and SOURCE`。**唯一一处是「读过了但没写出去」**：`--fix` 写不动时已经先读完了报告、只是存不回去，所以 `error` 明说 `nothing was written, so this run is not a verdict`，不冒充「没查」。**这时缺陷行已经先打出来了**——`error` 不是输出的第一行，`FAIL` 那行没有，因为 `FAIL` 排在写入之后 |
 
 `2` 的全部触发条件，按模式分：

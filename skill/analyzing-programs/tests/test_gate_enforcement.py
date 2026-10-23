@@ -241,6 +241,36 @@ def main():
           "PROBE 8 --fidelity-only: the same silence is filled in",
           "rc=%d" % rc)
 
+    print()
+    print("PROBE 9: an escape written out as text is a defect")
+    print("-" * 72)
+    # The bytes are right and the file is valid UTF-8; the writer owed one
+    # newline and wrote out the escape instead. enc sees nothing here, and no
+    # structural detector does either, so a report like this used to clear the
+    # gate. Two shapes: the backslash one, and the one that actually reached a
+    # shipped report, where every backslash had become a backtick.
+    sl = base + "\n\n这里本该是一个换行，正文里坐着字面的 " + chr(92) + "n。\n"
+    check(sl != base, "PROBE 9 backslash residue actually changed the report")
+    rc, out = gate(sl, tmp, "p9_backslash.md")
+    check(rc != 0, "PROBE 9 gate now REJECTS a literal backslash-n in prose",
+          f"rc={rc}")
+    check("esc" in out, "PROBE 9 the backslash shape is reported as kind 'esc'",
+          out.strip().splitlines()[0][:80] if out.strip() else "")
+    tk = base + "\n\n" + chr(96) + "n" + chr(96) + "n" + "\n"
+    check(tk != base, "PROBE 9 backtick residue actually changed the report")
+    rc, out = gate(tk, tmp, "p9_tickn.md")
+    check(rc != 0, "PROBE 9 gate now REJECTS the backtick-mangled shape",
+          f"rc={rc}")
+    check("esc" in out, "PROBE 9 the tick shape is reported as kind 'esc'",
+          out.strip().splitlines()[0][:80] if out.strip() else "")
+    # Quoting an escape names it instead of shipping it, so the same two
+    # characters inside an inline span must not trip the probe. The baseline is
+    # clean, so this reads as a negative control on the span exemption.
+    quiet = (base + "\n\n正文里写 " + chr(96) + chr(92) + "n" + chr(96)
+             + " 只是在说这个名字。\n")
+    rc, out = gate(quiet, tmp, "p9_quoted.md")
+    check("esc" not in out, "PROBE 9 a quoted escape is not residue",
+          out.strip().splitlines()[0][:80] if out.strip() else "")
     return finish()
 
 

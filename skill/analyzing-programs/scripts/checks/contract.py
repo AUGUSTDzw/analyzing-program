@@ -23,6 +23,7 @@ import io, json, os, re, sys
 __all__ = ["CONTRACT", "CONTRACT_PATH", "SEC", "SEC_RE", "LAYERS", "A8_GAP",
            "BUCKETS", "ROW", "DIAGRAM_LANG", "FENCE_LANGS", "QUOTE_LANG",
            "FIX_LANG", "PSEC", "PSEC_RE", "LINE_NUM", "FULLWIDTH", "MM_BAD",
+           "ESC_KIND", "ESC_SHAPES",
            "DENSITY_FLOOR", "CITE_NUM", "ANCHORS"]
 
 # Fence language decides whether a fence quotes source or illustrates a proposed
@@ -81,7 +82,8 @@ try:
     # json.load can return.
     for _k in ("sections", "layers", "problem_section", "mermaid",
                "forbidden_in_location_labels", "sections_exactly_once",
-               "encoding", "gate_io", "advisories", "loop_position",
+               "encoding", "escape_residue", "gate_io", "advisories",
+               "loop_position",
                "claim_separation"):
         if _k not in CONTRACT:
             raise KeyError(_k)
@@ -132,6 +134,20 @@ try:
     # exact split causing a reported defect the fixer skipped.
     MM_BAD = re.compile(r"[%s]"
                         % re.escape("".join(CONTRACT["mermaid"]["forbid_in_display_text"])))
+
+
+    # escape_residue, the sibling of encoding: the file decodes as valid utf-8 but
+    # carries an escape written out as text. Both shapes share one kind, so the
+    # defect line reads esc the way the encoding one reads enc. Each entry is
+    # (name, pattern, blank the inline backtick spans before scanning). The flag
+    # is per shape rather than one boolean because a quoted \n is the writer naming
+    # the escape, not shipping one, while the tick-n shape is itself a run of
+    # backtick spans and blanking them first would blank the very thing the rule
+    # exists to find.
+    ESC_KIND = CONTRACT["escape_residue"]["violation_kind"]
+    ESC_SHAPES = tuple(
+        (name, re.compile(sh["regex"]), bool(sh["exclude_inline_spans"]))
+        for name, sh in CONTRACT["escape_residue"]["shapes"].items())
 
 
     DENSITY_FLOOR = next(a["floor_blocks_per_subprogram"] for a in

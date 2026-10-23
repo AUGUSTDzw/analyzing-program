@@ -185,15 +185,16 @@ def main():
     _ps = C.get("problem_section") or {}
     _ly = C.get("layers") or {}
     _en = C.get("encoding") or {}
+    _esc = C.get("escape_residue") or {}
     _mm = C.get("mermaid") or {}
     # The pins double as the release gate: nothing in this suite checks the two
     # numbers against SKILL.md's frontmatter, so an unpinned bump would sail
     # through. Update them together with the frontmatter when a release moves,
     # and read the SKILL.md anchors below as the check that they were updated.
-    check(C.get("version") == "1.3.12", "contract version is 1.3.12",
+    check(C.get("version") == "1.3.13", "contract version is 1.3.13",
           C.get("version"))
-    check(_rel.get("ships_with") == "1.1.28",
-          "contract ships with 1.1.28", _rel.get("ships_with"))
+    check(_rel.get("ships_with") == "1.1.29",
+          "contract ships with 1.1.29", _rel.get("ships_with"))
     # The frontmatter fields exist so a deployed copy can prove what it is by
     # reading itself. 1.1.2 shipped with version 1.1.1 still in its own
     # SKILL.md, so an installed copy could not have named the release it was.
@@ -223,6 +224,16 @@ def main():
     # rather than a second shape for the same rule.
     check(C.get("sections_exactly_once") is True,
           "sections_exactly_once is declared and on")
+    check(_esc.get("violation_kind") == "esc",
+          "escape_residue.violation_kind is esc",
+          repr(_esc.get("violation_kind")))
+    _shp = _esc.get("shapes") or {}
+    check(sorted(_shp) == ["backslash-escape", "tick-n"],
+          "escape_residue declares both residue shapes",
+          repr(sorted(_shp)))
+    check(all(isinstance(v, dict) and "regex" in v
+              and "exclude_inline_spans" in v for v in _shp.values()),
+          "each escape_residue shape names its regex and its inline scope")
 
     print()
     print("every contract rule is wired into the gate")
@@ -280,7 +291,9 @@ def main():
                       ("forbidden_in_location_labels", "LINE_NUM"),
                       ("mermaid", "FULLWIDTH"),
                       ("mermaid", "DIAGRAM_LANG"),
-                      ("layers", "QUOTE_LANG"), ("layers", "FIX_LANG")):
+                      ("layers", "QUOTE_LANG"), ("layers", "FIX_LANG"),
+                      ("escape_residue", "ESC_KIND"),
+                      ("escape_residue", "ESC_SHAPES")):
         # Populated is not enough: a constant can be declared from the contract
         # and never read, and every assertion below would still pass. Counting
         # the identifier is what catches that -- PSEC was declared here and used
@@ -376,6 +389,7 @@ def main():
             ("A8-cc", base[:en] + "\n" + base[nxt:]),
             ("A8-pt", base[:en] + _gap_pt + base[en + len(gap):]),
             ("ln", base + "\n\nx `zvend.abap:104` y\n"),
+            ("esc", base + "\n\n字面 " + chr(92) + "n 残留在正文里。\n"),
             ("mm", base.replace("```mermaid", "```mermaid\nA[<bad>]", 1)),
         ]
         for label, text in mutations:
@@ -390,7 +404,6 @@ def main():
             check(label in kinds, f"defect {label!r} is detected",
                   f"gate returned {kinds}")
 
-        # The probe only proves something if a gate that stops checking gives a
         # The probe only proves something if a gate that stops checking gives a
         # different result. Both directions: every mutation fires above, and a
         # neutered gate catches none of them. `any()` as it stood made the list

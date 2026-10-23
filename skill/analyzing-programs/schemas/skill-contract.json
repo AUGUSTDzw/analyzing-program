@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "ships_with": "1.1.28",
+  "ships_with": "1.1.29",
   "_comment": [
     "Machine-readable rules for what a SKILL.md must contain. Sibling of",
     "report-contract.json: that one defines what a report a writer produces",
