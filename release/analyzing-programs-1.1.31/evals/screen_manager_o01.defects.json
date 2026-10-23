@@ -1,0 +1,115 @@
+{
+  "_schema": [
+    "Defect reference for one ABAP source. Report-agnostic: it describes the",
+    "source, not any report, so it stays valid as reports change.",
+    "",
+    "source   the file these defects were read out of, relative to Test-source/real",
+    "defects  one entry per defect:",
+    "           id        stable identifier, referenced by verdict files",
+    "           area      which part of the program the defect lives in",
+    "           question  phrased so a judge can decide yes/partial/no from the",
+    "                     report text alone, without guessing at intent",
+    "           anchor    the source text that makes the defect checkable; some",
+    "                     defects carry `anchors` (a list) instead",
+    "",
+    "Score a report with:  python scripts/evaluate.py score --defects THIS.json \\",
+    "                                                --verdicts YOURVERDICTS.json"
+  ],
+  "source": "Test-source/real/hardyp__AbapToTheFuture03__src__zmonsters_p02_transactional__zmonsters_c10_salv__zsalv_csqt_screen_manager.fugr.lzsalv_csqt_screen_managero01.abap",
+  "defects": [
+    {
+      "id": "D1",
+      "area": "control flow",
+      "question": "Does the report flag LEAVE PROGRAM sitting BEFORE the cleanup so gr_container->free, cl_gui_cfw=>flush, CLEAR, SET SCREEN 0, LEAVE SCREEN are all unreachable?",
+      "anchors": [
+        "CALL METHOD gr_container->free.",
+        "LEAVE SCREEN.",
+        "LEAVE PROGRAM."
+      ]
+    },
+    {
+      "id": "D2",
+      "area": "screen flow",
+      "question": "Does the report flag LEAVE PROGRAM as the wrong exit for an FM-activated nested screen flow (should be SET SCREEN 0 + LEAVE SCREEN; LEAVE PROGRAM also kills the caller's program flow)?",
+      "anchors": [
+        "SET SCREEN 0.",
+        "LEAVE SCREEN.",
+        "LEAVE PROGRAM."
+      ]
+    },
+    {
+      "id": "D3",
+      "area": "null safety",
+      "question": "Does the report flag gr_container->free being called without IS BOUND/IS INITIAL guard on the offline path where the container was never created?",
+      "anchors": [
+        "CALL METHOD gr_container->free."
+      ]
+    },
+    {
+      "id": "D4",
+      "area": "guard granularity",
+      "question": "Does the report flag that the is_offline test wraps only CREATE OBJECT while fill_container_content still receives the INITIAL container ref (CX_SY_REF_IS_INITIAL)?",
+      "anchors": [
+        "IF cl_salv_table=>is_offline( ) EQ if_salv_c_bool_sap=>false.",
+        "r_container = gr_container )."
+      ]
+    },
+    {
+      "id": "D5",
+      "area": "null safety",
+      "question": "Does the report flag gr_content_manager being dereferenced with no IS BOUND check although the entry FM takes a REFERENCE param that may be initial?",
+      "anchors": [
+        "gr_content_manager->fill_container_content(",
+        "r_container = gr_container )."
+      ]
+    },
+    {
+      "id": "D6",
+      "area": "lifecycle",
+      "question": "Does the report flag that the IS INITIAL guard means the grid is assembled exactly once, so re-entering the screen shows stale data and no refresh ever happens (it instead praises the guard as the correct template)?",
+      "anchors": [
+        "IF gr_container IS INITIAL.",
+        "ENDIF."
+      ]
+    },
+    {
+      "id": "D7",
+      "area": "hardcoding / typing",
+      "question": "Does the report flag DATA l_okcode LIKE sy-ucomm truncating the 10-char okcode to CHAR1 so CASE ... WHEN 'EXIT'/'CANC'/'BACK' can never match, plus the hardcoded 'D0100'/'CONTAINER'/screen 100 literals?",
+      "anchors": [
+        "SET PF-STATUS 'D0100'.",
+        "container_name = 'CONTAINER'.",
+        "DATA: l_okcode LIKE sy-ucomm.",
+        "WHEN 'EXIT' OR 'CANC' OR 'BACK'."
+      ]
+    },
+    {
+      "id": "D8",
+      "area": "asymmetric setup",
+      "question": "Does the report flag SET TITLEBAR being inside the gr_container IS INITIAL branch while SET PF-STATUS is outside, and g_title never being defaulted?",
+      "anchors": [
+        "SET PF-STATUS 'D0100'.",
+        "SET TITLEBAR 'STANDARD' WITH g_title."
+      ]
+    },
+    {
+      "id": "D9",
+      "area": "error handling",
+      "question": "Does the report flag that fill_container_content (implementation outside the file) may raise and there is no TRY/CATCH, leaving PF-STATUS set and container half-built?",
+      "anchors": [
+        "gr_content_manager->fill_container_content(",
+        "r_container = gr_container )."
+      ]
+    },
+    {
+      "id": "D10",
+      "area": "PAI dispatch",
+      "question": "Does the report flag that okcode is cleared before dispatch and the CASE has no ELSE, so unlisted F-codes are silently swallowed?",
+      "anchors": [
+        "l_okcode = okcode.",
+        "ENDCASE."
+      ]
+    }
+  ],
+  "anchor_convention": "anchors are source text, not line numbers. A line number is invalidated by any edit above it, and evaluate.py prints anchors without verifying them, so an anchor has to stand on its own. Converted from line numbers in 1.0.9."
+}
