@@ -1,0 +1,58 @@
+{
+  "version": "1.0.0",
+  "ships_with": "1.1.29",
+  "_comment": [
+    "Machine-readable rules for what a SKILL.md must contain. Sibling of",
+    "report-contract.json: that one defines what a report a writer produces",
+    "must contain, this one defines what the skill itself must contain.",
+    "",
+    "Why this exists: lint_skill.py reads these rules rather than hardcoding",
+    "patterns. A rule lives in exactly one place; a second copy in the checker",
+    "is how this project has had two copies disagree before (see the LINENO",
+    "spelling drift in report-contract.json's own history).",
+    "",
+    "The rules are agnix-derived (AS-* for Agent Skills spec, XP-* for",
+    "cross-tool compatibility) but reduced to the subset that lint_skill.py",
+    "can verify from the SKILL.md file alone, without a network call and",
+    "without a provider. agnix's own 702 rules include tool-specific checks",
+    "that need the surrounding .claude/, .cursor/, .kiro/ directories; those",
+    "are out of scope here and are the ones a separate agnix run covers.",
+    "",
+    "Each rule carries an id, a description and a pattern. Some rules carry",
+    "a severity (error or warning): errors gate exit 1, warnings print but",
+    "do not gate. Severity exists because a wrong description length is not",
+    "the same class of defect as a missing name field; both should be",
+    "visible, but only the former should block a release."
+  ],
+  "frontmatter": {
+    "required_fields": ["name", "version", "contract", "description"],
+    "name_pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+    "name_pattern_why": "lowercase, hyphen-separated, alphanumeric. agnix AS-001. An uppercase or underscore name is invisible to some tools.",
+    "version_pattern": "^\\d+\\.\\d+\\.\\d+$",
+    "version_pattern_why": "semver so a deployed copy can name itself",
+    "contract_pattern": "^\\d+\\.\\d+\\.\\d+$",
+    "description_min_chars": 80,
+    "description_max_chars": 5000,
+    "description_min_chars_why": "agentic tools trigger on this field; under 80 chars rarely fires"
+  },
+  "required_headings": [
+    { "id": "overview", "regex": "^## Overview\\b", "severity": "error" },
+    { "id": "analysis-flow", "regex": "^## Analysis Flow\\b", "severity": "error" },
+    { "id": "gate-output", "regex": "^## 闸门输出", "severity": "error" },
+    { "id": "report-structure", "regex": "^## Report Structure", "severity": "warning" },
+    { "id": "three-layer", "regex": "Three-Layer", "severity": "warning" }
+  ],
+  "forbidden_patterns": [
+    { "id": "linenumber-citation", "regex": "\\.abap:\\d+", "why": "SKILL.md forbids line-number citations" },
+    { "id": "placeholder-brace", "regex": "\\{[A-Z_]{3,}\\}", "why": "unrendered template placeholder" }
+  ],
+  "trigger_phrases": {
+    "min_count": 3,
+    "any_of": ["分析", "讲解", "走读", "onboarding", "分析这个程序", "源码分析"],
+    "why": "a skill that never says when to trigger is invisible; agnix AS-015"
+  },
+  "do_not_use": {
+    "must_contain": ["Do NOT use"],
+    "why": "the negative trigger is what keeps the skill from firing on unrelated input"
+  }
+}
