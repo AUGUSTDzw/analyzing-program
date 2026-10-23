@@ -66,6 +66,9 @@ def bail(label):
 
 
 DOT, SEMI, COMMA = "\u3002", "\uff1b", "\uff0c"
+# Circled digits survive as a marker set on purpose: PROBE 11 needs them to
+# rebuild the one-per-line shape A8-list used to accept. They are not markdown
+# list markers, so nothing in the baseline may be built from them.
 MARKS = "\u2460\u2461\u2462\u2463\u2464\u2465\u2466\u2467\u2468\u2469"
 
 
@@ -120,7 +123,32 @@ def listify(text):
         head, body = m.group(1), m.group(2).strip()
         out.append(head)
         for k, part in enumerate(_items(body)[:len(MARKS)]):
-            out.append(MARKS[k] + " " + part.strip())
+            # Numbered, not circled: 1.1.31 accepted ① per line, which CommonMark
+            # prints as one paragraph. The derived baseline must be the form the
+            # gate now enforces, or PROBE 10's negative half would be vacuous.
+            out.append("%d. %s" % (k + 1, part.strip()))
+    return "\n".join(out)
+
+
+def circulate(text):
+    """Swap a first layer's markdown markers back to circled digits, one per
+    line: the shape 1.1.31 accepted and printed as a single paragraph.
+
+    Runs on a compliant report, so it replaces markers only and invents no
+    prose. That is what makes PROBE 11 a clean isolation -- the circled version
+    and the numbered one differ in nothing but the marker.
+    """
+    label = re.compile(r"^[ \t]*\*\*(?:%s)\*\*" % "|".join(LAYERS))
+    out, n = [], 0
+    for line in text.split("\n"):
+        if label.match(line):
+            n = 0
+        m = re.match(r"^([ \t]*)(\d+)\. (\S.*)$", line)
+        if m and n < len(MARKS):
+            out.append("%s%s %s" % (m.group(1), MARKS[n], m.group(3)))
+            n += 1
+        else:
+            out.append(line)
     return "\n".join(out)
 
 
@@ -354,6 +382,29 @@ def main():
     rc2, out2 = gate(base, tmp, "p10_listified.md")
     check(rc2 == 0 and "A8-list" not in out2,
           "PROBE 10 the segmented baseline is clean", f"rc={rc2}")
+
+    # PROBE 11: the marker, not the segmentation, is what 1.1.31 got wrong.
+    # base is compliant, so circulate() only swaps markers and invents no prose;
+    # the result is the exact shape a deployed 1.1.31 gate accepted and printed
+    # as one paragraph.
+    print()
+    print("PROBE 11: one circled digit per line is not a list")
+    print("-" * 72)
+    circ = circulate(base)
+    check(circ != base,
+          "PROBE 11 precondition: base carries markdown markers", "")
+    strip = re.compile(r"^[ \t]*(?:\d+\.|[\u2460-\u246b])\s*", re.M)
+    check(strip.sub("", circ) == strip.sub("", base),
+          "PROBE 11 the only difference is the marker, so the variable is "
+          "isolated", "")
+    rc3, out3 = gate(circ, tmp, "p11_circled.md")
+    check(rc3 != 0, "PROBE 11 circled digits no longer satisfy A8-list",
+          f"rc={rc3}")
+    check("A8-list" in out3, "PROBE 11 reported as kind 'A8-list'",
+          out3.strip().splitlines()[0][:80] if out3.strip() else "")
+    check("circled digits are not markdown list markers" in out3,
+          "PROBE 11 names the marker that was not counted",
+          out3.strip().splitlines()[0][:80] if out3.strip() else "")
     return finish()
 
 

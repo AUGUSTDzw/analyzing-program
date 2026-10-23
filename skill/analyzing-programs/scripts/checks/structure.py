@@ -223,10 +223,19 @@ def check(s, src=None):
                 n_stmt = _statements(BLOCKS[st])
                 need = DW_ONE if n_stmt <= 1 else DW_MIN
                 if n_items < need:
+                    body = layer_body(gap, LAYERS[0])
+                    # A writer whose body is full of ① sees 0 items and has no
+                    # reason to guess why. Name the marker that was not counted.
+                    hint = ""
+                    if not n_items and re.search(
+                            r"^[ \t]*[\u2460-\u246b]", body, re.M):
+                        hint = (" -- circled digits are not markdown list "
+                                "markers, they render as one paragraph; use "
+                                "1. 2. 3.")
                     bad.append((DW_KIND, line_of(s, st),
                                 "%s is a paragraph, not a segmented list: "
-                                "%d item(s) for %d statement(s)"
-                                % (LAYERS[0], n_items, n_stmt)))
+                                "%d item(s) for %d statement(s)%s"
+                                % (LAYERS[0], n_items, n_stmt, hint)))
             continue
         ln = line_of(s, st)
         kind = "A8-cc" if len(gap.strip()) <= A8_GAP else "A8-pt"

@@ -109,10 +109,10 @@ FUNCTION ZBC_SHOW_ERROR_LOG.
 ```
 
 **做什么** — 声明这个 FM 对外的全部契约：
-① 输入参数 `ID_TITLE`：`REFERENCE` 按引用传入、`TYPE STRING`、`OPTIONAL` 表示调用方可以不传
-② 输入参数 `IT_ERROR_LOG`：`TABLES` 老式表参数，行结构 `ZBC_S_ERROR_LOG`
-③ 没有任何输出参数，也没有 `EXCEPTIONS` 段
-④ 接口区标的是 `Global Interface`，即 SE37 里 RFC 可用的函数模块；同一函数组的兄弟 FM `ZMONSTER_GOLF_SCORES` 写的是 `Local Interface`（非 RFC），两者混用
+1. 输入参数 `ID_TITLE`：`REFERENCE` 按引用传入、`TYPE STRING`、`OPTIONAL` 表示调用方可以不传
+2. 输入参数 `IT_ERROR_LOG`：`TABLES` 老式表参数，行结构 `ZBC_S_ERROR_LOG`
+3. 没有任何输出参数，也没有 `EXCEPTIONS` 段
+4. 接口区标的是 `Global Interface`，即 SE37 里 RFC 可用的函数模块；同一函数组的兄弟 FM `ZMONSTER_GOLF_SCORES` 写的是 `Local Interface`（非 RFC），两者混用
 
 **为什么** — 契约选得基本合理：`IT_ERROR_LOG` 用 `STRUCTURE` 而不是 `LINE OF`，是 SE37 里绑定一个已存在的行结构（而不是 `TYPE STANDARD TABLE OF` 那种把表类型塞进接口），这是老式 FM 绑定自定义行的正确写法；`ID_TITLE` 用 `REFERENCE` + `STRING` 而不是 `TYPE STRING`，避免为了一段短文本付出定长字段的截断风险，也贴合现代 ABAP 的引用传参习惯；`OPTIONAL` 明确表示标题可以不给，调用方不必准备占位串。
 
@@ -129,9 +129,9 @@ FUNCTION ZBC_SHOW_ERROR_LOG.
 ```
 
 **做什么** — 输出一条屏幕提示，把用户从"程序失败了"引导到"下面有一张错误清单"：
-① 调全局类 `ZCL_BC_SCREEN_MESSAGE` 的静态方法 `OUTPUT`
-② 文本取自字面量 `'Show Error Log'`，其后追加文本符号 `001` 解析出的内容，作为 `id_text` 传入
-③ 无条件执行：不判空表，也不判上游是否真的收集到错误
+1. 调全局类 `ZCL_BC_SCREEN_MESSAGE` 的静态方法 `OUTPUT`
+2. 文本取自字面量 `'Show Error Log'`，其后追加文本符号 `001` 解析出的内容，作为 `id_text` 传入
+3. 无条件执行：不判空表，也不判上游是否真的收集到错误
 
 **为什么** — 用一个统一的 BC 消息类而不是 `MESSAGE` 语句，是这套代码库的一贯做法，好处有三：一是消息类型（E/W/S/I）、消息栏位置、超时时长都封装在类里，业务代码不必关心；二是将来要接消息服务器、要做 ALV 顶部消息行、要在后台把提示转成日志，改一处即可；三是这条路径可以被 ABAP Unit 的测试替身替换掉（静态方法调用可以用 linking 双件拦截），这是它比 `MESSAGE` 好的地方——`MESSAGE` 会直接打断 LUW，根本没法在单测里执行。
 
@@ -163,10 +163,10 @@ FUNCTION ZBC_SHOW_ERROR_LOG.
 ```
 
 **做什么** — 按错误条数抬高列表框的底边行号：
-① 从 `it_error_log` 逐行 `LOOP`，循环体不读任何字段，只用系统字段 `SY-TABIX` 计数
-② 条件 `SY-TABIX > 6 AND GD_END_LINE < 35` 成立时进入
-③ 把函数组全局变量 `GD_END_LINE`（列表框底边所在行号）加 1，累加到 35 为止
-④ 净效果：错误超过 6 条时列表框每多一条错误就长高一行，最多长到 35 行，让用户少滚动
+1. 从 `it_error_log` 逐行 `LOOP`，循环体不读任何字段，只用系统字段 `SY-TABIX` 计数
+2. 条件 `SY-TABIX > 6 AND GD_END_LINE < 35` 成立时进入
+3. 把函数组全局变量 `GD_END_LINE`（列表框底边所在行号）加 1，累加到 35 为止
+4. 净效果：错误超过 6 条时列表框每多一条错误就长高一行，最多长到 35 行，让用户少滚动
 
 **为什么** — 思路本身是对的：默认的列表框只有 6 行左右，多出来的错误要滚动才能看完，"错误越多越要多滚"是个真实的体验问题。用一个全局变量把"要多高"这个信息传给 `start_list_viewer`（因为 FORM 与 FM 共享函数组内存，FORM 里能直接读到 `GD_END_LINE`），比再加一个 FORM 参数更省事——**代价是把这个"旋钮"暴露成了全局可变状态**，这正是下面要拆的问题。
 
@@ -199,9 +199,9 @@ ENDFUNCTION.
 ```
 
 **做什么** — 把绘制工作委托出去，然后直接结束函数：
-① `PERFORM start_list_viewer.` 调用函数组 include 里的 `FORM start_list_viewer`，不带任何参数
-② `PERFORM` 之后留了 5 个空行，随即 `ENDFUNCTION`（FM 的结束语句，后面不带句点是合法的）
-③ 这 5 个空行是课程骨架里被清空的位置——对照函数组命名 `c04_exceptions`，这里原本大概该有几处 `MESSAGE ... RAISING`
+1. `PERFORM start_list_viewer.` 调用函数组 include 里的 `FORM start_list_viewer`，不带任何参数
+2. `PERFORM` 之后留了 5 个空行，随即 `ENDFUNCTION`（FM 的结束语句，后面不带句点是合法的）
+3. 这 5 个空行是课程骨架里被清空的位置——对照函数组命名 `c04_exceptions`，这里原本大概该有几处 `MESSAGE ... RAISING`
 
 **为什么** — 用 `PERFORM` 而不是直接写列表逻辑，理由在 1.2 说过：屏幕控件的绘制代码通常有几百行，放在 FM 里会让接口臃肿、也让这个"门面"失去可读性；放进 FORM 后，FM 只剩"提示 + 布局参数 + 委托"三件事，读者十秒能懂。**"薄壳 + 厚 FORM"是函数组开发的经典分工**，从这个角度看本文件的结构选择是对的。
 
@@ -215,7 +215,9 @@ ENDFUNCTION.
 
 这两个是本文件真正的实现所在，但代码不在这里。按三层的规矩，把能确定的和不能确定的分开说清楚。
 
-**做什么** — 已确定的部分：`GD_END_LINE` 是函数组全局数据（本文件未声明却被读写，按函数组作用域规则必然解析到函数组 TOP include），本文件把它当"列表框底边行号"用并修改它；`START_LIST_VIEWER` 是同一函数组内的一个 FORM，被本文件 `PERFORM` 调用，职责从名字和上下文看是"按 `GD_END_LINE` 摆放列表控件并渲染 `IT_ERROR_LOG`"。不能确定的部分：这个 FORM 是否在结束时把 `GD_END_LINE` 还原、是否做了空表处理、是否处理了双击跳转、是否设置了 ALV 的排序/筛选——这些都需要去函数组的 include（`LZ...TOP` 与 `LZ...U01/U02`）里读。
+**做什么** —
+1. 已确定的部分：`GD_END_LINE` 是函数组全局数据（本文件未声明却被读写，按函数组作用域规则必然解析到函数组 TOP include），本文件把它当"列表框底边行号"用并修改它；`START_LIST_VIEWER` 是同一函数组内的一个 FORM，被本文件 `PERFORM` 调用，职责从名字和上下文看是"按 `GD_END_LINE` 摆放列表控件并渲染 `IT_ERROR_LOG`"。
+2. 不能确定的部分：这个 FORM 是否在结束时把 `GD_END_LINE` 还原、是否做了空表处理、是否处理了双击跳转、是否设置了 ALV 的排序/筛选——这些都需要去函数组的 include（`LZ...TOP` 与 `LZ...U01/U02`）里读。
 
 **为什么** — 把"布局旋钮"放进函数组全局、通过 `PERFORM` 在同一内存里传递，是老式函数组开发的常规做法，比层层传参省事。它的隐含前提是**函数组是"一次调用一个会话状态"的容器**；这个前提在 SE38 交互执行、批处理、RFC 场景下都大致成立，但在同一会话里连续多次调用的场景下就是隐患——而本 FM 的接口恰恰允许调用方随便调。
 

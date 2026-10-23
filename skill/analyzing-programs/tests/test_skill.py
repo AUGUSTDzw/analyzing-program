@@ -95,7 +95,7 @@ def brief_report():
 SELECT foo FROM bar INTO @DATA(ls_foo).
 ```
 
-**做什么** — ① 取一行。
+**做什么** — 1. 取一行。
 **为什么** — 索引命中。
 **风险与改进** — 未判空。
 
@@ -333,7 +333,7 @@ def main():
         "\n```abap\n"
         "  DATA ls_foo TYPE i.\n"
         "```\n"
-        "\n**做什么** — ① 声明。\n**为什么** — 定长。\n**风险与改进** — 可改用 c。\n"
+        "\n**做什么** — 1. 声明。\n**为什么** — 定长。\n**风险与改进** — 可改用 c。\n"
         "\n## 四、流程图")
     p = os.path.join(tmp, "second.md")
     io.open(p, "w", encoding="utf-8").write(two)
@@ -638,7 +638,7 @@ def main():
         "```abap\n"
         "  ENDIF.\n"
         "```\n"
-        "\n**做什么** — ① 收尾。\n**为什么** — 对称。\n**风险与改进** — 无。\n"
+        "\n**做什么** — 1. 收尾。\n**为什么** — 对称。\n**风险与改进** — 无。\n"
         "\n## 四、流程图")
     p = os.path.join(tmp, "third.md")
     io.open(p, "w", encoding="utf-8").write(
@@ -1573,7 +1573,7 @@ def main():
         "FUNCTION z_probe.\n  DATA ls_foo TYPE i.\n"
         "  SELECT foo FROM bar INTO @DATA(ls_foo).\nENDFUNCTION.\n")
     R2 = "```abap\nSELECT foo FROM bar INTO @DATA(ls_foo).\n```"
-    L3 = "**做什么** — ① 取一行。\n**为什么** — 索引命中。\n**风险与改进** — 未判空。\n"
+    L3 = "**做什么** — 1. 取一行。\n**为什么** — 索引命中。\n**风险与改进** — 未判空。\n"
     two = brief_report().replace(
         R2, "```abap\nSELECT foo FROM bar INTO @DATA(ls_foo ).\n```\n\n"
             "```abap\nSELECT foo FROM bar INTO @DATA(ls_other).\n```\n\n" + L3)

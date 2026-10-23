@@ -286,11 +286,14 @@ def layer_bodies(gap):
     return out
 
 
-# Circled digits, markdown ordered, or markdown bullets -- the three markers
-# SKILL.md prescribes for segmenting the first layer. `^` matches offset zero as
-# well as a line start, so a single item written on the label's own line counts.
-LIST_ITEM = re.compile(
-    r"^[ \t]*(?:[\u2460-\u246B]|\d+[.\uff0e\u3001)]|[+\-*])\s+\S", re.M)
+# Only markers CommonMark renders as a list: `1.` / `1)` ordered, `-`/`*`/`+`
+# bulleted. Circled digits \u2460-\u246b are ordinary CJK characters, not list
+# markers -- lines beginning with them merge into one paragraph, so a first
+# layer "segmented" that way printed as a wall of text while still counting as
+# six items here. Full-width \uff0e and \u3001 endings have the same problem.
+# `^` matches offset zero as well as a line start, so a single item written on
+# the label's own line counts.
+LIST_ITEM = re.compile(r"^[ \t]*(?:\d+[.)]|[+\-*])\s+\S", re.M)
 
 
 def layer_body(gap, label):

@@ -1,7 +1,7 @@
 ---
 name: analyzing-programs
-version: 1.1.31
-contract: 1.3.14
+version: 1.1.32
+contract: 1.3.15
 description: Use when the user wants a deep onboarding-style analysis report for an ABAP/SAP program source file (报表程序、FORM/事件块、OO 类 CLAS、函数组、ALV 等), or pastes an ABAP / z*.abap file asking to analyze, walk-through, 讲解 its structure, execution flow, or design. Trigger on phrases like "分析这个程序/源码","走读/讲解 ABAP","代码 onboarding","源码分析/架构分析","帮我看懂这段 SAP 代码". Trigger even when the user does not explicitly say "report" but clearly wants to understand a whole program's business purpose, architecture, and risks. Do NOT use for one-line answers, non-SAP code, or pure syntax/API lookups.
 ---
 # Skill: analyzing-programs
@@ -332,7 +332,8 @@ fix-mislabel 之所以存在：`abap` 与 `abap-fix` 只锁了**一个方向**�
 ### 第一层：做什么
 - **展开成带编号/字段/条件的清单，不要一句话概括。** 一句话的"处理物料数据，填充内表"是标题摘要，不是第一层——它没告诉读者取了什么、怎么驱动的、条件是什么、写到哪里。**这条由闸门 `A8-list` 强制执行**：第一层正文里的清单条目数少于所引代码块的语句数就报——1 句代码至少 1 条，多句代码至少 2 条。
 - **每项写清四件事**：① 取什么数据（表名/字段名/结构名）② 怎么驱动（SELECT/LOOP/READ/APPEND 等动作）③ 条件是什么（WHERE 条件、区间、系统字段、判空）④ 写到哪里（内表名、变量名、屏幕输出、写库）。
-- **用 markdown 有序列表编号**（① ② ③ 或 1. 2. 3.），每项一个动作，不要挤成一长段。
+- **必须用真正会渲染成列表的 markdown 语法**：`1. 2. 3.` 有序列表（步骤有先后时用这个），每项一个动作、各占一行，不要挤成一长段。
+  **圆圈数字 ①②③ 不是列表标记**——它们是普通 CJK 字符，CommonMark 会把"每行一个 ①"的连续行合并成**一个段落**，渲染出来是一整段墙文，不是清单。`A8-list` 只认 `\d+.` / `\d+)` / `-` / `*` / `+` 这几类行首标记，圆圈数字与全角序号（`1。` `1、`）不计入条目数，写它们等于写了 0 条。
 - **不要逐句拆碎成"第 X 行：…"的流水账**——那是代码走查，不是业务描述。
 
 #### 写完对照一遍：笼统 vs 具体
@@ -347,27 +348,30 @@ fix-mislabel 之所以存在：`abap` 与 `abap-fix` 只锁了**一个方向**�
 ```
 ❌ 处理物料数据，填充内表。
 
-✅ ① 从 MARA 取 MATNR 一列，条件 matnr IN s_matnr，装进 it_mara
-    ② 以 it_mara 的 MATNR 为键，FOR ALL ENTRIES 从 MAKT 取 MATNR+MAKTX，
-       条件 spras = 'EN'，装进 it_makt
-    ③ 遍历 it_mara，READ TABLE it_makt 做半连接，把 MATNR+MAKTX 拼成
-       wa_final 追加到 it_final
+✅
+1. 从 MARA 取 MATNR 一列，条件 matnr IN s_matnr，装进 it_mara
+2. 以 it_mara 的 MATNR 为键，FOR ALL ENTRIES 从 MAKT 取 MATNR+MAKTX，
+   条件 spras = 'EN'，装进 it_makt
+3. 遍历 it_mara，READ TABLE it_makt 做半连接，把 MATNR+MAKTX 拼成
+   wa_final 追加到 it_final
 ```
 
 ```
 ❌ 调用消息类显示提示。
 
-✅ ① 从全局类 ZCL_BC_SCREEN_MESSAGE 取静态方法 OUTPUT
-    ② 把字符串 'Show Error Log' 拼接上消息类文本 001
-    ③ 作为屏幕提示输出到会话
+✅
+1. 从全局类 ZCL_BC_SCREEN_MESSAGE 取静态方法 OUTPUT
+2. 把字符串 'Show Error Log' 拼接上消息类文本 001
+3. 作为屏幕提示输出到会话
 ```
 
 ```
 ❌ 遍历错误日志，更新行数。
 
-✅ ① 遍历错误日志内表，从第 7 行起逐行读取
-    ② 每读到一行就把函数组全局变量 GD_END_LINE 加 1
-    ③ 加到 35 停止；净效果：错误超过 6 条时列表框每多一条就长高一行
+✅
+1. 遍历错误日志内表，从第 7 行起逐行读取
+2. 每读到一行就把函数组全局变量 GD_END_LINE 加 1
+3. 加到 35 停止；净效果：错误超过 6 条时列表框每多一条就长高一行
 ```
 
 **每层至少点名一个源码里的具体对象**——表名、类名、方法名、变量名，用反引号标出来。
@@ -377,6 +381,8 @@ fix-mislabel 之所以存在：`abap` 与 `abap-fix` 只锁了**一个方向**�
 ⚠️ 闸门查得出**清单的形状**，查不出**条目的具体度**。`A8-list` 只在条目数少于代码块语句数时报：一个条目覆盖十句话也照样通过，条目里写没写清 WHERE 条件它看不出来。
 `evals/` 里的缺陷问的也是"报告有没有指出源码里的某个缺陷"，不是"写得细不细"。
 所以形状交给闸门，内容仍然是你自己把关。
+
+**"形状"现在包含"能不能渲染成列表"**。这条规则上线时把 ①②③ 也算进了条目数，于是"每行一个 ①"既满足闸门、又渲染成一段墙文——闸门查的是形状，可它当时接受的形状本身就不成立。现在只认真列表语法。
 
 ### 第二层：为什么 / 设计点评
 - 讲动机、权衡、替代方案代价。不只是"用了什么"，而是"为什么适合这场景"。
@@ -430,7 +436,7 @@ SELECT matnr FROM mara INTO TABLE it_mara WHERE matnr IN s_matnr.
 ```
 
 **做什么** —
-① 从 `MARA` 取 `MATNR` 一列，条件 `matnr IN s_matnr`，装进 `it_mara`。
+1. 从 `MARA` 取 `MATNR` 一列，条件 `matnr IN s_matnr`，装进 `it_mara`。
 
 **为什么** — MARA 有 200+ 字段，投影取列省内存；MATNR 上有索引，区间扫描代价可控。
 
@@ -444,7 +450,7 @@ DATA: lt_mara TYPE TABLE OF mara-matnr,
 ```
 
 **做什么** —
-① 声明两张窄内表：`lt_mara` 存物料号（`mara-matnr`）、`lt_makt` 存描述（`makt-maktx`）。
+1. 声明两张窄内表：`lt_mara` 存物料号（`mara-matnr`）、`lt_makt` 存描述（`makt-maktx`）。
 
 **为什么** — 只装用得到的列，避免把宽结构整体搬进内存。
 
@@ -456,8 +462,8 @@ SELECT matnr maktx FROM makt INTO TABLE lt_makt
 ```
 
 **做什么** —
-① 从 `MAKT` 取 `MATNR` + `MAKTX`，以 `lt_mara` 的 `MATNR` 为键做 `FOR ALL ENTRIES`
-   半连接，条件 `spras = 'EN'`，装进 `lt_makt`。
+1. 从 `MAKT` 取 `MATNR` + `MAKTX` 两列，装进 `lt_makt`。
+2. 以 `lt_mara` 的 `MATNR` 为键做 `FOR ALL ENTRIES` 半连接，条件 `spras = 'EN'`。
 
 **为什么** — 命中 MAKT 的 MATNR+SPRAS 索引前缀，比裸 JOIN 更可控。
 
