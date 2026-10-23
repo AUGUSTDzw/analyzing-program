@@ -7,7 +7,7 @@
 
 ## 1. 发生了什么
 
-执行 completion-diagnostic 确认轮时，`D:\Workspace\Skills\analyizing-programs`
+执行 completion-diagnostic 确认轮时，`D:\Workspace\Skills\analyzing-programs`
 整个仓库被清空：
 
 | 路径 | 状态 |
@@ -114,4 +114,4 @@ skill_sha256: b8f84e805a2a2aec...   <- 该数字描述的是前驱版本，不�
 - 是否从 GitHub 重取 abapGit 语料（可以，但 digest 会变）
 - 合成夹具无法恢复，所以基于合成语料的评测线到此为止
 - 谁在删文件、还在不在删——未查明。在查明之前不应把关键产物放在
-  `D:\Workspace\Skills\analyizing-programs\skill\` 下
+  `D:\Workspace\Skills\analyzing-programs\skill\` 下
