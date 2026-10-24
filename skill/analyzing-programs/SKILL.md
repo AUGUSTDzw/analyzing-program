@@ -1,7 +1,7 @@
 ---
 name: analyzing-programs
-version: 1.1.32
-contract: 1.3.15
+version: 1.1.33
+contract: 1.3.16
 description: Use when the user wants a deep onboarding-style analysis report for an ABAP/SAP program source file (报表程序、FORM/事件块、OO 类 CLAS、函数组、ALV 等), or pastes an ABAP / z*.abap file asking to analyze, walk-through, 讲解 its structure, execution flow, or design. Trigger on phrases like "分析这个程序/源码","走读/讲解 ABAP","代码 onboarding","源码分析/架构分析","帮我看懂这段 SAP 代码". Trigger even when the user does not explicitly say "report" but clearly wants to understand a whole program's business purpose, architecture, and risks. Do NOT use for one-line answers, non-SAP code, or pure syntax/API lookups.
 ---
 # Skill: analyzing-programs
@@ -330,8 +330,10 @@ fix-mislabel 之所以存在：`abap` 与 `abap-fix` 只锁了**一个方向**�
 超过则按 `A8-pt` 报（有评述、缺标签）。
 
 ### 第一层：做什么
-- **展开成带编号/字段/条件的清单，不要一句话概括。** 一句话的"处理物料数据，填充内表"是标题摘要，不是第一层——它没告诉读者取了什么、怎么驱动的、条件是什么、写到哪里。**这条由闸门 `A8-list` 强制执行**：第一层正文里的清单条目数少于所引代码块的语句数就报——1 句代码至少 1 条，多句代码至少 2 条。
-- **每项写清四件事**：① 取什么数据（表名/字段名/结构名）② 怎么驱动（SELECT/LOOP/READ/APPEND 等动作）③ 条件是什么（WHERE 条件、区间、系统字段、判空）④ 写到哪里（内表名、变量名、屏幕输出、写库）。
+- **展开成带编号/字段/条件的清单，不要一句话概括。** 一句话的"处理物料数据，填充内表"是标题摘要，不是第一层——它没告诉读者取了什么、怎么驱动的、条件是什么、写到哪里。**这条由闸门 `A8-list` 强制执行**：1 句代码至少 1 条，多句代码至少 2 条。**代码块的语句数只在这两个下限之间做选择，它本身不是下限**——不是一句一条。
+- **用自然语言描述，不要把整条语句搬进正文。** 代码块就在第一层正上方，`PERFORM`、`APPEND`、`SELECT ... INTO` 这些语法词读者已经看见了；正文要给的是"这一步在做什么"。该点名的标识符照点名（表名、字段名、组件、变量名、子程序名），但**正文里出现源码那条语句的原文就是抄写，不是描述**。**这条由闸门 `A8-echo` 强制执行**：反引号里是一个完整语句（≥2 个词、以 `.` 结尾）就报。它是 `A8-list` 的镜像——一个防第一层塌成段落，这个防它胀成抄写。
+- **按目的合并，不要一句一条。** 连续八条 `fieldcatalog-xxx = ...` 加 `APPEND`、`CLEAR` 是一个动作（填完一条字段目录），写成 1–3 条自然语言；硬拆成八条只会得到八行代码回声。
+- **每条写清四件事**：① 取什么数据（表名/字段名/结构名）② 怎么驱动（SELECT/LOOP/READ/APPEND 等动作）③ 条件是什么（WHERE 条件、区间、系统字段、判空）④ 写到哪里（内表名、变量名、屏幕输出、写库）。四项不必每条都凑齐，能省则省。
 - **必须用真正会渲染成列表的 markdown 语法**：`1. 2. 3.` 有序列表（步骤有先后时用这个），每项一个动作、各占一行，不要挤成一长段。
   **圆圈数字 ①②③ 不是列表标记**——它们是普通 CJK 字符，CommonMark 会把"每行一个 ①"的连续行合并成**一个段落**，渲染出来是一整段墙文，不是清单。`A8-list` 只认 `\d+.` / `\d+)` / `-` / `*` / `+` 这几类行首标记，圆圈数字与全角序号（`1。` `1、`）不计入条目数，写它们等于写了 0 条。
 - **不要逐句拆碎成"第 X 行：…"的流水账**——那是代码走查，不是业务描述。
@@ -374,11 +376,25 @@ fix-mislabel 之所以存在：`abap` 与 `abap-fix` 只锁了**一个方向**�
 3. 加到 35 停止；净效果：错误超过 6 条时列表框每多一条就长高一行
 ```
 
+抄语句 vs 描述（`A8-echo`）：代码块就在第一层正上方，把语句再抄一遍等于让读者读两遍同一行，而且没多给任何信息。
+
+```
+❌ 把正文上方的语句原样搬进来
+
+1. `PERFORM build_hierarchy_header CHANGING gd_hierarchy_header.` 建层级头，用 `CHANGING` 传回
+2. `APPEND fieldcatalog TO gd_fieldcat.` 追加，`CLEAR fieldcatalog.` 清空头行
+
+✅ 写目的，只点名标识符
+
+1. 层级头交给 `build_hierarchy_header` 生成，靠传回参数把结果带回
+2. 填完追加进 `gd_fieldcat`，随即清空头行，供下一条复用
+```
+
 **每层至少点名一个源码里的具体对象**——表名、类名、方法名、变量名，用反引号标出来。
 `做什么` / `为什么` 两层尤其要用：**点名对象的层，读者才能回源码核对；不点名的层只能靠信任。**
 范例报告里 5 条 `做什么` 全部点名了源码对象，可以直接当标尺比。
 
-⚠️ 闸门查得出**清单的形状**，查不出**条目的具体度**。`A8-list` 只在条目数少于代码块语句数时报：一个条目覆盖十句话也照样通过，条目里写没写清 WHERE 条件它看不出来。
+⚠️ 闸门查得出**清单的形状**，查不出**条目的具体度**。`A8-list` 只在条目数少于下限（1 句代码 1 条、多句代码 2 条）时报：一个条目覆盖十句话也照样通过，条目里写没写清 WHERE 条件它看不出来。`A8-echo` 能挡住的只是"整条语句照抄"，挡不住"写得含糊"。
 `evals/` 里的缺陷问的也是"报告有没有指出源码里的某个缺陷"，不是"写得细不细"。
 所以形状交给闸门，内容仍然是你自己把关。
 

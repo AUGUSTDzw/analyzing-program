@@ -152,6 +152,53 @@ def circulate(text):
     return "\n".join(out)
 
 
+def echoify(text, period=True):
+    """Append one backticked source statement to a first layer's first item.
+
+    The statement is lifted verbatim from the quoted block directly above the
+    layer, so the only change from the compliant baseline is that a line the
+    reader can already see is quoted a second time. The item count is untouched,
+    which is what lets PROBE 12 attribute the rejection to A8-echo rather than
+    A8-list. With period=False the trailing dot is dropped, leaving a clause or
+    value rather than a statement: the boundary case the rule must not touch.
+    """
+    lines = text.split("\n")
+    # The first quoted block may be a declaration whose lines end in a comma,
+    # so walk to the first line that is a statement at all.
+    stmt, inside = "", False
+    for line in lines:
+        if inside:
+            if re.match(r"^" + FENCE, line):
+                inside = False
+                continue
+            b = line.strip()
+            if b and b[0] not in ("*", '"') and b.rstrip().endswith("."):
+                stmt = b
+                break
+            continue
+        if re.match(r"^" + FENCE + r"\s*abap\s*$", line):
+            inside = True
+    if not stmt:
+        return text
+    if not period:
+        stmt = stmt.rstrip().rstrip(".")
+    tick = chr(96)
+    out, awaiting = [], False
+    for line in lines:
+        if awaiting:
+            m = re.match(r"^([ \t]*)(\d+)\. (\S.*\S)\s*$", line)
+            awaiting = False
+            if m:
+                out.append("%s%s. %s（%s%s%s）"
+                           % (m.group(1), m.group(2), m.group(3), tick,
+                              stmt, tick))
+                continue
+        if re.match(r"^[ \t]*\*\*" + LAYERS[0] + r"\*\*", line):
+            awaiting = True
+        out.append(line)
+    return "\n".join(out)
+
+
 def main():
     raw = io.open(BASE, encoding="utf-8").read()
     base = listify(raw)
@@ -405,6 +452,38 @@ def main():
     check("circled digits are not markdown list markers" in out3,
           "PROBE 11 names the marker that was not counted",
           out3.strip().splitlines()[0][:80] if out3.strip() else "")
+
+    # PROBE 12: A8-echo is the mirror of A8-list. base is compliant, so
+    # echoify() only adds a second copy of a line the reader can already see,
+    # and the item count is untouched -- which is what lets the rejection be
+    # attributed to A8-echo rather than to A8-list.
+    print()
+    print("PROBE 12: quoting a statement is not describing it")
+    print("-" * 72)
+    ech = echoify(base)
+    check(ech != base, "PROBE 12 precondition: the baseline echoed a statement",
+          "")
+    rc4, out4 = gate(ech, tmp, "p12_echo.md")
+    check(rc4 != 0, "PROBE 12 the gate now REJECTS a quoted statement",
+          f"rc={rc4}")
+    check("A8-echo" in out4, "PROBE 12 reported as kind 'A8-echo'",
+          out4.strip().splitlines()[0][:80] if out4.strip() else "")
+    check("A8-list" not in out4,
+          "PROBE 12 the item count is untouched, so A8-list stays silent",
+          out4.strip().splitlines()[0][:80] if out4.strip() else "")
+    check("quotes a statement" in out4,
+          "PROBE 12 names what the layer owed")
+
+    # The boundary: without a trailing period a span is a clause or a value,
+    # not a statement, so the WHERE condition a first layer exists to name
+    # stays legal. Without this half, A8-echo would read as "no backticks".
+    cls = echoify(base, period=False)
+    check(cls != base, "PROBE 12b precondition: the baseline carries a clause",
+          "")
+    rc5, out5 = gate(cls, tmp, "p12_clause.md")
+    check(rc5 == 0 and "A8-echo" not in out5,
+          "PROBE 12b a span without a trailing period stays legal",
+          out5.strip().splitlines()[0][:80] if out5.strip() else "")
     return finish()
 
 

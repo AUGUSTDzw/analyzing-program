@@ -27,6 +27,11 @@ DW_MIN = DW.get("items_min_per_block", 2)
 DW_ONE = DW.get("single_statement_items", 1)
 DO_WHAT_LIST = bool(DW)
 
+NSE = CONTRACT["layers"].get("no_statement_echo") or {}
+NSE_KIND = NSE.get("violation_kind", "A8-echo")
+NSE_TOKENS = NSE.get("min_tokens", 2)
+NO_STATEMENT_ECHO = bool(NSE)
+
 # Same reason as the lists in contract.py and text.py: without one, `import *`
 # into report_qc.py hands every name above to that module as well -- and a
 # detector added there could then reach for re or TICK and resolve it through
@@ -160,14 +165,19 @@ _STRUCT = ("FORM", "ENDFORM", "FUNCTION", "ENDFUNCTION", "START-OF-SELECTION",
 
 
 def _statements(blk):
-    """Executable statement lines in one quoted block -- the denominator for
-    A8-list.
+    """Executable statement lines in one quoted block.
 
-    One list item per statement is the bar SKILL.md sets for the first layer, so
-    the count decides how many items the layer owes. Comments and blanks carry no
-    action; a block opener or closer is a boundary, not an action. A statement
-    continued by a trailing marker makes its next line count too, which
-    over-counts rather than under-counts.
+    The count selects between the two A8-list floors and nothing else: one
+    statement or fewer owes single_statement_items, more owes
+    items_min_per_block. It is not the item floor. SKILL.md stated it as one
+    ("fewer items than statements"), which is what pushed a writer to echo one
+    statement per item -- sixteen first layers, 2528 characters of backticked
+    source, 59 copied statements. A count that acts as a floor forces
+    transcription, so it stays a selector.
+
+    Comments and blanks carry no action; a block opener or closer is a boundary,
+    not an action. A statement continued by a trailing marker makes its next line
+    count too, which over-counts rather than under-counts.
     """
     n = 0
     for raw in blk.splitlines():
@@ -219,11 +229,11 @@ def check(s, src=None):
                 # LAYERS[0] is the first layer by contract order, the one whose
                 # shape this rule polices. A8-cc and A8-pt stay ahead of it: a
                 # block with no prose at all is reported for that first.
-                n_items = len(LIST_ITEM.findall(layer_body(gap, LAYERS[0])))
+                body = layer_body(gap, LAYERS[0])
+                n_items = len(LIST_ITEM.findall(body))
                 n_stmt = _statements(BLOCKS[st])
                 need = DW_ONE if n_stmt <= 1 else DW_MIN
                 if n_items < need:
-                    body = layer_body(gap, LAYERS[0])
                     # A writer whose body is full of ① sees 0 items and has no
                     # reason to guess why. Name the marker that was not counted.
                     hint = ""
@@ -232,10 +242,28 @@ def check(s, src=None):
                         hint = (" -- circled digits are not markdown list "
                                 "markers, they render as one paragraph; use "
                                 "1. 2. 3.")
+                    # "for N statements" made N read as the floor, so the
+                    # message says what is owed instead.
                     bad.append((DW_KIND, line_of(s, st),
                                 "%s is a paragraph, not a segmented list: "
-                                "%d item(s) for %d statement(s)%s"
-                                % (LAYERS[0], n_items, n_stmt, hint)))
+                                "%d item(s), at least %d owed%s"
+                                % (LAYERS[0], n_items, need, hint)))
+                if NO_STATEMENT_ECHO and body:
+                    # A statement-shaped span is a copied line, not a
+                    # description. The block sits directly above the prose, so
+                    # the syntax words in it need not be repeated here. One
+                    # token is allowed: ENDFORM. is a minimum reference.
+                    off = s.find(body, end)
+                    for m in TICK.finditer(body):
+                        sp = m.group(1)
+                        if (sp.rstrip().endswith(".")
+                                and len(sp.split()) >= NSE_TOKENS):
+                            at = line_of(s, off + m.start()) if off >= 0 \
+                                else line_of(s, st)
+                            bad.append((NSE_KIND, at,
+                                        "first layer quotes a statement "
+                                        "instead of describing it: %r"
+                                        % sp[:44]))
             continue
         ln = line_of(s, st)
         kind = "A8-cc" if len(gap.strip()) <= A8_GAP else "A8-pt"

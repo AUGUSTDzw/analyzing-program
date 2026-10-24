@@ -199,8 +199,8 @@ ENDFUNCTION.
 ```
 
 **做什么** — 把绘制工作委托出去，然后直接结束函数：
-1. `PERFORM start_list_viewer.` 调用函数组 include 里的 `FORM start_list_viewer`，不带任何参数
-2. `PERFORM` 之后留了 5 个空行，随即 `ENDFUNCTION`（FM 的结束语句，后面不带句点是合法的）
+1. 调用函数组 include 里的 `FORM start_list_viewer`，不带任何参数
+2. 调用之后留了 5 个空行，随即结束函数（`ENDFUNCTION` 后面不带句点是合法的）
 3. 这 5 个空行是课程骨架里被清空的位置——对照函数组命名 `c04_exceptions`，这里原本大概该有几处 `MESSAGE ... RAISING`
 
 **为什么** — 用 `PERFORM` 而不是直接写列表逻辑，理由在 1.2 说过：屏幕控件的绘制代码通常有几百行，放在 FM 里会让接口臃肿、也让这个"门面"失去可读性；放进 FORM 后，FM 只剩"提示 + 布局参数 + 委托"三件事，读者十秒能懂。**"薄壳 + 厚 FORM"是函数组开发的经典分工**，从这个角度看本文件的结构选择是对的。

@@ -131,6 +131,7 @@ def main():
         "Mermaid 标签安全": "mermaid",
         "逐字符忠实": "advisories[fidelity]",
         "每个代码块后三层都必须出现": "layers",
+        "不要把整条语句搬进正文": "layers",
         "🔴 P0 业务正确性": "problem_section",
         "闸门只管形状": "claim_separation",
     }
@@ -191,10 +192,10 @@ def main():
     # numbers against SKILL.md's frontmatter, so an unpinned bump would sail
     # through. Update them together with the frontmatter when a release moves,
     # and read the SKILL.md anchors below as the check that they were updated.
-    check(C.get("version") == "1.3.15", "contract version is 1.3.15",
+    check(C.get("version") == "1.3.16", "contract version is 1.3.16",
           C.get("version"))
-    check(_rel.get("ships_with") == "1.1.32",
-          "contract ships with 1.1.32", _rel.get("ships_with"))
+    check(_rel.get("ships_with") == "1.1.33",
+          "contract ships with 1.1.33", _rel.get("ships_with"))
     # The frontmatter fields exist so a deployed copy can prove what it is by
     # reading itself. 1.1.2 shipped with version 1.1.1 still in its own
     # SKILL.md, so an installed copy could not have named the release it was.
