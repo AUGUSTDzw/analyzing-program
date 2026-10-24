@@ -6,7 +6,7 @@
 ## 目录
 
 ```
-SKILL.md                         规则本体（587 行）
+SKILL.md                         规则本体（609 行）
 scripts/report_qc.py             格式闸门：逐条列出违规位置，可自动修两类
 scripts/evaluate.py              内容评分：对冻结缺陷清单判分，算召回与错误论断
 scripts/docgen.py                文档生成：源码抽成类 / FORM / 函数 / 表 / 调用的清单
@@ -106,8 +106,8 @@ python scripts/evolve.py --results Test-result/         # 挖掘历史报告
 
 ```bash
 python tests/test_skill.py              # 416 项
-python tests/test_contract_drift.py     # 138 项，契约 <-> SKILL.md <-> 闸门 三方对齐
-python tests/test_gate_enforcement.py   # 41 项，闸门执行漏洞探针
+python tests/test_contract_drift.py     # 141 项，契约 <-> SKILL.md <-> 闸门 三方对齐
+python tests/test_gate_enforcement.py   # 63 项，闸门执行漏洞探针
 python tests/test_fidelity_tiers.py     # 9 项，改动前后口径是否等价
 python tests/test_docgen_deps.py        # 171 项，docgen 与依赖分析器
 python tests/test_lint_skill.py         # 41 项，SKILL.md 对照 skill-contract.json
@@ -117,12 +117,12 @@ python tests/test_index.py              # 37 项，references/ 搜索索引构�
 python tests/test_evolve.py             # 25 项，历史报告 P0-P3 模式挖掘与更新建议
 ```
 
-合计 946 项，十个套件。仓库根还有一个 `run_tests.py`（不随包发布，和
+合计 971 项，十个套件。仓库根还有一个 `run_tests.py`（不随包发布，和
 `package_release.py` 一起只活在仓库里）：它逐个跑这十个套件加两个元脚本
 （`lint_skill.py`、`security_probe.py`），解析每个套件自己印的那行
 `N checks passed, M failed` 汇总成真实总数——汇总数不是猜的。`lint_skill.py`
 只印 `PASS` 不带数，它会被标成 unverified 而不是算绿；`security_probe.py`
-是 17 项。所以全部跑完是 12 个套件、963 项带数断言。
+是 17 项。所以全部跑完是 12 个套件、988 项带数断言。
 
 **退出码是契约的一部分。** 所有模式在仍有缺陷时返回非零，包括 `--fidelity-only`
 与 `--fix` —— SKILL.md 第 6 步让模型"重跑到干净为止"，那条循环只能靠退出码终止。
@@ -204,14 +204,17 @@ Mermaid 标签里的裸 `<` `>` `#` → 改成全角。三层缺失**只报位�
 ### 先说版本：下面的数字不是出货版本的数字
 
 iteration-8 的全部数字都是在 **`b8f84e8`**（162 行）上测出来的。
-**工作树与 `release/` 都到 `1.1.30`**（587 行，契约 1.3.13 / docgen 契约 1.0.3）：
-归档在 `release/analyzing-programs-1.1.30/`（417 文件、33 目录），
-zip 的 sha256 在 `release/SHA256SUMS`。1.1.30 改的是打包器：1.1.29 那份重写
-丢掉了 `release/pack.py` 的 `NOT_SHIPPED` 与 `CRITICAL` 守卫，于是把整个测试 harness
-发进了包，而 `--verify` 照报 clean——本版纳回守卫并给 `--verify` 加上
-repository-only 检查。契约没有规则或阈值变化，只走 `ships_with`；docgen 契约
-也不动（1.0.3 / ships_with 1.1.25），这次没碰属于它的东西。
-**1.1.28 从未归档**（git 里有 bump，`release/` 里没有），从 1.1.27 直接跳到 1.1.29。
+**工作树与 `release/` 都到 `1.1.34`**（609 行，契约 1.3.17 / docgen 契约 1.0.3）：
+归档在 `release/analyzing-programs-1.1.34/`（417 文件、33 目录），
+zip 的 sha256 在 `release/SHA256SUMS`。1.1.34 改的是 `A8-echo` 的判据：从
+「整句逐词相同」换成**令牌身份**——一段文本的令牌序列等于源码某条语句、或等于该语句
+开头 `head_min_tokens`（默认 3）个令牌就算抄写，反引号内外都算，删掉句尾的 `.` 不再
+豁免，而 `WHERE` 这类**语句尾部**不算（第一层本来就该点名条件）。1.1.33 那版只扫
+反引号内、还要求带句尾点，去掉这两个护栏就抄过去了。契约只加一个键
+（`layers.no_statement_echo.head_min_tokens`）与一条 `release._comment`。docgen 契约
+不动（1.0.3 / ships_with 1.1.25），这几版没碰属于它的东西。
+**1.1.28 从未归档**（git 里有 bump，`release/` 里没有），从 1.1.27 直接跳到 1.1.29；
+1.1.31 起归档连续，`release/` 与本节的版本一致。
 **效果**未测出结论。**
 
 版本谱系（每一版都已归档在 `release/`，digest 见 `release/SHA256SUMS`）。
@@ -264,6 +267,10 @@ Not a valid object name），那几行的行数只能从 `--follow` 找到的同
 | `9cc86fd` | 565 | `9cc86fd` | **1.1.28**。契约不动（1.3.12）：没有规则、阈值或 `gate_io` 行变化，只有 `ships_with` 走。SKILL.md 548 → 565 行。**六个元工具**，都是维护 skill 本身用的、不被闸门调用：`lint_skill.py`（SKILL.md 对照 `schemas/skill-contract.json` 检查）、`dedup.py`（语义重复章节）、`lift.py`（两份 verdict 的 recall 差异与符号检验）、`security_probe.py`（17 组对抗输入压测 `--fix`）、`index.py`（`references/` 的 TF-IDF 搜索索引）、`evolve.py`（历史报告 P0-P3 模式挖掘与更新建议）。同一提交加 `schemas/skill-contract.json` 58 行——SKILL.md 自己的规则第一次有了可机检的来源，之前那套写法纪律只存在于人眼。五套新测试：`test_lint_skill` 41、`test_dedup` 33、`test_lift` 35、`test_index` 37、`test_evolve` 25。**这一版没有归档**：git 里有 `9cc86fd` 与 bump 提交 `7639efc`，但 `release/` 里没有 `analyzing-programs-1.1.28/`、`SHA256SUMS` 里也没有它的一行——下一个归档直接是 1.1.29。装 `release/` 的人拿到的仍是 1.1.27。**提交消息里的「986 项（759 existing + 227 new）」两个数都不对**：五个新套件是 171 项、再加 `security_probe.py` 的 17 项共 188 项，加上原五个套件的 759 项是 947——而且 drift 与 gate_enforcement 在 1.1.29 又各增了一些。这个数当时是从提交里抄进 README 的，1.1.30 换成实测值 |
 | `5784c52` | 587 | `5784c52` | **1.1.29**。契约 1.3.12 → 1.3.13，SKILL.md 565 → 587 行。**新增 `esc` 缺陷类型**：源码里的转义序列（`%_` / `+CONCAT` / 字符串拼接）被报告写成转义残留的字面形态，读的人以为那是程序里真的字符串。新增 `scripts/checks/escape.py`（69 行），`esc` 进 `defect_line_prefixes`，`test_gate_enforcement.py` 34 → 41、`test_contract_drift.py` 129 → 138。同批 `0243ce2` 把散落的检查入口收成一个 `run_tests.py` 与一个 `package_release.py`，版本从 SKILL.md frontmatter 读而不是从参数读——参数会是那串版本号活着的第四个地方。归档 `461` 个 zip 条目、sha256 `2545abab`。**这个包带着自己的测试 harness**，见下一行 |
 | `0243ce2` | 587 | `0243ce2` | **1.1.30**。契约不动（1.3.13）：没有规则、阈值或 `gate_io` 行变化，只有 `ships_with` 走；docgen 契约也不动（1.0.3 / ships_with 1.1.25）。SKILL.md 仍是 587 行——只动了 frontmatter 的 `version`。**`0243ce2` 重写打包器时丢掉了 `release/pack.py` 里的那条守卫**：旧版有 `NOT_SHIPPED = ("tests/",)` 加一条 `CRITICAL` 断言，新版只有 `EXCLUDE_DIRS`，于是 1.1.29 把十个测试文件连同整个 harness 发进了包。量出来：`--verify` 在那个 461 条目的包上照报 `zip contents match` 与 `SHA256SUMS matches` 两条 `ok`——那版**根本不存在** NOT_SHIPPED 这份名单，`--verify` 只比 zip 与目录、查 digest，而这两件都真的对上了（461 条目两边一致，digest 也吻合），所以它没有东西可查。新检查加进来之后就必须小心一件事：`verify()` 的目录侧若走 `walk_clean()`，会被过滤掉的正是它要抓的东西——被污染的包在那份视图里显得自洽，检查永不触发。所以目录侧走 `walk_all()`，两份视图都是不过滤的，比对与检查都成立。装到仓库外才量得出失败：四个 suite 在第一个 fixture 就 `FileNotFoundError`，`test_skill.py` 与 `test_contract_drift.py` 各挂一条 `the exemplar's source is present`。修法是三处：`NOT_SHIPPED` 与 `CRITICAL` 补回并加**双向**前缀断言（旧版只查 `_p not in CRITICAL`，`"scri"`、`"schema"`、`"scripts/checks/"` 都会漏过去，现在 `NOT_SHIPPED ⊆ CRITICAL` 也不放行）；`verify()` 改用 `walk_all()` 这份**不过滤**的遍历，并新增 repository-only 检查；`ship()` 从拷贝树里 prune 掉 NOT_SHIPPED（`copytree` 的 `ignore` 按 basename 匹配，路径前缀交给它不生效）。验证：`--verify 1.1.29` 退 `1` 并列出 11 个 repository-only 文件（`tests/` 目录条目加十个测试），`--verify 1.1.27` 全绿退 `0`。**1.1.29 本身不修**：`release/` 是 append-only，它记的 digest 对得上它自己那个带 harness 的 zip，改它等于篡改一份已签发的归档。归档 `450` 个 zip 条目（417 文件、33 目录）。同批把 README 同步到现状：目录清单补上 `scripts/checks/` 与六个元工具、`schemas/` 另两份契约、`abaplint-deps/` 与四份失败模式记录；「跑一遍」补五套新测试并改成实测的 946 项（十个套件）与 `run_tests.py`；`tests/` 一节把 1.1.10 量到的失败形态改成本轮的实测、把 `release/pack.py` 改成 `package_release.py` 并记下这次回归；`五个脚本` 的 UTF-8 守卫改成十一个；版本表与本节补齐 1.1.28 起三行 |
+| `be81e27` | 587 | `be81e27` | **1.1.31**。契约 1.3.13 → 1.3.14，docgen 契约不动（1.0.3 / ships_with 1.1.25）。SKILL.md 仍是 587 行。**第一层必须分段成列表**，成为 `A8-list`：契约 `layers` 加 `do_what`（`items_min_per_block` 2、`single_statement_items` 1）与第三种违规。`text.py` 加 `LIST_ITEM` 与 `layer_body()`——原来的 `layer_bodies()` 只读**第一行**，一段一句话的第一层正好因此长得像一个列表；`structure.py` 按引用块里的语句数去数列表项。范例的四个第一层、探针基线（用 `listify()` 派生，`exp-1.0.9` 那份留档不动）与内联测试夹具全部分段；新增 PROBE 10 拒收未分段的基线。`test_gate_enforcement.py` 41 → 46 |
+| `3786132` | 593 | `3786132` | **1.1.32**。契约 1.3.14 → 1.3.15，docgen 契约不动。SKILL.md 587 → 593 行。**`A8-list` 只数 markdown 真会渲染成列表的标记**：圆圈数字 U+2460–U+246B 是普通 CJK 字符，不是列表标记。一行一个「①②③」的正文被当成六项、判过 `A8-list`，打印出来却是一段——CommonMark 把连续的普通行合并成同一段。SKILL.md 还管它们叫「markdown ordered-list numbering」，写作者照着文档写、闸门也照收。`LIST_ITEM` 现在只认行首的 `1.` / `1)` / `-` / `*` / `+`，全角的 `1。` 与 `1、` 也不算；正文没有条目而行首是圆圈数字时，诊断会点出这一点并指名该用的标记。契约加 `do_what.markers`，记下哪些字符算、圆圈数字为什么不算。范例报告 16 个第一层与参考报告 5 个改成有序列表，措辞不变、只换标记；参考报告 3.5 那个第一层原本没有引用块、也还是段落，按它自己的「已知／未知」边界拆开。`listify()` 改用数字标记，新增 PROBE 11 重建 1.1.31 的形状——同样的文本、把圆圈标记换回去——断言闸门拒收且诊断点名那个没被数的标记。46 → 51 项 |
+| `c779503` | 609 | `c779503` | **1.1.33**。契约 1.3.15 → 1.3.16，docgen 契约不动。SKILL.md 593 → 609 行。**`A8-echo`：第一层不许把整条语句搬进正文。** 第一层就压在引用块的下方，那几条语句的语法词已经在屏幕上了，再抄一遍等于让读者读两遍同一行、而没多给任何描述。它是 `A8-list` 的镜像：那条让第一层不能塌成一段，这条让它不能胀成一次转写。触发它的是一份真实报告：16 个第一层带 2528 个反引号字符、59 条完整语句被引用，代码占该层的 59%。病根在 skill 自己的措辞——它说条目下限就是语句数，写作者就一条语句一条抄。代码从未这么干过（`need` 只是在 1 和 2 之间做选择），但**写作者照的是那句话**。`counted_statements` 现在写明自己是选择器、不是下限，消息说欠什么，而不是「for N statements」。首版判据：反引号内、本身就是一条语句的片段——至少两个令牌且带句尾点。`min_tokens` 不动，`ENDFORM.` 这样单个标识符的引用是合法的最小引用；不带句尾点的片段是类型、从句或值，所以第一层该点名的那个 `WHERE` 条件仍然是合法的。51 → 58 项，drift 139 → 141 |
+| `90135b8` | 609 | `90135b8` | **1.1.34**。契约 1.3.16 → 1.3.17，docgen 契约不动。SKILL.md 仍是 609 行。**上一版那道回声规则有两个可以各退一步的护栏**：它只扫反引号内的片段，还要求带句尾的 `.`。去掉反引号就是散文，去掉句点就成了一个从句——各退一格就抄过去了。它比的还是**整句身份**，形状反了：`WHERE` 这样的**语句尾部**永远比不中，而第一层恰恰就该点名条件。判据改成**令牌身份**：一段文本的令牌序列等于源码某条语句的身份，或等于该语句**开头** `head_min_tokens` 个令牌（契约新增，默认 3）就算抄写；整句身份仍然认，所以完整的语句照样报，新增的是截断那半边。复用 `tokenize` / `identity` / `_strip_comment`，没有第二个词切分器。反引号内与裸写在句子里都照报；散文那遍跑之前先把反引号片段按原位置抹空，剩下的偏移量才成立，也不会被两条规则重复报同一个片段。仍然很窄：`min_tokens` 不动，`ENDFORM.` 仍是合法引用；`WHERE` 条件是尾部不是开头，第一层还能点名条件。PROBE 12 拆成 12（基线）、12b（去掉句点）、12c（去掉反引号）、12d（`WHERE` 尾部必须仍合法）；基线自己从源码派生出那三条改写并断言条数，所以那份 2026-10-09 的留档仍显示它当时写了什么，后面的探针不可能空过。`echoify` 改成从围栏里取完整语句——结尾是句点的行不一定是一条语句，一条五行的 `TYPES:` 声明就骗过了第一版。58 → 63 项，合计 971 项。归档 450 条目（417 文件、33 目录），zip sha256 `8ee17f7e`；打包时发现并修掉九份 `references/abap-syntax/` 的换行符漂移，见下节 |
 
 **契约版本与发布版本是两条独立的轴。** 契约 `version` 只在该文件自己的规则、
 阈值或 `gate_io` 行变化时递增；发布版本对措辞和闸门行为的变化也递增。
@@ -1106,6 +1113,99 @@ sha256 `2545abab`，提交消息记的是 427 文件。
 补 `run_tests.py` 入口；`tests/` 一节把 1.1.10 量到的失败形态换成本轮的实测、
 把 `release/pack.py` 改成 `package_release.py`；`五个脚本` 的 UTF-8 守卫改成十一个；
 本表的 1.1.28 起三行与这三个节补齐。
+
+### 1.1.30 → 1.1.31：第一层不许塌成一段
+
+契约 1.3.13 → 1.3.14，docgen 契约不动（1.0.3 / ships_with 1.1.25）。SKILL.md 仍是 587 行。
+
+写下来的规则和闸门对不上：SKILL.md 说第一层要按块分段、每块至少两条，而闸门没有检查它。
+同一次会话里这条规则被跳过两次。
+
+`layers` 新增 `do_what`：`items_min_per_block` 2、`single_statement_items` 1，以及第三种违规。
+`text.py` 加 `LIST_ITEM` 与 `layer_body()`——第二个是这一版真正的缺陷。原来的
+`layer_bodies()` 只读**第一行**，于是把一句写满在第一行上的第一层看起来就像列表：标记在
+第一行、正文在同一行，分没分段无从分辨。`structure.py` 改成按引用块里的语句数去数列表项，
+一条语句的块要一条，多句的块要两条。
+
+范例的四个第一层、探针基线与内联夹具全部分段。基线用 `listify()` 派生而不是改留档：
+`exp-1.0.9/with_skill/run1.md` 是迭代 8 的原始产出，要留着。新增 PROBE 10，拒收未分段的基线。
+`test_gate_enforcement.py` 41 → 46 项。
+
+### 1.1.31 → 1.1.32：圆圈数字不是列表标记
+
+契约 1.3.14 → 1.3.15，docgen 契约不动。SKILL.md 587 → 593 行。
+
+上一版那条规则有个漏洞，而且是文档自己开的。`LIST_ITEM` 认圆圈数字 U+2460–U+246B，而它们是
+**普通 CJK 字符**，不是 markdown 的列表标记——CommonMark 把连续的普通行合并成同一段。所以一行
+一个「①②③」的正文被 `A8-list` 当成六项、判过，打印出来却是一段。文档还把这种写法叫
+「markdown ordered-list numbering」，于是写作者照着文档写、闸门照收，两边都自认为对了。
+
+`LIST_ITEM` 现在只认行首的 `1.` / `1)` / `-` / `*` / `+`，全角的 `1。` 与 `1、` 也不算。正文没有
+条目而行首是圆圈数字时，诊断点出这一点并指名该用的标记——只说「不是列表」的话，改的人会去猜。
+契约加 `do_what.markers`，把哪些字符算、圆圈数字为什么不算写下来。
+
+范例报告的 16 个第一层与参考报告的 5 个改成有序列表，措辞一字未动、只换标记。参考报告 3.5 那个
+第一层原本没有引用块、也还是段落，按它自己的「已知／未知」边界拆开。`listify()` 改用数字标记，
+基线才继续合规。新增 PROBE 11 重建 1.1.31 的形状：同样的文本、把圆圈标记换回去，断言闸门拒收
+**且**诊断点名那个没被数的标记——两条断言分开，否则只测到「拒收了」而没测到「说得清」。
+46 → 51 项。
+
+### 1.1.32 → 1.1.33：第一层不许抄语句
+
+契约 1.3.15 → 1.3.16，docgen 契约不动。SKILL.md 593 → 609 行。
+
+触发它的是一份真实报告：16 个第一层，2528 个反引号字符，59 条完整语句被引用，代码占该层 59%。
+第一层就压在引用块的下方，那几条语句的语法词已经在屏幕上了；再抄一遍等于让读者读两遍同一行，
+而没多给任何描述。它是 1.1.31 那条规则的镜像：`A8-list` 让第一层不能塌成一段，`A8-echo` 让它
+不能胀成一次转写。
+
+病根在 skill 自己的措辞，不在闸门：文档说条目下限就是语句数，写作者就一条语句一条抄。代码从未
+这么干——`need` 只是在 1 和 2 之间做选择。但**写进 skill 的那句话才是写作者照的**。
+`counted_statements` 现在写明自己是选择器、不是下限；消息改成说欠什么，而不是「for N statements」。
+
+首版判据：反引号内、本身就是一条语句的片段——至少两个令牌且带句尾点。两处故意收窄：低于
+`min_tokens` 的片段是单个标识符（`ENDFORM.` 是最小但有用的引用）；不带句尾点的片段是类型、从句
+或值，所以第一层该点名的那个 `WHERE` 条件仍然是合法的。作用范围跟 `A8-list` 一致，只管第一层。
+51 → 58 项，drift 139 → 141。
+
+### 1.1.33 → 1.1.34：令牌身份，反引号内外都算
+
+契约 1.3.16 → 1.3.17，docgen 契约不动。SKILL.md 仍是 609 行。
+
+上一版那道规则有两个护栏，而且可以各退一步就绕过：它只扫反引号内的片段，还要求带句尾的 `.`。
+去掉反引号就是散文，去掉句点就成了一个从句——各退一格，抄写就过去了。
+
+它比的还是**整句身份**，而那个形状反了：`WHERE` 这样的**语句尾部**永远比不中，可第一层恰恰
+就该点名条件；同时一条被截断的语句也永远报不出来。判据换成**令牌身份**：一段文本的令牌序列
+等于源码某条语句的身份，**或**等于该语句**开头** `head_min_tokens` 个令牌（契约新增，默认 3）
+就算抄写。整句身份仍然认——完整的语句照样报，新增的是截断那半边。复用 `tokenize` / `identity` /
+`_strip_comment`，没有第二个词切分器。
+
+反引号内和裸写在句子里都照报。散文那遍跑之前，先把反引号片段按**原位置**抹空：偏移量这才对得上，
+同一个片段也不会被两条规则各报一次。
+
+仍然很窄，理由记在契约里：`min_tokens` 不动（2），`ENDFORM.` 仍是合法的最小引用；`WHERE` 条件是
+**尾部**不是开头，第一层还能点名条件。
+
+探针：PROBE 12 拆成 12（基线）、12b（去掉句点）、12c（去掉反引号）、12d（`WHERE` 尾部必须仍合法）。
+基线自己从源码派生出那三条改写并**断言条数**——这样那份 2026-10-09 的留档仍显示它当时写了什么，
+而 12b / 12c 不会因为基线已经干净了而空过。`echoify` 改成从围栏里取完整语句：结尾是句点的行不一定
+是一条语句，一条五行的 `TYPES:` 声明就骗过了第一版。58 → 63 项，合计 971 项。
+
+**归档 1.1.34 时撞上一处与 `4eb58fe` 同源的换行符漂移。** 九份 `references/abap-syntax/` 文件
+在工作树里是 CRLF，而 git 里的 blob 是 LF（`4eb58fe` 紧跟 1.1.4 归档之后，已经为此把 blob
+归一化过一次）。
+`core.autocrlf=input` 不做任何转换，`git status` 归一化后读成干净，第一次打包把这九份
+（约 995 字节的 `\r`）一起发出去了。`--verify` 拦不住：**它只比 zip 与目录的名字和 digest，不比字节**，
+而这两份确实都带 CRLF、彼此一致、digest 也对得上。自己比了一遍 SHA-256 才发现。工作树归一化、
+丢弃污染包重打之后，与 1.1.33 的差异缩回恰好三个文件（`SKILL.md`、`schemas/report-contract.json`、
+`scripts/checks/structure.py`）。归档 450 条目（417 文件、33 目录），sha256 `8ee17f7e`。
+`--verify` 比字节这件事仍未做，记在这里。
+
+本次 README 同步本身要等下一次归档才进包。1.1.34 的 zip 里那份 README 仍是 1.1.30 那一版，
+而且 1.1.31–1.1.34 四个归档带的是同一份（逐份查过，都写着「工作树到 1.1.30」、
+`gate_enforcement 41 项`、`合计 946 项`）。归档是 append-only，`package_release.py` 拒绝覆盖
+已存在的 zip，改它等于篡改一份已签发的归档——所以这份同步留在工作树里，随下一个版本号进包。
 
 
 
