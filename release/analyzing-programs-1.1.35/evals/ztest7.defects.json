@@ -1,0 +1,162 @@
+{
+  "_schema": [
+    "Defect reference for one ABAP source. Report-agnostic: it describes the",
+    "source, not any report, so it stays valid as reports change.",
+    "",
+    "source   the file these defects were read out of, relative to Test-source/real",
+    "defects  one entry per defect:",
+    "           id        stable identifier, referenced by verdict files",
+    "           area      which part of the program the defect lives in",
+    "           question  phrased so a judge can decide yes/partial/no from the",
+    "                     report text alone, without guessing at intent",
+    "           anchor    the source text that makes the defect checkable; some",
+    "                     defects carry `anchors` (a list) instead",
+    "",
+    "Score a report with:  python scripts/evaluate.py score --defects THIS.json \\",
+    "                                                --verdicts YOURVERDICTS.json"
+  ],
+  "source": "Test-source/ztest7.abap",
+  "defects": [
+    {
+      "id": "D1",
+      "area": "可编译性",
+      "question": "报告是否指出取数语句 `INTO TABLE _mara` 的落点是 `_mara`，而 ALV 显示传的是 `TABLES t_outtab = gt_mara`，两个全局变量只差一个下划线；且 `_mara` 在全局声明区并不存在，该语句无法通过语法检查，程序不能激活？",
+      "anchors": [
+        "INTO TABLE _mara UP TO 10 ROWS.",
+        "t_outtab                 = gt_mara.",
+        "gt_mara     TYPE TABLE OF ztest_s,"
+      ]
+    },
+    {
+      "id": "D2",
+      "area": "数据正确性",
+      "question": "报告是否指出回写被改单元格时用 `READ TABLE gt_mara ... INDEX <gs_changed>-row_id` 把 ALV 协议的 `row_id` 当成内表下标；用户在网格上排序或筛选后 row_id 与内表行号不再一致，改动会写到错误的行，且屏幕直接显示错位后的数据？",
+      "anchors": [
+        "READ TABLE gt_mara ASSIGNING FIELD-SYMBOL(<gs_tab>) INDEX <gs_changed>-row_id.",
+        "<gs_tab>-brgew = <gs_changed>-value."
+      ]
+    },
+    {
+      "id": "D3",
+      "area": "数据正确性",
+      "question": "报告是否指出合计累加变量声明为 `INIT lv_i TYPE ntgew_15`（净重）却累加 `<ls_t>-brgew`（毛重），字段语义错配；含包装皮重的物料行会让合计金额系统性偏离毛重之和？",
+      "anchors": [
+        "INIT lv_i TYPE ntgew_15 FOR <ls_t> IN gt_mara NEXT lv_i = lv_i + <ls_t>-brgew"
+      ]
+    },
+    {
+      "id": "D4",
+      "area": "业务逻辑",
+      "question": "报告是否指出程序先调用 `get_subtotals` 取回 ALV 自己按视图算好的合计，随后立即用 `REDUCE` 遍历全表 `gt_mara` 的结果覆盖该合计单元格；筛选或排序后屏幕只显示部分行，合计却仍按全部行求和，两者必然不一致，且前一步取值成了多余动作？",
+      "anchors": [
+        "ep_collect00 = gr_data   \" Overall Total",
+        "ASSIGN gr_data->* TO <gtr_sum_tab>.",
+        "<lg_val> = REDUCE #( INIT lv_i TYPE ntgew_15 FOR <ls_t> IN gt_mara NEXT lv_i = lv_i + <ls_t>-brgew )."
+      ]
+    },
+    {
+      "id": "D5",
+      "area": "健壮性",
+      "question": "报告是否指出 `get_subtotals` 的输出接在泛型引用 `gr_data` 上但未判它是否已赋值；字段目录未设 `do_sum` 或当前无可合计列时该引用停在初始状态，随后 `ASSIGN gr_data->*` 解引用初始引用导致运行时 CX_SY_REF_IS_INITIAL 短转储？",
+      "anchors": [
+        "gr_data     TYPE REF TO data.",
+        "ASSIGN gr_data->* TO <gtr_sum_tab>."
+      ]
+    },
+    {
+      "id": "D6",
+      "area": "健壮性",
+      "question": "报告是否指出 `<gs_changed>-value` 是 `any` 类型，写入 `brgew` 依赖目标字段转换例程的隐式转换，程序未做任何格式校验；用户输入非法字符时转换失败、毛重被写成初始值，且无任何消息提示，用户会以为改动已生效？",
+      "anchors": [
+        "<gs_tab>-brgew = <gs_changed>-value."
+      ]
+    },
+    {
+      "id": "D7",
+      "area": "功能性",
+      "question": "报告是否指出 `FORM set_pf_status` 里的 `CASE sy-ucomm` 只有一个内容为空的 `WHEN OTHERS`，等于命令栏所有功能码被吞掉且不执行任何动作，标准的保存、退出、返回都无响应；该 FORM 的形参 `itr_extab TYPE slis_t_extab` 全程未被引用，扩展工具栏无法影响状态栏？",
+      "anchors": [
+        "FORM set_pf_status USING itr_extab TYPE slis_t_extab.",
+        "CASE sy-ucomm.",
+        "WHEN OTHERS.",
+        "ENDCASE."
+      ]
+    },
+    {
+      "id": "D8",
+      "area": "健壮性",
+      "question": "报告是否指出 `register_edit_event` 对 `mc_evt_modified` 与 `mc_evt_enter` 各调用一次且没有判重；PF-STATUS 回调被再次触发时同一事件会重复登记，导致每次单元格编辑的 `get_data_changed` 回调与其中的 REDUCE 重算、界面刷新都执行两遍？",
+      "anchors": [
+        "CALL METHOD go_grid->register_edit_event",
+        "i_event_id = cl_gui_alv_grid=>mc_evt_modified.",
+        "i_event_id = cl_gui_alv_grid=>mc_evt_enter."
+      ]
+    },
+    {
+      "id": "D9",
+      "area": "功能性",
+      "question": "报告是否指出整个程序没有任何落库语句（无 MODIFY / INSERT / UPDATE / COMMIT），用户在网格里修改的毛重只写回内存内表 `gt_mara`，报表一退出全部丢失；该报表在业务上不可用？",
+      "anchors": [
+        "<gs_tab>-brgew = <gs_changed>-value."
+      ]
+    },
+    {
+      "id": "D10",
+      "area": "可诊断性",
+      "question": "报告是否指出 `REUSE_ALV_FIELDCATALOG_MERGE` 声明了 `inconsistent_interface`、`program_error`、`OTHERS` 三个异常却全部不处理、不区分、不给消息，生成失败时报表静默退出、屏幕全空，现场无从定位？",
+      "anchors": [
+        "inconsistent_interface = 1",
+        "program_error          = 2",
+        "OTHERS                 = 3."
+      ]
+    },
+    {
+      "id": "D11",
+      "area": "可诊断性",
+      "question": "报告是否指出刷新路径上 `IF sy-subrc <> 0. ENDIF.` 是一个条件写了、判断了、什么都不做的空 IF 分支；它既非错误处理也非占位标记，读者会误以为 `finished` 异常已被处理，后续维护者可能把真正逻辑补进这个空壳？",
+      "anchors": [
+        "IF sy-subrc <> 0.",
+        "finished       = 1              \" Display was Ended (by Export)",
+        "OTHERS         = 2"
+      ]
+    },
+    {
+      "id": "D12",
+      "area": "可诊断性",
+      "question": "报告是否指出合计重算链路上 `READ TABLE <gtr_sum_tab> ... INDEX 1` 判了 sy-subrc、`ASSIGN COMPONENT` 判了 `IS ASSIGNED`、外层又判一次 sy-subrc，三重判断任一失败都只是静默跳过、不赋任何值也没有消息；合计不刷新时无法判断是没触发、没赋值还是算错了？",
+      "anchors": [
+        "READ TABLE <gtr_sum_tab> ASSIGNING FIELD-SYMBOL(<l_sum>) INDEX 1.",
+        "ASSIGN COMPONENT 'BRGEW' OF STRUCTURE <l_sum> TO FIELD-SYMBOL(<lg_val>).",
+        "IF <lg_val> IS ASSIGNED."
+      ]
+    },
+    {
+      "id": "D13",
+      "area": "可维护性",
+      "question": "报告是否指出 `gs_stable` 是全局结构而非局部变量，程序只置位 `row`/`col` 为 'X' 却从不清零；后续若只想锁行就必须先手动清 `gs_stable-col`，否则会残留上一次的列锁，行为与预期相反？",
+      "anchors": [
+        "gs_stable   TYPE lvc_s_stbl,",
+        "gs_stable-col = 'X'.",
+        "gs_stable-row = 'X'."
+      ]
+    },
+    {
+      "id": "D14",
+      "area": "性能",
+      "question": "报告是否指出 `READ TABLE gt_fieldcat ASSIGNING FIELD-SYMBOL(<gs_fcat>) WITH KEY fieldname = 'BRGEW'` 用非排序键的 WITH KEY 做线性查找；字段目录几十行时无所谓，规模扩大后退化为整表扫描？",
+      "anchors": [
+        "READ TABLE gt_fieldcat ASSIGNING FIELD-SYMBOL(<gs_fcat>) WITH KEY fieldname = 'BRGEW'."
+      ]
+    },
+    {
+      "id": "D15",
+      "area": "一致性",
+      "question": "报告是否指出 `i_structure_name = 'ZTEST_S'` 让字段目录按 `ZTEST_S` 的全部字段生成，而取数只投影了 `MATNR` 与 `BRGEW` 两列；结构里其余列会以空值出现在网格上？",
+      "anchors": [
+        "i_structure_name       = 'ZTEST_S'",
+        "SELECT matnr,",
+        "brgew"
+      ]
+    }
+  ]
+}
