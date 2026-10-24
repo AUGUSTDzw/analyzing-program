@@ -12,9 +12,11 @@ from checks.contract import (A8_GAP, BUCKETS, CONTRACT, DIAGRAM_LANG, LAYERS,
                              _NEXT_SEC_RE)
 from checks.encoding import replacement_defects
 from checks.escape import escape_defects
-from checks.text import (LIST_ITEM, TICK, TAG, _flat, _src_of, blank_fences,
-                         fence_defects, fence_spans, layer_bodies, layer_body,
-                         line_of, mermaid_labels, mm_violation, source_blocks)
+from checks.text import (LIST_ITEM, TICK, TAG, _flat, _src_of, _strip_comment,
+                          blank_fences, fence_defects, fence_spans, layer_bodies,
+                          layer_body, line_of, mermaid_labels, mm_violation,
+                          source_blocks)
+from checks.tokens import identity, tokenize
 
 SECTIONS_EXACTLY_ONCE = CONTRACT.get("sections_exactly_once", False)
 LAYERS_DISTINCT = CONTRACT["layers"].get("distinct", False)
@@ -30,6 +32,7 @@ DO_WHAT_LIST = bool(DW)
 NSE = CONTRACT["layers"].get("no_statement_echo") or {}
 NSE_KIND = NSE.get("violation_kind", "A8-echo")
 NSE_TOKENS = NSE.get("min_tokens", 2)
+NSE_HEAD = NSE.get("head_min_tokens", 3)
 NO_STATEMENT_ECHO = bool(NSE)
 
 # Same reason as the lists in contract.py and text.py: without one, `import *`
@@ -190,6 +193,86 @@ def _statements(blk):
     return n
 
 
+# A bare run of ABAP letters in prose, i.e. a statement the writer did not
+# wrap in backticks. The run class is exactly what tokenize() reads, plus the
+# whitespace that separates its words. Newlines stop a run: a line is a
+# sentence boundary in markdown, so a copy cannot be split across two.
+PROSE_RUN = re.compile(r"[A-Za-z0-9_\"'<>()\[\].,;:/*+\-=\t ]+")
+
+_HEAD_CACHE = {}
+
+
+def _statement_heads(src):
+    """Identities of whole source statements and of their heads.
+
+    A span is a copied statement when it equals one of these. A *tail* of a
+    statement -- WHERE fieldname = 'BRGEW', sy-subrc EQ 0 -- is a fragment, and
+    naming a fragment is what the first layer exists to do, so fragments stay
+    legal. The earlier test asked only whether the span ended in a period, which
+    is ABAP's terminator and the first thing a writer drops, so deleting one
+    character cleared the whole rule.
+
+    Cached because the same source is checked against many reports in one run.
+    """
+    if src in _HEAD_CACHE:
+        return _HEAD_CACHE[src]
+    out = set()
+    cur = []
+    for raw in (_src_of(src) or "").split("\n"):
+        for kind, val in tokenize(_strip_comment(raw)):
+            if kind == "punct" and val == ".":
+                if cur:
+                    idents = identity(cur)
+                    out.update(idents[:k] for k in
+                               range(max(1, NSE_HEAD), len(idents) + 1))
+                cur = []
+            else:
+                cur.append((kind, val))
+    if cur:
+        idents = identity(cur)
+        out.update(idents[:k] for k in range(max(1, NSE_HEAD),
+                                             len(idents) + 1))
+    _HEAD_CACHE[src] = out
+    return out
+
+
+def _is_copy(text, heads):
+    """True when a span of prose is a whole source statement or the head of one.
+
+    Token identity, so case and punctuation are irrelevant and the trailing
+    period does not matter. Under min_tokens is a single reference such as
+    ENDFORM.; under head_min_tokens it is a two-word phrase such as READ TABLE,
+    which is a mention rather than a statement.
+    """
+    idents = identity(tokenize(text))
+    if len(idents) < NSE_TOKENS:
+        return False
+    return idents in heads
+
+
+def _echo_spans(body, heads):
+    """(start, end, text) of every restatement of a source line in one body.
+
+    Two passes, because the copy gets through two ways: wrapped in backticks,
+    and left bare in the sentence. The spans are blanked in place before the
+    second pass, so a run's offsets still point into the original body and the
+    same copy is not reported twice.
+    """
+    hits = []
+    for m in TICK.finditer(body):
+        if _is_copy(m.group(1), heads):
+            hits.append((m.start(), m.end(), m.group(1)))
+    bare = list(body)
+    for st, en, _t in hits:
+        for i in range(st, en):
+            bare[i] = " "
+    for m in PROSE_RUN.finditer("".join(bare)):
+        run = m.group(0).strip()
+        if _is_copy(run, heads):
+            hits.append((m.start(), m.end(), run))
+    return hits
+
+
 # ------------------------------------------------------------------- checking
 
 def check(s, src=None):
@@ -251,19 +334,16 @@ def check(s, src=None):
                 if NO_STATEMENT_ECHO and body:
                     # A statement-shaped span is a copied line, not a
                     # description. The block sits directly above the prose, so
-                    # the syntax words in it need not be repeated here. One
-                    # token is allowed: ENDFORM. is a minimum reference.
+                    # the syntax words in it need not be repeated here.
                     off = s.find(body, end)
-                    for m in TICK.finditer(body):
-                        sp = m.group(1)
-                        if (sp.rstrip().endswith(".")
-                                and len(sp.split()) >= NSE_TOKENS):
-                            at = line_of(s, off + m.start()) if off >= 0 \
-                                else line_of(s, st)
-                            bad.append((NSE_KIND, at,
-                                        "first layer quotes a statement "
-                                        "instead of describing it: %r"
-                                        % sp[:44]))
+                    for st_e, _en, text in _echo_spans(body,
+                                                        _statement_heads(src)):
+                        at = (line_of(s, off + st_e) if off >= 0
+                              else line_of(s, st))
+                        bad.append((NSE_KIND, at,
+                                    "first layer quotes a statement "
+                                    "instead of describing it: %r"
+                                    % text[:44]))
             continue
         ln = line_of(s, st)
         kind = "A8-cc" if len(gap.strip()) <= A8_GAP else "A8-pt"

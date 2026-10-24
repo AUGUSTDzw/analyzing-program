@@ -1,7 +1,7 @@
 ---
 name: analyzing-programs
-version: 1.1.33
-contract: 1.3.16
+version: 1.1.34
+contract: 1.3.17
 description: Use when the user wants a deep onboarding-style analysis report for an ABAP/SAP program source file (报表程序、FORM/事件块、OO 类 CLAS、函数组、ALV 等), or pastes an ABAP / z*.abap file asking to analyze, walk-through, 讲解 its structure, execution flow, or design. Trigger on phrases like "分析这个程序/源码","走读/讲解 ABAP","代码 onboarding","源码分析/架构分析","帮我看懂这段 SAP 代码". Trigger even when the user does not explicitly say "report" but clearly wants to understand a whole program's business purpose, architecture, and risks. Do NOT use for one-line answers, non-SAP code, or pure syntax/API lookups.
 ---
 # Skill: analyzing-programs
@@ -331,7 +331,7 @@ fix-mislabel 之所以存在：`abap` 与 `abap-fix` 只锁了**一个方向**�
 
 ### 第一层：做什么
 - **展开成带编号/字段/条件的清单，不要一句话概括。** 一句话的"处理物料数据，填充内表"是标题摘要，不是第一层——它没告诉读者取了什么、怎么驱动的、条件是什么、写到哪里。**这条由闸门 `A8-list` 强制执行**：1 句代码至少 1 条，多句代码至少 2 条。**代码块的语句数只在这两个下限之间做选择，它本身不是下限**——不是一句一条。
-- **用自然语言描述，不要把整条语句搬进正文。** 代码块就在第一层正上方，`PERFORM`、`APPEND`、`SELECT ... INTO` 这些语法词读者已经看见了；正文要给的是"这一步在做什么"。该点名的标识符照点名（表名、字段名、组件、变量名、子程序名），但**正文里出现源码那条语句的原文就是抄写，不是描述**。**这条由闸门 `A8-echo` 强制执行**：反引号里是一个完整语句（≥2 个词、以 `.` 结尾）就报。它是 `A8-list` 的镜像——一个防第一层塌成段落，这个防它胀成抄写。
+- **用自然语言描述，不要把整条语句搬进正文。** 代码块就在第一层正上方，`PERFORM`、`APPEND`、`SELECT ... INTO` 这些语法词读者已经看见了；正文要给的是"这一步在做什么"。该点名的标识符照点名（表名、字段名、组件、变量名、子程序名），但**正文里出现源码那条语句的原文就是抄写，不是描述**。**这条由闸门 `A8-echo` 强制执行**：一段与源码某条语句**开头逐词相同**的正文（≥3 个词）就报——反引号里是照报，裸写在句子里也照报，删掉结尾的 `.` 也没用；`WHERE` 条件这类**语句尾部**不算，因为第一层本来就该点名条件。它是 `A8-list` 的镜像——一个防第一层塌成段落，这个防它胀成抄写。
 - **按目的合并，不要一句一条。** 连续八条 `fieldcatalog-xxx = ...` 加 `APPEND`、`CLEAR` 是一个动作（填完一条字段目录），写成 1–3 条自然语言；硬拆成八条只会得到八行代码回声。
 - **每条写清四件事**：① 取什么数据（表名/字段名/结构名）② 怎么驱动（SELECT/LOOP/READ/APPEND 等动作）③ 条件是什么（WHERE 条件、区间、系统字段、判空）④ 写到哪里（内表名、变量名、屏幕输出、写库）。四项不必每条都凑齐，能省则省。
 - **必须用真正会渲染成列表的 markdown 语法**：`1. 2. 3.` 有序列表（步骤有先后时用这个），每项一个动作、各占一行，不要挤成一长段。

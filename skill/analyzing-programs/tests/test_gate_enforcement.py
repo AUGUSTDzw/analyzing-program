@@ -20,6 +20,13 @@ SRC = os.path.join(REPO, "Test-source", "zvend.abap")
 FENCE = chr(96) * 3
 LAYERS = ("做什么", "为什么", "风险与改进")
 
+sys.path.insert(0, os.path.join(ROOT, "scripts"))
+# Imported so the baseline derivation uses the rule's own notion of a copy
+# rather than a private reimplementation of it. Only derivation; the probes
+# still build their mutations from the source themselves.
+from checks.structure import _echo_spans, _statement_heads  # noqa: E402
+from checks.tokens import identity, tokenize  # noqa: E402
+
 N_OK = 0
 FAILS = []
 
@@ -71,6 +78,11 @@ DOT, SEMI, COMMA = "\u3002", "\uff1b", "\uff0c"
 # list markers, so nothing in the baseline may be built from them.
 MARKS = "\u2460\u2461\u2462\u2463\u2464\u2465\u2466\u2467\u2468\u2469"
 
+# A defect kind is printed as a whole field at the start of a line. Matching the
+# bare word 'esc' also matched 'describing' in A8-echo's message, so PROBE 9's
+# negative control went red on a report whose only defect was a statement echo.
+KIND_ESC = re.compile(r"^\s*esc\s", re.M)
+
 
 def _items(body):
     """A first layer's sentences, split only outside backtick spans.
@@ -103,6 +115,86 @@ def _items(body):
             if head.strip() and tail.strip():
                 parts = [head.strip(), tail.strip()]
     return parts
+
+
+_ITEM_RE = re.compile(r"^(\s*\d+\. \S.*)$")
+
+_SRC_CACHE = None
+
+
+def src_text():
+    """SRC read once. The detectors take source text, not a path: report_qc
+    reads the file and passes the string, so passing SRC here would hand the
+    rule the path characters."""
+    global _SRC_CACHE
+    if _SRC_CACHE is None:
+        _SRC_CACHE = io.open(SRC, encoding="utf-8").read()
+    return _SRC_CACHE
+
+
+def fence_statements(text):
+    """The complete statements the report quotes in its abap fences.
+
+    ABAP lets a declaration continue across lines -- TYPES: BEGIN OF ..., then
+    x TYPE ..., then END OF ... -- so a line is not a statement and a trailing
+    period does not by itself mark one. The first probe version walked lines,
+    and what it picked was the last line of a five-line declaration, which is
+    not a statement at all. PROBE 12's positive half then passed because of a
+    defect in the baseline rather than because of the probe's own input, a
+    vacuous pass this file exists not to have.
+    """
+    heads = _statement_heads(src_text())
+    out, cur, inside = [], [], False
+    for line in text.split("\n"):
+        if inside:
+            if re.match(r"^" + FENCE, line):
+                inside = False
+                continue
+            b = line.strip()
+            if not b or b[0] in ("*", '"'):
+                continue
+            for kind, val in tokenize(b):
+                if kind == "punct" and val == "." and cur:
+                    idents = identity(cur)
+                    if len(idents) >= 3 and idents in heads:
+                        out.append(" ".join(idents))
+                    cur = []
+                else:
+                    cur.append((kind, val))
+        elif re.match(r"^" + FENCE + r"\s*abap\s*$", line):
+            inside = True
+    return out
+
+
+def drop_echoes(text):
+    """Remove the derived baseline's own restatements of a source line.
+
+    listify() re-emits BASE's sentences rather than editing them, and the
+    shape it derives must be the shape the gate enforces, as the marker
+    comment in listify() already says of A8-list. Three of BASE's first layers
+    restate a line they have just printed -- twice MODIFY it_disp FROM wa_disp
+    TRANSPORTING ..., once APPEND wa_disp TO it_disp -- so the derived baseline
+    had to lose those spans before any later probe could run on a clean
+    baseline at all. The count is returned and asserted: that the 2026-10-09
+    artifact echoed its own source is a finding about it, and it should not be
+    allowed to disappear silently.
+
+    Only derived list items are touched. A span inside a quoted block is the
+    quotation the whole fidelity comparison rests on, and it stays verbatim.
+    """
+    heads = _statement_heads(src_text())
+    n, out = 0, []
+    for line in text.split("\n"):
+        if _ITEM_RE.match(line):
+            hits = _echo_spans(line, heads)
+            n += len(hits)
+            chars = list(line)
+            for st, en, _t in hits:
+                for i in range(st, en):
+                    chars[i] = " "
+            line = re.sub(r"[ \t]{2,}", " ", "".join(chars))
+        out.append(line)
+    return "\n".join(out), n
 
 
 def listify(text):
@@ -152,46 +244,44 @@ def circulate(text):
     return "\n".join(out)
 
 
-def echoify(text, period=True):
-    """Append one backticked source statement to a first layer's first item.
+def echoify(text, period=True, bare=False, fragment=False):
+    """Append one source statement to a first layer's first item.
 
-    The statement is lifted verbatim from the quoted block directly above the
-    layer, so the only change from the compliant baseline is that a line the
-    reader can already see is quoted a second time. The item count is untouched,
-    which is what lets PROBE 12 attribute the rejection to A8-echo rather than
-    A8-list. With period=False the trailing dot is dropped, leaving a clause or
-    value rather than a statement: the boundary case the rule must not touch.
+    The statement is lifted verbatim from one of the report's own abap fences,
+    so the only change from the compliant baseline is that a line the reader
+    can already see is quoted a second time. The item count is untouched, which
+    is what lets PROBE 12 attribute the rejection to A8-echo rather than
+    A8-list.
+
+    period=False drops the terminator: the boundary the old rule drew, which
+    1.1.34 closes -- ABAP's dot is what makes the span a statement, and it is
+    the first thing a writer deletes. fragment=True keeps only the condition
+    clause, the thing a first layer exists to name and the case the rule must
+    still let through. bare=True drops the backticks, the second of the two
+    ways a copy gets through.
     """
-    lines = text.split("\n")
-    # The first quoted block may be a declaration whose lines end in a comma,
-    # so walk to the first line that is a statement at all.
-    stmt, inside = "", False
-    for line in lines:
-        if inside:
-            if re.match(r"^" + FENCE, line):
-                inside = False
-                continue
-            b = line.strip()
-            if b and b[0] not in ("*", '"') and b.rstrip().endswith("."):
-                stmt = b
-                break
-            continue
-        if re.match(r"^" + FENCE + r"\s*abap\s*$", line):
-            inside = True
+    statements = fence_statements(text)
+    stmt = next((s for s in statements), "")
+    where = next((s for s in statements if "WHERE" in s.upper()), "")
     if not stmt:
         return text
-    if not period:
+    if fragment:
+        # The condition clause is a tail of the statement, never a head, so it
+        # cannot read as a copy of any line the source has.
+        s = where or stmt
+        stmt = s[s.upper().rfind("WHERE"):].strip().rstrip(".")
+    elif not period:
         stmt = stmt.rstrip().rstrip(".")
     tick = chr(96)
-    out, awaiting = [], False
+    lines, out, awaiting = text.split("\n"), [], False
     for line in lines:
         if awaiting:
             m = re.match(r"^([ \t]*)(\d+)\. (\S.*\S)\s*$", line)
             awaiting = False
             if m:
-                out.append("%s%s. %s（%s%s%s）"
-                           % (m.group(1), m.group(2), m.group(3), tick,
-                              stmt, tick))
+                shown = ("%s%s%s" % (tick, stmt, tick)) if not bare else stmt
+                out.append("%s%s. %s（%s）"
+                           % (m.group(1), m.group(2), m.group(3), shown))
                 continue
         if re.match(r"^[ \t]*\*\*" + LAYERS[0] + r"\*\*", line):
             awaiting = True
@@ -201,7 +291,10 @@ def echoify(text, period=True):
 
 def main():
     raw = io.open(BASE, encoding="utf-8").read()
-    base = listify(raw)
+    base, dropped = drop_echoes(listify(raw))
+    check(dropped > 0, "baseline's own restatements are removed, not left "
+                               "to every later probe",
+          "dropped %d span(s)" % dropped)
     tmp = tempfile.mkdtemp()
     print("enforcement probes (current behaviour, see module docstring)")
     print("-" * 72)
@@ -392,14 +485,16 @@ def main():
     rc, out = gate(sl, tmp, "p9_backslash.md")
     check(rc != 0, "PROBE 9 gate now REJECTS a literal backslash-n in prose",
           f"rc={rc}")
-    check("esc" in out, "PROBE 9 the backslash shape is reported as kind 'esc'",
+    check(bool(KIND_ESC.search(out)),
+          "PROBE 9 the backslash shape is reported as kind 'esc'",
           out.strip().splitlines()[0][:80] if out.strip() else "")
     tk = base + "\n\n" + chr(96) + "n" + chr(96) + "n" + "\n"
     check(tk != base, "PROBE 9 backtick residue actually changed the report")
     rc, out = gate(tk, tmp, "p9_tickn.md")
     check(rc != 0, "PROBE 9 gate now REJECTS the backtick-mangled shape",
           f"rc={rc}")
-    check("esc" in out, "PROBE 9 the tick shape is reported as kind 'esc'",
+    check(bool(KIND_ESC.search(out)),
+          "PROBE 9 the tick shape is reported as kind 'esc'",
           out.strip().splitlines()[0][:80] if out.strip() else "")
     # Quoting an escape names it instead of shipping it, so the same two
     # characters inside an inline span must not trip the probe. The baseline is
@@ -407,7 +502,7 @@ def main():
     quiet = (base + "\n\n正文里写 " + chr(96) + chr(92) + "n" + chr(96)
              + " 只是在说这个名字。\n")
     rc, out = gate(quiet, tmp, "p9_quoted.md")
-    check("esc" not in out, "PROBE 9 a quoted escape is not residue",
+    check(not KIND_ESC.search(out), "PROBE 9 a quoted escape is not residue",
           out.strip().splitlines()[0][:80] if out.strip() else "")
 
     # PROBE 10: the first layer written as a paragraph instead of a segmented
@@ -474,16 +569,35 @@ def main():
     check("quotes a statement" in out4,
           "PROBE 12 names what the layer owed")
 
-    # The boundary: without a trailing period a span is a clause or a value,
-    # not a statement, so the WHERE condition a first layer exists to name
-    # stays legal. Without this half, A8-echo would read as "no backticks".
-    cls = echoify(base, period=False)
-    check(cls != base, "PROBE 12b precondition: the baseline carries a clause",
-          "")
-    rc5, out5 = gate(cls, tmp, "p12_clause.md")
-    check(rc5 == 0 and "A8-echo" not in out5,
-          "PROBE 12b a span without a trailing period stays legal",
+    # The terminator is ABAP's way of making a span a statement, and it is the
+    # first thing a writer deletes. The rule 1.1.33 shipped drew its boundary
+    # there, so one removed character cleared the copy.
+    nop = echoify(base, period=False)
+    check(nop != base, "PROBE 12b precondition: the statement with its "
+                               "period dropped", "")
+    rc5, out5 = gate(nop, tmp, "p12_noperiod.md")
+    check(rc5 != 0 and "A8-echo" in out5,
+          "PROBE 12b a statement without its period is still a copy",
           out5.strip().splitlines()[0][:80] if out5.strip() else "")
+
+    # The backticks are the second way out: the same line, unwrapped.
+    barev = echoify(base, bare=True)
+    check(barev != base, "PROBE 12c precondition: the statement left bare", "")
+    rc6, out6 = gate(barev, tmp, "p12_bare.md")
+    check(rc6 != 0 and "A8-echo" in out6,
+          "PROBE 12c a statement left bare in prose is still a copy",
+          out6.strip().splitlines()[0][:80] if out6.strip() else "")
+
+    # The boundary that survives all three: a condition clause is a fragment,
+    # not a copy, and naming it is what the first layer exists for. Without
+    # this half A8-echo would read as "no backticks and no bare code".
+    cls = echoify(base, fragment=True)
+    check(cls != base, "PROBE 12d precondition: the layer names a condition "
+                                "instead", "")
+    rc7, out7 = gate(cls, tmp, "p12_clause.md")
+    check(rc7 == 0 and "A8-echo" not in out7,
+          "PROBE 12d a condition clause stays legal",
+          out7.strip().splitlines()[0][:80] if out7.strip() else "")
     return finish()
 
 
